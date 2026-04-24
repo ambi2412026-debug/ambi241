@@ -185,8 +185,9 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;}
 /* VIDEO */
 .video-wrap{position:relative;overflow:hidden;cursor:pointer;background:#000;}
 .video-wrap video{width:100%;height:100%;object-fit:cover;display:block;}
-.video-play-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.35);font-size:1.6rem;transition:opacity 0.2s;pointer-events:none;}
+.video-play-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.35);font-size:1.6rem;transition:opacity 0.2s;pointer-events:none;z-index:3;}
 .video-wrap.playing .video-play-icon{opacity:0;}
+.video-play-btn{position:absolute;inset:0;z-index:4;background:transparent;border:none;cursor:pointer;width:100%;height:100%;}
 .video-label{position:absolute;bottom:3px;left:4px;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.9);background:rgba(0,0,0,0.6);padding:0.12rem 0.35rem;border-radius:4px;text-transform:uppercase;letter-spacing:0.04em;z-index:2;}
 .soiree-photos{padding:0.6rem 0.9rem 0.4rem;border-top:1px solid rgba(255,45,155,0.1);}
 .soiree-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;}
@@ -1138,10 +1139,11 @@ function buildCard(e,delay,compact){
   if(svValid){
     // Vidéo présente : tap = lecture, boutons upload/suppr toujours visibles si autorisé
     photosHtml+="<div class=\"media-slot\">";
-    photosHtml+="<div class=\"video-wrap\" id=\"vwrap-"+e.id+"\" onclick=\"toggleVideo("+e.id+",this)\">";
+    photosHtml+="<div class=\"video-wrap\" id=\"vwrap-"+e.id+"\">";
     var videoSrc=sv.url&&sv.url.startsWith("data:")?dataUrlToObjectUrl(sv.url):sv.url;
     photosHtml+="<video id=\"vid-"+e.id+"\" src=\""+videoSrc+"\" loop muted playsinline preload=\"metadata\"></video>";
     photosHtml+="<div class=\"video-play-icon\">&#9654;&#65039;</div>";
+    photosHtml+="<button class=\"video-play-btn\" onclick=\"toggleVideo("+e.id+",document.getElementById('vwrap-"+e.id+"'))\" aria-label=\"Lecture\"></button>";
     photosHtml+="<span class=\"video-label\">&#127916; "+getTimeLeft(sv.ts)+"</span>";
     photosHtml+="</div>";
     if(canEditPhotos(e)){
@@ -1174,6 +1176,9 @@ function buildCard(e,delay,compact){
     photosHtml+="<div class=\"photo-wrap\" onclick=\"openLightbox(this.querySelector('img').src)\">";
     photosHtml+="<img src=\""+e.photo_exterieur+"\" alt=\"Ext\">";
     photosHtml+="<span class=\"photo-label\">&#127758; Ext&eacute;rieur</span>";
+    if(canEditPhotos(e)){
+      photosHtml+="<button onclick=\"event.stopPropagation();downloadPhoto('"+e.id+"')\" style=\"position:absolute;top:4px;right:4px;z-index:5;background:rgba(0,229,255,0.85);border:none;border-radius:6px;color:#000;font-size:0.62rem;font-weight:700;padding:0.2rem 0.4rem;cursor:pointer;\">&#11015; DL</button>";
+    }
     photosHtml+="</div>";
     if(canEditPhotos(e)){
       photosHtml+="<div class=\"media-action-bar\">";
@@ -1265,6 +1270,7 @@ function buildCard(e,delay,compact){
     ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#127758; Photo ext&eacute;rieur</div><div style=\"display:flex;gap:0.4rem;flex-wrap:wrap;\">";
     if(e.photo_exterieur){
       ep+="<button data-perm-id=\""+e.id+"\" data-perm-type=\"exterieur\" style=\"background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#9998; Changer</button>";
+      ep+="<button onclick=\"downloadPhoto("+e.id+")\" style=\"background:rgba(0,255,170,0.1);border:1px solid rgba(0,255,170,0.3);color:var(--green);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#11015; T&eacute;l&eacute;charger</button>";
       ep+="<button onclick=\"deletePhoto("+e.id+",'exterieur')\" style=\"background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);color:var(--red);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#128465; Supprimer</button>";
     } else {
       ep+="<button data-perm-id=\""+e.id+"\" data-perm-type=\"exterieur\" style=\"background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#127758; Ajouter photo</button>";
@@ -1569,12 +1575,21 @@ function trimAndSaveVideo(eid,file){
 
 function toggleVideo(eid,wrap){
   var vid=document.getElementById("vid-"+eid);
-  if(!vid)return;
+  if(!vid||!wrap)return;
   if(vid.paused){
     document.querySelectorAll(".video-wrap video").forEach(function(v){
-      if(v!==vid){v.pause();v.closest(".video-wrap").classList.remove("playing");}
+      if(v!==vid){v.pause();var pw=v.closest(".video-wrap");if(pw)pw.classList.remove("playing");}
     });
-    vid.play();wrap.classList.add("playing");
+    vid.muted=true;
+    var prom=vid.play();
+    if(prom&&prom.catch){
+      prom.then(function(){wrap.classList.add("playing");}).catch(function(err){
+        console.warn("Video play error:",err);
+        showToast("Erreur lecture vidéo");
+      });
+    } else {
+      wrap.classList.add("playing");
+    }
   } else {
     vid.pause();wrap.classList.remove("playing");
   }
@@ -1599,6 +1614,39 @@ function saveMapsUrl(id){
   if(!url){showToast("Lien Maps vide");return;}
   updateField(id,{maps_url:url});
   showToast("Lien Maps sauvegarde !");
+}
+
+function downloadPhoto(eid){
+  var etab=etablissements.find(function(x){return x.id===eid;})||{};
+  if(!canEditPhotos(etab)){showToast("Acces refuse");return;}
+  var url=etab.photo_exterieur;
+  if(!url){showToast("Pas de photo exterieur");return;}
+  var filename="exterieur_"+(etab.nom||eid).replace(/\s+/g,"_")+".jpg";
+  // Si c'est déjà un base64 dataURL → téléchargement direct
+  if(url.startsWith("data:")){
+    var a=document.createElement("a");
+    a.href=url;a.download=filename;
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    showToast("Telechargement lance !");
+    return;
+  }
+  // URL externe (Supabase, etc.) → fetch blob pour contourner CORS
+  showToast("Preparation...");
+  fetch(url).then(function(r){
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    return r.blob();
+  }).then(function(blob){
+    var burl=URL.createObjectURL(blob);
+    var a=document.createElement("a");
+    a.href=burl;a.download=filename;
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(burl);},2000);
+    showToast("Telechargement lance !");
+  }).catch(function(err){
+    // Fallback : ouvrir dans un nouvel onglet si CORS bloque
+    window.open(url,"_blank");
+    showToast("Ouverture dans un nouvel onglet (enregistrez manuellement)");
+  });
 }
 
 var toastTimer;
