@@ -1618,6 +1618,24 @@ function coupureVideo(eid,file,fallbackDataUrl){
   };
 }
 
+function refreshVideoSrc(vid,eid){
+  // Régénère le blob URL depuis le localStorage si le src actuel est révoqué ou vide
+  try{
+    var stored=JSON.parse(localStorage.getItem("ambi241_soiree_video")||"{}");
+    var entry=stored[eid];
+    if(entry&&entry.url&&entry.url.startsWith("data:")){
+      var newUrl=dataUrlToObjectUrl(entry.url);
+      var curSrc=vid.src||"";
+      // Toujours rafraîchir si le src est un blob (peut être révoqué) ou vide
+      if(!curSrc||curSrc.startsWith("blob:")||curSrc===""){
+        vid.src=newUrl;
+        return true; // src mis à jour, il faut appeler load()
+      }
+    }
+  }catch(e){}
+  return false;
+}
+
 function toggleVideo(eid,wrap){
   var vid=document.getElementById("vid-"+eid);
   if(!vid||!wrap)return;
@@ -1627,23 +1645,33 @@ function toggleVideo(eid,wrap){
       if(v!==vid){v.pause();var pw=v.closest(".video-wrap");if(pw)pw.classList.remove("playing");}
     });
     vid.muted=true;
-    // Si la vidéo n'est pas encore chargée, la charger d'abord
-    if(vid.readyState===0){vid.load();}
-    var prom=vid.play();
-    if(prom&&typeof prom.then==="function"){
-      prom.then(function(){
+    // Régénère le src depuis localStorage (blob URLs expirés sur Android après reload)
+    var srcRefreshed=refreshVideoSrc(vid,eid);
+    if(srcRefreshed||vid.readyState===0){vid.load();}
+    var doPlay=function(){
+      var prom=vid.play();
+      if(prom&&typeof prom.then==="function"){
+        prom.then(function(){
+          wrap.classList.add("playing");
+        }).catch(function(){
+          // Dernière tentative : recharger src depuis localStorage et rejouer
+          var again=refreshVideoSrc(vid,eid);
+          if(again){vid.load();}
+          setTimeout(function(){
+            vid.play().then(function(){wrap.classList.add("playing");}).catch(function(){
+              showToast("Appuyez a nouveau pour lancer la video");
+            });
+          },400);
+        });
+      } else {
         wrap.classList.add("playing");
-      }).catch(function(){
-        // Deuxième tentative après interaction utilisateur
-        vid.load();
-        setTimeout(function(){
-          vid.play().then(function(){wrap.classList.add("playing");}).catch(function(){
-            showToast("Appuyez a nouveau pour lancer la video");
-          });
-        },300);
-      });
+      }
+    };
+    // Si on vient de recharger le src, attendre canplay avant de lire
+    if(srcRefreshed){
+      vid.oncanplay=function(){vid.oncanplay=null;doPlay();};
     } else {
-      wrap.classList.add("playing");
+      doPlay();
     }
   } else {
     vid.pause();
