@@ -1518,80 +1518,136 @@ function openVideoUpload(eid){
 }
 
 function trimAndSaveVideo(eid,file){
-  showToast("Traitement video...");
-  var url=URL.createObjectURL(file);
-  var vid=document.getElementById("__videoTrimSrc");
-  vid.src=url;
-  vid.load();
-
-  vid.onloadedmetadata=function(){
-    var duration=Math.min(vid.duration,5);
-    vid.currentTime=0;
-    vid.play();
-    var stream=vid.captureStream?vid.captureStream():vid.mozCaptureStream?vid.mozCaptureStream():null;
-
-    if(!stream){
-      // Fallback base64 direct
-      var reader=new FileReader();
-      reader.onload=function(ev){
-        vid.pause();URL.revokeObjectURL(url);
-        if(vid.duration>5.2){showToast("Utilisez une video de 5 sec max (navigateur incompatible avec la coupure auto)");return;}
-        saveSoireeVideo(eid,ev.target.result);
+  showToast("Chargement video...");
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    var dataUrl=ev.target.result;
+    var tmpVid=document.createElement("video");
+    tmpVid.preload="metadata";
+    tmpVid.muted=true;
+    tmpVid.playsInline=true;
+    var objUrl=URL.createObjectURL(file);
+    tmpVid.src=objUrl;
+    tmpVid.onloadedmetadata=function(){
+      URL.revokeObjectURL(objUrl);
+      if(tmpVid.duration<=5.5){
+        // Vidéo courte : sauvegarde directe
+        saveSoireeVideo(eid,dataUrl);
         renderAll();renderHome();
-        showToast("Video ce soir enregistree (10h) !");
-      };
-      reader.readAsDataURL(file);
+        showToast("Video enregistree (10h) !");
+      } else {
+        // Vidéo longue : couper via canvas frame-by-frame avec MediaRecorder si dispo
+        coupureVideo(eid,file,dataUrl);
+      }
+    };
+    tmpVid.onerror=function(){
+      URL.revokeObjectURL(objUrl);
+      // Impossible de lire les métadonnées → sauvegarde quand même
+      saveSoireeVideo(eid,dataUrl);
+      renderAll();renderHome();
+      showToast("Video enregistree (10h) !");
+    };
+  };
+  reader.onerror=function(){showToast("Impossible de lire ce fichier video");};
+  reader.readAsDataURL(file);
+}
+
+function coupureVideo(eid,file,fallbackDataUrl){
+  showToast("Coupure a 5 sec...");
+  var objUrl=URL.createObjectURL(file);
+  var vid=document.createElement("video");
+  vid.muted=true;
+  vid.playsInline=true;
+  vid.preload="auto";
+  vid.src=objUrl;
+
+  vid.oncanplay=function(){
+    vid.oncanplay=null;
+    var stream=null;
+    try{stream=vid.captureStream?vid.captureStream():vid.mozCaptureStream?vid.mozCaptureStream():null;}catch(e){stream=null;}
+    if(!stream){
+      // Pas de captureStream (Safari/iOS) → sauvegarde directe avec avertissement
+      URL.revokeObjectURL(objUrl);
+      saveSoireeVideo(eid,fallbackDataUrl);
+      renderAll();renderHome();
+      showToast("Video enregistree (conseil : utilisez une video de 5 sec max)");
       return;
     }
-
     var chunks=[];
+    var mimeType="video/webm";
     var mr;
-    try{mr=new MediaRecorder(stream,{mimeType:"video/webm;codecs=vp8"});}
-    catch(err){try{mr=new MediaRecorder(stream);}catch(e2){
-      vid.pause();URL.revokeObjectURL(url);
-      var r2=new FileReader();
-      r2.onload=function(ev){saveSoireeVideo(eid,ev.target.result);renderAll();renderHome();showToast("Video ce soir enregistree (10h) !");};
-      r2.readAsDataURL(file);return;
-    }}
-
+    try{mr=new MediaRecorder(stream,{mimeType:"video/webm;codecs=vp8,opus"});}
+    catch(e1){try{mr=new MediaRecorder(stream,{mimeType:"video/webm"});}
+    catch(e2){try{mr=new MediaRecorder(stream);}
+    catch(e3){
+      URL.revokeObjectURL(objUrl);
+      saveSoireeVideo(eid,fallbackDataUrl);
+      renderAll();renderHome();
+      showToast("Video enregistree (coupure non supportee sur cet appareil)");
+      return;
+    }}}
+    mimeType=mr.mimeType||"video/webm";
     mr.ondataavailable=function(ev){if(ev.data&&ev.data.size>0)chunks.push(ev.data);};
     mr.onstop=function(){
-      vid.pause();URL.revokeObjectURL(url);
-      var blob=new Blob(chunks,{type:mr.mimeType||"video/webm"});
-      var r3=new FileReader();
-      r3.onload=function(ev){
-        saveSoireeVideo(eid,ev.target.result);
+      vid.pause();URL.revokeObjectURL(objUrl);
+      var blob=new Blob(chunks,{type:mimeType});
+      var r=new FileReader();
+      r.onload=function(ev2){
+        saveSoireeVideo(eid,ev2.target.result);
         renderAll();renderHome();
-        showToast("Video ce soir enregistree (10h) !");
+        showToast("Video coupee a 5 sec et enregistree (10h) !");
       };
-      r3.readAsDataURL(blob);
+      r.readAsDataURL(blob);
     };
-    mr.start(100);
-    setTimeout(function(){if(mr.state==="recording")mr.stop();},duration*1000);
+    vid.currentTime=0;
+    vid.play().then(function(){
+      mr.start(100);
+      setTimeout(function(){if(mr.state==="recording")mr.stop();},5000);
+    }).catch(function(){
+      URL.revokeObjectURL(objUrl);
+      saveSoireeVideo(eid,fallbackDataUrl);
+      renderAll();renderHome();
+      showToast("Video enregistree (coupure impossible sur cet appareil)");
+    });
   };
-
-  vid.onerror=function(){URL.revokeObjectURL(url);showToast("Erreur lecture video");};
+  vid.onerror=function(){
+    URL.revokeObjectURL(objUrl);
+    saveSoireeVideo(eid,fallbackDataUrl);
+    renderAll();renderHome();
+    showToast("Video enregistree !");
+  };
 }
 
 function toggleVideo(eid,wrap){
   var vid=document.getElementById("vid-"+eid);
   if(!vid||!wrap)return;
   if(vid.paused){
+    // Pause toutes les autres vidéos
     document.querySelectorAll(".video-wrap video").forEach(function(v){
       if(v!==vid){v.pause();var pw=v.closest(".video-wrap");if(pw)pw.classList.remove("playing");}
     });
     vid.muted=true;
+    // Si la vidéo n'est pas encore chargée, la charger d'abord
+    if(vid.readyState===0){vid.load();}
     var prom=vid.play();
-    if(prom&&prom.catch){
-      prom.then(function(){wrap.classList.add("playing");}).catch(function(err){
-        console.warn("Video play error:",err);
-        showToast("Erreur lecture vidéo");
+    if(prom&&typeof prom.then==="function"){
+      prom.then(function(){
+        wrap.classList.add("playing");
+      }).catch(function(){
+        // Deuxième tentative après interaction utilisateur
+        vid.load();
+        setTimeout(function(){
+          vid.play().then(function(){wrap.classList.add("playing");}).catch(function(){
+            showToast("Appuyez a nouveau pour lancer la video");
+          });
+        },300);
       });
     } else {
       wrap.classList.add("playing");
     }
   } else {
-    vid.pause();wrap.classList.remove("playing");
+    vid.pause();
+    wrap.classList.remove("playing");
   }
 }
 
