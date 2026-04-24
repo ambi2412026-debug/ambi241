@@ -640,6 +640,32 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 <video id="__videoTrimSrc" style="display:none" muted playsinline></video>
 <canvas id="__videoTrimCanvas" style="display:none"></canvas>
 
+<!-- GALERIE OVERLAY -->
+<div class="overlay" id="galerieOverlay" onclick="if(event.target===this)closeGalerie()">
+  <div class="modal" style="width:min(460px,100%);max-height:92vh;position:relative;">
+    <button class="modal-close" onclick="closeGalerie()">&#10005;</button>
+    <div id="galerieNom" class="modal-title" style="padding-right:2rem;"></div>
+    <div id="galerieSub" class="modal-sub"></div>
+    <div id="galerieGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:0.9rem;"></div>
+    <div id="galerieAddBar" style="display:none;">
+      <!-- input DANS la modal, déclenché par label natif → fiable sur mobile -->
+      <input type="file" id="__fileGallery" accept="image/*" style="display:none" onchange="onGalerieFileSelected(this)">
+      <label for="__fileGallery" style="display:block;width:100%;padding:0.7rem;border-radius:10px;border:2px dashed rgba(255,45,155,0.4);background:rgba(255,45,155,0.06);color:var(--pink);font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;text-align:center;box-sizing:border-box;">&#43; Ajouter une photo <span id="galerieCount" style="font-size:0.75rem;opacity:0.7;font-family:DM Sans,sans-serif;"></span></label>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL INVITATION INSCRIPTION (visiteurs) -->
+<div class="overlay" id="invitOverlay" onclick="if(event.target===this)closeInvit()">
+  <div class="modal" style="text-align:center;position:relative;">
+    <button class="modal-close" onclick="closeInvit()">&#10005;</button>
+    <div style="font-size:3rem;margin-bottom:0.6rem;">&#127914;</div>
+    <div class="modal-title" style="font-size:1.05rem;">Galerie membres</div>
+    <div class="modal-sub" style="margin-bottom:1.2rem;">La galerie photos est reservee aux membres AMBI241. Rejoins la communaute pour acceder aux photos exclusives de chaque etablissement !</div>
+    <button class="modal-btn" onclick="closeInvit();openUserModal()">&#128100; S'inscrire / Se connecter</button>
+  </div>
+</div>
+
 <nav class="bottom-nav">
   <button class="nav-item active" onclick="switchSection('accueil',this)"><span class="nav-icon">&#127968;</span>Accueil</button>
   <button class="nav-item" onclick="switchSection('etablissements',this)"><span class="nav-icon">&#128269;</span>Lieux</button>
@@ -1113,7 +1139,8 @@ function buildCard(e,delay,compact){
     // Vidéo présente : tap = lecture, boutons upload/suppr toujours visibles si autorisé
     photosHtml+="<div class=\"media-slot\">";
     photosHtml+="<div class=\"video-wrap\" id=\"vwrap-"+e.id+"\" onclick=\"toggleVideo("+e.id+",this)\">";
-    photosHtml+="<video id=\"vid-"+e.id+"\" src=\""+sv.url+"\" loop muted playsinline preload=\"metadata\"></video>";
+    var videoSrc=sv.url&&sv.url.startsWith("data:")?dataUrlToObjectUrl(sv.url):sv.url;
+    photosHtml+="<video id=\"vid-"+e.id+"\" src=\""+videoSrc+"\" loop muted playsinline preload=\"metadata\"></video>";
     photosHtml+="<div class=\"video-play-icon\">&#9654;&#65039;</div>";
     photosHtml+="<span class=\"video-label\">&#127916; "+getTimeLeft(sv.ts)+"</span>";
     photosHtml+="</div>";
@@ -1256,13 +1283,13 @@ function buildCard(e,delay,compact){
     "<div class=\"card-top\">"+
     "<div class=\"card-row1\"><div>"+
     "<div class=\"card-num\">#"+String(e.id).padStart(3,"0")+"</div>"+
-    "<div class=\"card-name\">"+e.nom+"</div>"+
+    "<div class=\"card-name\" onclick=\"openGalerie("+e.id+")\" style=\"cursor:pointer;display:flex;align-items:center;gap:0.35rem;\">"+e.nom+" <span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span></div>"+
     "<span class=\"cat-badge "+ci.badge+"\">"+ci.icon+" "+ci.label+"</span>"+
     "<div style=\"font-size:0.7rem;color:var(--muted);margin-top:0.2rem\">&#128205; "+e.quartier+"</div>"+
     "</div><span class=\"status-pill "+sc+"\">"+e.statut+"</span></div>"+
     affBar+
     "<div class=\"card-ambiance\"><span class=\"lbl\">Ambiance</span><span class=\"val\">"+e.ambiance+"</span></div>"+
-    "<div class=\"info-line\">&#128222; <span>"+e.contact+"</span></div>"+
+    "<div class=\"info-line\">&#128222; <a href=\"tel:"+((e.contact||"").replace(/\s/g,""))+"\" style=\"color:var(--cyan);text-decoration:none;font-weight:600;\">"+e.contact+"</a></div>"+
     mapsBtn+
     "</div>"+soireeHtml+
     "<div class=\"card-bottom\">"+
@@ -1371,6 +1398,26 @@ document.addEventListener("change",function(e){
   }
 });
 
+// Compresse une image via canvas avant envoi (max 800px, qualité 0.75)
+function compressImage(file,callback){
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    var img=new Image();
+    img.onload=function(){
+      var maxW=800,maxH=800;
+      var w=img.width,h=img.height;
+      if(w>maxW){h=Math.round(h*maxW/w);w=maxW;}
+      if(h>maxH){w=Math.round(w*maxH/h);h=maxH;}
+      var canvas=document.createElement("canvas");
+      canvas.width=w;canvas.height=h;
+      canvas.getContext("2d").drawImage(img,0,0,w,h);
+      callback(canvas.toDataURL("image/jpeg",0.75));
+    };
+    img.src=ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function openPermPhotoUpload(eid,type){
   if(!canEditPhotos(etablissements.find(function(x){return x.id===eid;})||{})){
     showToast("Acces refuse : admin ou etablissement requis");return;
@@ -1379,14 +1426,13 @@ function openPermPhotoUpload(eid,type){
   inp.value="";
   inp.onchange=function(){
     var file=inp.files[0];if(!file)return;
-    var reader=new FileReader();
-    reader.onload=function(ev){
+    showToast("Compression en cours...");
+    compressImage(file,function(dataUrl){
       var field=type==="interieur"?"photo_interieur":"photo_exterieur";
-      var obj={};obj[field]=ev.target.result;
+      var obj={};obj[field]=dataUrl;
       updateField(eid,obj);
       showToast("Photo "+type+" mise a jour !");
-    };
-    reader.readAsDataURL(file);
+    });
   };
   inp.click();
 }
@@ -1424,8 +1470,21 @@ function loadSoireeVideos(){
 function saveSoireeVideo(eid,dataUrl){
   var stored=JSON.parse(localStorage.getItem("ambi241_soiree_video")||"{}");
   stored[eid]={url:dataUrl,ts:Date.now()};
-  localStorage.setItem("ambi241_soiree_video",JSON.stringify(stored));
+  try{localStorage.setItem("ambi241_soiree_video",JSON.stringify(stored));}catch(e){showToast("Video trop lourde pour stockage local");}
   soireeVideo=stored;
+}
+
+// Convertit un dataURL base64 en Blob URL pour la lecture vidéo
+function dataUrlToObjectUrl(dataUrl){
+  try{
+    var arr=dataUrl.split(",");
+    var mime=arr[0].match(/:(.*?);/)[1];
+    var bstr=atob(arr[1]);
+    var n=bstr.length;
+    var u8=new Uint8Array(n);
+    for(var i=0;i<n;i++)u8[i]=bstr.charCodeAt(i);
+    return URL.createObjectURL(new Blob([u8],{type:mime}));
+  }catch(e){return dataUrl;}
 }
 
 function deleteSoireeVideo(eid){
@@ -1549,6 +1608,103 @@ function showToast(msg){
   clearTimeout(toastTimer);
   toastTimer=setTimeout(function(){t.classList.remove("show");},2500);
 }
+
+// ── GALERIE PERMANENTE PAR ÉTABLISSEMENT ──────────────────────────
+var galerieEtabId=null;
+var MAX_GALERIE=10;
+
+function loadGalerie(eid){
+  var stored=JSON.parse(localStorage.getItem("ambi241_galerie")||"{}");
+  return stored[eid]||[];
+}
+function saveGalerie(eid,photos){
+  var stored=JSON.parse(localStorage.getItem("ambi241_galerie")||"{}");
+  stored[eid]=photos;
+  try{localStorage.setItem("ambi241_galerie",JSON.stringify(stored));}
+  catch(e){showToast("Stockage plein, supprimez des photos");}
+}
+
+function openGalerie(eid){
+  if(!isAdmin && !currentUserEmail){
+    document.getElementById("invitOverlay").classList.add("show");
+    return;
+  }
+  galerieEtabId=eid;
+  var etab=etablissements.find(function(x){return x.id===eid;})||{};
+  document.getElementById("galerieNom").textContent="\uD83D\uDCF8 "+etab.nom;
+  document.getElementById("galerieSub").textContent="Galerie photos — "+etab.quartier;
+  // Réinitialiser l'input pour que onchange se déclenche même si même fichier
+  var inp=document.getElementById("__fileGallery");
+  if(inp)inp.value="";
+  renderGalerieGrid();
+  document.getElementById("galerieOverlay").classList.add("show");
+}
+function closeGalerie(){
+  document.getElementById("galerieOverlay").classList.remove("show");
+  galerieEtabId=null;
+}
+function closeInvit(){
+  document.getElementById("invitOverlay").classList.remove("show");
+}
+function openUserModal(){
+  document.getElementById("userOverlay").classList.add("show");
+}
+
+function renderGalerieGrid(){
+  var eid=galerieEtabId;
+  var photos=loadGalerie(eid);
+  var etab=etablissements.find(function(x){return x.id===eid;})||{};
+  var canEdit=isAdmin||canEditPhotos(etab);
+  var grid=document.getElementById("galerieGrid");
+  var addBar=document.getElementById("galerieAddBar");
+  var countSpan=document.getElementById("galerieCount");
+
+  countSpan.textContent="("+photos.length+"/"+MAX_GALERIE+")";
+
+  var html="";
+  photos.forEach(function(p,i){
+    html+="<div style=\"position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--surface2);\">";
+    html+="<img src=\""+p.url+"\" style=\"width:100%;height:100%;object-fit:cover;cursor:pointer;display:block;\" onclick=\"openLightbox('"+p.url+"')\">";
+    if(canEdit){
+      html+="<button onclick=\"deleteGaleriePhoto("+i+")\" style=\"position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.7);border:none;color:#fff;width:24px;height:24px;border-radius:50%;font-size:0.75rem;cursor:pointer;line-height:24px;text-align:center;padding:0;\">&#10005;</button>";
+    }
+    html+="</div>";
+  });
+
+  if(photos.length===0){
+    html="<div style=\"grid-column:1/-1;text-align:center;padding:2rem;color:var(--muted);font-size:0.82rem;\">&#128247; Aucune photo pour le moment</div>";
+  }
+
+  grid.innerHTML=html;
+  // Afficher le bouton d'ajout uniquement si canEdit ET moins de 10 photos
+  addBar.style.display=(canEdit&&photos.length<MAX_GALERIE)?"block":"none";
+}
+
+// Appelé directement par onchange sur l'input dans la modal
+function onGalerieFileSelected(inp){
+  var file=inp.files[0];
+  if(!file||galerieEtabId===null)return;
+  var photos=loadGalerie(galerieEtabId);
+  if(photos.length>=MAX_GALERIE){showToast("Maximum "+MAX_GALERIE+" photos atteint");inp.value="";return;}
+  showToast("Compression en cours...");
+  compressImage(file,function(dataUrl){
+    photos.push({url:dataUrl,addedAt:Date.now()});
+    saveGalerie(galerieEtabId,photos);
+    inp.value=""; // reset pour permettre de rechoisir le même fichier
+    renderGalerieGrid();
+    showToast("Photo ajoutee !");
+  });
+}
+
+function deleteGaleriePhoto(index){
+  if(!confirm("Supprimer cette photo ?"))return;
+  var photos=loadGalerie(galerieEtabId);
+  photos.splice(index,1);
+  saveGalerie(galerieEtabId,photos);
+  renderGalerieGrid();
+  showToast("Photo supprimee");
+}
+// ─────────────────────────────────────────────────────────────────
 
 setInterval(function(){if(!isAdmin)loadData();},60000);
 // Restaurer la session utilisateur
