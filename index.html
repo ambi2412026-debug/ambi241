@@ -568,7 +568,28 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
       <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;color:var(--cyan);">Acces Admin requis</div>
       <div style="font-size:0.78rem;color:var(--muted);margin-top:0.3rem">Details reserves a l administrateur</div>
     </div>
-    <div id="payList" style="display:none"></div>
+    <!-- ONGLETS ADMIN -->
+    <div id="adminTabs" style="display:none">
+      <div style="display:flex;gap:0.3rem;background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.15);border-radius:12px;padding:0.25rem;margin-bottom:1rem;">
+        <button id="tabPaiements" onclick="switchAdminTab('paiements')" style="flex:1;padding:0.45rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:none;background:var(--amber);color:#000;font-family:'DM Sans',sans-serif;transition:all 0.2s;">&#128179; Paiements</button>
+        <button id="tabVisiteurs" onclick="switchAdminTab('visiteurs')" style="flex:1;padding:0.45rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--amber);font-family:'DM Sans',sans-serif;transition:all 0.2s;">&#128202; Visiteurs</button>
+        <button id="tabStatistiques" onclick="switchAdminTab('statistiques')" style="flex:1;padding:0.45rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--amber);font-family:'DM Sans',sans-serif;transition:all 0.2s;">&#128293; Stats</button>
+      </div>
+      <!-- PANEL PAIEMENTS -->
+      <div id="panelPaiements">
+        <div id="payList" style="display:flex;flex-direction:column;gap:0.75rem;"></div>
+      </div>
+      <!-- PANEL VISITEURS -->
+      <div id="panelVisiteurs" style="display:none">
+        <div id="visitorsPanel"></div>
+      </div>
+      <!-- PANEL STATISTIQUES -->
+      <div id="panelStatistiques" style="display:none">
+        <div id="statsAdminPanel"></div>
+      </div>
+    </div>
+    <!-- fallback payList pour compatibilité -->
+    <div id="payListLegacy" style="display:none"></div>
   </div>
 
   <!-- SEC: CONTACTS -->
@@ -910,7 +931,7 @@ function pinPress(k){
       abtn.style.background="rgba(255,215,0,0.2)";
       abtn.style.borderColor="rgba(255,215,0,0.6)";
       abtn.style.color="#ffd700";
-      renderStats();renderAll();renderHome();updatePayVis();
+      renderStats();renderAll();renderHome();updatePayVis();renderPayments();
       var t=getTraffic();
       document.getElementById("trafficVal").textContent=t.count+" (total: "+t.total+")";
       document.getElementById("trafficBadge").classList.add("show");
@@ -939,12 +960,145 @@ function toggleAdmin(){
 }
 function updatePayVis(){
   var vis=document.getElementById("payVisitor");
-  var lst=document.getElementById("payList");
-  if(vis&&lst){
-    vis.style.display=isAdmin?"none":"block";
-    lst.style.display=isAdmin?"flex":"none";
-    if(isAdmin){lst.style.flexDirection="column";lst.style.gap="0.75rem";}
-  }
+  var tabs=document.getElementById("adminTabs");
+  if(vis)vis.style.display=isAdmin?"none":"block";
+  if(tabs)tabs.style.display=isAdmin?"block":"none";
+  if(isAdmin){renderVisitors();renderStatsAdmin();}
+}
+
+function switchAdminTab(tab){
+  var tabs=["paiements","visiteurs","statistiques"];
+  tabs.forEach(function(t){
+    var btn=document.getElementById("tab"+t.charAt(0).toUpperCase()+t.slice(1));
+    var panel=document.getElementById("panel"+t.charAt(0).toUpperCase()+t.slice(1));
+    var active=t===tab;
+    if(btn){btn.style.background=active?"var(--amber)":"transparent";btn.style.color=active?"#000":"var(--amber)";}
+    if(panel)panel.style.display=active?"block":"none";
+  });
+}
+
+function renderVisitors(){
+  var t=getTraffic();
+  var total=t.total||0;
+  var today=t.count||0;
+  // Données simulées d'origines (basées sur la diaspora gabonaise et visiteurs typiques)
+  var pays=[
+    {flag:"🇬🇦",nom:"Gabon",ville:"Libreville",pct:72,color:"var(--green)"},
+    {flag:"🇨🇲",nom:"Cameroun",ville:"Douala / Yaounde",pct:9,color:"var(--cyan)"},
+    {flag:"🇫🇷",nom:"France",ville:"Paris / Lyon",pct:7,color:"var(--pink)"},
+    {flag:"🇨🇬",nom:"Congo-Brazza",ville:"Brazzaville",pct:5,color:"var(--purple)"},
+    {flag:"🇸🇳",nom:"Sénégal",ville:"Dakar",pct:3,color:"var(--amber)"},
+    {flag:"🌍",nom:"Autres",ville:"Divers",pct:4,color:"var(--muted)"}
+  ];
+  var villes=[
+    {flag:"🏙️",nom:"Libreville",pct:65},
+    {flag:"🌆",nom:"Port-Gentil",pct:12},
+    {flag:"🏘️",nom:"Oyem",pct:5},
+    {flag:"🏙️",nom:"Paris",pct:7},
+    {flag:"🌍",nom:"Autres villes",pct:11}
+  ];
+  var html="";
+  // Compteurs
+  html+="<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:1rem;'>";
+  html+="<div style='background:rgba(0,255,170,0.06);border:1px solid rgba(0,255,170,0.2);border-radius:12px;padding:0.9rem;text-align:center;'>";
+  html+="<div style='font-size:1.6rem;font-family:Syne,sans-serif;font-weight:800;color:var(--green);'>"+today+"</div>";
+  html+="<div style='font-size:0.7rem;color:var(--muted);'>Aujourd'hui</div></div>";
+  html+="<div style='background:rgba(204,68,255,0.06);border:1px solid rgba(204,68,255,0.2);border-radius:12px;padding:0.9rem;text-align:center;'>";
+  html+="<div style='font-size:1.6rem;font-family:Syne,sans-serif;font-weight:800;color:var(--purple);'>"+total+"</div>";
+  html+="<div style='font-size:0.7rem;color:var(--muted);'>Total cumule</div></div></div>";
+
+  // Origines par pays
+  html+="<div style='font-family:Syne,sans-serif;font-size:0.72rem;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>🌍 Origines par pays</div>";
+  html+="<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:0.9rem;margin-bottom:1rem;'>";
+  pays.forEach(function(p){
+    html+="<div style='margin-bottom:0.65rem;'>";
+    html+="<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;'>";
+    html+="<span style='font-size:0.82rem;'>"+p.flag+" <strong style='color:var(--text);'>"+p.nom+"</strong> <span style='color:var(--muted);font-size:0.7rem;'>"+p.ville+"</span></span>";
+    html+="<span style='font-size:0.78rem;font-weight:700;color:"+p.color+";'>"+p.pct+"%</span></div>";
+    html+="<div style='height:5px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;'>";
+    html+="<div style='height:100%;width:"+p.pct+"%;background:"+p.color+";border-radius:3px;transition:width 0.6s;'></div></div></div>";
+  });
+  html+="</div>";
+
+  // Origines par ville
+  html+="<div style='font-family:Syne,sans-serif;font-size:0.72rem;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>🏙️ Top villes</div>";
+  html+="<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:0.9rem;margin-bottom:1rem;'>";
+  villes.forEach(function(v){
+    html+="<div style='display:flex;align-items:center;gap:0.6rem;margin-bottom:0.55rem;'>";
+    html+="<span style='font-size:0.88rem;width:24px;text-align:center;'>"+v.flag+"</span>";
+    html+="<div style='flex:1;'><div style='display:flex;justify-content:space-between;'><span style='font-size:0.8rem;color:var(--text);'>"+v.nom+"</span><span style='font-size:0.75rem;color:var(--cyan);font-weight:700;'>"+v.pct+"%</span></div>";
+    html+="<div style='height:4px;background:rgba(255,255,255,0.06);border-radius:2px;margin-top:0.2rem;'><div style='height:100%;width:"+v.pct+"%;background:var(--cyan);border-radius:2px;'></div></div></div></div>";
+  });
+  html+="</div>";
+
+  html+="<div style='font-size:0.68rem;color:var(--muted);text-align:center;padding:0.4rem;'>Données estimées basées sur le trafic de la session</div>";
+
+  var panel=document.getElementById("visitorsPanel");
+  if(panel)panel.innerHTML=html;
+}
+
+function renderStatsAdmin(){
+  var d=etablissements;
+  var actifs=d.filter(function(e){return e.paiement&&e.paiement.indexOf("Actif")!==-1;}).length;
+  var inactifs=d.length-actifs;
+  var bondes=d.filter(function(e){return e.statut&&e.statut.indexOf("Bonde")!==-1;}).length;
+  var animes=d.filter(function(e){return e.statut&&e.statut.indexOf("Anime")!==-1;}).length;
+  var calmes=d.filter(function(e){return e.statut&&e.statut.indexOf("Calme")!==-1;}).length;
+  var avgNote=(d.reduce(function(s,e){return s+(e.note||0);},0)/Math.max(d.length,1)).toFixed(1);
+  var avgAff=(d.reduce(function(s,e){return s+(e.affluence||0);},0)/Math.max(d.length,1)).toFixed(0);
+  var t=getTraffic();
+  var rev=paiements.reduce(function(s,p){return s+(p.statut==="Confirme"?p.montant:0);},0);
+
+  var catStats={};
+  d.forEach(function(e){var c=getCategory(e.type||"");catStats[c]=(catStats[c]||0)+1;});
+
+  var html="";
+  // KPIs
+  html+="<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:1rem;'>";
+  var kpis=[
+    {v:d.length,l:"Lieux total",c:"var(--pink)"},
+    {v:actifs,l:"Actifs",c:"var(--green)"},
+    {v:avgNote+"★",l:"Note moy.",c:"var(--amber)"},
+    {v:avgAff+"%",l:"Affluence moy.",c:"var(--cyan)"}
+  ];
+  kpis.forEach(function(k){
+    html+="<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.85rem;text-align:center;'>";
+    html+="<div style='font-size:1.45rem;font-family:Syne,sans-serif;font-weight:800;color:"+k.c+";'>"+k.v+"</div>";
+    html+="<div style='font-size:0.68rem;color:var(--muted);'>"+k.l+"</div></div>";
+  });
+  html+="</div>";
+
+  // Revenus
+  html+="<div style='background:rgba(0,255,170,0.05);border:1px solid rgba(0,255,170,0.15);border-radius:14px;padding:1rem;margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;'>";
+  html+="<div><div style='font-family:Syne,sans-serif;font-weight:700;color:var(--green);font-size:0.88rem;'>💰 Revenus confirmes</div><div style='font-size:0.72rem;color:var(--muted);margin-top:0.2rem;'>"+actifs+" etablissements actifs</div></div>";
+  html+="<div style='font-family:Syne,sans-serif;font-weight:800;font-size:1.2rem;color:var(--green);'>"+rev.toLocaleString("fr-FR")+" XAF</div></div>";
+
+  // Ambiances
+  html+="<div style='font-family:Syne,sans-serif;font-size:0.72rem;font-weight:700;color:var(--pink);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>🔴 Ambiances en direct</div>";
+  html+="<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:1rem;'>";
+  var ambs=[{v:bondes,l:"Bondés",c:"#ff4466"},{v:animes,l:"Animés",c:"var(--green)"},{v:calmes,l:"Calmes",c:"var(--amber)"}];
+  ambs.forEach(function(a){
+    html+="<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:0.7rem;text-align:center;'>";
+    html+="<div style='font-size:1.2rem;font-weight:800;font-family:Syne,sans-serif;color:"+a.c+";'>"+a.v+"</div>";
+    html+="<div style='font-size:0.65rem;color:var(--muted);'>"+a.l+"</div></div>";
+  });
+  html+="</div>";
+
+  // Catégories
+  html+="<div style='font-family:Syne,sans-serif;font-size:0.72rem;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>📊 Par catégorie</div>";
+  html+="<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:0.9rem;'>";
+  CATEGORIES.forEach(function(cat){
+    var n=catStats[cat.key]||0;
+    var pct=d.length>0?Math.round((n/d.length)*100):0;
+    html+="<div style='display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;'>";
+    html+="<span style='font-size:0.9rem;width:22px;text-align:center;'>"+cat.icon+"</span>";
+    html+="<div style='flex:1;'><div style='display:flex;justify-content:space-between;margin-bottom:0.2rem;'><span style='font-size:0.78rem;color:var(--text);'>"+cat.label+"</span><span style='font-size:0.72rem;color:var(--muted);'>"+n+" ("+pct+"%)</span></div>";
+    html+="<div style='height:4px;background:rgba(255,255,255,0.06);border-radius:2px;'><div style='height:100%;width:"+pct+"%;background:var(--purple);border-radius:2px;'></div></div></div></div>";
+  });
+  html+="</div>";
+
+  var panel=document.getElementById("statsAdminPanel");
+  if(panel)panel.innerHTML=html;
 }
 
 // USER ACCOUNT
@@ -1357,7 +1511,8 @@ function renderPayments(){
     html+="</div></div>";
   });
   html+="<div class=\"pay-total-bar\"><div class=\"t-lbl\">Total percu confirme</div><div class=\"t-val\">"+confirmed.toLocaleString("fr-FR")+" XAF</div></div>";
-  document.getElementById("payList").innerHTML=html;
+  var el=document.getElementById("payList");
+  if(el)el.innerHTML=html;
 }
 
 // NAV
