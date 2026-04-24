@@ -1137,11 +1137,10 @@ function buildCard(e,delay,compact){
   var sv=soireeVideo[e.id]||null;
   var svValid=sv&&(Date.now()-sv.ts)<36000000;
   if(svValid){
-    // Vidéo présente : tap = lecture, boutons upload/suppr toujours visibles si autorisé
+    // Vidéo présente : src vide → chargé dynamiquement au play (évite blob révoqué sur Android)
     photosHtml+="<div class=\"media-slot\">";
     photosHtml+="<div class=\"video-wrap\" id=\"vwrap-"+e.id+"\">";
-    var videoSrc=sv.url&&sv.url.startsWith("data:")?dataUrlToObjectUrl(sv.url):sv.url;
-    photosHtml+="<video id=\"vid-"+e.id+"\" src=\""+videoSrc+"\" loop muted playsinline preload=\"metadata\"></video>";
+    photosHtml+="<video id=\"vid-"+e.id+"\" src=\"\" loop muted playsinline preload=\"none\"></video>";
     photosHtml+="<div class=\"video-play-icon\">&#9654;&#65039;</div>";
     photosHtml+="<button class=\"video-play-btn\" onclick=\"toggleVideo("+e.id+",this.parentElement)\" aria-label=\"Lecture\"></button>";
     photosHtml+="<span class=\"video-label\">&#127916; "+getTimeLeft(sv.ts)+"</span>";
@@ -1170,7 +1169,7 @@ function buildCard(e,delay,compact){
     photosHtml+="</div>";
   }
 
-  // SLOT DROIT → Photo extérieur permanente
+  // SLOT DROIT → Photo extérieur permanente (visible par tous)
   if(e.photo_exterieur){
     photosHtml+="<div class=\"media-slot\">";
     photosHtml+="<div class=\"photo-wrap\" onclick=\"openLightbox(this.querySelector('img').src)\">";
@@ -1619,18 +1618,19 @@ function coupureVideo(eid,file,fallbackDataUrl){
 }
 
 function refreshVideoSrc(vid,eid){
-  // Régénère le blob URL depuis le localStorage si le src actuel est révoqué ou vide
+  // Charge le dataURL depuis localStorage et crée un nouveau blob URL frais
+  // Même logique que les photos "ce soir" : on lit toujours depuis localStorage
   try{
     var stored=JSON.parse(localStorage.getItem("ambi241_soiree_video")||"{}");
     var entry=stored[eid];
     if(entry&&entry.url&&entry.url.startsWith("data:")){
+      // Révoquer l'ancien blob URL si existant pour libérer la mémoire
+      var oldSrc=vid.getAttribute("data-blob-url")||"";
+      if(oldSrc&&oldSrc.startsWith("blob:")){try{URL.revokeObjectURL(oldSrc);}catch(e2){}}
       var newUrl=dataUrlToObjectUrl(entry.url);
-      var curSrc=vid.src||"";
-      // Toujours rafraîchir si le src est un blob (peut être révoqué) ou vide
-      if(!curSrc||curSrc.startsWith("blob:")||curSrc===""){
-        vid.src=newUrl;
-        return true; // src mis à jour, il faut appeler load()
-      }
+      vid.setAttribute("data-blob-url",newUrl);
+      vid.src=newUrl;
+      return true;
     }
   }catch(e){}
   return false;
@@ -1645,18 +1645,20 @@ function toggleVideo(eid,wrap){
       if(v!==vid){v.pause();var pw=v.closest(".video-wrap");if(pw)pw.classList.remove("playing");}
     });
     vid.muted=true;
-    // Régénère le src depuis localStorage (blob URLs expirés sur Android après reload)
-    var srcRefreshed=refreshVideoSrc(vid,eid);
-    if(srcRefreshed||vid.readyState===0){vid.load();}
-    var doPlay=function(){
+    // Toujours régénérer le src depuis localStorage (même codification que photos "ce soir")
+    var srcOk=refreshVideoSrc(vid,eid);
+    if(!srcOk&&!vid.src){showToast("Video non disponible");return;}
+    vid.load();
+    vid.oncanplay=function(){
+      vid.oncanplay=null;
       var prom=vid.play();
       if(prom&&typeof prom.then==="function"){
         prom.then(function(){
           wrap.classList.add("playing");
         }).catch(function(){
-          // Dernière tentative : recharger src depuis localStorage et rejouer
-          var again=refreshVideoSrc(vid,eid);
-          if(again){vid.load();}
+          // Dernière tentative : régénérer encore une fois
+          refreshVideoSrc(vid,eid);
+          vid.load();
           setTimeout(function(){
             vid.play().then(function(){wrap.classList.add("playing");}).catch(function(){
               showToast("Appuyez a nouveau pour lancer la video");
@@ -1667,12 +1669,17 @@ function toggleVideo(eid,wrap){
         wrap.classList.add("playing");
       }
     };
-    // Si on vient de recharger le src, attendre canplay avant de lire
-    if(srcRefreshed){
-      vid.oncanplay=function(){vid.oncanplay=null;doPlay();};
-    } else {
-      doPlay();
-    }
+    vid.onerror=function(){
+      vid.onerror=null;
+      // Si erreur, retenter une fois
+      refreshVideoSrc(vid,eid);
+      vid.load();
+      setTimeout(function(){
+        vid.play().then(function(){wrap.classList.add("playing");}).catch(function(){
+          showToast("Erreur lecture video");
+        });
+      },300);
+    };
   } else {
     vid.pause();
     wrap.classList.remove("playing");
