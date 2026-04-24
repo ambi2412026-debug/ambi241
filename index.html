@@ -634,12 +634,10 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 <div class="toast" id="toast"></div>
 
 <!-- Inputs fichier pré-existants dans le DOM -->
-<input type="file" id="__filePermPhoto" accept="image/*" style="display:none">
+<input type="file" id="__filePermPhoto" accept="image/*" style="display:none" onchange="onPermPhotoSelected(this)">
 <input type="file" id="__fileSoireePhoto" accept="image/*" style="display:none">
-<input type="file" id="__fileInterieurVideo" accept="video/*" style="display:none">
-<!-- Canvas caché pour couper la vidéo à 5s -->
-<video id="__videoTrimSrc" style="display:none" muted playsinline></video>
-<canvas id="__videoTrimCanvas" style="display:none"></canvas>
+<!-- input photos slot éphémères 10h — onchange natif, fiable Android -->
+<input type="file" id="__fileSlotPhoto" accept="image/*" style="display:none" onchange="onSlotPhotoSelected(this)">
 
 <!-- GALERIE OVERLAY -->
 <div class="overlay" id="galerieOverlay" onclick="if(event.target===this)closeGalerie()">
@@ -656,7 +654,22 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   </div>
 </div>
 
-<!-- MODAL INVITATION INSCRIPTION (visiteurs) -->
+<!-- LIGHTBOX SLOT PHOTOS CE SOIR -->
+<div id="slotLightbox" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.96);align-items:center;justify-content:center;flex-direction:column;" onclick="if(event.target===this)closeSlotLightbox()">
+  <div style="position:relative;max-width:95vw;max-height:80vh;display:flex;align-items:center;justify-content:center;">
+    <img id="slotLbImg" src="" alt="" style="max-width:95vw;max-height:78vh;object-fit:contain;border-radius:10px;display:block;">
+    <!-- nav prev -->
+    <button id="slotLbPrev" onclick="slotLbNav(-1)" style="display:none;position:absolute;left:-2px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.6);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:1.1rem;cursor:pointer;align-items:center;justify-content:center;">&#8249;</button>
+    <!-- nav next -->
+    <button id="slotLbNext" onclick="slotLbNav(1)" style="display:none;position:absolute;right:-2px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.6);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:1.1rem;cursor:pointer;align-items:center;justify-content:center;">&#8250;</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:0.8rem;margin-top:0.8rem;flex-wrap:wrap;justify-content:center;">
+    <span id="slotLbCounter" style="font-size:0.78rem;color:rgba(255,255,255,0.6);"></span>
+    <span id="slotLbTimer" style="font-size:0.72rem;color:var(--amber);background:rgba(255,215,0,0.1);padding:0.15rem 0.45rem;border-radius:6px;"></span>
+    <button id="slotLbDel" onclick="slotLbDelete()" style="display:none;background:rgba(255,68,102,0.15);border:1px solid rgba(255,68,102,0.4);color:#ff6680;font-size:0.75rem;font-weight:700;padding:0.3rem 0.7rem;border-radius:8px;cursor:pointer;align-items:center;gap:0.3rem;">&#128465; Supprimer</button>
+    <button onclick="closeSlotLightbox()" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);font-size:0.75rem;padding:0.3rem 0.7rem;border-radius:8px;cursor:pointer;">Fermer</button>
+  </div>
+</div>
 <div class="overlay" id="invitOverlay" onclick="if(event.target===this)closeInvit()">
   <div class="modal" style="text-align:center;position:relative;">
     <button class="modal-close" onclick="closeInvit()">&#10005;</button>
@@ -789,7 +802,6 @@ function getTimeLeft(ts){
   return h+"h"+String(m).padStart(2,"0");
 }
 loadSoireePhotos();
-// soireeVideo initialisé plus bas après la déclaration de la fonction
 
 // SUPABASE
 function sbFetch(endpoint,opts){
@@ -865,7 +877,6 @@ function updateSyncTime(){
 
 // RENDER HOME
 function renderHome(){
-  loadSoireeVideos();
   var d=etablissements;
   var statsEl=document.getElementById("statsRowHome");
   if(statsEl){
@@ -1133,41 +1144,37 @@ function buildCard(e,delay,compact){
   // Photos/vidéo de la carte
   var photosHtml="<div class=\"card-photos\">";
 
-  // SLOT GAUCHE → Vidéo soirée éphémère 10h
-  var sv=soireeVideo[e.id]||null;
-  var svValid=sv&&(Date.now()-sv.ts)<36000000;
-  if(svValid){
-    // Vidéo présente : src vide → chargé dynamiquement au play (évite blob révoqué sur Android)
-    photosHtml+="<div class=\"media-slot\">";
-    photosHtml+="<div class=\"video-wrap\" id=\"vwrap-"+e.id+"\">";
-    photosHtml+="<video id=\"vid-"+e.id+"\" src=\"\" loop muted playsinline preload=\"none\"></video>";
-    photosHtml+="<div class=\"video-play-icon\">&#9654;&#65039;</div>";
-    photosHtml+="<button class=\"video-play-btn\" onclick=\"toggleVideo("+e.id+",this.parentElement)\" aria-label=\"Lecture\"></button>";
-    photosHtml+="<span class=\"video-label\">&#127916; "+getTimeLeft(sv.ts)+"</span>";
-    photosHtml+="</div>";
-    if(canEditPhotos(e)){
-      photosHtml+="<div class=\"media-action-bar\">";
-      photosHtml+="<button class=\"mab-btn mab-upload\" data-video-id=\""+e.id+"\">&#128247; Changer</button>";
-      photosHtml+="<button class=\"mab-btn mab-del\" onclick=\"deleteSoireeVideo("+e.id+")\">&#128465; Suppr.</button>";
-      photosHtml+="</div>";
-    }
+  // SLOT GAUCHE → 5 photos éphémères 10h (visible par tous, ajout/suppr admin ou établissement)
+  var slotPhotos=loadSlotPhotos(e.id);
+  photosHtml+="<div class=\"media-slot\">";
+  if(slotPhotos.length>0){
+    photosHtml+="<div style=\"position:relative;height:90px;overflow:hidden;background:#000;\">";
+    // Affiche la 1ère photo en thumbnail, avec indicateur de compte
+    photosHtml+="<img src=\""+slotPhotos[0].url+"\" style=\"width:100%;height:100%;object-fit:cover;display:block;cursor:pointer;\" onclick=\"openSlotLightbox("+e.id+",0)\">";
+    photosHtml+="<span style=\"position:absolute;bottom:3px;left:4px;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.9);background:rgba(0,0,0,0.6);padding:0.12rem 0.35rem;border-radius:4px;z-index:2;\">&#128248; "+slotPhotos.length+"/"+MAX_SLOT+"</span>";
+    photosHtml+="<span style=\"position:absolute;bottom:3px;right:4px;font-size:0.56rem;color:rgba(255,255,255,0.7);background:rgba(0,0,0,0.5);padding:0.1rem 0.3rem;border-radius:4px;z-index:2;\">"+getTimeLeft(slotPhotos[0].ts)+"</span>";
     photosHtml+="</div>";
   } else {
-    photosHtml+="<div class=\"media-slot\">";
     photosHtml+="<div class=\"no-photo\" style=\"height:90px;\">";
     if(canEditPhotos(e)){
-      photosHtml+="<span style=\"font-size:1.4rem;\">&#127916;</span><small style=\"color:var(--muted);font-size:0.6rem;\">Pas de vid&eacute;o ce soir</small>";
+      photosHtml+="<span style=\"font-size:1.4rem;\">&#128248;</span><small style=\"color:var(--muted);font-size:0.6rem;\">Photos ce soir</small>";
     } else {
-      photosHtml+="<span>&#127916;</span><small>Ambiance ce soir</small>";
-    }
-    photosHtml+="</div>";
-    if(canEditPhotos(e)){
-      photosHtml+="<div class=\"media-action-bar\">";
-      photosHtml+="<button class=\"mab-btn mab-upload\" style=\"width:100%;\" data-video-id=\""+e.id+"\">&#127916; Uploader vid&eacute;o (5s max &bull; 10h)</button>";
-      photosHtml+="</div>";
+      photosHtml+="<span>&#128248;</span><small>Photos ce soir</small>";
     }
     photosHtml+="</div>";
   }
+  if(canEditPhotos(e)){
+    photosHtml+="<div class=\"media-action-bar\">";
+    if(slotPhotos.length<MAX_SLOT){
+      // label natif → ouvre directement le sélecteur de fichier sur Android (même pattern que galerie)
+      photosHtml+="<label for=\"__fileSlotPhoto\" class=\"mab-btn mab-upload\" style=\"flex:2;text-align:center;cursor:pointer;\" onclick=\"window.__slotUploadEid="+e.id+"\">&#43; Photo</label>";
+    }
+    if(slotPhotos.length>0){
+      photosHtml+="<button class=\"mab-btn mab-del\" onclick=\"openSlotLightbox("+e.id+",0)\">&#128269; Voir</button>";
+    }
+    photosHtml+="</div>";
+  }
+  photosHtml+="</div>";
 
   // SLOT DROIT → Photo extérieur permanente (visible par tous)
   if(e.photo_exterieur){
@@ -1176,13 +1183,13 @@ function buildCard(e,delay,compact){
     photosHtml+="<img src=\""+e.photo_exterieur+"\" alt=\"Ext\">";
     photosHtml+="<span class=\"photo-label\">&#127758; Ext&eacute;rieur</span>";
     if(canEditPhotos(e)){
-      photosHtml+="<button onclick=\"event.stopPropagation();downloadPhoto('"+e.id+"')\" style=\"position:absolute;top:4px;right:4px;z-index:5;background:rgba(0,229,255,0.85);border:none;border-radius:6px;color:#000;font-size:0.62rem;font-weight:700;padding:0.2rem 0.4rem;cursor:pointer;\">&#11015; DL</button>";
+      photosHtml+="<button onclick=\"event.stopPropagation();triggerPermPhotoUpload("+e.id+",'exterieur')\" style=\"position:absolute;top:4px;right:4px;z-index:5;background:rgba(0,229,255,0.85);border:none;border-radius:6px;color:#000;font-size:0.62rem;font-weight:700;padding:0.2rem 0.4rem;cursor:pointer;\">&#9998;</button>";
     }
     photosHtml+="</div>";
     if(canEditPhotos(e)){
       photosHtml+="<div class=\"media-action-bar\">";
-      photosHtml+="<button class=\"mab-btn mab-upload\" data-perm-id=\""+e.id+"\" data-perm-type=\"exterieur\">&#128247; Changer</button>";
-      photosHtml+="<button class=\"mab-btn mab-del\" onclick=\"deletePhoto("+e.id+",'exterieur')\">&#128465; Suppr.</button>";
+      photosHtml+="<button class=\"mab-btn mab-upload\" onclick=\"triggerPermPhotoUpload("+e.id+",'exterieur')\">&#128247; Changer</button>";
+      photosHtml+="<button class=\"mab-btn mab-del\" onclick=\"deletePermPhoto("+e.id+",'exterieur')\">&#128465; Suppr.</button>";
       photosHtml+="</div>";
     }
     photosHtml+="</div>";
@@ -1190,14 +1197,14 @@ function buildCard(e,delay,compact){
     photosHtml+="<div class=\"media-slot\">";
     photosHtml+="<div class=\"no-photo\" style=\"height:90px;\">";
     if(canEditPhotos(e)){
-      photosHtml+="<span style=\"font-size:1.4rem;\">&#127758;</span><small style=\"color:var(--muted);font-size:0.6rem;\">Pas de photo ext&eacute;rieur</small>";
+      photosHtml+="<span style=\"font-size:1.4rem;\">&#127758;</span><small style=\"color:var(--muted);font-size:0.6rem;\">Photo ext&eacute;rieur</small>";
     } else {
       photosHtml+="<span>&#127758;</span><small>Ext&eacute;rieur</small>";
     }
     photosHtml+="</div>";
     if(canEditPhotos(e)){
       photosHtml+="<div class=\"media-action-bar\">";
-      photosHtml+="<button class=\"mab-btn mab-upload\" style=\"width:100%;\" data-perm-id=\""+e.id+"\" data-perm-type=\"exterieur\">&#127758; Ajouter photo ext&eacute;rieur</button>";
+      photosHtml+="<button class=\"mab-btn mab-upload\" style=\"width:100%;\" onclick=\"triggerPermPhotoUpload("+e.id+",'exterieur')\">&#127758; Ajouter</button>";
       photosHtml+="</div>";
     }
     photosHtml+="</div>";
@@ -1255,24 +1262,25 @@ function buildCard(e,delay,compact){
     ep+="<button class=\"opt-btn "+(e.paiement==="Actif"?"sel-pay":"")+"\" data-id=\""+e.id+"\" data-field=\"paiement\" data-val=\"Actif\">Actif</button>";
     ep+="<button class=\"opt-btn "+(e.paiement==="En attente"?"sel-paywait":"")+"\" data-id=\""+e.id+"\" data-field=\"paiement\" data-val=\"En attente\">En attente</button>";
     ep+="</div></div>";
-    ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#127916; Vid&eacute;o ce soir (10h)</div><div style=\"display:flex;gap:0.4rem;flex-wrap:wrap;\">";
-    var sv2=soireeVideo[e.id]||null;
-    var sv2Valid=sv2&&(Date.now()-sv2.ts)<36000000;
-    if(sv2Valid){
-      ep+="<span style=\"font-size:0.7rem;color:var(--green);padding:0.3rem 0;\">&#9679; Active &bull; "+getTimeLeft(sv2.ts)+"</span>";
-      ep+="<button onclick=\"openVideoUpload("+e.id+")\" style=\"background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#9998; Remplacer</button>";
-      ep+="<button onclick=\"deleteSoireeVideo("+e.id+")\" style=\"background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);color:var(--red);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#128465; Supprimer</button>";
+    ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#128248; Photos ce soir (10h &bull; max "+MAX_SLOT+")</div>";
+    var slotNow=loadSlotPhotos(e.id);
+    ep+="<div style=\"display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;\">";
+    if(slotNow.length>0){
+      ep+="<span style=\"font-size:0.7rem;color:var(--green);padding:0.3rem 0;\">&#9679; "+slotNow.length+"/"+MAX_SLOT+" &bull; "+getTimeLeft(slotNow[0].ts)+"</span>";
+      ep+="<button onclick=\"openSlotLightbox("+e.id+",0)\" style=\"background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#128269; Voir / Suppr.</button>";
+    }
+    if(slotNow.length<MAX_SLOT){
+      ep+="<label for=\"__fileSlotPhoto\" class=\"mab-btn mab-upload\" style=\"padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;display:inline-block;\" onclick=\"window.__slotUploadEid="+e.id+"\">&#43; Ajouter photo</label>";
     } else {
-      ep+="<button onclick=\"openVideoUpload("+e.id+")\" style=\"background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#127916; Uploader vid&eacute;o (max 5s)</button>";
+      ep+="<span style=\"font-size:0.7rem;color:var(--amber);\">Maximum atteint</span>";
     }
     ep+="</div></div>";
     ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#127758; Photo ext&eacute;rieur</div><div style=\"display:flex;gap:0.4rem;flex-wrap:wrap;\">";
     if(e.photo_exterieur){
-      ep+="<button data-perm-id=\""+e.id+"\" data-perm-type=\"exterieur\" style=\"background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#9998; Changer</button>";
-      ep+="<button onclick=\"downloadPhoto("+e.id+")\" style=\"background:rgba(0,255,170,0.1);border:1px solid rgba(0,255,170,0.3);color:var(--green);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#11015; T&eacute;l&eacute;charger</button>";
-      ep+="<button onclick=\"deletePhoto("+e.id+",'exterieur')\" style=\"background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);color:var(--red);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#128465; Supprimer</button>";
+      ep+="<button onclick=\"triggerPermPhotoUpload("+e.id+",'exterieur')\" style=\"background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#9998; Changer</button>";
+      ep+="<button onclick=\"deletePermPhoto("+e.id+",'exterieur')\" style=\"background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);color:var(--red);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#128465; Supprimer</button>";
     } else {
-      ep+="<button data-perm-id=\""+e.id+"\" data-perm-type=\"exterieur\" style=\"background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#127758; Ajouter photo</button>";
+      ep+="<button onclick=\"triggerPermPhotoUpload("+e.id+",'exterieur')\" style=\"background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#127758; Ajouter photo</button>";
     }
     ep+="</div></div>";
     ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#128205; Lien Maps</div>";
@@ -1307,7 +1315,6 @@ function buildCard(e,delay,compact){
 // RENDER ALL
 function renderAll(){
   loadSoireePhotos();
-  loadSoireeVideos();
   var data=filterData();
   if(!data.length){
     document.getElementById("mainList").innerHTML="<div style=\"text-align:center;padding:3rem;color:var(--muted)\">Aucun etablissement trouve</div>";
@@ -1382,11 +1389,6 @@ document.addEventListener("click",function(e){
   }
   var spbtn=e.target.closest("[data-soiree-id]");
   if(spbtn&&isAdmin){openPhotoUpload(parseInt(spbtn.getAttribute("data-soiree-id")));}
-  var ppbtn=e.target.closest("[data-perm-id]");
-  if(ppbtn){openPermPhotoUpload(parseInt(ppbtn.getAttribute("data-perm-id")),ppbtn.getAttribute("data-perm-type"));}
-  // Vidéo intérieur
-  var vbtn=e.target.closest("[data-video-id]");
-  if(vbtn){openVideoUpload(parseInt(vbtn.getAttribute("data-video-id")));}
 });
 
 // Affluence number input
@@ -1423,23 +1425,55 @@ function compressImage(file,callback){
   reader.readAsDataURL(file);
 }
 
-function openPermPhotoUpload(eid,type){
-  if(!canEditPhotos(etablissements.find(function(x){return x.id===eid;})||{})){
-    showToast("Acces refuse : admin ou etablissement requis");return;
-  }
+// Handler natif pour __fileSlotPhoto (déclenché par label, fiable Android)
+var __permPhotoEid=null;
+var __permPhotoType=null;
+
+function onSlotPhotoSelected(inp){
+  var eid=window.__slotUploadEid;
+  if(!eid||!inp.files[0])return;
+  var etab=etablissements.find(function(x){return x.id===eid;})||{};
+  if(!canEditPhotos(etab)){showToast("Acces refuse");inp.value="";return;}
+  var arr=loadSlotPhotos(eid);
+  if(arr.length>=MAX_SLOT){showToast("Maximum "+MAX_SLOT+" photos atteint");inp.value="";return;}
+  showToast("Compression en cours...");
+  compressImage(inp.files[0],function(dataUrl){
+    saveSlotPhoto(eid,dataUrl);
+    inp.value="";
+    renderAll();renderHome();
+    showToast("Photo ajoutee (10h) !");
+  });
+}
+
+function onPermPhotoSelected(inp){
+  if(!__permPhotoEid||!inp.files[0])return;
+  showToast("Compression en cours...");
+  compressImage(inp.files[0],function(dataUrl){
+    var field=__permPhotoType==="interieur"?"photo_interieur":"photo_exterieur";
+    var obj={};obj[field]=dataUrl;
+    updateField(__permPhotoEid,obj);
+    inp.value="";
+    showToast("Photo mise a jour !");
+  });
+}
+
+function triggerPermPhotoUpload(eid,type){
+  var etab=etablissements.find(function(x){return x.id===eid;})||{};
+  if(!canEditPhotos(etab)){showToast("Acces refuse");return;}
+  __permPhotoEid=eid;
+  __permPhotoType=type;
   var inp=document.getElementById("__filePermPhoto");
   inp.value="";
-  inp.onchange=function(){
-    var file=inp.files[0];if(!file)return;
-    showToast("Compression en cours...");
-    compressImage(file,function(dataUrl){
-      var field=type==="interieur"?"photo_interieur":"photo_exterieur";
-      var obj={};obj[field]=dataUrl;
-      updateField(eid,obj);
-      showToast("Photo "+type+" mise a jour !");
-    });
-  };
   inp.click();
+}
+
+function deletePermPhoto(eid,type){
+  var etab=etablissements.find(function(x){return x.id===eid;})||{};
+  if(!canEditPhotos(etab)){showToast("Acces refuse");return;}
+  if(!confirm("Supprimer cette photo ?"))return;
+  var obj={};obj["photo_"+type]=null;
+  updateField(eid,obj);
+  showToast("Photo supprimee !");
 }
 
 function openPhotoUpload(eid){
@@ -1458,245 +1492,88 @@ function openPhotoUpload(eid){
   inp.click();
 }
 
-// ── VIDÉO SOIRÉE ÉPHÉMÈRE (10h, localStorage, établissement+admin) ──
-var soireeVideo={};
+// ── PHOTOS SLOT CE SOIR (10h, max 5, localStorage, établissement+admin) ──
+var MAX_SLOT=5;
 
-function loadSoireeVideos(){
-  var stored=JSON.parse(localStorage.getItem("ambi241_soiree_video")||"{}");
+function loadSlotPhotos(eid){
+  var stored=JSON.parse(localStorage.getItem("ambi241_slot_photos")||"{}");
   var now=Date.now();
-  var cleaned={};
-  Object.keys(stored).forEach(function(id){
-    if((now-stored[id].ts)<36000000)cleaned[id]=stored[id];
-  });
-  localStorage.setItem("ambi241_soiree_video",JSON.stringify(cleaned));
-  soireeVideo=cleaned;
+  var arr=(stored[eid]||[]).filter(function(p){return(now-p.ts)<36000000;});
+  return arr;
 }
 
-function saveSoireeVideo(eid,dataUrl){
-  var stored=JSON.parse(localStorage.getItem("ambi241_soiree_video")||"{}");
-  stored[eid]={url:dataUrl,ts:Date.now()};
-  try{localStorage.setItem("ambi241_soiree_video",JSON.stringify(stored));}catch(e){showToast("Video trop lourde pour stockage local");}
-  soireeVideo=stored;
+function saveSlotPhoto(eid,dataUrl){
+  var stored=JSON.parse(localStorage.getItem("ambi241_slot_photos")||"{}");
+  var now=Date.now();
+  var arr=(stored[eid]||[]).filter(function(p){return(now-p.ts)<36000000;});
+  if(arr.length>=MAX_SLOT){showToast("Maximum "+MAX_SLOT+" photos atteint");return;}
+  arr.push({url:dataUrl,ts:now});
+  stored[eid]=arr;
+  try{localStorage.setItem("ambi241_slot_photos",JSON.stringify(stored));}
+  catch(e){showToast("Stockage plein, supprimez des photos");}
 }
 
-// Convertit un dataURL base64 en Blob URL pour la lecture vidéo
-function dataUrlToObjectUrl(dataUrl){
-  try{
-    var arr=dataUrl.split(",");
-    var mime=arr[0].match(/:(.*?);/)[1];
-    var bstr=atob(arr[1]);
-    var n=bstr.length;
-    var u8=new Uint8Array(n);
-    for(var i=0;i<n;i++)u8[i]=bstr.charCodeAt(i);
-    return URL.createObjectURL(new Blob([u8],{type:mime}));
-  }catch(e){return dataUrl;}
+function deleteSlotPhoto(eid,idx){
+  var stored=JSON.parse(localStorage.getItem("ambi241_slot_photos")||"{}");
+  var now=Date.now();
+  var arr=(stored[eid]||[]).filter(function(p){return(now-p.ts)<36000000;});
+  arr.splice(idx,1);
+  stored[eid]=arr;
+  localStorage.setItem("ambi241_slot_photos",JSON.stringify(stored));
 }
 
-function deleteSoireeVideo(eid){
-  var etab=etablissements.find(function(x){return x.id===eid;})||{};
+// Lightbox spéciale pour le slot avec navigation et suppression
+var _slotLbEid=null;
+var _slotLbIdx=0;
+function openSlotLightbox(eid,idx){
+  var photos=loadSlotPhotos(eid);
+  if(!photos.length)return;
+  _slotLbEid=eid;
+  _slotLbIdx=Math.max(0,Math.min(idx,photos.length-1));
+  renderSlotLightbox();
+  var lb=document.getElementById("slotLightbox");
+  lb.style.display="flex";
+}
+function closeSlotLightbox(){
+  var lb=document.getElementById("slotLightbox");
+  lb.style.display="none";
+  _slotLbEid=null;
+}
+function renderSlotLightbox(){
+  if(_slotLbEid===null)return;
+  var photos=loadSlotPhotos(_slotLbEid);
+  if(!photos.length){closeSlotLightbox();return;}
+  _slotLbIdx=Math.max(0,Math.min(_slotLbIdx,photos.length-1));
+  var p=photos[_slotLbIdx];
+  var etab=etablissements.find(function(x){return x.id===_slotLbEid;})||{};
+  document.getElementById("slotLbImg").src=p.url;
+  document.getElementById("slotLbCounter").textContent=(_slotLbIdx+1)+"/"+photos.length;
+  document.getElementById("slotLbTimer").textContent=getTimeLeft(p.ts);
+  // Boutons nav
+  document.getElementById("slotLbPrev").style.display=_slotLbIdx>0?"flex":"none";
+  document.getElementById("slotLbNext").style.display=_slotLbIdx<photos.length-1?"flex":"none";
+  // Bouton suppr uniquement si canEditPhotos
+  document.getElementById("slotLbDel").style.display=canEditPhotos(etab)?"flex":"none";
+}
+function slotLbNav(dir){
+  var photos=loadSlotPhotos(_slotLbEid);
+  _slotLbIdx=Math.max(0,Math.min(_slotLbIdx+dir,photos.length-1));
+  renderSlotLightbox();
+}
+function slotLbDelete(){
+  if(_slotLbEid===null)return;
+  var etab=etablissements.find(function(x){return x.id===_slotLbEid;})||{};
   if(!canEditPhotos(etab)){showToast("Acces refuse");return;}
-  var stored=JSON.parse(localStorage.getItem("ambi241_soiree_video")||"{}");
-  delete stored[eid];
-  localStorage.setItem("ambi241_soiree_video",JSON.stringify(stored));
-  soireeVideo=stored;
+  if(!confirm("Supprimer cette photo ?"))return;
+  deleteSlotPhoto(_slotLbEid,_slotLbIdx);
+  var photos=loadSlotPhotos(_slotLbEid);
+  if(!photos.length){closeSlotLightbox();renderAll();renderHome();showToast("Photo supprimee");return;}
+  _slotLbIdx=Math.max(0,_slotLbIdx-1);
+  renderSlotLightbox();
   renderAll();renderHome();
-  showToast("Video supprimee !");
+  showToast("Photo supprimee");
 }
-
-function openVideoUpload(eid){
-  var etab=etablissements.find(function(x){return x.id===eid;})||{};
-  if(!canEditPhotos(etab)){showToast("Acces refuse : admin ou etablissement requis");return;}
-  var inp=document.getElementById("__fileInterieurVideo");
-  inp.value="";
-  inp.onchange=function(){
-    var file=inp.files[0];if(!file)return;
-    if(file.size>80*1024*1024){showToast("Fichier trop lourd (max 80 MB)");return;}
-    trimAndSaveVideo(eid,file);
-  };
-  inp.click();
-}
-
-function trimAndSaveVideo(eid,file){
-  showToast("Chargement video...");
-  var reader=new FileReader();
-  reader.onload=function(ev){
-    var dataUrl=ev.target.result;
-    var tmpVid=document.createElement("video");
-    tmpVid.preload="metadata";
-    tmpVid.muted=true;
-    tmpVid.playsInline=true;
-    var objUrl=URL.createObjectURL(file);
-    tmpVid.src=objUrl;
-    tmpVid.onloadedmetadata=function(){
-      URL.revokeObjectURL(objUrl);
-      if(tmpVid.duration<=5.5){
-        // Vidéo courte : sauvegarde directe
-        saveSoireeVideo(eid,dataUrl);
-        renderAll();renderHome();
-        showToast("Video enregistree (10h) !");
-      } else {
-        // Vidéo longue : couper via canvas frame-by-frame avec MediaRecorder si dispo
-        coupureVideo(eid,file,dataUrl);
-      }
-    };
-    tmpVid.onerror=function(){
-      URL.revokeObjectURL(objUrl);
-      // Impossible de lire les métadonnées → sauvegarde quand même
-      saveSoireeVideo(eid,dataUrl);
-      renderAll();renderHome();
-      showToast("Video enregistree (10h) !");
-    };
-  };
-  reader.onerror=function(){showToast("Impossible de lire ce fichier video");};
-  reader.readAsDataURL(file);
-}
-
-function coupureVideo(eid,file,fallbackDataUrl){
-  showToast("Coupure a 5 sec...");
-  var objUrl=URL.createObjectURL(file);
-  var vid=document.createElement("video");
-  vid.muted=true;
-  vid.playsInline=true;
-  vid.preload="auto";
-  vid.src=objUrl;
-
-  vid.oncanplay=function(){
-    vid.oncanplay=null;
-    var stream=null;
-    try{stream=vid.captureStream?vid.captureStream():vid.mozCaptureStream?vid.mozCaptureStream():null;}catch(e){stream=null;}
-    if(!stream){
-      // Pas de captureStream (Safari/iOS) → sauvegarde directe avec avertissement
-      URL.revokeObjectURL(objUrl);
-      saveSoireeVideo(eid,fallbackDataUrl);
-      renderAll();renderHome();
-      showToast("Video enregistree (conseil : utilisez une video de 5 sec max)");
-      return;
-    }
-    var chunks=[];
-    var mimeType="video/webm";
-    var mr;
-    try{mr=new MediaRecorder(stream,{mimeType:"video/webm;codecs=vp8,opus"});}
-    catch(e1){try{mr=new MediaRecorder(stream,{mimeType:"video/webm"});}
-    catch(e2){try{mr=new MediaRecorder(stream);}
-    catch(e3){
-      URL.revokeObjectURL(objUrl);
-      saveSoireeVideo(eid,fallbackDataUrl);
-      renderAll();renderHome();
-      showToast("Video enregistree (coupure non supportee sur cet appareil)");
-      return;
-    }}}
-    mimeType=mr.mimeType||"video/webm";
-    mr.ondataavailable=function(ev){if(ev.data&&ev.data.size>0)chunks.push(ev.data);};
-    mr.onstop=function(){
-      vid.pause();URL.revokeObjectURL(objUrl);
-      var blob=new Blob(chunks,{type:mimeType});
-      var r=new FileReader();
-      r.onload=function(ev2){
-        saveSoireeVideo(eid,ev2.target.result);
-        renderAll();renderHome();
-        showToast("Video coupee a 5 sec et enregistree (10h) !");
-      };
-      r.readAsDataURL(blob);
-    };
-    vid.currentTime=0;
-    vid.play().then(function(){
-      mr.start(100);
-      setTimeout(function(){if(mr.state==="recording")mr.stop();},5000);
-    }).catch(function(){
-      URL.revokeObjectURL(objUrl);
-      saveSoireeVideo(eid,fallbackDataUrl);
-      renderAll();renderHome();
-      showToast("Video enregistree (coupure impossible sur cet appareil)");
-    });
-  };
-  vid.onerror=function(){
-    URL.revokeObjectURL(objUrl);
-    saveSoireeVideo(eid,fallbackDataUrl);
-    renderAll();renderHome();
-    showToast("Video enregistree !");
-  };
-}
-
-function refreshVideoSrc(vid,eid){
-  // Charge le dataURL depuis localStorage et crée un nouveau blob URL frais
-  // Même logique que les photos "ce soir" : on lit toujours depuis localStorage
-  try{
-    var stored=JSON.parse(localStorage.getItem("ambi241_soiree_video")||"{}");
-    var entry=stored[eid];
-    if(entry&&entry.url&&entry.url.startsWith("data:")){
-      // Révoquer l'ancien blob URL si existant pour libérer la mémoire
-      var oldSrc=vid.getAttribute("data-blob-url")||"";
-      if(oldSrc&&oldSrc.startsWith("blob:")){try{URL.revokeObjectURL(oldSrc);}catch(e2){}}
-      var newUrl=dataUrlToObjectUrl(entry.url);
-      vid.setAttribute("data-blob-url",newUrl);
-      vid.src=newUrl;
-      return true;
-    }
-  }catch(e){}
-  return false;
-}
-
-function toggleVideo(eid,wrap){
-  var vid=document.getElementById("vid-"+eid);
-  if(!vid||!wrap)return;
-  if(vid.paused){
-    // Pause toutes les autres vidéos
-    document.querySelectorAll(".video-wrap video").forEach(function(v){
-      if(v!==vid){v.pause();var pw=v.closest(".video-wrap");if(pw)pw.classList.remove("playing");}
-    });
-    vid.muted=true;
-    // Toujours régénérer le src depuis localStorage (même codification que photos "ce soir")
-    var srcOk=refreshVideoSrc(vid,eid);
-    if(!srcOk&&!vid.src){showToast("Video non disponible");return;}
-    vid.load();
-    vid.oncanplay=function(){
-      vid.oncanplay=null;
-      var prom=vid.play();
-      if(prom&&typeof prom.then==="function"){
-        prom.then(function(){
-          wrap.classList.add("playing");
-        }).catch(function(){
-          // Dernière tentative : régénérer encore une fois
-          refreshVideoSrc(vid,eid);
-          vid.load();
-          setTimeout(function(){
-            vid.play().then(function(){wrap.classList.add("playing");}).catch(function(){
-              showToast("Appuyez a nouveau pour lancer la video");
-            });
-          },400);
-        });
-      } else {
-        wrap.classList.add("playing");
-      }
-    };
-    vid.onerror=function(){
-      vid.onerror=null;
-      // Si erreur, retenter une fois
-      refreshVideoSrc(vid,eid);
-      vid.load();
-      setTimeout(function(){
-        vid.play().then(function(){wrap.classList.add("playing");}).catch(function(){
-          showToast("Erreur lecture video");
-        });
-      },300);
-    };
-  } else {
-    vid.pause();
-    wrap.classList.remove("playing");
-  }
-}
-
-function deleteVideo(eid){deleteSoireeVideo(eid);}// alias rétrocompatibilité
-
-function deletePhoto(eid,type){
-  var etab=etablissements.find(function(x){return x.id===eid;})||{};
-  if(!canEditPhotos(etab)){showToast("Acces refuse");return;}
-  if(!confirm("Supprimer la photo "+type+" ?"))return;
-  var obj={};obj["photo_"+type]=null;
-  updateField(eid,obj);
-  showToast("Photo supprimee !");
-}
-// ────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
 
 function saveMapsUrl(id){
   var inp=document.querySelector(".maps-url-input[data-id=\""+id+"\"]");
@@ -1705,39 +1582,6 @@ function saveMapsUrl(id){
   if(!url){showToast("Lien Maps vide");return;}
   updateField(id,{maps_url:url});
   showToast("Lien Maps sauvegarde !");
-}
-
-function downloadPhoto(eid){
-  var etab=etablissements.find(function(x){return x.id===eid;})||{};
-  if(!canEditPhotos(etab)){showToast("Acces refuse");return;}
-  var url=etab.photo_exterieur;
-  if(!url){showToast("Pas de photo exterieur");return;}
-  var filename="exterieur_"+(etab.nom||eid).replace(/\s+/g,"_")+".jpg";
-  // Si c'est déjà un base64 dataURL → téléchargement direct
-  if(url.startsWith("data:")){
-    var a=document.createElement("a");
-    a.href=url;a.download=filename;
-    document.body.appendChild(a);a.click();document.body.removeChild(a);
-    showToast("Telechargement lance !");
-    return;
-  }
-  // URL externe (Supabase, etc.) → fetch blob pour contourner CORS
-  showToast("Preparation...");
-  fetch(url).then(function(r){
-    if(!r.ok)throw new Error("HTTP "+r.status);
-    return r.blob();
-  }).then(function(blob){
-    var burl=URL.createObjectURL(blob);
-    var a=document.createElement("a");
-    a.href=burl;a.download=filename;
-    document.body.appendChild(a);a.click();document.body.removeChild(a);
-    setTimeout(function(){URL.revokeObjectURL(burl);},2000);
-    showToast("Telechargement lance !");
-  }).catch(function(err){
-    // Fallback : ouvrir dans un nouvel onglet si CORS bloque
-    window.open(url,"_blank");
-    showToast("Ouverture dans un nouvel onglet (enregistrez manuellement)");
-  });
 }
 
 var toastTimer;
@@ -1848,7 +1692,6 @@ function deleteGaleriePhoto(index){
 setInterval(function(){if(!isAdmin)loadData();},60000);
 // Restaurer la session utilisateur
 (function(){var u=localStorage.getItem("ambi241_currentUser");if(u)try{currentUserEmail=JSON.parse(u).email||"";}catch(e){}})();
-loadSoireeVideos();
 loadData();renderPayments();updatePayVis();
 </script>
 </body>
