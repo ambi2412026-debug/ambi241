@@ -1321,9 +1321,22 @@ function renderStats(){
 }
 
 // FILTER DATA
+function estPaiementConfirme(etab){
+  // Vérifie si le paiement de cet établissement est confirmé par l'admin
+  // Cherche dans le tableau paiements par nom (correspondance nom établissement)
+  var pay=paiements.find(function(p){
+    return p.nom&&etab.nom&&p.nom.toLowerCase().trim()===etab.nom.toLowerCase().trim();
+  });
+  // Accepte aussi si le champ paiement de l'établissement contient "Actif (Admin)" (ajout admin)
+  if(etab.paiement&&etab.paiement.indexOf("Admin")!==-1)return true;
+  return pay&&pay.statut==="Confirme";
+}
+
 function filterData(){
   var q=document.getElementById("searchInput").value.toLowerCase();
   var data=etablissements.filter(function(e){
+    // Condition paiement : visible seulement si confirmé (admin voit tout)
+    if(!isAdmin && !estPaiementConfirme(e)) return false;
     var ms=!q||e.nom.toLowerCase().indexOf(q)!==-1||(e.quartier&&e.quartier.toLowerCase().indexOf(q)!==-1)||(e.type&&e.type.toLowerCase().indexOf(q)!==-1);
     var mt=currentType==="all"||(getCategory(e.type)===currentType);
     var mv=currentStatus==="all"||(e.statut&&e.statut.indexOf(currentStatus)!==-1);
@@ -1535,11 +1548,28 @@ function buildCard(e,delay,compact){
 function renderAll(){
   loadSoireePhotos();
   var data=filterData();
+  // Bandeau établissements archivés (admin uniquement)
+  var archivedHtml="";
+  if(isAdmin){
+    var archived=etablissements.filter(function(e){return !estPaiementConfirme(e);});
+    if(archived.length>0){
+      archivedHtml+="<div style=\"background:rgba(255,80,80,0.08);border:1px dashed rgba(255,80,80,0.3);border-radius:14px;padding:0.8rem 1rem;margin-bottom:1rem;\">";
+      archivedHtml+="<div style=\"font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;color:#ff5050;margin-bottom:0.5rem;\">&#128274; "+archived.length+" établissement(s) archivé(s) — en attente de paiement</div>";
+      archived.forEach(function(e){
+        archivedHtml+="<div style=\"display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,0.3);border-radius:10px;padding:0.5rem 0.75rem;margin-bottom:0.4rem;\">";
+        archivedHtml+="<div><div style=\"font-weight:700;font-size:0.82rem;color:#fff;\">"+e.nom+"</div><div style=\"font-size:0.7rem;color:var(--muted);\">"+e.type+" · "+e.quartier+"</div></div>";
+        archivedHtml+="<span style=\"font-size:0.7rem;color:#ff5050;font-weight:700;background:rgba(255,80,80,0.12);padding:0.2rem 0.5rem;border-radius:6px;\">Non payé</span>";
+        archivedHtml+="</div>";
+      });
+      archivedHtml+="<div style=\"font-size:0.68rem;color:var(--muted);margin-top:0.4rem;\">&#128161; Confirmez le paiement dans l'onglet Tarifs pour rendre visible.</div>";
+      archivedHtml+="</div>";
+    }
+  }
   if(!data.length){
-    document.getElementById("mainList").innerHTML="<div style=\"text-align:center;padding:3rem;color:var(--muted)\">Aucun etablissement trouve</div>";
+    document.getElementById("mainList").innerHTML=archivedHtml+"<div style=\"text-align:center;padding:3rem;color:var(--muted)\">Aucun etablissement visible</div>";
     return;
   }
-  var html="";
+  var html=archivedHtml;
   if(currentView==="liste"){
     html="<div class=\"cards-list\">";
     data.forEach(function(e,i){html+=buildCard(e,i*0.04,false);});
@@ -1573,17 +1603,17 @@ function toggleConfirme(index){
     window.fbUpdateDoc(docRef,{statut:newStatut}).then(function(){
       paiements[index].statut=newStatut;
       renderPayments();
-      showToast(newStatut==="Confirme"?"✅ Paiement confirmé":"⏳ Remis en attente");
+      renderPayments();renderAll();renderHome();
+      showToast(newStatut==="Confirme"?"✅ Paiement confirmé — établissement visible":"⏳ Remis en attente — établissement archivé");
     }).catch(function(){
-      // Fallback local si pas de doc Firebase pour ce paiement
       paiements[index].statut=newStatut;
-      renderPayments();
+      renderPayments();renderAll();renderHome();
       showToast(newStatut==="Confirme"?"✅ Confirmé (local)":"⏳ En attente (local)");
     });
   } else {
     paiements[index].statut=newStatut;
-    renderPayments();
-    showToast(newStatut==="Confirme"?"✅ Paiement confirmé":"⏳ Remis en attente");
+    renderPayments();renderAll();renderHome();
+    showToast(newStatut==="Confirme"?"✅ Paiement confirmé — établissement visible":"⏳ Remis en attente — établissement archivé");
   }
 }
 window.toggleConfirme=toggleConfirme;
