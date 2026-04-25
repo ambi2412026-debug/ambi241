@@ -1562,6 +1562,32 @@ function renderAll(){
 }
 
 // PAYMENTS
+function toggleConfirme(index){
+  if(!isAdmin)return;
+  var p=paiements[index];
+  if(!p)return;
+  var newStatut=p.statut==="Confirme"?"En attente":"Confirme";
+  // Mise à jour Firebase si disponible
+  if(window.db && window.fbDoc && window.fbUpdateDoc){
+    var docRef=window.fbDoc(window.db,"paiements",p.id);
+    window.fbUpdateDoc(docRef,{statut:newStatut}).then(function(){
+      paiements[index].statut=newStatut;
+      renderPayments();
+      showToast(newStatut==="Confirme"?"✅ Paiement confirmé":"⏳ Remis en attente");
+    }).catch(function(){
+      // Fallback local si pas de doc Firebase pour ce paiement
+      paiements[index].statut=newStatut;
+      renderPayments();
+      showToast(newStatut==="Confirme"?"✅ Confirmé (local)":"⏳ En attente (local)");
+    });
+  } else {
+    paiements[index].statut=newStatut;
+    renderPayments();
+    showToast(newStatut==="Confirme"?"✅ Paiement confirmé":"⏳ Remis en attente");
+  }
+}
+window.toggleConfirme=toggleConfirme;
+
 function renderPayments(){
   var confirmed=paiements.reduce(function(s,p){return s+(p.statut==="Confirme"?p.montant:0);},0);
   var html="";
@@ -1572,7 +1598,13 @@ function renderPayments(){
     html+="<div class=\"pay-chips\">";
     html+="<span class=\"pchip\">"+(p.mode==="Airtel Money"?"&#128992;":"&#128994;")+" "+p.mode+"</span>";
     html+="<span class=\"pchip\">&#128197; "+p.date+"</span>";
-    html+="<span class=\"pchip\" style=\""+(p.statut==="Confirme"?"color:var(--green)":"color:var(--amber)")+"\">" +p.statut+"</span>";
+    if(isAdmin){
+      var sc=p.statut==="Confirme"?"color:var(--green);border:1px solid var(--green);cursor:pointer;":"color:var(--amber);border:1px solid var(--amber);cursor:pointer;";
+      html+="<button class=\"pchip\" onclick=\"toggleConfirme("+i+")\" style=\"background:transparent;font-family:inherit;font-size:inherit;"+sc+"\">"+p.statut+"</button>";
+    } else {
+      var sc2=p.statut==="Confirme"?"color:var(--green)":"color:var(--amber)";
+      html+="<span class=\"pchip\" style=\"pointer-events:none;"+sc2+"\">"+p.statut+"</span>";
+    }
     html+="</div></div>";
   });
   html+="<div class=\"pay-total-bar\"><div class=\"t-lbl\">Total percu confirme</div><div class=\"t-val\">"+confirmed.toLocaleString("fr-FR")+" XAF</div></div>";
