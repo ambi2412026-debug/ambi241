@@ -590,6 +590,8 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
         <button id="tabVisiteurs" onclick="switchAdminTab('visiteurs')" style="flex:1;padding:0.45rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--amber);font-family:'DM Sans',sans-serif;transition:all 0.2s;">&#128202; Visiteurs</button>
         <button id="tabStatistiques" onclick="switchAdminTab('statistiques')" style="flex:1;padding:0.45rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--amber);font-family:'DM Sans',sans-serif;transition:all 0.2s;">&#128293; Stats</button>
       </div>
+      <!-- BOUTON AJOUT ADMIN GRATUIT -->
+      <button onclick="openAdminAddModal()" style="width:100%;padding:0.75rem;border-radius:12px;border:2px dashed rgba(255,215,0,0.5);background:rgba(255,215,0,0.08);color:var(--amber);font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;margin-bottom:1rem;transition:all 0.2s;">&#43; Ajouter un établissement (gratuit)</button>
       <!-- PANEL PAIEMENTS -->
       <div id="panelPaiements">
         <div id="payList" style="display:flex;flex-direction:column;gap:0.75rem;"></div>
@@ -1011,13 +1013,8 @@ function updatePayVis(){
   var tabs=document.getElementById("adminTabs");
   if(vis)vis.style.display=isAdmin?"none":"block";
   if(tabs)tabs.style.display=isAdmin?"block":"none";
-  if(isAdmin){renderVisitors();renderStatsAdmin();
-    var sb=document.getElementById("seedBanner");
-    if(sb)sb.style.display="block";
-  } else {
-    var sb=document.getElementById("seedBanner");
-    if(sb)sb.style.display="none";
-  }
+  if(isAdmin){renderVisitors();renderStatsAdmin();}
+
 }
 
 function switchAdminTab(tab){
@@ -1290,6 +1287,8 @@ document.getElementById("etablForm").addEventListener("submit",function(e){
     msg.style.display="block";msg.style.color="var(--red)";msg.textContent="Erreur de connexion.";
   });
 });
+
+
 
 // LIGHTBOX
 function openLightbox(src){
@@ -1948,6 +1947,68 @@ window.deleteGaleriePhoto     = deleteGaleriePhoto;
 window.openPhotoUpload        = openPhotoUpload;
 // ─────────────────────────────────────────────────────────────
 
+
+// ── ADMIN AJOUT ETABLISSEMENT GRATUIT ────────────────────────
+function openAdminAddModal(){
+  if(!isAdmin){showToast("Acces admin requis");return;}
+  document.getElementById("adminAddFirebase").style.display="block";
+  document.getElementById("adminAddOverlay").classList.add("show");
+}
+function closeAdminAddModal(){
+  document.getElementById("adminAddOverlay").classList.remove("show");
+}
+function adminAddFirebase(){
+  var nom = document.getElementById("aaNom").value.trim();
+  var type = document.getElementById("aaType").value;
+  var quartier = document.getElementById("aaQuartier").value.trim();
+  var msg = document.getElementById("aaFirebaseMsg");
+  if(!nom||!type||!quartier){
+    msg.style.display="block";msg.style.color="var(--red)";
+    msg.textContent="Veuillez remplir les champs obligatoires (nom, type, quartier).";return;
+  }
+  var btn=document.getElementById("aaFirebaseBtn");
+  btn.disabled=true;btn.textContent="Ajout en cours...";
+  // Générer un nouvel ID (max id + 1)
+  var maxId = etablissements.reduce(function(m,e){return Math.max(m,e.id||0);},0);
+  var newId = maxId + 1;
+  var docId = "etab_" + String(newId).padStart(3,"0");
+  var newEtab = {
+    id: newId,
+    nom: nom,
+    type: type,
+    quartier: quartier,
+    description: document.getElementById("aaDesc").value.trim(),
+    contact: document.getElementById("aaTel").value.trim(),
+    email: document.getElementById("aaEmail").value.trim(),
+    ouverture: document.getElementById("aaOuv").value.trim()||"18h00",
+    fermeture: document.getElementById("aaFerm").value.trim()||"02h00",
+    statut: document.getElementById("aaStatut").value,
+    affluence: parseInt(document.getElementById("aaAff").value)||50,
+    note: 0, avis: 0, paiement: "Actif (Admin)",
+    ambiance: "Festif", maps_url: "", photo_interieur: "", photo_exterieur: ""
+  };
+  var docRef = window.fbDoc(window.db, "etablissements", docId);
+  window.fbSetDoc(docRef, newEtab).then(function(){
+    msg.style.display="block";msg.style.color="var(--green)";
+    msg.textContent="✅ Établissement ajouté avec succès !";
+    btn.disabled=false;btn.textContent="⚡ Ajouter maintenant";
+    // Reset champs
+    ["aaNom","aaDesc","aaTel","aaEmail","aaOuv","aaFerm"].forEach(function(id){
+      var el=document.getElementById(id); if(el)el.value="";
+    });
+    document.getElementById("aaAff").value="50";
+    loadData();
+    setTimeout(function(){closeAdminAddModal();},1500);
+  }).catch(function(err){
+    btn.disabled=false;btn.textContent="⚡ Ajouter maintenant";
+    msg.style.display="block";msg.style.color="var(--red)";
+    msg.textContent="Erreur: "+err.message;
+  });
+}
+window.openAdminAddModal = openAdminAddModal;
+window.closeAdminAddModal = closeAdminAddModal;
+window.adminAddFirebase = adminAddFirebase;
+// ─────────────────────────────────────────────────────────────
 // ── Démarre l'app (attend Firebase si pas encore prêt) ───────
 window.__appReady = true;
 
@@ -1962,20 +2023,6 @@ function _startApp(){
 _startApp();
 renderPayments(); updatePayVis();
 
-// ── FIREBASE — Initialiser Firestore avec les données par défaut si vide ──
-window.seedFirestore = function(){
-  var defaults = getDefaults();
-  var promises = defaults.map(function(e){
-    var docRef = window.fbDoc(window.db, "etablissements", "etab_" + String(e.id).padStart(3,"0"));
-    return window.fbSetDoc(docRef, e);
-  });
-  Promise.all(promises).then(function(){
-    showToast("✅ Firestore initialisé avec " + defaults.length + " établissements !");
-    loadData();
-  }).catch(function(err){
-    showToast("Erreur init: " + err.message);
-  });
-};
 
 // ── MODALES LÉGALES (CGU / Confidentialité) ──────────────────
 var CGU_TEXT = "<div class='modal-title' style='margin-bottom:0.6rem'>&#128275; Conditions Générales d'Utilisation</div><div class='modal-sub' style='margin-bottom:1rem'>Dernière mise à jour : Avril 2026</div>"
@@ -2037,5 +2084,52 @@ window.closeLegalModal = closeLegalModal;
   </div>
 </div>
 
+
+<!-- MODAL ADMIN AJOUT ETABLISSEMENT GRATUIT -->
+<div class="overlay" id="adminAddOverlay" onclick="if(event.target===this)closeAdminAddModal()">
+  <div class="modal" style="position:relative;max-height:92vh;overflow-y:auto;">
+    <button class="modal-close" onclick="closeAdminAddModal()">&#10005;</button>
+    <div style="text-align:center;margin-bottom:1rem;">
+      <div style="font-size:2rem">&#127968;</div>
+      <div class="modal-title" style="color:var(--amber);">Ajouter un établissement</div>
+      <div class="modal-sub">Mode Admin — Ajout gratuit sans paiement</div>
+    </div>
+    <!-- CHOIX DU MODE -->
+    <!-- FORMULAIRE FIREBASE -->
+    <div id="adminAddFirebase" style="display:block;">
+      <div style="background:rgba(0,255,170,0.06);border:1px solid rgba(0,255,170,0.2);border-radius:10px;padding:0.7rem;margin-bottom:1rem;font-size:0.75rem;color:var(--green);">&#9889; L'établissement sera ajouté directement dans Firebase et visible immédiatement.</div>
+      <div class="field"><label>Nom de l'établissement <span class="req">*</span></label><input type="text" id="aaNom" placeholder="Ex: Miami Club" maxlength="60"></div>
+      <div class="field-row">
+        <div class="field"><label>Type <span class="req">*</span></label>
+          <select id="aaType">
+            <option value="">Choisir...</option>
+            <option>Bar Lounge</option><option>Discotheque</option><option>Bar / Rooftop</option>
+            <option>Cafe / Restaurant</option><option>Snack-Bar</option><option>Restaurant</option>
+            <option>Patisserie</option><option>Autre</option>
+          </select>
+        </div>
+        <div class="field"><label>Quartier <span class="req">*</span></label><input type="text" id="aaQuartier" placeholder="Ex: Akebe"></div>
+      </div>
+      <div class="field"><label>Description</label><textarea id="aaDesc" placeholder="Description de l'établissement..." maxlength="200"></textarea></div>
+      <div class="field"><label>Téléphone</label><input type="tel" id="aaTel" placeholder="+241 XX XXX XXX"></div>
+      <div class="field"><label>Email</label><input type="email" id="aaEmail" placeholder="contact@exemple.com"></div>
+      <div class="field-row">
+        <div class="field"><label>Ouverture</label><input type="text" id="aaOuv" placeholder="18h00"></div>
+        <div class="field"><label>Fermeture</label><input type="text" id="aaFerm" placeholder="02h00"></div>
+      </div>
+      <div class="field"><label>Statut initial</label>
+        <select id="aaStatut">
+          <option value="Ouvert - Anime">Ouvert - Animé</option>
+          <option value="Ouvert - Bonde">Ouvert - Bondé</option>
+          <option value="Ouvert - Calme">Ouvert - Calme</option>
+          <option value="Ferme">Fermé</option>
+        </select>
+      </div>
+      <div class="field"><label>Affluence initiale (%)</label><input type="number" id="aaAff" placeholder="50" min="0" max="100" value="50"></div>
+      <button onclick="adminAddFirebase()" class="modal-btn" id="aaFirebaseBtn">&#9889; Ajouter maintenant</button>
+      <div id="aaFirebaseMsg" style="font-size:0.78rem;text-align:center;margin-top:0.5rem;display:none;"></div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
