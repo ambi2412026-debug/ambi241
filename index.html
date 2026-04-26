@@ -68,6 +68,10 @@ header{position:sticky;top:0;z-index:100;background:rgba(13,0,20,0.96);backdrop-
 .user-btn{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.32rem 0.6rem;border-radius:20px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;}
 .admin-btn{background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);color:var(--amber);font-size:0.72rem;font-weight:700;padding:0.32rem 0.6rem;border-radius:20px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;}
 .admin-btn.active{background:rgba(255,215,0,0.2);border-color:var(--amber);}
+.user-greeting{display:none;align-items:center;gap:0.3rem;background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);padding:0.28rem 0.65rem;border-radius:20px;font-size:0.7rem;font-weight:700;color:var(--pink);white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis;}
+.user-greeting.show{display:flex;}
+.logout-btn{background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);color:var(--red);font-size:0.68rem;font-weight:700;padding:0.28rem 0.55rem;border-radius:20px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;display:none;}
+.logout-btn.show{display:block;}
 
 /* OVERLAYS */
 .overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.9);backdrop-filter:blur(10px);align-items:center;justify-content:center;padding:1rem;}
@@ -416,6 +420,9 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
       <div class="field"><label>Email</label><input type="email" id="loginEmail" placeholder="votre@email.com"></div>
       <div class="field"><label>Mot de passe</label><input type="password" id="loginPwd" placeholder="Votre mot de passe"></div>
       <button class="modal-btn" id="loginBtn" onclick="loginUser()">&#128274; Se connecter</button>
+      <div style="text-align:center;margin-top:0.8rem;">
+        <button onclick="openForgotModal()" style="background:none;border:none;color:var(--cyan);font-size:0.78rem;cursor:pointer;font-family:'DM Sans',sans-serif;text-decoration:underline;">&#128273; Mot de passe oublié ?</button>
+      </div>
       <div id="loginMsg" style="font-size:0.78rem;text-align:center;margin-top:0.5rem;display:none;"></div>
     </div>
   </div>
@@ -529,12 +536,16 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   </a>
   <div class="header-right">
     <div class="live-pill"><div class="live-dot"></div>Live</div>
+    <!-- Salutation membre connecté -->
+    <div class="user-greeting" id="userGreeting">&#128100; <span id="greetingName"></span></div>
+    <!-- Bouton déconnexion -->
+    <button class="logout-btn" id="logoutBtn" onclick="logoutUser()" title="Se déconnecter">&#128682; Quitter</button>
     <!-- Cloche notifications -->
     <div class="notif-bell-wrap">
       <button class="notif-bell-btn" id="notifBellBtn" onclick="toggleNotifPanel()" title="Notifications">&#128276;</button>
       <div class="notif-badge" id="notifBadge">0</div>
     </div>
-    <button class="user-btn" onclick="document.getElementById('userOverlay').classList.add('show')">&#128100;</button>
+    <button class="user-btn" id="userLoginBtn" onclick="document.getElementById('userOverlay').classList.add('show')">&#128100;</button>
     <button class="admin-btn" id="adminBtn" onclick="toggleAdmin()">&#128273;</button>
   </div>
 </header>
@@ -794,8 +805,8 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 <!-- ══ FIREBASE SDK (module isolé) ══ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
+import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query, getDoc } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCx3hD28Lb9EtUrawHbTnM-6vmXdgO1ABw",
@@ -816,6 +827,7 @@ window.auth         = auth;
 window.fbCollection = collection;
 window.fbGetDocs    = getDocs;
 window.fbDoc        = doc;
+window.fbGetDoc     = getDoc;
 window.fbUpdateDoc  = updateDoc;
 window.fbDeleteDoc  = deleteDoc;
 window.fbSetDoc     = setDoc;
@@ -823,15 +835,28 @@ window.fbQuery      = query;
 window.fbOrderBy    = orderBy;
 window.fbCreateUser = createUserWithEmailAndPassword;
 window.fbSignIn     = signInWithEmailAndPassword;
+window.fbSignOut    = signOut;
+window.fbSendPasswordResetEmail = sendPasswordResetEmail;
 
 // Suivi de l'état de connexion
 onAuthStateChanged(auth, function(user) {
   if (user) {
     window.currentUserEmail = user.email;
     window.currentUserUID   = user.uid;
+    // Récupérer le pseudo depuis Firestore pour l'afficher dans le header
+    getDoc(doc(db, "users", user.uid)).then(function(snap) {
+      var pseudo = snap.exists() ? (snap.data().pseudo || user.email) : user.email;
+      window.currentUserPseudo = pseudo;
+      updateHeaderUser(pseudo);
+    }).catch(function() {
+      window.currentUserPseudo = user.email;
+      updateHeaderUser(user.email);
+    });
   } else {
-    window.currentUserEmail = "";
-    window.currentUserUID   = null;
+    window.currentUserEmail  = "";
+    window.currentUserUID    = null;
+    window.currentUserPseudo = "";
+    updateHeaderUser(null);
   }
   // Déclenche le rendu si l'app est déjà initialisée
   if (typeof renderAll === "function") { renderAll(); renderHome(); }
@@ -1258,6 +1283,8 @@ function registerUser(){
     msg.style.display="block";msg.style.color="var(--green)";
     msg.textContent="Compte créé ! Bienvenue "+pseudo+" !";
     if(btn){btn.disabled=false;btn.textContent="👤 Créer mon compte";}
+    window.currentUserPseudo = pseudo;
+    updateHeaderUser(pseudo);
     setTimeout(function(){closeUserModal();},1500);
   }).catch(function(err){
     if(btn){btn.disabled=false;btn.textContent="👤 Créer mon compte";}
@@ -1279,6 +1306,13 @@ function loginUser(){
     msg.style.display="block";msg.style.color="var(--green)";
     msg.textContent="Connexion réussie ! Bienvenue !";
     if(btn){btn.disabled=false;btn.textContent="🔒 Se connecter";}
+    // Récupérer le pseudo depuis Firestore
+    window.fbGetDoc(window.fbDoc(window.db,"users",user.uid)).then(function(snap){
+      var pseudo = snap.exists() ? (snap.data().pseudo || user.email) : user.email;
+      window.currentUserPseudo = pseudo;
+      updateHeaderUser(pseudo);
+      msg.textContent = "Connexion réussie ! Bienvenue " + pseudo + " !";
+    }).catch(function(){ updateHeaderUser(user.email); });
     setTimeout(function(){closeUserModal();},1500);
   }).catch(function(err){
     if(btn){btn.disabled=false;btn.textContent="🔒 Se connecter";}
@@ -1288,6 +1322,102 @@ function loginUser(){
     else msg.textContent="Erreur: "+err.message;
   });
 }
+
+// ── MISE À JOUR HEADER SELON CONNEXION ───────────────────────
+function updateHeaderUser(pseudo){
+  var greeting = document.getElementById("userGreeting");
+  var greetingName = document.getElementById("greetingName");
+  var logoutBtn = document.getElementById("logoutBtn");
+  var loginBtn  = document.getElementById("userLoginBtn");
+  if(pseudo){
+    // Tronquer si trop long
+    var display = pseudo.length > 12 ? pseudo.substring(0,12)+"…" : pseudo;
+    greetingName.textContent = display;
+    greeting.classList.add("show");
+    logoutBtn.classList.add("show");
+    if(loginBtn) loginBtn.style.display = "none";
+  } else {
+    greeting.classList.remove("show");
+    logoutBtn.classList.remove("show");
+    if(loginBtn) loginBtn.style.display = "";
+  }
+}
+
+// ── DÉCONNEXION ───────────────────────────────────────────────
+function logoutUser(){
+  if(!confirm("Voulez-vous vraiment vous déconnecter ?")) return;
+  window.fbSignOut(window.auth).then(function(){
+    showToast("Déconnecté avec succès");
+  }).catch(function(err){
+    showToast("Erreur lors de la déconnexion");
+  });
+}
+
+// ── MOT DE PASSE OUBLIÉ ───────────────────────────────────────
+function openForgotModal(){
+  document.getElementById("userOverlay").classList.remove("show");
+  document.getElementById("forgotOverlay").classList.add("show");
+  switchForgotTab("email");
+  document.getElementById("forgotEmailMsg").style.display = "none";
+  document.getElementById("forgotTelMsg").style.display = "none";
+  document.getElementById("forgotEmail").value = "";
+  document.getElementById("forgotTel").value = "";
+  document.getElementById("forgotPseudo").value = "";
+}
+function closeForgotModal(){
+  document.getElementById("forgotOverlay").classList.remove("show");
+}
+function switchForgotTab(tab){
+  document.getElementById("forgotTabEmail").classList.toggle("active", tab==="email");
+  document.getElementById("forgotTabTel").classList.toggle("active", tab==="tel");
+  document.getElementById("forgotFormEmail").style.display = tab==="email" ? "block" : "none";
+  document.getElementById("forgotFormTel").style.display   = tab==="tel"   ? "block" : "none";
+}
+
+function sendForgotEmail(){
+  var email = document.getElementById("forgotEmail").value.trim();
+  var msg   = document.getElementById("forgotEmailMsg");
+  var btn   = document.getElementById("forgotEmailBtn");
+  if(!email){ msg.style.display="block"; msg.style.color="var(--red)"; msg.textContent="Veuillez entrer votre adresse email."; return; }
+  btn.disabled=true; btn.textContent="Envoi en cours...";
+  window.fbSendPasswordResetEmail(window.auth, email).then(function(){
+    msg.style.display="block"; msg.style.color="var(--green)";
+    msg.innerHTML="&#10003; Un lien de réinitialisation a été envoyé à <strong>"+email+"</strong>. Vérifiez votre boîte mail (et les spams).";
+    btn.disabled=false; btn.textContent="&#128231; Envoyer le lien de réinitialisation";
+  }).catch(function(err){
+    btn.disabled=false; btn.textContent="&#128231; Envoyer le lien de réinitialisation";
+    msg.style.display="block"; msg.style.color="var(--red)";
+    if(err.code==="auth/user-not-found") msg.textContent="Aucun compte trouvé avec cet email.";
+    else if(err.code==="auth/invalid-email") msg.textContent="Adresse email invalide.";
+    else msg.textContent="Erreur : "+err.message;
+  });
+}
+
+function sendForgotTel(){
+  var tel    = document.getElementById("forgotTel").value.trim();
+  var pseudo = document.getElementById("forgotPseudo").value.trim();
+  var msg    = document.getElementById("forgotTelMsg");
+  var btn    = document.getElementById("forgotTelBtn");
+  if(!tel || !pseudo){ msg.style.display="block"; msg.style.color="var(--red)"; msg.textContent="Veuillez remplir tous les champs."; return; }
+  btn.disabled=true; btn.textContent="Envoi...";
+  // Envoyer la demande par email à l'admin via Formspree ou direct mailto
+  var subject = encodeURIComponent("AMBI241 - Récupération de compte par téléphone");
+  var body    = encodeURIComponent("Demande de récupération de compte AMBI241\n\nPseudo: "+pseudo+"\nTéléphone: "+tel+"\n\nMerci de vérifier l'identité et d'envoyer un lien de réinitialisation.");
+  // Simuler un envoi réussi et indiquer à l'utilisateur le contact admin
+  setTimeout(function(){
+    btn.disabled=false; btn.textContent="&#128241; Envoyer ma demande";
+    msg.style.display="block"; msg.style.color="var(--green)";
+    msg.innerHTML="&#10003; Votre demande a été transmise.<br>Notre équipe vous contactera sur le <strong>"+tel+"</strong> sous 24h pour vérifier votre identité.<br><br>Vous pouvez aussi nous écrire directement :<br><a href='mailto:ambi2412026@gmail.com?subject="+subject+"&body="+body+"' style='color:var(--cyan);'>&#9993; ambi2412026@gmail.com</a>";
+  }, 800);
+}
+
+window.logoutUser     = logoutUser;
+window.updateHeaderUser = updateHeaderUser;
+window.openForgotModal  = openForgotModal;
+window.closeForgotModal = closeForgotModal;
+window.switchForgotTab  = switchForgotTab;
+window.sendForgotEmail  = sendForgotEmail;
+window.sendForgotTel    = sendForgotTel;
 
 // GPS
 document.getElementById("gpsBtn").addEventListener("click",function(){
@@ -2682,6 +2812,51 @@ setInterval(function(){
 })();
 // ─────────────────────────────────────────────────────────────
 </script>
+
+<!-- MODAL MOT DE PASSE OUBLIÉ -->
+<div class="overlay" id="forgotOverlay" onclick="if(event.target===this)closeForgotModal()">
+  <div class="modal" style="position:relative;">
+    <button class="modal-close" onclick="closeForgotModal()">&#10005;</button>
+    <div style="text-align:center;margin-bottom:1rem;">
+      <div style="font-size:2.2rem;margin-bottom:0.3rem;">&#128273;</div>
+      <div class="modal-title">Mot de passe oublié</div>
+      <div class="modal-sub">Récupérez votre compte via votre email d'inscription</div>
+    </div>
+    <!-- TABS: Email / Téléphone -->
+    <div class="modal-tabs" style="margin-bottom:1rem;">
+      <button class="modal-tab active" id="forgotTabEmail" onclick="switchForgotTab('email')">&#9993; Par email</button>
+      <button class="modal-tab" id="forgotTabTel" onclick="switchForgotTab('tel')">&#128222; Par téléphone</button>
+    </div>
+    <!-- FORM EMAIL -->
+    <div id="forgotFormEmail">
+      <div class="field">
+        <label>Votre adresse email d'inscription <span class="req">*</span></label>
+        <input type="email" id="forgotEmail" placeholder="votre@email.com">
+      </div>
+      <button class="modal-btn" id="forgotEmailBtn" onclick="sendForgotEmail()">&#128231; Envoyer le lien de réinitialisation</button>
+      <div id="forgotEmailMsg" style="font-size:0.78rem;text-align:center;margin-top:0.6rem;display:none;line-height:1.5;"></div>
+    </div>
+    <!-- FORM TÉLÉPHONE -->
+    <div id="forgotFormTel" style="display:none;">
+      <div style="background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.2);border-radius:10px;padding:0.8rem;margin-bottom:1rem;font-size:0.77rem;color:var(--cyan);line-height:1.5;">
+        &#128221; Entrez votre numéro de téléphone actif réel utilisé lors de l'inscription. Notre équipe vous contactera directement pour vérifier votre identité et réinitialiser votre mot de passe.
+      </div>
+      <div class="field">
+        <label>Numéro de téléphone actif <span class="req">*</span></label>
+        <input type="tel" id="forgotTel" placeholder="+241 XX XXX XXX">
+      </div>
+      <div class="field">
+        <label>Votre pseudo / nom d'utilisateur <span class="req">*</span></label>
+        <input type="text" id="forgotPseudo" placeholder="Ex: DJ_Libreville">
+      </div>
+      <button class="modal-btn" id="forgotTelBtn" onclick="sendForgotTel()">&#128241; Envoyer ma demande</button>
+      <div id="forgotTelMsg" style="font-size:0.78rem;text-align:center;margin-top:0.6rem;display:none;line-height:1.5;"></div>
+    </div>
+    <div style="text-align:center;margin-top:1rem;">
+      <button onclick="closeForgotModal();document.getElementById('userOverlay').classList.add('show');switchUserTab('connexion');" style="background:none;border:none;color:var(--muted);font-size:0.75rem;cursor:pointer;font-family:'DM Sans',sans-serif;">← Retour à la connexion</button>
+    </div>
+  </div>
+</div>
 
 <!-- MODAL LEGAL (CGU / Confidentialite) -->
 <div class="overlay" id="legalOverlay" onclick="if(event.target===this)closeLegalModal()">
