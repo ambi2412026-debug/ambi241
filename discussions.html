@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AMBI241 — Discussions & Commentaires</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --rose:    #e91e8c;
+      --rose2:   #ff4db8;
+      --dark:    #080812;
+      --card:    #0f0f1e;
+      --card2:   #16162a;
+      --border:  rgba(233,30,140,0.18);
+      --muted:   #666;
+      --text:    #e8e8f0;
+      --green:   #00e5a0;
+      --red:     #ff4444;
+      --gold:    #ffd700;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--dark);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── NOISE OVERLAY ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(8,8,18,0.92);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 60px;
+    }
+    .header-logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800; font-size: 20px;
+      background: linear-gradient(135deg, var(--rose), var(--rose2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .header-actions { display: flex; align-items: center; gap: 12px; }
+    .btn-connexion {
+      padding: 8px 18px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: transparent;
+      color: var(--rose);
+      font-size: 13px; font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-connexion:hover { background: var(--rose); color: #fff; }
+    .user-chip {
+      display: none;
+      align-items: center; gap: 8px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 14px 6px 8px;
+      font-size: 13px;
+    }
+    .user-avatar {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--rose), var(--rose2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+    }
+
+    /* ── LAYOUT ── */
+    .container {
+      max-width: 760px; margin: 0 auto;
+      padding: 24px 16px 80px;
+      position: relative; z-index: 1;
+    }
+
+    /* ── PAGE TITLE ── */
+    .page-title {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800; font-size: 28px;
+      margin-bottom: 4px;
+    }
+    .page-subtitle { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+
+    /* ── TABS ── */
+    .tabs {
+      display: flex; gap: 4px;
+      background: var(--card);
+      border-radius: 12px; padding: 4px;
+      margin-bottom: 24px;
+      border: 1px solid var(--border);
+    }
+    .tab {
+      flex: 1; padding: 10px;
+      border: none; background: transparent;
+      color: var(--muted); font-size: 13px; font-weight: 500;
+      border-radius: 8px; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab.active { background: var(--rose); color: #fff; }
+
+    /* ── COMPOSE BOX ── */
+    .compose-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .compose-box textarea {
+      width: 100%; min-height: 80px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      padding: 12px;
+      resize: none;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .compose-box textarea:focus { border-color: var(--rose); }
+    .compose-box textarea::placeholder { color: var(--muted); }
+    .compose-footer {
+      display: flex; justify-content: space-between;
+      align-items: center; margin-top: 10px;
+    }
+    .char-count { font-size: 11px; color: var(--muted); }
+    .btn-envoyer {
+      padding: 10px 22px;
+      background: var(--rose);
+      border: none; border-radius: 10px;
+      color: #fff; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-envoyer:hover { background: var(--rose2); transform: translateY(-1px); }
+    .btn-envoyer:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    /* ── LOGIN NOTICE ── */
+    .login-notice {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .login-notice p { color: var(--muted); font-size: 14px; margin-bottom: 12px; }
+
+    /* ── DISCUSSION CARD ── */
+    .discussion-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 12px;
+      transition: border-color 0.2s;
+      animation: fadeUp 0.3s ease both;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .discussion-card:hover { border-color: rgba(233,30,140,0.4); }
+    .discussion-card.epingle { border-color: var(--gold); }
+    .discussion-card.masque { opacity: 0.4; }
+
+    .dc-header {
+      display: flex; align-items: flex-start;
+      justify-content: space-between; gap: 10px;
+      margin-bottom: 10px;
+    }
+    .dc-user { display: flex; align-items: center; gap: 10px; }
+    .dc-avatar {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: linear-gradient(135deg, #6c3fcf, var(--rose));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; flex-shrink: 0;
+    }
+    .dc-name { font-weight: 600; font-size: 14px; }
+    .dc-meta { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .badge-admin {
+      background: linear-gradient(135deg, var(--rose), var(--rose2));
+      color: #fff; font-size: 9px; font-weight: 700;
+      padding: 2px 7px; border-radius: 10px;
+      letter-spacing: 0.5px;
+    }
+    .badge-epingle {
+      color: var(--gold); font-size: 11px;
+    }
+    .badge-masque {
+      background: var(--red); color: #fff; font-size: 9px;
+      font-weight: 700; padding: 2px 7px; border-radius: 10px;
+    }
+
+    .dc-content { font-size: 14px; line-height: 1.6; color: #ccc; margin-bottom: 12px; }
+
+    .dc-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .dc-btn {
+      background: none; border: none;
+      color: var(--muted); font-size: 12px;
+      cursor: pointer; display: flex; align-items: center; gap: 5px;
+      padding: 4px 8px; border-radius: 8px; transition: all 0.2s;
+    }
+    .dc-btn:hover { background: var(--card2); color: var(--text); }
+    .dc-btn.like.liked { color: var(--rose); }
+    .dc-btn.repondre:hover { color: var(--rose); }
+
+    /* ADMIN ACTIONS */
+    .admin-actions {
+      display: flex; gap: 8px; flex-wrap: wrap;
+    }
+    .btn-admin {
+      font-size: 11px; padding: 4px 10px;
+      border-radius: 8px; border: none; cursor: pointer;
+      font-weight: 600; transition: all 0.2s;
+    }
+    .btn-epingle { background: rgba(255,215,0,0.1); color: var(--gold); border: 1px solid rgba(255,215,0,0.3); }
+    .btn-epingle:hover { background: rgba(255,215,0,0.2); }
+    .btn-masquer { background: rgba(255,68,68,0.1); color: var(--red); border: 1px solid rgba(255,68,68,0.3); }
+    .btn-masquer:hover { background: rgba(255,68,68,0.2); }
+    .btn-supprimer { background: rgba(255,68,68,0.15); color: #ff6666; border: 1px solid rgba(255,68,68,0.4); }
+    .btn-supprimer:hover { background: rgba(255,68,68,0.3); }
+    .btn-restaurer { background: rgba(0,229,160,0.1); color: var(--green); border: 1px solid rgba(0,229,160,0.3); }
+    .btn-restaurer:hover { background: rgba(0,229,160,0.2); }
+
+    /* ── RÉPONSES ── */
+    .replies-section {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    .reply-item {
+      display: flex; gap: 10px; margin-bottom: 10px;
+      padding-left: 12px;
+      border-left: 2px solid var(--border);
+    }
+    .reply-avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: linear-gradient(135deg, #2d6a8a, #4a9aba);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; flex-shrink: 0;
+    }
+    .reply-body { flex: 1; }
+    .reply-name { font-size: 12px; font-weight: 600; }
+    .reply-text { font-size: 13px; color: #bbb; line-height: 1.5; }
+    .reply-meta { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+    .reply-compose {
+      display: none; margin-top: 10px; gap: 8px;
+      align-items: flex-end;
+    }
+    .reply-compose.visible { display: flex; }
+    .reply-compose textarea {
+      flex: 1; min-height: 60px;
+      background: var(--card2); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text);
+      font-family: 'DM Sans', sans-serif; font-size: 13px;
+      padding: 10px; resize: none; outline: none;
+    }
+    .reply-compose textarea:focus { border-color: var(--rose); }
+    .btn-reply-send {
+      padding: 10px 16px; background: var(--rose);
+      border: none; border-radius: 10px; color: #fff;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      white-space: nowrap;
+    }
+
+    /* ── EMPTY / LOADER ── */
+    .empty-state {
+      text-align: center; padding: 60px 20px;
+      color: var(--muted);
+    }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+    .loader { text-align: center; padding: 40px; color: var(--muted); }
+    .spinner {
+      width: 36px; height: 36px; margin: 0 auto 12px;
+      border: 3px solid #333; border-top-color: var(--rose);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--card2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 12px 20px;
+      font-size: 13px; z-index: 9999;
+      transition: transform 0.3s ease;
+      white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.success { border-color: var(--green); color: var(--green); }
+    .toast.error { border-color: var(--red); color: var(--red); }
+
+    /* ── MODAL CONNEXION ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
+      z-index: 200; align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 28px; width: 90%; max-width: 380px;
+      animation: fadeUp 0.3s ease;
+    }
+    .modal h3 {
+      font-family: 'Syne', sans-serif; font-size: 20px;
+      font-weight: 700; margin-bottom: 20px;
+    }
+    .modal input {
+      width: 100%; padding: 12px 14px;
+      background: var(--card2); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text);
+      font-size: 14px; margin-bottom: 12px;
+      outline: none; transition: border-color 0.2s;
+    }
+    .modal input:focus { border-color: var(--rose); }
+    .modal-btns { display: flex; gap: 10px; margin-top: 8px; }
+    .btn-modal-cancel {
+      flex: 1; padding: 12px; border-radius: 10px;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--muted); cursor: pointer;
+    }
+    .btn-modal-ok {
+      flex: 2; padding: 12px; border-radius: 10px;
+      border: none; background: var(--rose);
+      color: #fff; font-weight: 600; cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-modal-ok:hover { background: var(--rose2); }
+
+    /* ── SIGNALEMENT ── */
+    .btn-signaler { color: var(--muted); }
+    .btn-signaler:hover { color: var(--red) !important; }
+
+    /* ── STATS ADMIN ── */
+    .admin-stats {
+      display: none;
+      gap: 10px; margin-bottom: 20px;
+    }
+    .stat-chip {
+      flex: 1; background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px; padding: 12px;
+      text-align: center;
+    }
+    .stat-chip .num {
+      font-family: 'Syne', sans-serif;
+      font-size: 22px; font-weight: 800;
+      color: var(--rose);
+    }
+    .stat-chip .lbl { font-size: 10px; color: var(--muted); }
+
+    @media (min-width: 480px) {
+      .admin-stats { display: flex; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-logo">AMBI241</div>
+  <div class="header-actions">
+    <button class="btn-connexion" id="btnConnexion">🔐 Se connecter</button>
+    <div class="user-chip" id="userChip">
+      <div class="user-avatar" id="userInitiale">?</div>
+      <span id="userNom">...</span>
+    </div>
+  </div>
+</header>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- MODAL CONNEXION -->
+<div class="modal-overlay" id="modalConnexion">
+  <div class="modal">
+    <h3>🔐 Connexion AMBI241</h3>
+    <input type="email" id="loginEmail" placeholder="Email"/>
+    <input type="password" id="loginPassword" placeholder="Mot de passe"/>
+    <div class="modal-btns">
+      <button class="btn-modal-cancel" id="btnAnnulerLogin">Annuler</button>
+      <button class="btn-modal-ok" id="btnLogin">Se connecter</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONTENU -->
+<div class="container">
+  <h1 class="page-title">💬 Discussions</h1>
+  <p class="page-subtitle">Échanges de la communauté AMBI241 — Libreville</p>
+
+  <!-- STATS ADMIN (cachées pour users normaux) -->
+  <div class="admin-stats" id="adminStats">
+    <div class="stat-chip">
+      <div class="num" id="statTotal">0</div>
+      <div class="lbl">Messages</div>
+    </div>
+    <div class="stat-chip">
+      <div class="num" id="statSignales">0</div>
+      <div class="lbl">Signalés</div>
+    </div>
+    <div class="stat-chip">
+      <div class="num" id="statMasques">0</div>
+      <div class="lbl">Masqués</div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" data-tab="tous" onclick="changerTab('tous', this)">🌍 Tous</button>
+    <button class="tab" data-tab="epingles" onclick="changerTab('epingles', this)">📌 Épinglés</button>
+    <button class="tab admin-only" data-tab="signales" onclick="changerTab('signales', this)" style="display:none">🚨 Signalés</button>
+    <button class="tab admin-only" data-tab="masques" onclick="changerTab('masques', this)" style="display:none">🚫 Masqués</button>
+  </div>
+
+  <!-- ZONE DE RÉDACTION -->
+  <div class="compose-box" id="composeBox">
+    <textarea id="messageInput" placeholder="Partage quelque chose avec la communauté AMBI241…" maxlength="500"></textarea>
+    <div class="compose-footer">
+      <span class="char-count"><span id="charCount">0</span>/500</span>
+      <button class="btn-envoyer" id="btnEnvoyer" disabled>Publier ✈️</button>
+    </div>
+  </div>
+
+  <!-- NOTICE SI NON CONNECTÉ -->
+  <div class="login-notice" id="loginNotice" style="display:none">
+    <p>Connecte-toi pour participer aux discussions 💬</p>
+    <button class="btn-connexion" onclick="ouvrirModal()">🔐 Se connecter</button>
+  </div>
+
+  <!-- LISTE DES MESSAGES -->
+  <div id="liste">
+    <div class="loader">
+      <div class="spinner"></div>
+      <div>Chargement des discussions…</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+//  CONFIG SUPABASE
+// ══════════════════════════════════════════
+const SUPABASE_URL = 'https://zrlxswzhmzeyuzqnjacs.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpybHhzd3pobXpleXV6cW5qYWNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2MDY5MzUsImV4cCI6MjA5MjE4MjkzNX0.080TrjbUTYTtFaOuWjCCo1AoYgIVvZcFHclaN3EuDE8';
+
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ══════════════════════════════════════════
+//  ÉTAT GLOBAL
+// ══════════════════════════════════════════
+let session = null;
+let profil  = null;
+let estAdmin = false;
+let tabActif = 'tous';
+let messages = [];
+
+// ══════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════
+async function init() {
+  const { data: { session: s } } = await db.auth.getSession();
+  if (s) await connecterSession(s);
+  else afficherEtatDeconnecte();
+  chargerMessages();
+
+  // Écoute les changements auth
+  db.auth.onAuthStateChange(async (event, s) => {
+    if (s) await connecterSession(s);
+    else afficherEtatDeconnecte();
+  });
+}
+
+async function connecterSession(s) {
+  session = s;
+  const { data: p } = await db.from('profiles').select('*').eq('id', s.user.id).single();
+  profil = p;
+  estAdmin = profil?.role === 'admin';
+  afficherEtatConnecte();
+}
+
+function afficherEtatConnecte() {
+  document.getElementById('btnConnexion').style.display = 'none';
+  const chip = document.getElementById('userChip');
+  chip.style.display = 'flex';
+  const nom = profil?.pseudo || session.user.email.split('@')[0];
+  document.getElementById('userNom').textContent = nom + (estAdmin ? ' 👑' : '');
+  document.getElementById('userInitiale').textContent = nom[0].toUpperCase();
+  document.getElementById('composeBox').style.display = 'block';
+  document.getElementById('loginNotice').style.display = 'none';
+
+  if (estAdmin) {
+    document.getElementById('adminStats').style.display = 'flex';
+    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'flex');
+    chargerStatsAdmin();
+  }
+}
+
+function afficherEtatDeconnecte() {
+  session = null; profil = null; estAdmin = false;
+  document.getElementById('btnConnexion').style.display = 'block';
+  document.getElementById('userChip').style.display = 'none';
+  document.getElementById('composeBox').style.display = 'none';
+  document.getElementById('loginNotice').style.display = 'block';
+}
+
+// ══════════════════════════════════════════
+//  CHARGER MESSAGES
+// ══════════════════════════════════════════
+async function chargerMessages() {
+  document.getElementById('liste').innerHTML = '<div class="loader"><div class="spinner"></div><div>Chargement…</div></div>';
+
+  let query = db
+    .from('discussions')
+    .select('*, replies:discussion_replies(*, profiles(pseudo, role)), likes:discussion_likes(user_id), signalements:discussion_signalements(user_id), profiles(pseudo, role)')
+    .order('epingle', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (tabActif === 'tous') {
+    query = query.eq('masque', false);
+  } else if (tabActif === 'epingles') {
+    query = query.eq('epingle', true).eq('masque', false);
+  } else if (tabActif === 'signales') {
+    query = query.gt('signalement_count', 0);
+  } else if (tabActif === 'masques') {
+    query = query.eq('masque', true);
+  }
+
+  const { data, error } = await query.limit(50);
+  if (error) { afficherErreur(); return; }
+
+  messages = data || [];
+  afficherMessages();
+  if (estAdmin) chargerStatsAdmin();
+}
+
+function afficherMessages() {
+  const liste = document.getElementById('liste');
+  if (!messages.length) {
+    liste.innerHTML = '<div class="empty-state"><div class="icon">💬</div><p>Aucune discussion pour l\'instant.<br>Sois le premier à écrire !</p></div>';
+    return;
+  }
+  liste.innerHTML = messages.map(m => renderMessage(m)).join('');
+}
+
+// ══════════════════════════════════════════
+//  RENDER UN MESSAGE
+// ══════════════════════════════════════════
+function renderMessage(m) {
+  const pseudo = m.profiles?.pseudo || 'Anonyme';
+  const initiale = pseudo[0].toUpperCase();
+  const isAuteur = session?.user?.id === m.user_id;
+  const nbLikes = m.likes?.length || 0;
+  const aLike = m.likes?.some(l => l.user_id === session?.user?.id);
+  const nbSignaux = m.signalements?.length || 0;
+  const aSignale = m.signalements?.some(s => s.user_id === session?.user?.id);
+  const isAuteurAdmin = m.profiles?.role === 'admin';
+  const date = new Date(m.created_at).toLocaleDateString('fr-FR', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+
+  const replies = (m.replies || []).map(r => {
+    const rPseudo = r.profiles?.pseudo || 'Anonyme';
+    const rDate = new Date(r.created_at).toLocaleDateString('fr-FR', { day:'numeric', month:'short' });
+    const rIsAdmin = r.profiles?.role === 'admin';
+    return `<div class="reply-item">
+      <div class="reply-avatar">${rPseudo[0].toUpperCase()}</div>
+      <div class="reply-body">
+        <div class="reply-name">${rPseudo} ${rIsAdmin ? '<span class="badge-admin">ADMIN</span>' : ''}</div>
+        <div class="reply-text">${escHtml(r.contenu)}</div>
+        <div class="reply-meta">${rDate}${estAdmin && !r.masque ? ` · <button class="dc-btn" onclick="masquerReponse('${r.id}', '${m.id}')">🚫 Masquer</button>` : ''}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="discussion-card ${m.epingle ? 'epingle' : ''} ${m.masque ? 'masque' : ''}" id="msg-${m.id}">
+    <div class="dc-header">
+      <div class="dc-user">
+        <div class="dc-avatar">${initiale}</div>
+        <div>
+          <div class="dc-name">
+            ${escHtml(pseudo)}
+            ${isAuteurAdmin ? '<span class="badge-admin">ADMIN</span>' : ''}
+            ${m.epingle ? '<span class="badge-epingle">📌</span>' : ''}
+            ${m.masque ? '<span class="badge-masque">MASQUÉ</span>' : ''}
+          </div>
+          <div class="dc-meta">${date} ${nbSignaux > 0 && estAdmin ? `· 🚨 ${nbSignaux} signalement${nbSignaux>1?'s':''}` : ''}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dc-content">${escHtml(m.contenu)}</div>
+
+    <div class="dc-actions">
+      ${session ? `
+        <button class="dc-btn like ${aLike ? 'liked' : ''}" onclick="toggleLike('${m.id}')">
+          ❤️ ${nbLikes}
+        </button>
+        <button class="dc-btn repondre" onclick="toggleReply('${m.id}')">
+          💬 Répondre
+        </button>
+        ${!aSignale && !isAuteur && !estAdmin ? `<button class="dc-btn btn-signaler" onclick="signaler('${m.id}')">⚑ Signaler</button>` : ''}
+        ${isAuteur ? `<button class="dc-btn" onclick="supprimerMien('${m.id}')" style="color:#ff6666">🗑 Supprimer</button>` : ''}
+      ` : `<span style="font-size:12px;color:var(--muted)">Connecte-toi pour réagir</span>`}
+
+      ${estAdmin ? `
+        <div class="admin-actions">
+          <button class="btn-admin btn-epingle" onclick="toggleEpingle('${m.id}', ${m.epingle})">
+            ${m.epingle ? '📌 Désépingler' : '📌 Épingler'}
+          </button>
+          ${!m.masque
+            ? `<button class="btn-admin btn-masquer" onclick="toggleMasque('${m.id}', false)">🚫 Masquer</button>`
+            : `<button class="btn-admin btn-restaurer" onclick="toggleMasque('${m.id}', true)">✅ Restaurer</button>`
+          }
+          <button class="btn-admin btn-supprimer" onclick="supprimerAdmin('${m.id}')">🗑 Supprimer</button>
+        </div>
+      ` : ''}
+    </div>
+
+    <!-- REPLIES -->
+    ${replies ? `<div class="replies-section">${replies}</div>` : ''}
+
+    <!-- REPLY COMPOSE -->
+    ${session ? `
+    <div class="reply-compose" id="reply-${m.id}">
+      <textarea placeholder="Ta réponse…" maxlength="300" id="rt-${m.id}"></textarea>
+      <button class="btn-reply-send" onclick="envoyerReponse('${m.id}')">↩ Envoyer</button>
+    </div>` : ''}
+  </div>`;
+}
+
+// ══════════════════════════════════════════
+//  PUBLIER UN MESSAGE
+// ══════════════════════════════════════════
+const input = document.getElementById('messageInput');
+const btnEnv = document.getElementById('btnEnvoyer');
+const charCnt = document.getElementById('charCount');
+
+input.addEventListener('input', () => {
+  const l = input.value.length;
+  charCnt.textContent = l;
+  btnEnv.disabled = l < 2;
+});
+
+btnEnv.addEventListener('click', async () => {
+  if (!session) { ouvrirModal(); return; }
+  const contenu = input.value.trim();
+  if (!contenu) return;
+
+  btnEnv.disabled = true;
+  btnEnv.textContent = 'Envoi…';
+
+  const { error } = await db.from('discussions').insert({
+    user_id: session.user.id,
+    contenu,
+    masque: false,
+    epingle: false,
+    signalement_count: 0
+  });
+
+  if (error) { toast('Erreur lors de l\'envoi', 'error'); }
+  else {
+    input.value = ''; charCnt.textContent = '0';
+    toast('Message publié !', 'success');
+    chargerMessages();
+  }
+  btnEnv.disabled = false;
+  btnEnv.textContent = 'Publier ✈️';
+});
+
+// ══════════════════════════════════════════
+//  LIKE
+// ══════════════════════════════════════════
+async function toggleLike(msgId) {
+  if (!session) { ouvrirModal(); return; }
+  const msg = messages.find(m => m.id === msgId);
+  const aLike = msg?.likes?.some(l => l.user_id === session.user.id);
+
+  if (aLike) {
+    await db.from('discussion_likes').delete().eq('message_id', msgId).eq('user_id', session.user.id);
+  } else {
+    await db.from('discussion_likes').insert({ message_id: msgId, user_id: session.user.id });
+  }
+  chargerMessages();
+}
+
+// ══════════════════════════════════════════
+//  RÉPONSES
+// ══════════════════════════════════════════
+function toggleReply(msgId) {
+  const el = document.getElementById('reply-' + msgId);
+  if (!el) return;
+  el.classList.toggle('visible');
+  if (el.classList.contains('visible')) el.querySelector('textarea').focus();
+}
+
+async function envoyerReponse(msgId) {
+  const ta = document.getElementById('rt-' + msgId);
+  const contenu = ta.value.trim();
+  if (!contenu || !session) return;
+
+  const { error } = await db.from('discussion_replies').insert({
+    message_id: msgId,
+    user_id: session.user.id,
+    contenu,
+    masque: false
+  });
+
+  if (error) toast('Erreur envoi réponse', 'error');
+  else { toast('Réponse envoyée !', 'success'); chargerMessages(); }
+}
+
+// ══════════════════════════════════════════
+//  SIGNALEMENT
+// ══════════════════════════════════════════
+async function signaler(msgId) {
+  if (!session) { ouvrirModal(); return; }
+  if (!confirm('Signaler ce message à l\'admin ?')) return;
+
+  await db.from('discussion_signalements').insert({ message_id: msgId, user_id: session.user.id });
+  await db.rpc('incrementer_signalement', { msg_id: msgId });
+  toast('Message signalé — l\'admin va vérifier', 'success');
+  chargerMessages();
+}
+
+// ══════════════════════════════════════════
+//  ACTIONS ADMIN
+// ══════════════════════════════════════════
+async function toggleEpingle(msgId, actuel) {
+  await db.from('discussions').update({ epingle: !actuel }).eq('id', msgId);
+  toast(!actuel ? 'Message épinglé 📌' : 'Message désépinglé', 'success');
+  chargerMessages();
+}
+
+async function toggleMasque(msgId, estMasque) {
+  await db.from('discussions').update({ masque: !estMasque }).eq('id', msgId);
+  toast(!estMasque ? 'Message masqué 🚫' : 'Message restauré ✅', 'success');
+  chargerMessages();
+}
+
+async function supprimerAdmin(msgId) {
+  if (!confirm('Supprimer définitivement ce message ?')) return;
+  await db.from('discussion_replies').delete().eq('message_id', msgId);
+  await db.from('discussion_likes').delete().eq('message_id', msgId);
+  await db.from('discussion_signalements').delete().eq('message_id', msgId);
+  await db.from('discussions').delete().eq('id', msgId);
+  toast('Message supprimé', 'success');
+  chargerMessages();
+}
+
+async function supprimerMien(msgId) {
+  if (!confirm('Supprimer ton message ?')) return;
+  await db.from('discussion_replies').delete().eq('message_id', msgId);
+  await db.from('discussion_likes').delete().eq('message_id', msgId);
+  await db.from('discussions').delete().eq('id', msgId).eq('user_id', session.user.id);
+  toast('Message supprimé', 'success');
+  chargerMessages();
+}
+
+async function masquerReponse(replyId, msgId) {
+  await db.from('discussion_replies').update({ masque: true }).eq('id', replyId);
+  toast('Réponse masquée', 'success');
+  chargerMessages();
+}
+
+// ══════════════════════════════════════════
+//  STATS ADMIN
+// ══════════════════════════════════════════
+async function chargerStatsAdmin() {
+  const { count: total } = await db.from('discussions').select('*', { count: 'exact', head: true });
+  const { count: signales } = await db.from('discussions').select('*', { count: 'exact', head: true }).gt('signalement_count', 0);
+  const { count: masques } = await db.from('discussions').select('*', { count: 'exact', head: true }).eq('masque', true);
+  document.getElementById('statTotal').textContent = total || 0;
+  document.getElementById('statSignales').textContent = signales || 0;
+  document.getElementById('statMasques').textContent = masques || 0;
+}
+
+// ══════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════
+function changerTab(tab, el) {
+  tabActif = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  chargerMessages();
+}
+
+// ══════════════════════════════════════════
+//  MODAL CONNEXION
+// ══════════════════════════════════════════
+function ouvrirModal() { document.getElementById('modalConnexion').classList.add('open'); }
+document.getElementById('btnConnexion').onclick = ouvrirModal;
+document.getElementById('btnAnnulerLogin').onclick = () => document.getElementById('modalConnexion').classList.remove('open');
+
+document.getElementById('btnLogin').onclick = async () => {
+  const email = document.getElementById('loginEmail').value;
+  const pwd   = document.getElementById('loginPassword').value;
+  const btn   = document.getElementById('btnLogin');
+  btn.textContent = 'Connexion…'; btn.disabled = true;
+
+  const { error } = await db.auth.signInWithPassword({ email, password: pwd });
+  if (error) {
+    toast('Email ou mot de passe incorrect', 'error');
+  } else {
+    document.getElementById('modalConnexion').classList.remove('open');
+    toast('Connecté ! 🎉', 'success');
+    chargerMessages();
+  }
+  btn.textContent = 'Se connecter'; btn.disabled = false;
+};
+
+// ══════════════════════════════════════════
+//  UTILITAIRES
+// ══════════════════════════════════════════
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function afficherErreur() {
+  document.getElementById('liste').innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><p>Erreur de chargement.<br>Vérifie ta connexion.</p></div>';
+}
+
+// ══════════════════════════════════════════
+//  DÉMARRAGE
+// ══════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
