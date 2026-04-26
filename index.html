@@ -571,7 +571,7 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
     <!-- STATS RAPIDES -->
     <div class="stats-scroll" id="statsRowHome"></div>
     <!-- TOP LIEUX CE SOIR -->
-    <div style="font-family:'Syne',sans-serif;font-size:0.72rem;font-weight:700;color:var(--pink);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.8rem;">&#128293; Top ce soir</div>
+    <div style="font-family:'Syne',sans-serif;font-size:0.72rem;font-weight:700;color:var(--pink);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.8rem;">&#128293; Top ce soir <span style="font-size:0.62rem;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">— 3 meilleurs lieux</span></div>
     <div id="topLieux"></div>
   </div>
 
@@ -794,7 +794,7 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 <!-- ══ FIREBASE SDK (module isolé) ══ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, orderBy, query } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
 
 const firebaseConfig = {
@@ -817,6 +817,7 @@ window.fbCollection = collection;
 window.fbGetDocs    = getDocs;
 window.fbDoc        = doc;
 window.fbUpdateDoc  = updateDoc;
+window.fbDeleteDoc  = deleteDoc;
 window.fbSetDoc     = setDoc;
 window.fbQuery      = query;
 window.fbOrderBy    = orderBy;
@@ -1025,8 +1026,11 @@ function renderHome(){
   }
   var topEl=document.getElementById("topLieux");
   if(topEl){
-    var sorted=d.slice().sort(function(a,b){return(b.affluence||0)-(a.affluence||0);}).slice(0,3);
-    topEl.innerHTML="<div class=\"cards-list\">"+sorted.map(function(e,i){return buildCard(e,i*0.06,true);}).join("")+"</div>";
+    // Accueil : uniquement les établissements confirmés (paiement actif), top 3 par affluence
+    var confirmes=d.filter(function(e){return estPaiementConfirme(e)||isAdmin;});
+    var sorted=confirmes.slice().sort(function(a,b){return(b.affluence||0)-(a.affluence||0);}).slice(0,3);
+    var voirTous="<div style=\"text-align:center;margin-top:1rem;\"><button onclick=\"switchSection('etablissements',document.querySelectorAll('.nav-item')[1])\" style=\"background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;padding:0.55rem 1.2rem;border-radius:100px;cursor:pointer;\">&#128269; Voir tous les lieux ("+confirmes.length+")</button></div>";
+    topEl.innerHTML="<div class=\"cards-list\">"+sorted.map(function(e,i){return buildCard(e,i*0.06,true);}).join("")+"</div>"+voirTous;
   }
 }
 
@@ -1584,7 +1588,31 @@ function buildCard(e,delay,compact){
     ep+="<input class=\"maps-url-input\" type=\"url\" placeholder=\"https://maps.google.com/?q=...\" value=\""+(e.maps_url||"")+"\" data-id=\""+e.id+"\" style=\"flex:1;background:var(--surface2);border:1px solid rgba(255,45,155,0.2);border-radius:8px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.78rem;padding:0.5rem 0.7rem;outline:none;\">";
     ep+="<button onclick=\"saveMapsUrl("+e.id+")\" style=\"background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.45rem 0.7rem;border-radius:8px;cursor:pointer;white-space:nowrap;\">Sauver</button>";
     ep+="</div></div>";
+    ep+="<div class=\"edit-row\" style=\"margin-top:0.5rem;border-top:1px solid rgba(255,68,102,0.2);padding-top:0.7rem;\">";
+    ep+="<button onclick=\"deleteEtablissement("+e.id+")\" style=\"width:100%;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,68,102,0.4);background:rgba(255,68,102,0.08);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;\">&#128465; Supprimer cet établissement</button>";
+    ep+="</div>";
     ep+="</div></div>";
+  } else if(!isAdmin && canEditPhotos(e) && !compact) {
+    // Etablissement connecté : peut supprimer son propre établissement (mais pas modifier le statut admin)
+    ep="<div class=\"edit-panel show\" style=\"margin-top:0.6rem;\">";
+    ep+="<div class=\"edit-title\">Gérer — "+e.nom+"</div>";
+    ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#128248; Photos ce soir (10h &bull; max "+MAX_SLOT+")</div>";
+    var slotNow2=loadSlotPhotos(e.id);
+    ep+="<div style=\"display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;\">";
+    if(slotNow2.length>0){
+      ep+="<span style=\"font-size:0.7rem;color:var(--green);padding:0.3rem 0;\">&#9679; "+slotNow2.length+"/"+MAX_SLOT+" &bull; "+getTimeLeft(slotNow2[0].ts)+"</span>";
+      ep+="<button onclick=\"openSlotLightbox("+e.id+",0)\" style=\"background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#128269; Voir / Suppr.</button>";
+    }
+    if(slotNow2.length<MAX_SLOT){
+      ep+="<label for=\"__fileSlotPhoto\" class=\"mab-btn mab-upload\" style=\"padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;display:inline-block;\" onclick=\"window.__slotUploadEid="+e.id+"\">&#43; Ajouter photo</label>";
+    } else {
+      ep+="<span style=\"font-size:0.7rem;color:var(--amber);\">Maximum atteint</span>";
+    }
+    ep+="</div></div>";
+    ep+="<div class=\"edit-row\" style=\"margin-top:0.5rem;border-top:1px solid rgba(255,68,102,0.2);padding-top:0.7rem;\">";
+    ep+="<button onclick=\"deleteEtablissement("+e.id+")\" style=\"width:100%;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,68,102,0.4);background:rgba(255,68,102,0.08);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;\">&#128465; Supprimer mon établissement</button>";
+    ep+="</div>";
+    ep+="</div>";
   }
 
   return "<div class=\"card\" style=\"animation-delay:"+delay+"s\">"+
@@ -2131,9 +2159,31 @@ function adminAddFirebase(){
     msg.textContent="Erreur: "+err.message;
   });
 }
-window.openAdminAddModal = openAdminAddModal;
-window.closeAdminAddModal = closeAdminAddModal;
-window.adminAddFirebase = adminAddFirebase;
+function deleteEtablissement(id){
+  var etab=etablissements.find(function(x){return x.id===id;});
+  if(!etab){showToast("Établissement introuvable");return;}
+  // Seul l'admin ou l'établissement lui-même peut supprimer
+  if(!isAdmin && !canEditPhotos(etab)){showToast("Accès refusé");return;}
+  if(!confirm("Supprimer définitivement \""+etab.nom+"\" ? Cette action est irréversible.")){return;}
+  if(!etab._docId){showToast("Erreur : ID Firestore introuvable");return;}
+  var docRef=window.fbDoc(window.db,"etablissements",etab._docId);
+  // Utiliser deleteDoc de Firestore
+  if(window.fbDeleteDoc){
+    showToast("Suppression en cours...");
+    window.fbDeleteDoc(docRef).then(function(){
+      etablissements=etablissements.filter(function(x){return x.id!==id;});
+      renderStats();renderAll();renderHome();
+      showToast("✅ Établissement supprimé !");
+    }).catch(function(err){
+      showToast("Erreur suppression: "+err.message);
+    });
+  } else {
+    showToast("Suppression Firebase non disponible");
+  }
+}
+window.deleteEtablissement=deleteEtablissement;
+
+
 // ─────────────────────────────────────────────────────────────
 // ── Démarre l'app (attend Firebase si pas encore prêt) ───────
 window.__appReady = true;
