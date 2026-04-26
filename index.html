@@ -12,6 +12,49 @@
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;padding-bottom:80px;}
 body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(255,45,155,0.12) 0%,transparent 50%),radial-gradient(ellipse at 90% 30%,rgba(0,229,255,0.10) 0%,transparent 50%),radial-gradient(ellipse at 50% 90%,rgba(204,68,255,0.08) 0%,transparent 50%);pointer-events:none;z-index:0;}
 
+/* ══ NOTIFICATIONS SYSTEM ══ */
+.notif-bell-wrap{position:relative;display:inline-flex;}
+.notif-bell-btn{background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.25);color:var(--pink);font-size:1rem;width:34px;height:34px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;position:relative;}
+.notif-bell-btn:active{transform:scale(0.92);}
+.notif-badge{position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:0.55rem;font-weight:800;width:16px;height:16px;border-radius:50%;display:none;align-items:center;justify-content:center;border:2px solid var(--bg);}
+.notif-badge.show{display:flex;}
+.notif-panel{display:none;position:fixed;top:66px;right:0.8rem;width:min(340px,96vw);background:var(--surface);border:1px solid rgba(255,45,155,0.3);border-radius:18px;box-shadow:0 8px 40px rgba(0,0,0,0.7);z-index:300;max-height:70vh;overflow:hidden;flex-direction:column;animation:popIn 0.25s cubic-bezier(0.34,1.56,0.64,1);}
+.notif-panel.open{display:flex;}
+.notif-panel-head{padding:0.9rem 1rem 0.7rem;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.notif-panel-head h3{font-family:'Syne',sans-serif;font-size:0.9rem;font-weight:800;color:var(--pink);}
+.notif-clear-btn{font-size:0.68rem;color:var(--muted);background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.notif-list{overflow-y:auto;flex:1;padding:0.4rem 0;}
+.notif-item{padding:0.75rem 1rem;border-bottom:1px solid rgba(255,255,255,0.04);cursor:default;transition:background 0.15s;}
+.notif-item:hover{background:rgba(255,255,255,0.03);}
+.notif-item.unread{background:rgba(255,45,155,0.05);}
+.notif-item .ni-top{display:flex;align-items:flex-start;gap:0.55rem;}
+.notif-item .ni-icon{font-size:1.1rem;flex-shrink:0;margin-top:0.05rem;}
+.notif-item .ni-body{flex:1;}
+.notif-item .ni-title{font-size:0.8rem;font-weight:700;color:var(--text);line-height:1.3;}
+.notif-item .ni-msg{font-size:0.73rem;color:var(--muted);margin-top:0.15rem;line-height:1.4;}
+.notif-item .ni-time{font-size:0.62rem;color:rgba(255,255,255,0.3);margin-top:0.2rem;}
+.notif-item .ni-channel{display:inline-block;font-size:0.6rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:4px;margin-top:0.25rem;}
+.ni-ch-push{background:rgba(0,229,255,0.12);color:var(--cyan);}
+.ni-ch-sms{background:rgba(0,255,170,0.12);color:var(--green);}
+.ni-ch-email{background:rgba(255,215,0,0.12);color:var(--amber);}
+.ni-ch-wa{background:rgba(37,211,102,0.15);color:#25d366;}
+.notif-empty{text-align:center;padding:2.5rem 1rem;color:var(--muted);font-size:0.8rem;}
+.notif-empty span{font-size:2rem;display:block;margin-bottom:0.5rem;}
+.notif-prefs-panel{padding:0.8rem 1rem;border-top:1px solid rgba(255,255,255,0.06);flex-shrink:0;}
+.notif-prefs-title{font-size:0.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;}
+.notif-pref-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.45rem;}
+.notif-pref-label{font-size:0.75rem;color:var(--text);}
+.notif-pref-sub{font-size:0.65rem;color:var(--muted);}
+.notif-toggle{position:relative;width:36px;height:20px;flex-shrink:0;}
+.notif-toggle input{opacity:0;width:0;height:0;}
+.notif-toggle-slider{position:absolute;inset:0;background:rgba(255,255,255,0.1);border-radius:20px;cursor:pointer;transition:0.25s;}
+.notif-toggle-slider:before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:0.25s;}
+.notif-toggle input:checked+.notif-toggle-slider{background:var(--pink);}
+.notif-toggle input:checked+.notif-toggle-slider:before{transform:translateX(16px);}
+/* Toast notif spécifique (plus haut) */
+.notif-toast{position:fixed;top:72px;left:50%;transform:translateX(-50%) translateY(-20px);background:rgba(255,45,155,0.95);color:#fff;font-size:0.8rem;font-weight:700;padding:0.55rem 1.1rem;border-radius:30px;opacity:0;transition:all 0.3s;z-index:400;pointer-events:none;white-space:nowrap;box-shadow:0 4px 20px rgba(255,45,155,0.4);}
+.notif-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
 /* HEADER */
 header{position:sticky;top:0;z-index:100;background:rgba(13,0,20,0.96);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,45,155,0.2);padding:0 1rem;height:62px;display:flex;align-items:center;justify-content:space-between;}
 .logo-wrap{display:flex;align-items:center;gap:0.6rem;cursor:pointer;text-decoration:none;}
@@ -486,10 +529,31 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   </a>
   <div class="header-right">
     <div class="live-pill"><div class="live-dot"></div>Live</div>
+    <!-- Cloche notifications -->
+    <div class="notif-bell-wrap">
+      <button class="notif-bell-btn" id="notifBellBtn" onclick="toggleNotifPanel()" title="Notifications">&#128276;</button>
+      <div class="notif-badge" id="notifBadge">0</div>
+    </div>
     <button class="user-btn" onclick="document.getElementById('userOverlay').classList.add('show')">&#128100;</button>
     <button class="admin-btn" id="adminBtn" onclick="toggleAdmin()">&#128273;</button>
   </div>
 </header>
+
+<!-- ══ PANNEAU DE NOTIFICATIONS ══ -->
+<div class="notif-panel" id="notifPanel">
+  <div class="notif-panel-head">
+    <h3>🔔 Notifications</h3>
+    <button class="notif-clear-btn" onclick="clearAllNotifs()">Tout effacer</button>
+  </div>
+  <div class="notif-list" id="notifList">
+    <div class="notif-empty"><span>🔕</span>Aucune notification</div>
+  </div>
+  <div class="notif-prefs-panel" id="notifPrefsPanel">
+    <div class="notif-prefs-title">⚙️ Préférences</div>
+    <div id="notifPrefsRows"></div>
+  </div>
+</div>
+<div class="notif-toast" id="notifToast"></div>
 
 <main>
   <!-- SEC: ACCUEIL -->
@@ -2111,6 +2175,437 @@ function closeLegalModal(){
 }
 window.openLegalModal = openLegalModal;
 window.closeLegalModal = closeLegalModal;
+
+// ══════════════════════════════════════════════════════════════
+// ══ SYSTÈME DE NOTIFICATIONS AMBI241 ══════════════════════════
+// ══════════════════════════════════════════════════════════════
+
+var NOTIF_KEY = "ambi241_notifications";
+var NOTIF_PREFS_KEY = "ambi241_notif_prefs";
+var notifPanelOpen = false;
+
+// ── Définition des préférences par rôle ───────────────────────
+// Rôles: visiteur (non connecté), membre (connecté), etablissement, admin
+function getUserRole(){
+  if(isAdmin) return "admin";
+  if(currentUserEmail){
+    // Vérifie si l'email correspond à un établissement
+    var etab = etablissements.find(function(e){
+      return (e.email||"").toLowerCase().trim() === currentUserEmail.toLowerCase().trim();
+    });
+    if(etab) return "etablissement";
+    return "membre";
+  }
+  return "visiteur";
+}
+
+// Canaux disponibles selon le rôle
+var ROLE_CHANNELS = {
+  visiteur:      { push: true,  sms: false, email: false, wa: false },
+  membre:        { push: true,  sms: true,  email: true,  wa: true  },
+  etablissement: { push: true,  sms: true,  email: true,  wa: true  },
+  admin:         { push: true,  sms: true,  email: true,  wa: true  }
+};
+
+// Événements notifiables par rôle
+var ROLE_EVENTS = {
+  visiteur: [
+    { key:"new_spot",         label:"Nouveau lieu ouvert",       icon:"🏠", desc:"Un nouveau bar/resto rejoint AMBI241" },
+    { key:"top_ambiance",     label:"Lieu très bondé ce soir",   icon:"🔥", desc:"Affluence > 80% quelque part" }
+  ],
+  membre: [
+    { key:"new_spot",         label:"Nouveau lieu ouvert",       icon:"🏠", desc:"Un nouveau bar/resto rejoint AMBI241" },
+    { key:"top_ambiance",     label:"Lieu très bondé ce soir",   icon:"🔥", desc:"Affluence > 80% quelque part" },
+    { key:"galerie_new_photo",label:"Nouvelle photo en galerie",  icon:"📸", desc:"Un lieu a ajouté une photo" },
+    { key:"statut_change",    label:"Changement d'ambiance",     icon:"🎵", desc:"Un de vos lieux favoris change de statut" },
+    { key:"promo",            label:"Soirée spéciale ce soir",   icon:"🎉", desc:"Évènement ou promo annoncé" }
+  ],
+  etablissement: [
+    { key:"paiement_confirmed",label:"Paiement confirmé",         icon:"✅", desc:"Votre abonnement a été validé" },
+    { key:"paiement_expire",  label:"Abonnement expirant",       icon:"⚠️", desc:"Renouvelez votre abonnement sous 7 jours" },
+    { key:"new_avis",         label:"Nouvel avis reçu",          icon:"⭐", desc:"Un membre a noté votre établissement" },
+    { key:"photo_added",      label:"Photo ajoutée à votre fiche",icon:"📷", desc:"Une photo soirée a été publiée" },
+    { key:"statut_updated",   label:"Statut mis à jour",         icon:"📡", desc:"Confirmation de mise à jour en temps réel" },
+    { key:"top_affluence",    label:"Vous êtes en top affluence",icon:"🏆", desc:"Votre lieu est dans le top 3 ce soir" }
+  ],
+  admin: [
+    { key:"new_inscription",  label:"Nouvelle inscription établissement", icon:"🏠", desc:"Demande reçue — vérifier le paiement" },
+    { key:"paiement_pending", label:"Paiement en attente",       icon:"💳", desc:"Un paiement Mobile Money attend validation" },
+    { key:"new_membre",       label:"Nouveau membre inscrit",    icon:"👤", desc:"Un utilisateur vient de créer un compte" },
+    { key:"top_traffic",      label:"Pic de trafic",             icon:"📈", desc:"Trafic inhabituel détecté sur le site" },
+    { key:"etabl_inactive",   label:"Établissement inactif",     icon:"😴", desc:"Un lieu n'a pas mis à jour son statut depuis 24h" },
+    { key:"paiement_expired", label:"Abonnement expiré",        icon:"❌", desc:"Un établissement payant est échu" }
+  ]
+};
+
+// ── Chargement / sauvegarde des préférences ───────────────────
+function loadNotifPrefs(){
+  try{
+    var raw = localStorage.getItem(NOTIF_PREFS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  }catch(e){ return {}; }
+}
+function saveNotifPrefs(prefs){
+  try{ localStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(prefs)); }catch(e){}
+}
+function getPref(role, key, channel){
+  var prefs = loadNotifPrefs();
+  var k = role+"_"+key+"_"+channel;
+  return prefs[k] !== undefined ? prefs[k] : true; // activé par défaut
+}
+function setPref(role, key, channel, val){
+  var prefs = loadNotifPrefs();
+  prefs[role+"_"+key+"_"+channel] = val;
+  saveNotifPrefs(prefs);
+}
+
+// ── Chargement / sauvegarde des notifications ─────────────────
+function loadNotifs(){
+  try{
+    var raw = localStorage.getItem(NOTIF_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+function saveNotifs(arr){
+  // Garder max 50 notifs
+  var toSave = arr.slice(-50);
+  try{ localStorage.setItem(NOTIF_KEY, JSON.stringify(toSave)); }catch(e){}
+}
+
+// ── Envoi d'une notification ──────────────────────────────────
+function pushNotif(opts){
+  // opts: { role, key, icon, title, msg, channel }
+  var notifs = loadNotifs();
+  var role = getUserRole();
+  // Vérifier que cette notif est destinée au rôle courant ou à tous
+  if(opts.role && opts.role !== role && opts.role !== "all") return;
+  // Vérifier préférence
+  if(!getPref(role, opts.key, opts.channel||"push")) return;
+
+  var item = {
+    id: Date.now()+"_"+Math.random().toString(36).slice(2,6),
+    key: opts.key,
+    icon: opts.icon,
+    title: opts.title,
+    msg: opts.msg,
+    channel: opts.channel||"push",
+    ts: Date.now(),
+    unread: true
+  };
+  notifs.push(item);
+  saveNotifs(notifs);
+  renderNotifBadge();
+  if(!notifPanelOpen) showNotifToast(opts.icon+" "+opts.title);
+
+  // Notification Push navigateur si autorisée
+  if((opts.channel==="push"||!opts.channel) && Notification && Notification.permission==="granted"){
+    try{
+      new Notification("AMBI241 — "+opts.title, {
+        body: opts.msg,
+        icon: "/ambi241/favicon.ico",
+        badge: "/ambi241/favicon.ico",
+        tag: opts.key
+      });
+    }catch(ex){}
+  }
+}
+
+// ── Toast de notification ─────────────────────────────────────
+var _notifToastTimer;
+function showNotifToast(msg){
+  var t = document.getElementById("notifToast");
+  if(!t) return;
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(_notifToastTimer);
+  _notifToastTimer = setTimeout(function(){ t.classList.remove("show"); }, 3200);
+}
+
+// ── Badge de la cloche ────────────────────────────────────────
+function renderNotifBadge(){
+  var notifs = loadNotifs();
+  var unread = notifs.filter(function(n){ return n.unread; }).length;
+  var badge = document.getElementById("notifBadge");
+  if(!badge) return;
+  badge.textContent = unread > 9 ? "9+" : String(unread);
+  badge.classList.toggle("show", unread > 0);
+}
+
+// ── Rendu du panneau ──────────────────────────────────────────
+function renderNotifList(){
+  var notifs = loadNotifs().slice().reverse(); // plus récent en premier
+  var list = document.getElementById("notifList");
+  if(!list) return;
+  if(!notifs.length){
+    list.innerHTML="<div class=\"notif-empty\"><span>🔕</span>Aucune notification pour l'instant</div>";
+    return;
+  }
+  var channelLabel = { push:"Push", sms:"SMS", email:"Email", wa:"WhatsApp" };
+  var channelCls   = { push:"ni-ch-push", sms:"ni-ch-sms", email:"ni-ch-email", wa:"ni-ch-wa" };
+  var html = "";
+  notifs.forEach(function(n){
+    var ago = timeAgo(n.ts);
+    html += "<div class=\"notif-item"+(n.unread?" unread":"")+"\">";
+    html += "<div class=\"ni-top\">";
+    html += "<div class=\"ni-icon\">"+n.icon+"</div>";
+    html += "<div class=\"ni-body\">";
+    html += "<div class=\"ni-title\">"+n.title+"</div>";
+    html += "<div class=\"ni-msg\">"+n.msg+"</div>";
+    html += "<div class=\"ni-time\">"+ago;
+    if(n.channel && channelLabel[n.channel]){
+      html += " &nbsp;<span class=\"ni-channel "+channelCls[n.channel]+"\">"+channelLabel[n.channel]+"</span>";
+    }
+    html += "</div>";
+    html += "</div></div></div>";
+  });
+  list.innerHTML = html;
+  // Marquer comme lues
+  var arr = loadNotifs();
+  arr.forEach(function(n){ n.unread = false; });
+  saveNotifs(arr);
+  renderNotifBadge();
+}
+
+function timeAgo(ts){
+  var diff = Date.now() - ts;
+  if(diff < 60000) return "À l'instant";
+  if(diff < 3600000) return Math.floor(diff/60000)+"min";
+  if(diff < 86400000) return Math.floor(diff/3600000)+"h";
+  return Math.floor(diff/86400000)+"j";
+}
+
+// ── Préférences dans le panneau ───────────────────────────────
+function renderNotifPrefs(){
+  var role = getUserRole();
+  var events = ROLE_EVENTS[role] || [];
+  var channels = ROLE_CHANNELS[role] || {};
+  var panel = document.getElementById("notifPrefsRows");
+  if(!panel) return;
+
+  var roleLabel = {visiteur:"Visiteur",membre:"Membre",etablissement:"Établissement",admin:"Admin"};
+  var html = "<div style='font-size:0.7rem;color:var(--cyan);margin-bottom:0.5rem;'>Rôle : <strong>"+roleLabel[role]+"</strong></div>";
+
+  events.forEach(function(ev){
+    var activeChannels = Object.keys(channels).filter(function(ch){ return channels[ch]; });
+    activeChannels.forEach(function(ch){
+      var chLabel = {push:"🔔 Push",sms:"📱 SMS",email:"✉️ Email",wa:"💬 WhatsApp"}[ch];
+      var checked = getPref(role, ev.key, ch);
+      html += "<div class=\"notif-pref-row\">";
+      html += "<div><div class=\"notif-pref-label\">"+ev.icon+" "+ev.label+"</div>";
+      html += "<div class=\"notif-pref-sub\">"+chLabel+" — "+ev.desc+"</div></div>";
+      html += "<label class=\"notif-toggle\"><input type=\"checkbox\" "+(checked?"checked":"")+" onchange=\"setPref('"+role+"','"+ev.key+"','"+ch+"',this.checked)\"><span class=\"notif-toggle-slider\"></span></label>";
+      html += "</div>";
+    });
+  });
+
+  // Bouton demande permission push si pas encore accordée
+  if(Notification && Notification.permission === "default"){
+    html += "<button onclick=\"requestPushPermission()\" style=\"width:100%;margin-top:0.6rem;padding:0.5rem;border-radius:10px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.08);color:var(--cyan);font-size:0.78rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;\">🔔 Activer les notifications navigateur</button>";
+  } else if(Notification && Notification.permission === "granted"){
+    html += "<div style='text-align:center;font-size:0.68rem;color:var(--green);margin-top:0.4rem;'>✅ Notifications navigateur actives</div>";
+  }
+
+  panel.innerHTML = html;
+}
+
+// ── Demande permission Push ───────────────────────────────────
+function requestPushPermission(){
+  if(!("Notification" in window)) return;
+  Notification.requestPermission().then(function(result){
+    if(result === "granted"){
+      showNotifToast("✅ Notifications Push activées !");
+      // Notif de bienvenue immédiate
+      setTimeout(function(){
+        triggerWelcomeNotif();
+      }, 800);
+    }
+    renderNotifPrefs();
+  });
+}
+
+// ── Toggle panneau ────────────────────────────────────────────
+function toggleNotifPanel(){
+  notifPanelOpen = !notifPanelOpen;
+  var panel = document.getElementById("notifPanel");
+  panel.classList.toggle("open", notifPanelOpen);
+  if(notifPanelOpen){
+    renderNotifList();
+    renderNotifPrefs();
+  }
+}
+// Fermer si clic en dehors
+document.addEventListener("click", function(e){
+  var panel = document.getElementById("notifPanel");
+  var bell  = document.getElementById("notifBellBtn");
+  var wrap  = document.getElementById("notifBadge");
+  if(!panel) return;
+  if(notifPanelOpen && !panel.contains(e.target) && e.target !== bell && e.target !== wrap){
+    notifPanelOpen = false;
+    panel.classList.remove("open");
+  }
+});
+
+// ── Effacer toutes les notifs ─────────────────────────────────
+function clearAllNotifs(){
+  saveNotifs([]);
+  renderNotifBadge();
+  renderNotifList();
+}
+
+// ── Notif de bienvenue ────────────────────────────────────────
+function triggerWelcomeNotif(){
+  var role = getUserRole();
+  var msgs = {
+    visiteur:      { title:"Bienvenue sur AMBI241 !", msg:"Découvrez l'ambiance des bars et restos de Libreville en temps réel." },
+    membre:        { title:"Bon retour, membre AMBI241 !", msg:"Vos lieux favoris sont mis à jour en direct. Bonne soirée !" },
+    etablissement: { title:"Espace établissement actif", msg:"Mettez à jour votre ambiance pour attirer plus de clients ce soir." },
+    admin:         { title:"Mode Admin activé", msg:"Tableau de bord complet disponible. Paiements et membres à vérifier." }
+  };
+  var m = msgs[role] || msgs.visiteur;
+  pushNotif({ role:"all", key:"welcome", icon:"✨", title:m.title, msg:m.msg, channel:"push" });
+}
+
+// ── Surveillance automatique des événements ───────────────────
+function checkAutoNotifs(){
+  var role = getUserRole();
+
+  // — Pour tous : lieu très bondé
+  var bondes = etablissements.filter(function(e){ return (e.affluence||0) >= 80 && e.statut && e.statut.indexOf("Ouvert")!==-1; });
+  if(bondes.length > 0){
+    var b = bondes[Math.floor(Math.random()*bondes.length)];
+    pushNotif({ role:"all", key:"top_ambiance", icon:"🔥",
+      title:"🔥 "+b.nom+" est bondé ce soir !",
+      msg:"Affluence à "+b.affluence+"% — "+b.quartier+". Ambiance : "+b.ambiance+".",
+      channel:"push" });
+  }
+
+  // — Pour membres : photo galerie récente
+  if(role === "membre" || role === "admin"){
+    var galerieData = JSON.parse(localStorage.getItem("ambi241_galerie")||"{}");
+    var etabsAvecPhotos = Object.keys(galerieData).filter(function(id){ return galerieData[id] && galerieData[id].length > 0; });
+    if(etabsAvecPhotos.length > 0){
+      var eid = etabsAvecPhotos[0];
+      var etab = etablissements.find(function(x){ return String(x.id)===String(eid); });
+      if(etab){
+        pushNotif({ role:"membre", key:"galerie_new_photo", icon:"📸",
+          title:"Nouvelle photo — "+etab.nom,
+          msg:"La galerie de "+etab.nom+" vient d'être mise à jour. Jetez-y un œil !",
+          channel:"push" });
+      }
+    }
+  }
+
+  // — Pour établissement : confirmation paiement
+  if(role === "etablissement"){
+    var myEtab = etablissements.find(function(e){
+      return (e.email||"").toLowerCase().trim() === (currentUserEmail||"").toLowerCase().trim();
+    });
+    if(myEtab){
+      if(myEtab.paiement && myEtab.paiement.indexOf("Actif")!==-1){
+        pushNotif({ role:"etablissement", key:"paiement_confirmed", icon:"✅",
+          title:"Abonnement actif — "+myEtab.nom,
+          msg:"Votre fiche est visible par tous les utilisateurs AMBI241 ce soir.",
+          channel:"push" });
+        pushNotif({ role:"etablissement", key:"paiement_confirmed", icon:"✉️",
+          title:"Confirmation d'abonnement",
+          msg:"Email de confirmation envoyé à "+currentUserEmail+" | Validité : mensuelle.",
+          channel:"email" });
+      }
+      if((myEtab.affluence||0) >= 80){
+        pushNotif({ role:"etablissement", key:"top_affluence", icon:"🏆",
+          title:"🏆 Vous êtes dans le Top 3 ce soir !",
+          msg:myEtab.nom+" affiche "+myEtab.affluence+"% d'affluence. Continuez comme ça !",
+          channel:"push" });
+      }
+      // SMS si contact disponible
+      if(myEtab.contact){
+        pushNotif({ role:"etablissement", key:"statut_updated", icon:"📱",
+          title:"Statut diffusé — "+myEtab.nom,
+          msg:"Votre statut '"+myEtab.statut+"' est visible en temps réel. SMS → "+myEtab.contact,
+          channel:"sms" });
+      }
+    }
+  }
+
+  // — Pour admin : paiements en attente
+  if(role === "admin"){
+    var pending = paiements.filter(function(p){ return p.statut === "En attente"; });
+    if(pending.length > 0){
+      pushNotif({ role:"admin", key:"paiement_pending", icon:"💳",
+        title:pending.length+" paiement(s) en attente",
+        msg:"À valider : "+pending.map(function(p){ return p.nom+" ("+p.montant.toLocaleString("fr-FR")+" XAF)"; }).join(", "),
+        channel:"push" });
+      pushNotif({ role:"admin", key:"paiement_pending", icon:"✉️",
+        title:"[ADMIN] Paiements à valider",
+        msg:"Email envoyé à ambi2412026@gmail.com avec la liste des "+pending.length+" paiement(s) en attente.",
+        channel:"email" });
+    }
+    // Trafic
+    var t = getTraffic();
+    if(t.count >= 5){
+      pushNotif({ role:"admin", key:"top_traffic", icon:"📈",
+        title:"Pic de trafic — "+t.count+" visites aujourd'hui",
+        msg:"Total cumulé : "+t.total+" visites. Données mises à jour en direct.",
+        channel:"push" });
+    }
+    // WhatsApp admin
+    pushNotif({ role:"admin", key:"new_membre", icon:"💬",
+      title:"[Admin] Récapitulatif WhatsApp",
+      msg:"Message envoyé à +241 74 450 924 : "+etablissements.length+" lieux, "+paiements.filter(function(p){return p.statut==="Confirme";}).length+" actifs.",
+      channel:"wa" });
+  }
+}
+
+// ── Initialisation après chargement des données ───────────────
+function initNotifications(){
+  renderNotifBadge();
+
+  // Demander la permission push si jamais demandée
+  if("Notification" in window && Notification.permission === "default"){
+    // On ne demande pas automatiquement — le bouton dans les prefs le fait
+  }
+
+  // Notif de bienvenue immédiate
+  triggerWelcomeNotif();
+
+  // Vérification auto toutes les 2 minutes
+  setTimeout(function loop(){
+    checkAutoNotifs();
+    setTimeout(loop, 120000);
+  }, 4000);
+}
+
+// Lancer après que loadData() soit terminé
+var _notifInitDone = false;
+var _origRenderAll = typeof renderAll === "function" ? renderAll : null;
+// On hook après renderAll
+(function waitForData(){
+  if(etablissements.length > 0 && !_notifInitDone){
+    _notifInitDone = true;
+    initNotifications();
+  } else {
+    setTimeout(waitForData, 500);
+  }
+})();
+
+// ── Exposer globalement ───────────────────────────────────────
+window.toggleNotifPanel  = toggleNotifPanel;
+window.clearAllNotifs    = clearAllNotifs;
+window.setPref           = setPref;
+window.requestPushPermission = requestPushPermission;
+
+// ── Ré-initialiser les notifs quand le rôle change ───────────
+var _prevRole = "";
+setInterval(function(){
+  var newRole = getUserRole();
+  if(newRole !== _prevRole){
+    _prevRole = newRole;
+    if(!_notifInitDone) return;
+    triggerWelcomeNotif();
+    if(notifPanelOpen) renderNotifPrefs();
+  }
+}, 2000);
+// ─────────────────────────────────────────────────────────────
 
 // ── SWIPE MOBILE pour naviguer entre sections ─────────────────
 (function(){
