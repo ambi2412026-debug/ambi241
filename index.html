@@ -899,6 +899,7 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   <button class="nav-item" onclick="switchSection('etablissements',this)"><span class="nav-icon">&#128269;</span>Lieux</button>
   <button class="nav-item" onclick="switchSection('paiements',this)"><span class="nav-icon">&#128179;</span>Tarifs</button>
   <button class="nav-item" onclick="switchSection('contacts',this)"><span class="nav-icon">&#128241;</span>Contact</button>
+  <button class="nav-item" id="adminNavBtn" onclick="openAdminDashboard(this)" style="display:none;"><span class="nav-icon">&#9881;&#65039;</span>Admin</button>
 </nav>
 
 
@@ -3493,10 +3494,787 @@ setInterval(function(){
     var nextIdx = dx < 0 ? Math.min(curIdx+1, navBtns.length-1) : Math.max(curIdx-1, 0);
     if(nextIdx !== curIdx){
       var secs = ["accueil","etablissements","paiements","contacts"];
-      switchSection(secs[nextIdx], navBtns[nextIdx]);
+      if(nextIdx < secs.length) switchSection(secs[nextIdx], navBtns[nextIdx]);
     }
   }, {passive:true});
 })();
+
+// ══════════════════════════════════════════════════════════════
+// ══ SYSTÈME DE NOTIFICATIONS CIBLÉES AMBI241 v2             ══
+// ══════════════════════════════════════════════════════════════
+// Chaque utilisateur ne reçoit QUE ses notifications.
+// L'admin voit TOUT et peut modérer/supprimer n'importe quelle notif.
+
+var NOTIF_KEY = "ambi241_notifications";
+var NOTIF_ADMIN_KEY = "ambi241_notifs_admin_log"; // journal global pour l'admin
+var NOTIF_PREFS_KEY = "ambi241_notif_prefs";
+var notifPanelOpen = false;
+
+// ── Rôle courant ────────────────────────────────────────────
+function getUserRole(){
+  if(isAdmin) return "admin";
+  if(currentUserEmail){
+    var etab = etablissements.find(function(e){
+      return (e.email||"").toLowerCase().trim() === currentUserEmail.toLowerCase().trim();
+    });
+    if(etab) return "etablissement";
+    return "membre";
+  }
+  return "visiteur";
+}
+
+// ── Canaux disponibles par rôle ─────────────────────────────
+var ROLE_CHANNELS = {
+  visiteur:      { push:true,  sms:false, email:false, wa:false },
+  membre:        { push:true,  sms:true,  email:true,  wa:true  },
+  etablissement: { push:true,  sms:true,  email:true,  wa:true  },
+  admin:         { push:true,  sms:true,  email:true,  wa:true  }
+};
+
+// ── Événements par rôle — STRICTEMENT CIBLÉS ─────────────────
+var ROLE_EVENTS = {
+  visiteur: [
+    { key:"new_spot",     label:"Nouveau lieu ouvert",     icon:"🏠", desc:"Un bar/resto rejoint AMBI241" },
+    { key:"top_ambiance", label:"Lieu très bondé ce soir", icon:"🔥", desc:"Affluence > 80%" }
+  ],
+  membre: [
+    { key:"new_spot",         label:"Nouveau lieu ouvert",      icon:"🏠", desc:"Un bar/resto rejoint AMBI241" },
+    { key:"top_ambiance",     label:"Lieu très bondé ce soir",  icon:"🔥", desc:"Affluence > 80%" },
+    { key:"galerie_new_photo",label:"Nouvelle photo en galerie", icon:"📸", desc:"Un lieu a ajouté une photo" },
+    { key:"statut_change",    label:"Changement d'ambiance",    icon:"🎵", desc:"Statut d'un de vos lieux favoris" },
+    { key:"promo",            label:"Soirée spéciale ce soir",  icon:"🎉", desc:"Évènement ou promo annoncé" }
+  ],
+  etablissement: [
+    { key:"paiement_confirmed", label:"Paiement confirmé",         icon:"✅", desc:"Votre abonnement validé" },
+    { key:"paiement_expire",    label:"Abonnement expirant",       icon:"⚠️", desc:"Renouvelez sous 7 jours" },
+    { key:"new_avis",           label:"Nouvel avis reçu",          icon:"⭐", desc:"Un membre a noté votre lieu" },
+    { key:"photo_added",        label:"Photo ajoutée à votre fiche",icon:"📷", desc:"Photo soirée publiée" },
+    { key:"statut_updated",     label:"Statut mis à jour",         icon:"📡", desc:"Mise à jour en temps réel" },
+    { key:"top_affluence",      label:"Vous êtes en top affluence",icon:"🏆", desc:"Top 3 ce soir" }
+  ],
+  admin: [
+    { key:"new_inscription",  label:"Nouvelle inscription",     icon:"🏠", desc:"Demande à valider" },
+    { key:"paiement_pending", label:"Paiement en attente",      icon:"💳", desc:"Mobile Money à valider" },
+    { key:"new_membre",       label:"Nouveau membre inscrit",   icon:"👤", desc:"Compte créé" },
+    { key:"top_traffic",      label:"Pic de trafic",            icon:"📈", desc:"Trafic inhabituel" },
+    { key:"etabl_inactive",   label:"Établissement inactif",    icon:"😴", desc:"Pas de mise à jour > 24h" },
+    { key:"paiement_expired", label:"Abonnement expiré",        icon:"❌", desc:"Établissement payant échu" }
+  ]
+};
+
+// ── Prefs ────────────────────────────────────────────────────
+function loadNotifPrefs(){
+  try{ var r=localStorage.getItem(NOTIF_PREFS_KEY); return r?JSON.parse(r):{};} catch(e){ return {}; }
+}
+function saveNotifPrefs(p){ try{localStorage.setItem(NOTIF_PREFS_KEY,JSON.stringify(p));}catch(e){} }
+function getPref(role,key,ch){
+  var p=loadNotifPrefs(); var k=role+"_"+key+"_"+ch;
+  return p[k]!==undefined?p[k]:true;
+}
+function setPref(role,key,ch,val){
+  var p=loadNotifPrefs(); p[role+"_"+key+"_"+ch]=val; saveNotifPrefs(p);
+}
+
+// ── Chargement / sauvegarde des notifications ─────────────────
+// Chaque utilisateur a son propre store. L'admin a en plus un log global.
+function _getNotifStoreKey(){
+  // Pour l'admin: stocke dans la clé globale
+  if(isAdmin) return NOTIF_KEY+"_admin";
+  if(currentUserEmail) return NOTIF_KEY+"_"+btoa(currentUserEmail).replace(/=/g,"");
+  return NOTIF_KEY+"_anon";
+}
+
+function loadNotifs(){
+  try{ var r=localStorage.getItem(_getNotifStoreKey()); return r?JSON.parse(r):[]; }catch(e){ return []; }
+}
+function saveNotifs(arr){
+  try{ localStorage.setItem(_getNotifStoreKey(),JSON.stringify(arr.slice(-60))); }catch(e){}
+}
+
+// Log global (admin peut tout voir)
+function saveToAdminLog(item){
+  try{
+    var log=JSON.parse(localStorage.getItem(NOTIF_ADMIN_KEY)||"[]");
+    log.push(item);
+    localStorage.setItem(NOTIF_ADMIN_KEY, JSON.stringify(log.slice(-200)));
+  }catch(e){}
+}
+function loadAdminLog(){
+  try{ return JSON.parse(localStorage.getItem(NOTIF_ADMIN_KEY)||"[]"); }catch(e){ return []; }
+}
+
+// ── Envoi ciblé d'une notification ────────────────────────────
+// opts: { targetRole, key, icon, title, msg, channel, fromAdmin }
+// targetRole = "admin" | "membre" | "etablissement" | "visiteur" | "all"
+// La notif n'est ajoutée AU STORE COURANT que si targetRole correspond au rôle actuel
+function pushNotif(opts){
+  var role = getUserRole();
+  var targetRole = opts.targetRole || opts.role || "all";
+
+  // ── Vérification ciblage strict ──
+  var isTargeted = (targetRole === "all") || (targetRole === role);
+  if(!isTargeted) return; // Pas pour cet utilisateur
+
+  // ── Vérification préférence ──
+  if(!opts.fromAdmin && !getPref(role, opts.key, opts.channel||"push")) return;
+
+  var item = {
+    id: Date.now()+"_"+Math.random().toString(36).slice(2,6),
+    key: opts.key,
+    icon: opts.icon||"🔔",
+    title: opts.title,
+    msg: opts.msg,
+    channel: opts.channel||"push",
+    targetRole: targetRole,
+    ts: Date.now(),
+    unread: true,
+    fromAdmin: !!opts.fromAdmin
+  };
+
+  var notifs = loadNotifs();
+  notifs.push(item);
+  saveNotifs(notifs);
+  renderNotifBadge();
+  if(!notifPanelOpen) showNotifToast(item.icon+" "+item.title);
+
+  // Push navigateur
+  if((opts.channel==="push"||!opts.channel) && typeof Notification!=="undefined" && Notification.permission==="granted"){
+    try{
+      new Notification("AMBI241 — "+opts.title,{
+        body:opts.msg, icon:"/ambi241/favicon.ico", tag:opts.key
+      });
+    }catch(ex){}
+  }
+
+  // Toujours logger dans le journal admin (même si l'utilisateur courant n'est pas admin)
+  saveToAdminLog(Object.assign({},item,{sentByRole:role}));
+}
+
+// ── Envoi admin vers un rôle spécifique (depuis le dashboard) ─
+function admSendNotif(){
+  var target = document.getElementById("admNotifTarget").value;
+  var title  = (document.getElementById("admNotifTitle").value||"").trim();
+  var msg    = (document.getElementById("admNotifMsg").value||"").trim();
+  var icon   = document.getElementById("admNotifIcon").value||"📢";
+  if(!title||!msg){ showToast("Titre et message requis"); return; }
+
+  // Sauve dans le log admin avec le ciblage
+  var item = {
+    id: Date.now()+"_adm",
+    key:"admin_broadcast",
+    icon:icon,
+    title:title,
+    msg:msg,
+    channel:"push",
+    targetRole:target,
+    ts:Date.now(),
+    unread:true,
+    fromAdmin:true,
+    sentByRole:"admin"
+  };
+  saveToAdminLog(item);
+
+  // Aussi injecter dans le store du rôle ciblé si c'est l'utilisateur courant
+  // (utile si admin teste vers lui-même)
+  if(target==="all"||target===getUserRole()){
+    var notifs=loadNotifs();
+    notifs.push(item);
+    saveNotifs(notifs);
+    renderNotifBadge();
+    showNotifToast(icon+" "+title);
+  }
+
+  showToast("✅ Notification envoyée aux "+target+"s");
+  document.getElementById("admNotifTitle").value="";
+  document.getElementById("admNotifMsg").value="";
+  if(typeof renderAdminNotifs==="function") renderAdminNotifs();
+}
+window.admSendNotif = admSendNotif;
+
+// ── Toast de notification ─────────────────────────────────────
+var _notifToastTimer;
+function showNotifToast(msg){
+  var t=document.getElementById("notifToast");
+  if(!t)return;
+  t.textContent=msg; t.classList.add("show");
+  clearTimeout(_notifToastTimer);
+  _notifToastTimer=setTimeout(function(){t.classList.remove("show");},3200);
+}
+
+// ── Badge ────────────────────────────────────────────────────
+function renderNotifBadge(){
+  var unread=loadNotifs().filter(function(n){return n.unread;}).length;
+  var badge=document.getElementById("notifBadge");
+  if(!badge)return;
+  badge.textContent=unread>9?"9+":String(unread);
+  badge.classList.toggle("show",unread>0);
+}
+
+// ── Rendu panneau (utilisateur voit SEULEMENT ses notifs) ─────
+function renderNotifList(){
+  var notifs=loadNotifs().slice().reverse();
+  var list=document.getElementById("notifList");
+  if(!list)return;
+  if(!notifs.length){
+    list.innerHTML="<div class=\"notif-empty\"><span>🔕</span>Aucune notification pour l'instant</div>";
+    renderNotifBadge(); return;
+  }
+  var channelLabel={push:"Push",sms:"SMS",email:"Email",wa:"WhatsApp"};
+  var channelCls={push:"ni-ch-push",sms:"ni-ch-sms",email:"ni-ch-email",wa:"ni-ch-wa"};
+  var html="";
+  notifs.forEach(function(n){
+    var ago=timeAgo(n.ts);
+    html+="<div class=\"notif-item"+(n.unread?" unread":"")+"\">";
+    html+="<div class=\"ni-top\">";
+    html+="<div class=\"ni-icon\">"+n.icon+"</div>";
+    html+="<div class=\"ni-body\">";
+    html+="<div class=\"ni-title\">"+n.title+"</div>";
+    html+="<div class=\"ni-msg\">"+n.msg+"</div>";
+    html+="<div class=\"ni-time\">"+ago;
+    if(n.channel&&channelLabel[n.channel]){
+      html+=" &nbsp;<span class=\"ni-channel "+channelCls[n.channel]+"\">"+channelLabel[n.channel]+"</span>";
+    }
+    if(n.fromAdmin){
+      html+=" &nbsp;<span class=\"ni-channel\" style=\"background:rgba(255,215,0,0.12);color:var(--amber);\">Admin</span>";
+    }
+    html+="</div>";
+    html+="</div></div></div>";
+  });
+  list.innerHTML=html;
+  var arr=loadNotifs();
+  arr.forEach(function(n){n.unread=false;});
+  saveNotifs(arr);
+  renderNotifBadge();
+}
+
+// ── Rendu préférences ─────────────────────────────────────────
+function renderNotifPrefs(){
+  var role=getUserRole();
+  var events=ROLE_EVENTS[role]||[];
+  var channels=ROLE_CHANNELS[role]||{};
+  var panel=document.getElementById("notifPrefsRows");
+  if(!panel)return;
+  var roleLabel={visiteur:"Visiteur",membre:"Membre",etablissement:"Établissement",admin:"Admin"};
+  var html="<div style='font-size:0.7rem;color:var(--cyan);margin-bottom:0.5rem;'>Rôle : <strong>"+roleLabel[role]+"</strong></div>";
+  events.forEach(function(ev){
+    var activeChannels=Object.keys(channels).filter(function(ch){return channels[ch];});
+    activeChannels.forEach(function(ch){
+      var chLabel={push:"🔔 Push",sms:"📱 SMS",email:"✉️ Email",wa:"💬 WhatsApp"}[ch];
+      var checked=getPref(role,ev.key,ch);
+      html+="<div class=\"notif-pref-row\">";
+      html+="<div><div class=\"notif-pref-label\">"+ev.icon+" "+ev.label+"</div>";
+      html+="<div class=\"notif-pref-sub\">"+chLabel+" — "+ev.desc+"</div></div>";
+      html+="<label class=\"notif-toggle\"><input type=\"checkbox\" "+(checked?"checked":"")+" onchange=\"setPref('"+role+"','"+ev.key+"','"+ch+"',this.checked)\"><span class=\"notif-toggle-slider\"></span></label>";
+      html+="</div>";
+    });
+  });
+  if(typeof Notification!=="undefined"&&Notification.permission==="default"){
+    html+="<button onclick=\"requestPushPermission()\" style=\"width:100%;margin-top:0.6rem;padding:0.5rem;border-radius:10px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.08);color:var(--cyan);font-size:0.78rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;\">🔔 Activer les notifications navigateur</button>";
+  } else if(typeof Notification!=="undefined"&&Notification.permission==="granted"){
+    html+="<div style='text-align:center;font-size:0.68rem;color:var(--green);margin-top:0.4rem;'>✅ Notifications navigateur actives</div>";
+  }
+  panel.innerHTML=html;
+}
+
+function timeAgo(ts){
+  var diff=Date.now()-ts;
+  if(diff<60000)return"À l'instant";
+  if(diff<3600000)return Math.floor(diff/60000)+"min";
+  if(diff<86400000)return Math.floor(diff/3600000)+"h";
+  return Math.floor(diff/86400000)+"j";
+}
+
+function requestPushPermission(){
+  if(!("Notification"in window))return;
+  Notification.requestPermission().then(function(result){
+    if(result==="granted"){
+      showNotifToast("✅ Notifications Push activées !");
+      setTimeout(triggerWelcomeNotif,800);
+    }
+    renderNotifPrefs();
+  });
+}
+
+function toggleNotifPanel(){
+  notifPanelOpen=!notifPanelOpen;
+  var panel=document.getElementById("notifPanel");
+  panel.classList.toggle("open",notifPanelOpen);
+  if(notifPanelOpen){renderNotifList();renderNotifPrefs();}
+}
+document.addEventListener("click",function(e){
+  var panel=document.getElementById("notifPanel");
+  var bell=document.getElementById("notifBellBtn");
+  if(!panel)return;
+  if(notifPanelOpen&&!panel.contains(e.target)&&e.target!==bell){
+    notifPanelOpen=false; panel.classList.remove("open");
+  }
+});
+
+function clearAllNotifs(){
+  saveNotifs([]); renderNotifBadge(); renderNotifList();
+}
+
+function triggerWelcomeNotif(){
+  var role=getUserRole();
+  var msgs={
+    visiteur:{title:"Bienvenue sur AMBI241 !",msg:"Découvrez l'ambiance des bars et restos de Libreville en temps réel."},
+    membre:{title:"Bon retour, membre AMBI241 !",msg:"Vos lieux favoris sont mis à jour en direct. Bonne soirée !"},
+    etablissement:{title:"Espace établissement actif",msg:"Mettez à jour votre ambiance pour attirer plus de clients ce soir."},
+    admin:{title:"Mode Admin activé",msg:"Tableau de bord complet disponible. Paiements et membres à vérifier."}
+  };
+  var m=msgs[role]||msgs.visiteur;
+  pushNotif({targetRole:role, key:"welcome", icon:"✨", title:m.title, msg:m.msg, channel:"push"});
+}
+
+function checkAutoNotifs(){
+  var role=getUserRole();
+  // ── Lieux bondés → TOUS ──
+  var bondes=etablissements.filter(function(e){return(e.affluence||0)>=80&&e.statut&&e.statut.indexOf("Ouvert")!==-1;});
+  if(bondes.length>0){
+    var b=bondes[Math.floor(Math.random()*bondes.length)];
+    pushNotif({targetRole:"all",key:"top_ambiance",icon:"🔥",title:"🔥 "+b.nom+" est bondé !",msg:"Affluence à "+b.affluence+"% — "+b.quartier+". Ambiance : "+b.ambiance+".",channel:"push"});
+  }
+  // ── Photos galerie → MEMBRES seulement ──
+  if(role==="membre"){
+    var galerieData=JSON.parse(localStorage.getItem("ambi241_galerie")||"{}");
+    var etabsAvecPhotos=Object.keys(galerieData).filter(function(id){return galerieData[id]&&galerieData[id].length>0;});
+    if(etabsAvecPhotos.length>0){
+      var eid=etabsAvecPhotos[0];
+      var etab=etablissements.find(function(x){return String(x.id)===String(eid);});
+      if(etab&&getPref("membre","galerie_new_photo","push")){
+        pushNotif({targetRole:"membre",key:"galerie_new_photo",icon:"📸",title:"Nouvelle photo — "+etab.nom,msg:"La galerie de "+etab.nom+" vient d'être mise à jour.",channel:"push"});
+      }
+    }
+  }
+  // ── Établissement : ses propres infos ──
+  if(role==="etablissement"){
+    var myEtab=etablissements.find(function(e){return(e.email||"").toLowerCase().trim()===(currentUserEmail||"").toLowerCase().trim();});
+    if(myEtab){
+      if(myEtab.paiement&&myEtab.paiement.indexOf("Actif")!==-1){
+        pushNotif({targetRole:"etablissement",key:"paiement_confirmed",icon:"✅",title:"Abonnement actif — "+myEtab.nom,msg:"Votre fiche est visible par tous les utilisateurs AMBI241.",channel:"push"});
+      }
+      if((myEtab.affluence||0)>=80){
+        pushNotif({targetRole:"etablissement",key:"top_affluence",icon:"🏆",title:"🏆 Vous êtes dans le Top 3 !",msg:myEtab.nom+" affiche "+myEtab.affluence+"% d'affluence.",channel:"push"});
+      }
+    }
+  }
+  // ── Admin : ses alertes spécifiques ──
+  if(role==="admin"){
+    var pending=paiements.filter(function(p){return p.statut==="En attente";});
+    if(pending.length>0){
+      pushNotif({targetRole:"admin",key:"paiement_pending",icon:"💳",title:pending.length+" paiement(s) en attente",msg:"À valider : "+pending.map(function(p){return p.nom;}).join(", "),channel:"push"});
+    }
+    var t=getTraffic();
+    if(t.count>=5){
+      pushNotif({targetRole:"admin",key:"top_traffic",icon:"📈",title:"Pic de trafic — "+t.count+" visites aujourd'hui",msg:"Total cumulé : "+t.total+" visites.",channel:"push"});
+    }
+  }
+}
+
+function initNotifications(){
+  renderNotifBadge();
+  triggerWelcomeNotif();
+  setTimeout(function loop(){checkAutoNotifs();setTimeout(loop,120000);},5000);
+}
+
+var _notifInitDone=false;
+(function waitForData(){
+  if(etablissements.length>0&&!_notifInitDone){
+    _notifInitDone=true;
+    initNotifications();
+  } else {
+    setTimeout(waitForData,500);
+  }
+})();
+
+window.toggleNotifPanel=toggleNotifPanel;
+window.clearAllNotifs=clearAllNotifs;
+window.setPref=setPref;
+window.requestPushPermission=requestPushPermission;
+
+var _prevRole="";
+setInterval(function(){
+  var newRole=getUserRole();
+  if(newRole!==_prevRole){
+    _prevRole=newRole;
+    if(!_notifInitDone)return;
+    triggerWelcomeNotif();
+    if(notifPanelOpen)renderNotifPrefs();
+    // Afficher/masquer le bouton Admin dans la nav
+    var adminNavBtn=document.getElementById("adminNavBtn");
+    if(adminNavBtn) adminNavBtn.style.display=(isAdmin?"flex":"none");
+  }
+},2000);
+
+// ══════════════════════════════════════════════════════════════
+// ══ TABLEAU DE BORD ADMIN — LOGIQUE COMPLÈTE               ══
+// ══════════════════════════════════════════════════════════════
+
+var _currentAdmTab = "overview";
+
+function openAdminDashboard(btn){
+  if(!isAdmin){ showToast("Mode Admin requis"); return; }
+  document.getElementById("adminDashOverlay").classList.add("show");
+  document.body.style.overflow="hidden";
+  switchAdmTab("overview");
+  // Afficher le bouton admin nav si pas déjà fait
+  var nb=document.getElementById("adminNavBtn");
+  if(nb)nb.style.display="flex";
+  // Marquer actif
+  document.querySelectorAll(".nav-item").forEach(function(b){b.classList.remove("active");});
+  if(btn)btn.classList.add("active");
+}
+function closeAdminDashboard(){
+  document.getElementById("adminDashOverlay").classList.remove("show");
+  document.body.style.overflow="";
+  // Réactiver accueil
+  var navBtns=document.querySelectorAll(".nav-item");
+  navBtns.forEach(function(b){b.classList.remove("active");});
+  if(navBtns[0])navBtns[0].classList.add("active");
+}
+window.openAdminDashboard=openAdminDashboard;
+window.closeAdminDashboard=closeAdminDashboard;
+
+function switchAdmTab(tab){
+  _currentAdmTab=tab;
+  var tabs=["overview","etabl","users","notifs","payments","moderation","settings"];
+  tabs.forEach(function(t){
+    var btn=document.getElementById("admtab-"+t);
+    var panel=document.getElementById("admpanel-"+t);
+    if(btn) btn.classList.toggle("active",t===tab);
+    if(panel) panel.style.display=(t===tab?"block":"none");
+  });
+  // Render content
+  if(tab==="overview") renderAdmOverview();
+  else if(tab==="etabl") renderAdmEtabl();
+  else if(tab==="users") renderAdmUsers();
+  else if(tab==="notifs") renderAdminNotifs();
+  else if(tab==="payments") renderAdmPayments();
+  else if(tab==="moderation") renderAdmModeration();
+  else if(tab==="settings") renderAdmSettings();
+}
+window.switchAdmTab=switchAdmTab;
+
+// ── Vue d'ensemble ─────────────────────────────────────────────
+function renderAdmOverview(){
+  var d=etablissements;
+  var actifs=d.filter(function(e){return e.paiement&&e.paiement.indexOf("Actif")!==-1;}).length;
+  var bondes=d.filter(function(e){return e.statut&&e.statut.indexOf("Bonde")!==-1;}).length;
+  var animes=d.filter(function(e){return e.statut&&e.statut.indexOf("Anime")!==-1;}).length;
+  var fermés=d.filter(function(e){return e.statut&&e.statut.indexOf("Ferme")!==-1;}).length;
+  var pending=paiements.filter(function(p){return p.statut==="En attente";}).length;
+  var rev=paiements.reduce(function(s,p){return s+(p.statut==="Confirme"?p.montant:0);},0);
+  var avgNote=(d.reduce(function(s,e){return s+(e.note||0);},0)/Math.max(d.length,1)).toFixed(1);
+  var avgAff=(d.reduce(function(s,e){return s+(e.affluence||0);},0)/Math.max(d.length,1)).toFixed(0);
+  var t=getTraffic();
+  var totalNotifs=loadAdminLog().length;
+
+  var html="";
+  // KPIs
+  html+="<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:1rem;'>";
+  var kpis=[
+    {v:d.length,l:"Lieux total",c:"var(--pink)"},
+    {v:actifs,l:"Lieux actifs",c:"var(--green)"},
+    {v:rev.toLocaleString("fr-FR")+" XAF",l:"Revenus confirmés",c:"var(--amber)"},
+    {v:pending,l:"Paiements en attente",c:"var(--red)"},
+    {v:t.count,l:"Visites aujourd'hui",c:"var(--cyan)"},
+    {v:t.total,l:"Visites totales",c:"var(--purple)"}
+  ];
+  kpis.forEach(function(k){
+    html+="<div class='adm-kpi'><div class='kv' style='color:"+k.c+";'>"+k.v+"</div><div class='kl'>"+k.l+"</div></div>";
+  });
+  html+="</div>";
+
+  // Ambiances
+  html+="<div style='background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:1rem;margin-bottom:1rem;'>";
+  html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--pink);font-size:0.8rem;margin-bottom:0.7rem;'>🔴 Ambiances en direct</div>";
+  html+="<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:0.4rem;'>";
+  [{v:bondes,l:"Bondés",c:"var(--red)"},{v:animes,l:"Animés",c:"var(--green)"},{v:d.length-bondes-animes-fermés,l:"Calmes",c:"var(--amber)"},{v:fermés,l:"Fermés",c:"var(--muted)"}].forEach(function(a){
+    html+="<div style='text-align:center;padding:0.6rem;background:rgba(255,255,255,0.02);border-radius:10px;'><div style='font-size:1.2rem;font-weight:800;font-family:Syne,sans-serif;color:"+a.c+";'>"+a.v+"</div><div style='font-size:0.6rem;color:var(--muted);'>"+a.l+"</div></div>";
+  });
+  html+="</div></div>";
+
+  // Actions rapides
+  html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--amber);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.7rem;'>⚡ Actions rapides</div>";
+  html+="<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:1rem;'>";
+  html+="<button onclick=\"openAdminAddModal()\" class='adm-action-btn' style='background:rgba(0,255,170,0.08);border-color:rgba(0,255,170,0.3);color:var(--green);'>&#43; Ajouter lieu</button>";
+  html+="<button onclick=\"switchAdmTab('payments')\" class='adm-action-btn' style='background:rgba(255,215,0,0.08);border-color:rgba(255,215,0,0.3);color:var(--amber);'>&#128179; Paiements ("+pending+" att.)</button>";
+  html+="<button onclick=\"switchAdmTab('notifs')\" class='adm-action-btn' style='background:rgba(255,45,155,0.08);border-color:rgba(255,45,155,0.3);color:var(--pink);'>&#128276; Notifs ("+totalNotifs+")</button>";
+  html+="<button onclick=\"switchAdmTab('moderation')\" class='adm-action-btn' style='background:rgba(204,68,255,0.08);border-color:rgba(204,68,255,0.3);color:var(--purple);'>&#128737; Modération</button>";
+  html+="<button onclick=\"loadData()\" class='adm-action-btn' style='background:rgba(0,229,255,0.08);border-color:rgba(0,229,255,0.3);color:var(--cyan);'>&#8635; Synchroniser Firebase</button>";
+  html+="<button onclick=\"switchAdmTab('users')\" class='adm-action-btn' style='background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.1);color:var(--text);'>&#128100; Membres</button>";
+  html+="</div>";
+
+  // Top affluence
+  html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--cyan);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>🏆 Top affluence ce soir</div>";
+  var top3=d.slice().sort(function(a,b){return(b.affluence||0)-(a.affluence||0);}).slice(0,5);
+  html+="<div style='background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:0.8rem;margin-bottom:1rem;'>";
+  top3.forEach(function(e,i){
+    var pct=e.affluence||0;
+    html+="<div style='display:flex;align-items:center;gap:0.6rem;margin-bottom:0.55rem;'>";
+    html+="<span style='font-size:1rem;width:26px;text-align:center;'>"+(i===0?"🥇":i===1?"🥈":i===2?"🥉":"#"+(i+1))+"</span>";
+    html+="<div style='flex:1;'><div style='display:flex;justify-content:space-between;margin-bottom:0.2rem;'><span style='font-size:0.8rem;color:var(--text);font-weight:600;'>"+e.nom+"</span><span style='font-size:0.72rem;color:var(--amber);font-weight:700;'>"+pct+"%</span></div>";
+    html+="<div style='height:4px;background:rgba(255,255,255,0.06);border-radius:2px;'><div style='height:100%;width:"+pct+"%;background:linear-gradient(90deg,var(--green),var(--amber),var(--red));border-radius:2px;'></div></div></div>";
+    html+="<span style='font-size:0.62rem;color:var(--muted);'>"+e.quartier+"</span>";
+    html+="</div>";
+  });
+  html+="</div>";
+
+  document.getElementById("adminOverviewContent").innerHTML=html;
+}
+
+// ── Établissements admin ───────────────────────────────────────
+function renderAdmEtabl(){
+  var d=etablissements;
+  var html="<div style='margin-bottom:0.8rem;display:flex;justify-content:space-between;align-items:center;'>";
+  html+="<span style='font-size:0.72rem;color:var(--muted);'>"+d.length+" établissements</span>";
+  html+="<input id='admSearchEtabl' type='text' placeholder='Rechercher...' oninput='admFilterEtabl()' style='background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);font-size:0.78rem;padding:0.4rem 0.7rem;width:150px;'>";
+  html+="</div>";
+  d.forEach(function(e){
+    var sc=e.statut&&e.statut.indexOf("Bonde")!==-1?"var(--red)":e.statut&&e.statut.indexOf("Anime")!==-1?"var(--green)":e.statut&&e.statut.indexOf("Ouvert")!==-1?"var(--amber)":"var(--muted)";
+    html+="<div class='notif-admin-item' data-nom='"+(e.nom||"").toLowerCase()+"'>";
+    html+="<div style='display:flex;justify-content:space-between;align-items:flex-start;gap:0.4rem;'>";
+    html+="<div><div style='font-weight:700;font-size:0.85rem;color:var(--text);'>"+e.nom+"</div>";
+    html+="<div style='font-size:0.7rem;color:var(--muted);'>"+e.type+" · "+e.quartier+"</div></div>";
+    html+="<span style='font-size:0.65rem;font-weight:700;color:"+sc+";white-space:nowrap;'>"+e.statut+"</span></div>";
+    html+="<div style='display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem;'>";
+    html+="<div style='display:flex;gap:0.4rem;flex-wrap:wrap;'>";
+    var statusOpts=["Ouvert - Anime","Ouvert - Bonde","Ouvert - Calme","Ferme"];
+    statusOpts.forEach(function(s){
+      html+="<button onclick=\"updateField("+e.id+",{statut:'"+s+"'})\" style='font-size:0.6rem;padding:0.2rem 0.45rem;border-radius:5px;cursor:pointer;border:1px solid rgba(255,255,255,0.12);background:"+(e.statut===s?"rgba(255,45,155,0.2)":"transparent")+";color:"+(e.statut===s?"var(--pink)":"var(--muted)")+";font-family:DM Sans,sans-serif;'>"+s.replace("Ouvert - ","")+"</button>";
+    });
+    html+="</div>";
+    html+="<input type='number' min='0' max='100' value='"+(e.affluence||0)+"' onchange=\"updateField("+e.id+",{affluence:parseInt(this.value)})\" title='Affluence %' style='width:55px;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:var(--amber);font-size:0.8rem;padding:0.25rem 0.4rem;text-align:center;'>";
+    html+="</div>";
+    html+="<div style='display:flex;gap:0.4rem;margin-top:0.4rem;'>";
+    html+="<button onclick=\"deleteEtablissement("+e.id+")\" style='font-size:0.65rem;padding:0.2rem 0.5rem;border-radius:6px;background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.3);color:var(--red);cursor:pointer;'>&#128465; Supprimer</button>";
+    html+="<button onclick=\"showToast('ID: "+e._docId+" · Email: "+(e.email||"N/A")+"')\" style='font-size:0.65rem;padding:0.2rem 0.5rem;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:var(--muted);cursor:pointer;'>&#128065; Infos</button>";
+    html+="</div>";
+    html+="</div>";
+  });
+  document.getElementById("adminEtablList").innerHTML=html;
+}
+function admRefreshEtabl(){ loadData(); setTimeout(function(){if(_currentAdmTab==="etabl")renderAdmEtabl();},1500); }
+function admFilterEtabl(){
+  var q=(document.getElementById("admSearchEtabl").value||"").toLowerCase();
+  document.querySelectorAll("#adminEtablList .notif-admin-item").forEach(function(el){
+    el.style.display=(el.getAttribute("data-nom")||"").indexOf(q)!==-1?"block":"none";
+  });
+}
+window.admRefreshEtabl=admRefreshEtabl;
+window.admFilterEtabl=admFilterEtabl;
+
+// ── Membres admin ─────────────────────────────────────────────
+function renderAdmUsers(){
+  var html="";
+  // Essayer de lire les users depuis Firebase
+  if(window.db&&window.fbCollection&&window.fbGetDocs&&window.fbQuery&&window.fbOrderBy){
+    html="<div style='font-size:0.78rem;color:var(--muted);text-align:center;padding:1rem;'>Chargement des membres...</div>";
+    document.getElementById("adminUsersContent").innerHTML=html;
+    var col=window.fbCollection(window.db,"users");
+    window.fbGetDocs(col).then(function(snap){
+      var users=[];
+      snap.forEach(function(d){users.push(Object.assign({uid:d.id},d.data()));});
+      var h="<div style='font-size:0.72rem;color:var(--muted);margin-bottom:0.7rem;'>"+users.length+" membres inscrits</div>";
+      if(!users.length){
+        h+="<div style='text-align:center;padding:2rem;color:var(--muted);'>Aucun membre pour l'instant</div>";
+      }
+      users.forEach(function(u){
+        h+="<div class='notif-admin-item'>";
+        h+="<div style='display:flex;align-items:center;gap:0.6rem;'>";
+        h+="<div style='width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--cyan));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.9rem;color:#000;flex-shrink:0;'>"+((u.pseudo||u.email||"?")[0]).toUpperCase()+"</div>";
+        h+="<div style='flex:1;min-width:0;'>";
+        h+="<div style='font-weight:700;font-size:0.82rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>"+escHtml(u.pseudo||"Inconnu")+"</div>";
+        h+="<div style='font-size:0.68rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>"+escHtml(u.email||"")+"</div>";
+        if(u.tel) h+="<div style='font-size:0.65rem;color:var(--cyan);'>"+escHtml(u.tel)+"</div>";
+        h+="</div>";
+        h+="<div style='text-align:right;font-size:0.62rem;color:var(--muted);flex-shrink:0;'>"+(u.createdAt?new Date(u.createdAt).toLocaleDateString("fr-FR"):"")+"</div>";
+        h+="</div>";
+        h+="</div>";
+      });
+      document.getElementById("adminUsersContent").innerHTML=h;
+    }).catch(function(err){
+      document.getElementById("adminUsersContent").innerHTML="<div style='color:var(--red);font-size:0.8rem;padding:1rem;text-align:center;'>Erreur: "+err.message+"</div>";
+    });
+    return;
+  }
+  document.getElementById("adminUsersContent").innerHTML="<div style='text-align:center;padding:2rem;color:var(--muted);font-size:0.82rem;'>&#128100; Firebase requis pour voir les membres</div>";
+}
+
+// ── Notifications admin — journal complet + modération ─────────
+function renderAdminNotifs(){
+  var log=loadAdminLog().slice().reverse();
+  var html="";
+  if(!log.length){
+    html="<div style='text-align:center;padding:2rem;color:var(--muted);font-size:0.82rem;'>&#128276; Aucune notification dans le journal</div>";
+    document.getElementById("adminAllNotifs").innerHTML=html;
+    return;
+  }
+  var roleLabel={admin:"Admin",membre:"Membre",etablissement:"Établ.",visiteur:"Visiteur",all:"Tous"};
+  log.forEach(function(n,i){
+    var targetCls="role-"+(n.targetRole||"all");
+    html+="<div class='notif-admin-item' id='admnotif-"+i+"'>";
+    html+="<div class='na-head'>";
+    html+="<span style='font-size:1rem;'>"+n.icon+"</span>";
+    html+="<span style='flex:1;font-weight:700;font-size:0.8rem;color:var(--text);'>"+escHtml(n.title)+"</span>";
+    html+="<span class='na-role "+targetCls+"'>→ "+(roleLabel[n.targetRole||"all"]||n.targetRole)+"</span>";
+    html+="<button onclick='admDeleteNotif("+i+")' title='Supprimer' style='background:none;border:none;color:var(--red);cursor:pointer;font-size:0.75rem;padding:0.1rem 0.3rem;'>&#128465;</button>";
+    html+="</div>";
+    html+="<div style='font-size:0.72rem;color:var(--muted);margin-left:1.5rem;'>"+escHtml(n.msg)+"</div>";
+    var chLabel={push:"Push",sms:"SMS",email:"Email",wa:"WhatsApp"};
+    html+="<div style='font-size:0.62rem;color:rgba(255,255,255,0.3);margin-left:1.5rem;margin-top:0.2rem;'>"+timeAgo(n.ts)+" · "+(chLabel[n.channel]||n.channel)+(n.fromAdmin?" · <span style=\"color:var(--amber);\">Envoi admin</span>":"")+"</div>";
+    html+="</div>";
+  });
+  html+="<button onclick='admClearAllNotifLog()' style='width:100%;margin-top:0.5rem;padding:0.5rem;border-radius:10px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.06);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;'>&#128465; Effacer tout le journal</button>";
+  document.getElementById("adminAllNotifs").innerHTML=html;
+}
+function admDeleteNotif(idx){
+  var log=loadAdminLog().slice().reverse();
+  log.splice(idx,1);
+  // Remettre dans l'ordre chronologique
+  try{localStorage.setItem(NOTIF_ADMIN_KEY,JSON.stringify(log.reverse()));}catch(e){}
+  renderAdminNotifs();
+  showToast("Notification supprimée");
+}
+function admClearAllNotifLog(){
+  if(!confirm("Effacer tout le journal des notifications ?"))return;
+  try{localStorage.removeItem(NOTIF_ADMIN_KEY);}catch(e){}
+  renderAdminNotifs();
+  showToast("Journal effacé");
+}
+window.admDeleteNotif=admDeleteNotif;
+window.admClearAllNotifLog=admClearAllNotifLog;
+
+// ── Paiements admin ────────────────────────────────────────────
+function renderAdmPayments(){
+  var confirmed=paiements.filter(function(p){return p.statut==="Confirme";});
+  var pending=paiements.filter(function(p){return p.statut==="En attente";});
+  var rev=confirmed.reduce(function(s,p){return s+p.montant;},0);
+  var html="";
+  html+="<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:1rem;'>";
+  html+="<div class='adm-kpi'><div class='kv' style='color:var(--green);'>"+confirmed.length+"</div><div class='kl'>Confirmés</div></div>";
+  html+="<div class='adm-kpi'><div class='kv' style='color:var(--amber);'>"+pending.length+"</div><div class='kl'>En attente</div></div>";
+  html+="<div class='adm-kpi'><div class='kv' style='color:var(--cyan);font-size:0.85rem;'>"+rev.toLocaleString("fr-FR")+" XAF</div><div class='kl'>Revenus</div></div>";
+  html+="</div>";
+  if(pending.length>0){
+    html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--amber);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.5rem;'>⚠️ En attente de validation</div>";
+    pending.forEach(function(p,i){
+      var idx=paiements.indexOf(p);
+      html+="<div class='notif-admin-item' style='border-color:rgba(255,215,0,0.2);'>";
+      html+="<div style='display:flex;justify-content:space-between;'><div><div style='font-weight:700;font-size:0.83rem;color:var(--text);'>"+escHtml(p.nom)+"</div><div style='font-size:0.7rem;color:var(--muted);'>"+p.id+" · "+p.mode+" · "+p.date+"</div></div><div style='font-weight:800;color:var(--amber);font-size:0.9rem;'>"+p.montant.toLocaleString("fr-FR")+" XAF</div></div>";
+      html+="<button onclick='toggleConfirme("+idx+")' style='width:100%;margin-top:0.6rem;padding:0.5rem;border-radius:8px;border:none;background:linear-gradient(135deg,var(--green),var(--cyan));color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer;'>&#10003; Confirmer ce paiement</button>";
+      html+="</div>";
+    });
+  }
+  html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--green);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;margin:0.8rem 0 0.5rem;'>✅ Confirmés</div>";
+  confirmed.forEach(function(p,i){
+    var idx=paiements.indexOf(p);
+    html+="<div class='notif-admin-item' style='border-color:rgba(0,255,170,0.15);'>";
+    html+="<div style='display:flex;justify-content:space-between;align-items:center;'>";
+    html+="<div><div style='font-weight:600;font-size:0.8rem;color:var(--text);'>"+escHtml(p.nom)+"</div><div style='font-size:0.65rem;color:var(--muted);'>"+p.id+" · "+p.mode+"</div></div>";
+    html+="<div style='text-align:right;'><div style='font-weight:700;color:var(--green);font-size:0.82rem;'>"+p.montant.toLocaleString("fr-FR")+" XAF</div>";
+    html+="<button onclick='toggleConfirme("+idx+")' style='font-size:0.6rem;padding:0.15rem 0.4rem;border-radius:4px;background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.25);color:var(--red);cursor:pointer;'>Annuler</button></div>";
+    html+="</div></div>";
+  });
+  document.getElementById("adminPaymentsContent").innerHTML=html;
+}
+
+// ── Modération ─────────────────────────────────────────────────
+function renderAdmModeration(){
+  var html="";
+  html+="<div style='background:rgba(204,68,255,0.06);border:1px solid rgba(204,68,255,0.2);border-radius:14px;padding:1rem;margin-bottom:1rem;'>";
+  html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--purple);font-size:0.85rem;margin-bottom:0.7rem;'>🛡️ Outils de Modération</div>";
+  html+="<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;'>";
+  html+="<button onclick=\"if(confirm('Réinitialiser toutes les notifs utilisateurs ?')){try{Object.keys(localStorage).filter(function(k){return k.startsWith('ambi241_notifications_')}).forEach(function(k){localStorage.removeItem(k)});showToast('Notifs réinitialisées !');}catch(e){}}\" class='adm-action-btn' style='background:rgba(255,68,102,0.08);border-color:rgba(255,68,102,0.3);color:var(--red);'>&#128465; Reset toutes les notifs</button>";
+  html+="<button onclick=\"if(confirm('Effacer le cache des photos éphémères ?')){localStorage.removeItem('ambi241_slot_photos');localStorage.removeItem('ambi241_soiree');showToast('Cache photos effacé !');}\" class='adm-action-btn' style='background:rgba(255,215,0,0.06);border-color:rgba(255,215,0,0.25);color:var(--amber);'>&#128247; Purge photos cache</button>";
+  html+="<button onclick=\"loadData();showToast('Synchronisation Firebase lancée...')\" class='adm-action-btn' style='background:rgba(0,229,255,0.06);border-color:rgba(0,229,255,0.25);color:var(--cyan);'>&#8635; Sync Firebase</button>";
+  html+="<button onclick=\"var r=parseInt(prompt('Nouvelle affluence globale (0-100) ?','50'));if(!isNaN(r)){etablissements.forEach(function(e){updateField(e.id,{affluence:r});});showToast('Affluence mise à jour !');}\" class='adm-action-btn' style='background:rgba(0,255,170,0.06);border-color:rgba(0,255,170,0.25);color:var(--green);'>&#128202; Ajuster affluence</button>";
+  html+="</div></div>";
+
+  // Commentaires récents (depuis le cache local)
+  html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--pink);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>💬 Commentaires récents</div>";
+  var allComments=[];
+  Object.keys(commentsCache||{}).forEach(function(eid){
+    (commentsCache[eid]||[]).forEach(function(c){
+      allComments.push(Object.assign({},c,{eid:eid}));
+    });
+  });
+  allComments.sort(function(a,b){return(b.ts||0)-(a.ts||0);});
+  if(!allComments.length){
+    html+="<div style='text-align:center;padding:1.5rem;color:var(--muted);font-size:0.8rem;'>Aucun commentaire chargé. Ouvrez un établissement pour les voir ici.</div>";
+  }
+  allComments.slice(0,20).forEach(function(c){
+    var etab=etablissements.find(function(x){return String(x.id)===String(c.eid);})||{nom:"Inconnu"};
+    html+="<div class='notif-admin-item'>";
+    html+="<div style='display:flex;justify-content:space-between;align-items:flex-start;'>";
+    html+="<div><span style='font-weight:700;font-size:0.8rem;color:var(--cyan);'>"+escHtml(c.pseudo||"Anonyme")+"</span> <span style='font-size:0.68rem;color:var(--muted);'>sur "+escHtml(etab.nom)+"</span></div>";
+    html+="<button onclick=\"deleteComment('"+c.eid+"','"+c.id+"')\" style='font-size:0.65rem;padding:0.15rem 0.4rem;border-radius:6px;background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.3);color:var(--red);cursor:pointer;'>&#128465;</button>";
+    html+="</div>";
+    html+="<div style='font-size:0.75rem;color:var(--text);margin-top:0.3rem;'>"+escHtml(c.text)+"</div>";
+    html+="<div style='font-size:0.62rem;color:rgba(255,255,255,0.25);margin-top:0.2rem;'>"+timeAgo(c.ts)+"</div>";
+    html+="</div>";
+  });
+
+  document.getElementById("adminModerationContent").innerHTML=html;
+}
+
+// ── Paramètres admin ───────────────────────────────────────────
+function renderAdmSettings(){
+  var html="";
+  html+="<div style='background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.2);border-radius:14px;padding:1rem;margin-bottom:1rem;'>";
+  html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--amber);font-size:0.85rem;margin-bottom:0.7rem;'>⚙️ Paramètres de l'application</div>";
+  html+="<div style='font-size:0.75rem;color:var(--muted);margin-bottom:1rem;'>PIN Admin actuel : <strong style='color:var(--amber);letter-spacing:0.2em;'>••••</strong></div>";
+  html+="<div style='margin-bottom:0.8rem;'><label style='font-size:0.72rem;color:var(--muted);display:block;margin-bottom:0.3rem;'>Nouveau PIN (4 chiffres)</label>";
+  html+="<input id='newPinInput' type='password' maxlength='4' pattern='[0-9]{4}' placeholder='Entrez 4 chiffres' style='width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.85rem;'></div>";
+  html+="<button onclick='changeAdminPin()' style='width:100%;padding:0.55rem;border-radius:10px;border:none;background:linear-gradient(135deg,var(--amber),var(--pink));color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;'>&#128272; Changer le PIN</button>";
+  html+="</div>";
+
+  // Infos Firebase
+  html+="<div style='background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.15);border-radius:14px;padding:1rem;margin-bottom:1rem;'>";
+  html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--cyan);font-size:0.85rem;margin-bottom:0.7rem;'>🔥 Firebase</div>";
+  html+="<div style='font-size:0.73rem;color:var(--muted);line-height:1.7;'>";
+  html+="<div>Projet : <strong style='color:var(--text);'>ambi241</strong></div>";
+  html+="<div>Email admin : <strong style='color:var(--text);'>ambi2412026@gmail.com</strong></div>";
+  html+="<div>Établissements : <strong style='color:var(--green);'>"+etablissements.length+"</strong></div>";
+  html+="<div>Statut : <strong style='color:var(--green);'>&#9679; Connecté</strong></div>";
+  html+="</div></div>";
+
+  // Trafic
+  var t=getTraffic();
+  html+="<div style='background:rgba(204,68,255,0.04);border:1px solid rgba(204,68,255,0.15);border-radius:14px;padding:1rem;'>";
+  html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--purple);font-size:0.85rem;margin-bottom:0.6rem;'>📈 Trafic</div>";
+  html+="<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;'>";
+  html+="<div class='adm-kpi'><div class='kv' style='color:var(--purple);'>"+t.count+"</div><div class='kl'>Aujourd'hui</div></div>";
+  html+="<div class='adm-kpi'><div class='kv' style='color:var(--purple);'>"+t.total+"</div><div class='kl'>Total</div></div>";
+  html+="</div></div>";
+
+  document.getElementById("adminSettingsContent").innerHTML=html;
+}
+
+function changeAdminPin(){
+  var inp=document.getElementById("newPinInput");
+  if(!inp)return;
+  var val=(inp.value||"").trim();
+  if(!/^\d{4}$/.test(val)){showToast("Le PIN doit être 4 chiffres");return;}
+  PIN=val;
+  inp.value="";
+  showToast("✅ PIN Admin changé !");
+}
+window.changeAdminPin=changeAdminPin;
+
+// ── Afficher le bouton Admin dans la nav quand mode admin actif ─
+var _admNavShown=false;
+var _admNavCheck=setInterval(function(){
+  var nb=document.getElementById("adminNavBtn");
+  if(!nb)return;
+  if(isAdmin&&!_admNavShown){
+    nb.style.display="flex"; _admNavShown=true;
+  } else if(!isAdmin&&_admNavShown){
+    nb.style.display="none"; _admNavShown=false;
+    closeAdminDashboard();
+  }
+},1000);
+
 // ─────────────────────────────────────────────────────────────
 </script>
 
@@ -3544,6 +4322,124 @@ setInterval(function(){
     </div>
   </div>
 </div>
+
+<!-- ══ TABLEAU DE BORD ADMIN COMPLET ══ -->
+<div class="overlay" id="adminDashOverlay" style="align-items:flex-start;padding:0;z-index:250;">
+  <div style="width:100%;max-width:700px;margin:0 auto;background:var(--bg);min-height:100vh;padding-bottom:80px;overflow-y:auto;" id="adminDashPanel">
+    <!-- Header Admin -->
+    <div style="position:sticky;top:0;z-index:10;background:rgba(13,0,20,0.97);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,215,0,0.3);padding:0.8rem 1rem;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:0.6rem;">
+        <span style="font-size:1.4rem;">&#9881;&#65039;</span>
+        <div>
+          <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1rem;color:var(--amber);">Tableau de Bord Admin</div>
+          <div style="font-size:0.65rem;color:var(--muted);">AMBI241 — Panneau de contrôle</div>
+        </div>
+      </div>
+      <button onclick="closeAdminDashboard()" style="background:rgba(255,68,102,0.12);border:1px solid rgba(255,68,102,0.3);color:var(--red);width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;">&#10005;</button>
+    </div>
+
+    <!-- Onglets admin -->
+    <div style="display:flex;gap:0;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid rgba(255,255,255,0.06);background:var(--surface);">
+      <button class="adm-tab active" id="admtab-overview" onclick="switchAdmTab('overview')">&#128202; Vue d'ensemble</button>
+      <button class="adm-tab" id="admtab-etabl" onclick="switchAdmTab('etabl')">&#127968; Établissements</button>
+      <button class="adm-tab" id="admtab-users" onclick="switchAdmTab('users')">&#128100; Membres</button>
+      <button class="adm-tab" id="admtab-notifs" onclick="switchAdmTab('notifs')">&#128276; Notifications</button>
+      <button class="adm-tab" id="admtab-payments" onclick="switchAdmTab('payments')">&#128179; Paiements</button>
+      <button class="adm-tab" id="admtab-moderation" onclick="switchAdmTab('moderation')">&#128737; Modération</button>
+      <button class="adm-tab" id="admtab-settings" onclick="switchAdmTab('settings')">&#9881; Paramètres</button>
+    </div>
+
+    <div style="padding:1rem;">
+
+      <!-- ── Vue d'ensemble ── -->
+      <div id="admpanel-overview">
+        <div id="adminOverviewContent">Chargement...</div>
+      </div>
+
+      <!-- ── Établissements ── -->
+      <div id="admpanel-etabl" style="display:none;">
+        <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;">
+          <button onclick="openAdminAddModal()" style="flex:1;padding:0.6rem;border-radius:10px;border:1px solid rgba(0,255,170,0.3);background:rgba(0,255,170,0.08);color:var(--green);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;">&#43; Ajouter un lieu</button>
+          <button onclick="admRefreshEtabl()" style="padding:0.6rem 0.9rem;border-radius:10px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.08);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;">&#8635; Actualiser</button>
+        </div>
+        <div id="adminEtablList">Chargement...</div>
+      </div>
+
+      <!-- ── Membres ── -->
+      <div id="admpanel-users" style="display:none;">
+        <div id="adminUsersContent">Chargement...</div>
+      </div>
+
+      <!-- ── Notifications Admin ── -->
+      <div id="admpanel-notifs" style="display:none;">
+        <div style="background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:0.9rem;margin-bottom:1rem;">
+          <div style="font-family:Syne,sans-serif;font-weight:700;color:var(--amber);font-size:0.85rem;margin-bottom:0.5rem;">&#128276; Envoyer une notification</div>
+          <div style="margin-bottom:0.6rem;">
+            <label style="font-size:0.72rem;color:var(--muted);display:block;margin-bottom:0.3rem;">Destinataires</label>
+            <select id="admNotifTarget" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.3);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.85rem;">
+              <option value="all">Tous les utilisateurs</option>
+              <option value="membre">Membres uniquement</option>
+              <option value="etablissement">Établissements uniquement</option>
+              <option value="visiteur">Visiteurs uniquement</option>
+            </select>
+          </div>
+          <div style="margin-bottom:0.6rem;">
+            <label style="font-size:0.72rem;color:var(--muted);display:block;margin-bottom:0.3rem;">Titre de la notification</label>
+            <input id="admNotifTitle" type="text" placeholder="Ex: Soirée spéciale ce soir !" maxlength="60" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.85rem;">
+          </div>
+          <div style="margin-bottom:0.6rem;">
+            <label style="font-size:0.72rem;color:var(--muted);display:block;margin-bottom:0.3rem;">Message</label>
+            <textarea id="admNotifMsg" placeholder="Entrez votre message..." maxlength="200" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.85rem;resize:vertical;min-height:60px;"></textarea>
+          </div>
+          <div style="display:flex;gap:0.5rem;">
+            <select id="admNotifIcon" style="background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:1rem;">
+              <option>&#128293;</option><option>&#127881;</option><option>&#10024;</option><option>&#9989;</option><option>&#128226;</option><option>&#127942;</option><option>&#128248;</option><option>&#128204;</option>
+            </select>
+            <button onclick="admSendNotif()" style="flex:1;padding:0.55rem;border-radius:10px;border:none;background:linear-gradient(135deg,var(--amber),var(--pink));color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;">&#128228; Envoyer la notification</button>
+          </div>
+        </div>
+
+        <div style="font-family:Syne,sans-serif;font-weight:700;color:var(--pink);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.7rem;">&#128274; Toutes les notifications (Modération Admin)</div>
+        <div id="adminAllNotifs">Chargement...</div>
+      </div>
+
+      <!-- ── Paiements Admin ── -->
+      <div id="admpanel-payments" style="display:none;">
+        <div id="adminPaymentsContent">Chargement...</div>
+      </div>
+
+      <!-- ── Modération ── -->
+      <div id="admpanel-moderation" style="display:none;">
+        <div id="adminModerationContent">Chargement...</div>
+      </div>
+
+      <!-- ── Paramètres ── -->
+      <div id="admpanel-settings" style="display:none;">
+        <div id="adminSettingsContent">Chargement...</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<style>
+/* ── ADMIN DASHBOARD ── */
+.adm-tab{flex-shrink:0;padding:0.7rem 1rem;border:none;background:transparent;color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.72rem;font-weight:600;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:all 0.2s;}
+.adm-tab.active{color:var(--amber);border-bottom-color:var(--amber);background:rgba(255,215,0,0.05);}
+.adm-kpi{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.9rem;text-align:center;}
+.adm-kpi .kv{font-size:1.5rem;font-family:Syne,sans-serif;font-weight:800;}
+.adm-kpi .kl{font-size:0.65rem;color:var(--muted);margin-top:0.15rem;}
+.adm-action-btn{padding:0.5rem 0.8rem;border-radius:8px;font-family:Syne,sans-serif;font-weight:700;font-size:0.72rem;cursor:pointer;border:1px solid;transition:all 0.15s;}
+.adm-action-btn:active{opacity:0.7;}
+.notif-admin-item{padding:0.8rem;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:12px;margin-bottom:0.6rem;}
+.notif-admin-item .na-head{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem;}
+.notif-admin-item .na-role{font-size:0.6rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:4px;}
+.role-admin{background:rgba(255,215,0,0.15);color:var(--amber);}
+.role-membre{background:rgba(0,229,255,0.12);color:var(--cyan);}
+.role-etablissement{background:rgba(0,255,170,0.12);color:var(--green);}
+.role-visiteur{background:rgba(255,255,255,0.08);color:var(--muted);}
+.role-all{background:rgba(255,45,155,0.12);color:var(--pink);}
+</style>
 
 <!-- MODAL LEGAL (CGU / Confidentialite) -->
 <div class="overlay" id="legalOverlay" onclick="if(event.target===this)closeLegalModal()">
