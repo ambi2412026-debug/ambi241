@@ -432,8 +432,21 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;}
 .pob-title{font-weight:700;font-size:0.85rem;}
 .pob-sub{font-size:0.7rem;opacity:0.75;margin-top:0.1rem;}
 
-/* FOOTER */
-footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);padding:1.5rem 1rem;position:relative;z-index:1;margin-top:2rem;}
+/* ══ PRÈS DE CHEZ VOUS ══ */
+.nearby-banner{background:linear-gradient(135deg,rgba(0,229,255,0.1),rgba(0,255,170,0.06));border:1px solid rgba(0,229,255,0.25);border-radius:16px;padding:1rem 1.1rem;margin-bottom:1.2rem;animation:fadeUp 0.4s ease both;}
+.nearby-banner .nb-head{display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;}
+.nearby-banner .nb-icon{font-size:1.5rem;}
+.nearby-banner .nb-title{font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;color:var(--cyan);}
+.nearby-banner .nb-sub{font-size:0.75rem;color:var(--muted);margin-bottom:0.7rem;}
+.nearby-btn{width:100%;padding:0.6rem;border-radius:10px;border:1px solid rgba(0,229,255,0.4);background:rgba(0,229,255,0.1);color:var(--cyan);font-family:'Syne',sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;transition:all 0.2s;}
+.nearby-btn:active{opacity:0.8;transform:scale(0.98);}
+.nearby-btn.located{background:rgba(0,255,170,0.1);border-color:rgba(0,255,170,0.4);color:var(--green);}
+.dist-badge{display:inline-flex;align-items:center;gap:0.25rem;font-size:0.65rem;font-weight:700;background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);padding:0.12rem 0.45rem;border-radius:100px;margin-left:0.4rem;white-space:nowrap;}
+.dist-badge.near{background:rgba(0,255,170,0.12);border-color:rgba(0,255,170,0.3);color:var(--green);}
+.dist-badge.far{background:rgba(255,68,102,0.08);border-color:rgba(255,68,102,0.2);color:var(--red);}
+.sort-btn-nearby{padding:0.25rem 0.6rem;border-radius:6px;font-size:0.68rem;font-weight:700;border:none;background:transparent;color:var(--muted);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;white-space:nowrap;}
+.sort-btn-nearby.active{background:var(--cyan);color:#000;}
+
 .footer-inner{max-width:640px;margin:0 auto;}
 .footer-logo{display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;}
 .footer-logo img{width:32px;height:32px;border-radius:50%;object-fit:cover;}
@@ -700,6 +713,14 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
     </div>
     <!-- STATS RAPIDES -->
     <div class="stats-scroll" id="statsRowHome"></div>
+    <!-- PRÈS DE CHEZ VOUS -->
+    <div class="nearby-banner" id="nearbyBanner">
+      <div class="nb-head"><span class="nb-icon">📍</span><span class="nb-title">Établissements près de vous</span></div>
+      <div class="nb-sub">Activez votre position GPS pour voir les bars et restos proches de vous en temps réel.</div>
+      <button class="nearby-btn" id="nearbyBtn" onclick="activateNearby()">📍 Activer ma position GPS</button>
+    </div>
+    <!-- SECTION LIEUX PROCHES (apparaît après localisation) -->
+    <div id="nearbySection" style="margin-bottom:1.2rem;"></div>
     <!-- TOP LIEUX CE SOIR -->
     <div style="font-family:'Syne',sans-serif;font-size:0.72rem;font-weight:700;color:var(--pink);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.8rem;">&#128293; Top ce soir <span style="font-size:0.62rem;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">— 3 meilleurs lieux</span></div>
     <div id="topLieux"></div>
@@ -736,6 +757,7 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
           <button class="sort-btn active" data-sort="affluence">Affluence</button>
           <button class="sort-btn" data-sort="note">Note</button>
           <button class="sort-btn" data-sort="quartier">Quartier</button>
+          <button class="sort-btn sort-btn-nearby" data-sort="distance" onclick="sortByDistanceClick()">&#128205; Distance</button>
         </div>
         <div class="view-btns">
           <button class="view-btn active" data-view="liste">&#8801;</button>
@@ -1018,6 +1040,144 @@ var paiements=[
   {id:"PAY-007",nom:"Savana Resto",mode:"Airtel Money",montant:5000,date:"2025-01-21",statut:"Confirme"},
   {id:"PAY-008",nom:"Sky Lounge",mode:"Moov Money",montant:5000,date:"2025-01-22",statut:"Confirme"}
 ];
+// ══════════════════════════════════════════════════════════════
+// ══  SYSTÈME GÉOLOCALISATION "PRÈS DE CHEZ VOUS"            ══
+// ══════════════════════════════════════════════════════════════
+
+var userLat = null;
+var userLng = null;
+var nearbyActive = false;
+
+// Calcul distance Haversine en km
+function haversineKm(lat1, lng1, lat2, lng2){
+  var R = 6371;
+  var dLat = (lat2 - lat1) * Math.PI / 180;
+  var dLng = (lng2 - lng1) * Math.PI / 180;
+  var a = Math.sin(dLat/2)*Math.sin(dLat/2)
+    + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)
+    * Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// Formate la distance pour affichage
+function fmtDist(km){
+  if(km < 1) return Math.round(km * 1000) + " m";
+  return km.toFixed(1) + " km";
+}
+
+// Badge distance HTML
+function distBadge(e){
+  if(userLat === null || !e.latitude || !e.longitude) return "";
+  var km = haversineKm(userLat, userLng, e.latitude, e.longitude);
+  var cls = km < 1 ? "near" : km > 5 ? "far" : "";
+  return "<span class=\"dist-badge "+cls+"\">&#128205; "+fmtDist(km)+"</span>";
+}
+
+// Demander la géolocalisation
+function requestUserLocation(callback){
+  if(!navigator.geolocation){
+    showToast("GPS non disponible sur cet appareil");
+    if(callback) callback(false);
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    function(pos){
+      userLat = pos.coords.latitude;
+      userLng = pos.coords.longitude;
+      nearbyActive = true;
+      if(callback) callback(true);
+    },
+    function(err){
+      showToast("Accès GPS refusé — activez la localisation");
+      if(callback) callback(false);
+    },
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+  );
+}
+
+// Tri par distance
+function sortByDistance(arr){
+  if(userLat === null) return arr;
+  return arr.slice().sort(function(a, b){
+    var da = (a.latitude && a.longitude) ? haversineKm(userLat, userLng, a.latitude, a.longitude) : 999;
+    var db = (b.latitude && b.longitude) ? haversineKm(userLat, userLng, b.latitude, b.longitude) : 999;
+    return da - db;
+  });
+}
+
+// Établissements proches (< 3 km)
+function getNearby(maxKm){
+  maxKm = maxKm || 3;
+  if(userLat === null) return [];
+  return etablissements.filter(function(e){
+    if(!e.latitude || !e.longitude) return false;
+    if(!isAdmin && !estPaiementConfirme(e)) return false;
+    return haversineKm(userLat, userLng, e.latitude, e.longitude) <= maxKm;
+  }).sort(function(a, b){
+    return haversineKm(userLat, userLng, a.latitude, a.longitude)
+         - haversineKm(userLat, userLng, b.latitude, b.longitude);
+  });
+}
+
+// Bouton "Près de chez vous" sur l'accueil
+function activateNearby(){
+  var btn = document.getElementById("nearbyBtn");
+  if(btn){ btn.textContent = "📡 Localisation en cours..."; btn.disabled = true; }
+  requestUserLocation(function(ok){
+    if(btn){ btn.disabled = false; }
+    if(ok){
+      if(btn){ btn.textContent = "✅ Position obtenue !"; btn.classList.add("located"); }
+      renderNearbySection();
+      renderAll();
+      renderHome();
+      showToast("📍 Position détectée — affichage des lieux proches !");
+    } else {
+      if(btn){ btn.textContent = "📍 Activer ma position GPS"; }
+    }
+  });
+}
+
+// Rend la section "Près de chez vous" sur l'accueil
+function renderNearbySection(){
+  var el = document.getElementById("nearbySection");
+  if(!el) return;
+  if(userLat === null || !nearbyActive){
+    el.innerHTML = "";
+    return;
+  }
+  var nearby = getNearby(5);
+  if(!nearby.length){
+    el.innerHTML = "<div style='font-size:0.82rem;color:var(--muted);text-align:center;padding:1rem;'>Aucun établissement trouvé dans un rayon de 5 km.</div>";
+    return;
+  }
+  var html = "<div style='font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;color:var(--cyan);margin-bottom:0.7rem;'>📍 Près de vous ("+nearby.length+" lieu"+(nearby.length>1?"x":"")+")</div>";
+  html += "<div class='cards-list'>";
+  nearby.slice(0, 5).forEach(function(e, i){
+    html += buildCard(e, i * 0.06, true);
+  });
+  html += "</div>";
+  if(nearby.length > 5){
+    html += "<div style='text-align:center;margin-top:0.8rem;font-size:0.78rem;color:var(--muted);'>+ "+(nearby.length-5)+" autres à proximité</div>";
+  }
+  el.innerHTML = html;
+}
+
+window.activateNearby = activateNearby;
+window.requestUserLocation = requestUserLocation;
+
+function sortByDistanceClick(){
+  if(userLat === null){
+    activateNearby();
+  } else {
+    currentSort = "distance";
+    renderAll();
+    document.querySelectorAll(".sort-btn").forEach(function(b){
+      b.classList.toggle("active", b.getAttribute("data-sort") === "distance");
+    });
+  }
+}
+window.sortByDistanceClick = sortByDistanceClick;
+
 var CATEGORIES=[
   {key:"Bar",label:"Bar et Lounge",icon:"&#127867;",badge:"cb-bar"},
   {key:"Discotheque",label:"Discotheque et Club",icon:"&#127925;",badge:"cb-club"},
@@ -1105,14 +1265,14 @@ loadSoireePhotos();
 
 function getDefaults(){
   return [
-    {id:1,nom:"Lounge Bar",type:"Bar Lounge",quartier:"Centre-ville",ambiance:"Festif",statut:"Ouvert - Bonde",note:4.2,avis:38,contact:"+241 074 123 456",paiement:"Actif",affluence:85,maps_url:"https://maps.google.com/?q=Lounge+Bar+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:2,nom:"Miami Club",type:"Discotheque",quartier:"Louis",ambiance:"Tres Festif",statut:"Ouvert - Anime",note:4.5,avis:62,contact:"+241 066 789 012",paiement:"Actif",affluence:70,maps_url:"https://maps.google.com/?q=Miami+Club+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:3,nom:"Urban Rooftop",type:"Bar Rooftop",quartier:"Montagne Sainte",ambiance:"Chill",statut:"Ouvert - Calme",note:3.9,avis:21,contact:"+241 077 345 678",paiement:"Actif",affluence:30,maps_url:"https://maps.google.com/?q=Urban+Rooftop+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:4,nom:"Azor Discotheque",type:"Discotheque",quartier:"Batterie IV",ambiance:"Tres Festif",statut:"Ouvert - Bonde",note:4.7,avis:95,contact:"+241 062 901 234",paiement:"Actif",affluence:95,maps_url:"https://maps.google.com/?q=Azor+Discotheque+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:5,nom:"Jazz Cafe",type:"Cafe Restaurant",quartier:"Akebe",ambiance:"Chill",statut:"Ouvert - Anime",note:4.1,avis:17,contact:"+241 074 567 890",paiement:"Actif",affluence:45,maps_url:"https://maps.google.com/?q=Jazz+Cafe+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:6,nom:"Le Nid Bar",type:"Snack-Bar",quartier:"PK5",ambiance:"Festif",statut:"Ouvert - Calme",note:3.6,avis:8,contact:"+241 066 234 567",paiement:"En attente",affluence:20,maps_url:"https://maps.google.com/?q=Le+Nid+Bar+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:7,nom:"Savana Resto",type:"Restaurant",quartier:"Nombakele",ambiance:"Festif",statut:"Ouvert - Anime",note:4.3,avis:44,contact:"+241 077 890 123",paiement:"Actif",affluence:60,maps_url:"https://maps.google.com/?q=Savana+Resto+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:8,nom:"Sky Lounge",type:"Bar Rooftop",quartier:"Sotega",ambiance:"Tres Festif",statut:"Ouvert - Bonde",note:4.6,avis:79,contact:"+241 062 456 789",paiement:"Actif",affluence:90,maps_url:"https://maps.google.com/?q=Sky+Lounge+Libreville",photo_interieur:"",photo_exterieur:""}
+    {id:1,nom:"Lounge Bar",type:"Bar Lounge",quartier:"Centre-ville",ambiance:"Festif",statut:"Ouvert - Bonde",note:4.2,avis:38,contact:"+241 074 123 456",paiement:"Actif",affluence:85,latitude:0.3924,longitude:9.4536,maps_url:"https://maps.google.com/?q=0.3924,9.4536",photo_interieur:"",photo_exterieur:""},
+    {id:2,nom:"Miami Club",type:"Discotheque",quartier:"Louis",ambiance:"Tres Festif",statut:"Ouvert - Anime",note:4.5,avis:62,contact:"+241 066 789 012",paiement:"Actif",affluence:70,latitude:0.4012,longitude:9.4418,maps_url:"https://maps.google.com/?q=0.4012,9.4418",photo_interieur:"",photo_exterieur:""},
+    {id:3,nom:"Urban Rooftop",type:"Bar Rooftop",quartier:"Montagne Sainte",ambiance:"Chill",statut:"Ouvert - Calme",note:3.9,avis:21,contact:"+241 077 345 678",paiement:"Actif",affluence:30,latitude:0.4156,longitude:9.4389,maps_url:"https://maps.google.com/?q=0.4156,9.4389",photo_interieur:"",photo_exterieur:""},
+    {id:4,nom:"Azor Discotheque",type:"Discotheque",quartier:"Batterie IV",ambiance:"Tres Festif",statut:"Ouvert - Bonde",note:4.7,avis:95,contact:"+241 062 901 234",paiement:"Actif",affluence:95,latitude:0.3867,longitude:9.4602,maps_url:"https://maps.google.com/?q=0.3867,9.4602",photo_interieur:"",photo_exterieur:""},
+    {id:5,nom:"Jazz Cafe",type:"Cafe Restaurant",quartier:"Akebe",ambiance:"Chill",statut:"Ouvert - Anime",note:4.1,avis:17,contact:"+241 074 567 890",paiement:"Actif",affluence:45,latitude:0.4234,longitude:9.4287,maps_url:"https://maps.google.com/?q=0.4234,9.4287",photo_interieur:"",photo_exterieur:""},
+    {id:6,nom:"Le Nid Bar",type:"Snack-Bar",quartier:"PK5",ambiance:"Festif",statut:"Ouvert - Calme",note:3.6,avis:8,contact:"+241 066 234 567",paiement:"En attente",affluence:20,latitude:0.4089,longitude:9.4501,maps_url:"https://maps.google.com/?q=0.4089,9.4501",photo_interieur:"",photo_exterieur:""},
+    {id:7,nom:"Savana Resto",type:"Restaurant",quartier:"Nombakele",ambiance:"Festif",statut:"Ouvert - Anime",note:4.3,avis:44,contact:"+241 077 890 123",paiement:"Actif",affluence:60,latitude:0.3978,longitude:9.4445,maps_url:"https://maps.google.com/?q=0.3978,9.4445",photo_interieur:"",photo_exterieur:""},
+    {id:8,nom:"Sky Lounge",type:"Bar Rooftop",quartier:"Sotega",ambiance:"Tres Festif",statut:"Ouvert - Bonde",note:4.6,avis:79,contact:"+241 062 456 789",paiement:"Actif",affluence:90,latitude:0.4301,longitude:9.4356,maps_url:"https://maps.google.com/?q=0.4301,9.4356",photo_interieur:"",photo_exterieur:""}
   ];
 }
 
@@ -1178,6 +1338,14 @@ function renderHome(){
     chips.forEach(function(c){html+="<div class=\"stat-chip "+c.cls+"\"><div class=\"val\">"+c.val+"</div><div class=\"lbl\">"+c.lbl+"</div></div>";});
     statsEl.innerHTML=html;
   }
+  // Mise à jour du bouton "Près de chez vous"
+  var nearbyBtn=document.getElementById("nearbyBtn");
+  if(nearbyBtn && nearbyActive){
+    nearbyBtn.textContent="✅ Position active — "+getNearby(5).length+" lieux proches";
+    nearbyBtn.classList.add("located");
+  }
+  // Section lieux proches
+  renderNearbySection();
   var topEl=document.getElementById("topLieux");
   if(topEl){
     // Accueil : uniquement les établissements confirmés (paiement actif), top 3 par affluence
@@ -1673,6 +1841,7 @@ function filterData(){
     if(currentSort==="affluence")return(b.affluence||0)-(a.affluence||0);
     if(currentSort==="note")return(b.note||0)-(a.note||0);
     if(currentSort==="quartier")return(a.quartier||"").localeCompare(b.quartier||"");
+    if(currentSort==="distance"){ return sortByDistance(data).indexOf(a) - sortByDistance(data).indexOf(b); }
     return 0;
   });
   return data;
@@ -1909,7 +2078,7 @@ function buildCard(e,delay,compact){
     "<div class=\"card-top\">"+
     "<div class=\"card-row1\"><div>"+
     "<div class=\"card-num\">#"+String(e.id).padStart(3,"0")+"</div>"+
-    "<div class=\"card-name\" onclick=\"openGalerie("+e.id+")\" style=\"cursor:pointer;display:flex;align-items:center;gap:0.35rem;\">"+e.nom+" <span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span></div>"+
+    "<div class=\"card-name\" onclick=\"openGalerie("+e.id+")\" style=\"cursor:pointer;display:flex;align-items:center;gap:0.35rem;\">"+e.nom+" <span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span>"+distBadge(e)+"</div>"+
     "<span class=\"cat-badge "+ci.badge+"\">"+ci.icon+" "+ci.label+"</span>"+
     "<div style=\"font-size:0.7rem;color:var(--muted);margin-top:0.2rem\">&#128205; "+e.quartier+"</div>"+
     "</div><span class=\"status-pill "+sc+"\">"+e.statut+"</span></div>"+
@@ -3068,7 +3237,19 @@ window.closeLegalModal = closeLegalModal;
 
 var NOTIF_KEY = "ambi241_notifications";
 var NOTIF_PREFS_KEY = "ambi241_notif_prefs";
+var NOTIF_ADMIN_KEY = "ambi241_admin_log";
 var notifPanelOpen = false;
+
+// ── Journal admin (log des notifications admin) ───────────────
+function loadAdminLog(){
+  try{
+    var raw = localStorage.getItem(NOTIF_ADMIN_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+function saveAdminLog(arr){
+  try{ localStorage.setItem(NOTIF_ADMIN_KEY, JSON.stringify(arr.slice(-100))); }catch(e){}
+}
 
 // ── Définition des préférences par rôle ───────────────────────
 // Rôles: visiteur (non connecté), membre (connecté), etablissement, admin
@@ -3182,6 +3363,12 @@ function pushNotif(opts){
   saveNotifs(notifs);
   renderNotifBadge();
   if(!notifPanelOpen) showNotifToast(opts.icon+" "+opts.title);
+  // Enregistrer dans le journal admin
+  if(getUserRole()==="admin"){
+    var log=loadAdminLog();
+    log.push({icon:opts.icon,title:opts.title,msg:opts.msg,channel:opts.channel||"push",targetRole:opts.role||"all",ts:Date.now(),fromAdmin:true});
+    saveAdminLog(log);
+  }
 
   // Notification Push navigateur si autorisée
   if((opts.channel==="push"||!opts.channel) && Notification && Notification.permission==="granted"){
