@@ -673,6 +673,32 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
     <div id="payListLegacy" style="display:none"></div>
   </div>
 
+
+  <!-- SEC: DISCUSSIONS -->
+  <div id="sec-discussions" class="section-hidden">
+    <div style="display:flex;align-items:center;gap:0.6rem;padding:1rem 0 0.4rem;">
+      <span style="font-size:2rem;">&#128172;</span>
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;">Discussions</div>
+        <div style="font-size:0.78rem;color:var(--muted);">Échanges de la communauté AMBI241 — Libreville</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:0.4rem;margin-bottom:1rem;background:var(--surface2);border-radius:12px;padding:0.3rem;">
+      <button id="discTabAll" onclick="switchDiscTab('all')" style="flex:1;padding:0.5rem;border-radius:8px;border:none;background:var(--pink);color:#000;font-family:'Syne',sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;">&#127757; Tous</button>
+      <button id="discTabPin" onclick="switchDiscTab('pin')" style="flex:1;padding:0.5rem;border-radius:8px;border:none;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:0.82rem;cursor:pointer;">&#128204; Épinglés</button>
+    </div>
+    <div id="discFormWrap" style="display:none;background:var(--surface);border:1px solid rgba(255,45,155,0.2);border-radius:16px;padding:1rem;margin-bottom:1rem;">
+      <textarea id="discNewMsg" placeholder="Partage quelque chose avec la communauté..." style="width:100%;background:var(--surface2);border:1px solid rgba(255,45,155,0.2);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.85rem;padding:0.65rem 0.9rem;outline:none;resize:vertical;min-height:80px;" maxlength="500"></textarea>
+      <div style="display:flex;justify-content:flex-end;margin-top:0.6rem;">
+        <button onclick="postDiscussion()" style="background:linear-gradient(135deg,var(--pink),var(--cyan));border:none;color:#000;font-family:'Syne',sans-serif;font-weight:800;font-size:0.85rem;padding:0.55rem 1.2rem;border-radius:10px;cursor:pointer;">&#128172; Publier</button>
+      </div>
+    </div>
+    <div id="discLoginWrap" style="background:var(--surface);border:1px solid rgba(255,45,155,0.2);border-radius:16px;padding:1.4rem;text-align:center;margin-bottom:1rem;">
+      <div style="font-size:0.88rem;color:var(--muted);margin-bottom:0.8rem;">Connecte-toi pour participer aux discussions &#128172;</div>
+      <button onclick="openUserModal()" style="background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);font-family:'Syne',sans-serif;font-weight:700;font-size:0.85rem;padding:0.55rem 1.2rem;border-radius:20px;cursor:pointer;">&#128274; Se connecter</button>
+    </div>
+    <div id="discList"><div class="loading-state">Chargement...</div></div>
+  </div>
   <!-- SEC: CONTACTS -->
   <div id="sec-contacts" class="section-hidden">
     <div class="cp-card">
@@ -786,8 +812,8 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   <button class="nav-item active" onclick="switchSection('accueil',this)"><span class="nav-icon">&#127968;</span>Accueil</button>
   <button class="nav-item" onclick="switchSection('etablissements',this)"><span class="nav-icon">&#128269;</span>Lieux</button>
   <button class="nav-item" onclick="switchSection('paiements',this)"><span class="nav-icon">&#128179;</span>Tarifs</button>
+  <button class="nav-item" onclick="switchSection('discussions',this)"><span class="nav-icon">&#128172;</span>Discuss.</button>
   <button class="nav-item" onclick="switchSection('contacts',this)"><span class="nav-icon">&#128241;</span>Contact</button>
-  <a href="discussions.html" class="nav-item" style="text-decoration:none;color:inherit;"><div class="nav-icon">💬</div><div>Discuss</div></a>
 </nav>
 
 
@@ -795,7 +821,7 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 <!-- ══ FIREBASE SDK (module isolé) ══ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, orderBy, query } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
 
 const firebaseConfig = {
@@ -821,6 +847,7 @@ window.fbUpdateDoc  = updateDoc;
 window.fbSetDoc     = setDoc;
 window.fbQuery      = query;
 window.fbOrderBy    = orderBy;
+window.fbDeleteDoc  = deleteDoc;
 window.fbCreateUser = createUserWithEmailAndPassword;
 window.fbSignIn     = signInWithEmailAndPassword;
 
@@ -1708,12 +1735,13 @@ function renderPayments(){
 }
 
 // NAV
-var SECS=["accueil","etablissements","paiements","contacts"];
+var SECS=["accueil","etablissements","paiements","discussions","contacts"];
 function goHome(){switchSection("accueil",document.querySelector(".nav-item"));}
 function switchSection(name,btn){
   SECS.forEach(function(s){document.getElementById("sec-"+s).classList.toggle("section-hidden",s!==name);});
   if(btn){document.querySelectorAll(".nav-item").forEach(function(b){b.classList.remove("active");});btn.classList.add("active");}
   window.scrollTo(0,0);
+  if(name==="discussions" && typeof loadDiscussions==="function") loadDiscussions();
 }
 
 // EVENTS
@@ -2135,6 +2163,143 @@ function adminAddFirebase(){
 window.openAdminAddModal = openAdminAddModal;
 window.closeAdminAddModal = closeAdminAddModal;
 window.adminAddFirebase = adminAddFirebase;
+
+// ══ DISCUSSIONS ══════════════════════════════════════════════
+var discCurrentTab = "all";
+
+function switchDiscTab(tab){
+  discCurrentTab = tab;
+  var allBtn = document.getElementById("discTabAll");
+  var pinBtn = document.getElementById("discTabPin");
+  if(allBtn && pinBtn){
+    allBtn.style.background = tab==="all" ? "var(--pink)" : "transparent";
+    allBtn.style.color      = tab==="all" ? "#000" : "var(--muted)";
+    allBtn.style.fontWeight = tab==="all" ? "800" : "400";
+    pinBtn.style.background = tab==="pin" ? "var(--pink)" : "transparent";
+    pinBtn.style.color      = tab==="pin" ? "#000" : "var(--muted)";
+    pinBtn.style.fontWeight = tab==="pin" ? "800" : "400";
+  }
+  loadDiscussions();
+}
+
+function loadDiscussions(){
+  var listEl = document.getElementById("discList");
+  var formEl = document.getElementById("discFormWrap");
+  var loginEl = document.getElementById("discLoginWrap");
+  if(!listEl) return;
+  if(formEl && loginEl){
+    var loggedIn = !!window.currentUser;
+    formEl.style.display  = loggedIn ? "block" : "none";
+    loginEl.style.display = loggedIn ? "none"  : "block";
+  }
+  if(typeof window.fbGetDocs !== "function" || typeof window.fbCollection !== "function"){
+    listEl.innerHTML = '<div class="error-state">&#9888; Erreur de connexion Firebase. Vérifie ta configuration.</div>';
+    return;
+  }
+  listEl.innerHTML = '<div class="loading-state">Chargement...</div>';
+  var q;
+  try{
+    if(typeof window.fbQuery === "function" && typeof window.fbOrderBy === "function"){
+      q = window.fbQuery(window.fbCollection(window.db,"discussions"), window.fbOrderBy("createdAt","desc"));
+    } else {
+      q = window.fbCollection(window.db,"discussions");
+    }
+    window.fbGetDocs(q).then(function(snap){
+      var posts = [];
+      snap.forEach(function(d){ posts.push(Object.assign({id:d.id},d.data())); });
+      if(discCurrentTab==="pin") posts = posts.filter(function(p){ return p.pinned; });
+      if(!posts.length){
+        listEl.innerHTML = '<div style="text-align:center;padding:2.5rem 1rem;color:var(--muted);font-size:0.82rem;"><span style="font-size:2rem;display:block;margin-bottom:0.5rem;">&#128172;</span>Aucune discussion pour l'instant.<br>Sois le premier à poster !</div>';
+        return;
+      }
+      var html = '';
+      posts.forEach(function(p){
+        var ts = p.createdAt && p.createdAt.toDate ? p.createdAt.toDate() : new Date(p.createdAt||Date.now());
+        var time = ts.toLocaleDateString("fr-FR",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});
+        var pinBadge = p.pinned ? '<span style="font-size:0.62rem;background:rgba(255,215,0,0.15);color:var(--amber);padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.4rem;">&#128204; Épinglé</span>' : '';
+        html += '<div style="background:var(--surface);border:1px solid rgba(255,45,155,0.12);border-radius:14px;padding:1rem;margin-bottom:0.75rem;">';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">';
+        html += '<div style="display:flex;align-items:center;gap:0.4rem;"><span style="font-size:0.75rem;font-weight:700;color:var(--pink);">&#128100; '+'+(p.pseudo||"Anonyme")+"</span>"+pinBadge+"</div>";
+        html += '<span style="font-size:0.62rem;color:var(--muted);">'+time+'</span>';
+        html += '</div>';
+        html += '<div style="font-size:0.85rem;color:var(--text);line-height:1.5;">'+''+(p.message||"").replace(/</g,"&lt;").replace(/>/g,"&gt;")+'</div>';
+        html += '<div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.7rem;">';
+        html += '<button onclick="likeDiscussion(''+p.id+'')" style="background:rgba(255,45,155,0.08);border:1px solid rgba(255,45,155,0.2);color:var(--pink);font-size:0.72rem;font-weight:700;padding:0.25rem 0.6rem;border-radius:8px;cursor:pointer;">&#10084; '+(p.likes||0)+'</button>';
+        if(window.isAdmin){
+          html += '<button onclick="pinDiscussion(''+p.id+'','"+(p.pinned?"false":"true")+"")"  style="background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.2);color:var(--amber);font-size:0.72rem;font-weight:700;padding:0.25rem 0.6rem;border-radius:8px;cursor:pointer;">&#128204;</button>";
+          html += '<button onclick="deleteDiscussion(''+p.id+'')" style="background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.2);color:var(--red);font-size:0.72rem;font-weight:700;padding:0.25rem 0.6rem;border-radius:8px;cursor:pointer;">&#128465;</button>';
+        }
+        html += '</div></div>';
+      });
+      listEl.innerHTML = html;
+    }).catch(function(e){
+      listEl.innerHTML = '<div class="error-state">&#9888; Erreur de chargement. Vérifie ta connexion.</div>';
+    });
+  } catch(e){
+    listEl.innerHTML = '<div class="error-state">&#9888; Firebase non disponible. Réessaie.</div>';
+  }
+}
+
+function postDiscussion(){
+  if(!window.currentUser){ showToast("Connecte-toi pour poster !"); return; }
+  var msgEl = document.getElementById("discNewMsg");
+  var msg = msgEl ? msgEl.value.trim() : "";
+  if(!msg){ showToast("Écris un message !"); return; }
+  if(typeof window.fbSetDoc !== "function" || typeof window.fbDoc !== "function"){
+    showToast("Firebase non disponible"); return;
+  }
+  var id = "disc_" + Date.now();
+  window.fbSetDoc(window.fbDoc(window.db,"discussions",id),{
+    message: msg,
+    pseudo: window.currentUser.displayName || window.currentUser.email || "Membre",
+    uid: window.currentUser.uid,
+    createdAt: new Date(),
+    likes: 0,
+    pinned: false
+  }).then(function(){
+    if(msgEl) msgEl.value = "";
+    showToast("Message publié !");
+    loadDiscussions();
+  }).catch(function(){ showToast("Erreur lors de la publication."); });
+}
+
+function likeDiscussion(id){
+  if(!window.currentUser){ showToast("Connecte-toi pour liker !"); return; }
+  if(typeof window.fbDoc !== "function" || typeof window.fbUpdateDoc !== "function") return;
+  window.fbGetDocs(window.fbCollection(window.db,"discussions")).then(function(snap){
+    snap.forEach(function(d){
+      if(d.id===id){
+        var cur = d.data().likes || 0;
+        window.fbUpdateDoc(window.fbDoc(window.db,"discussions",id),{likes: cur+1}).then(loadDiscussions);
+      }
+    });
+  });
+}
+
+function pinDiscussion(id, val){
+  if(!window.isAdmin) return;
+  if(typeof window.fbUpdateDoc !== "function") return;
+  window.fbUpdateDoc(window.fbDoc(window.db,"discussions",id),{pinned: val==="true"}).then(function(){
+    loadDiscussions();
+    showToast(val==="true" ? "Discussion épinglée !" : "Épingle retirée");
+  });
+}
+
+function deleteDiscussion(id){
+  if(!window.isAdmin) return;
+  if(!confirm("Supprimer ce message ?")) return;
+  if(typeof window.fbDeleteDoc !== "function") return;
+  window.fbDeleteDoc(window.fbDoc(window.db,"discussions",id)).then(function(){
+    loadDiscussions(); showToast("Message supprimé.");
+  });
+}
+
+window.switchDiscTab   = switchDiscTab;
+window.postDiscussion  = postDiscussion;
+window.likeDiscussion  = likeDiscussion;
+window.pinDiscussion   = pinDiscussion;
+window.deleteDiscussion= deleteDiscussion;
+// ─────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────
 // ── Démarre l'app (attend Firebase si pas encore prêt) ───────
 window.__appReady = true;
@@ -2626,7 +2791,7 @@ setInterval(function(){
     navBtns.forEach(function(b,i){ if(b.classList.contains("active")) curIdx = i; });
     var nextIdx = dx < 0 ? Math.min(curIdx+1, navBtns.length-1) : Math.max(curIdx-1, 0);
     if(nextIdx !== curIdx){
-      var secs = ["accueil","etablissements","paiements","contacts"];
+      var secs = ["accueil","etablissements","paiements","discussions","contacts"];
       switchSection(secs[nextIdx], navBtns[nextIdx]);
     }
   }, {passive:true});
@@ -2689,6 +2854,5 @@ setInterval(function(){
     </div>
   </div>
 </div>
-  <script src="ambi241-ameliorations.js"></script>
 </body>
 </html>
