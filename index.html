@@ -1029,13 +1029,9 @@ function lsGetJSON(key,def){ try{ var v=lsGet(key); return v?JSON.parse(v):(def!
 function lsSetJSON(key,obj){ try{ lsSet(key,JSON.stringify(obj)); }catch(e){} }
 
 // ── GOOGLE PHOTO URL FALLBACK ──────────────────────────────────
-// Retourne une URL de photo Google Places si disponible, sinon null
 function getGooglePhotoUrl(e, type) {
-  // Vérifier d'abord les photos permanentes stockées dans Firebase
   if (type === 'exterieur' && e.photo_exterieur) return e.photo_exterieur;
   if (type === 'interieur' && e.photo_interieur) return e.photo_interieur;
-  // Pas de photo Google Places API sans clé API côté client (sécurité)
-  // On retourne null pour utiliser le placeholder par défaut
   return null;
 }
 
@@ -1077,11 +1073,13 @@ var CATEGORIES=[
 function getCategory(type){
   if(!type)return "Bar";
   var t=type.toLowerCase();
-  if(t.indexOf("disco")!==-1)return "Discotheque";
+  if(t.indexOf("disco")!==-1||t.indexOf("nightclub")!==-1||t.indexOf("night club")!==-1)return "Discotheque";
   if(t.indexOf("snack")!==-1)return "Snack";
+  if(t.indexOf("rooftop")!==-1)return "Rooftop";
+  if(t.indexOf("patisserie")!==-1||t.indexOf("patisserie")!==-1)return "Restaurant";
   if(t.indexOf("resto")!==-1||t.indexOf("restaurant")!==-1)return "Restaurant";
   if(t.indexOf("cafe")!==-1||t.indexOf("caf")!==-1)return "Restaurant";
-  if(t.indexOf("rooftop")!==-1)return "Rooftop";
+  if(t.indexOf("bar")!==-1||t.indexOf("lounge")!==-1)return "Bar";
   return "Bar";
 }
 function getCatInfo(key){
@@ -1255,7 +1253,8 @@ function loadData(){
   }).catch(function(err){
     console.error("Firebase loadData:",err);
     etablissements=getDefaults();
-    document.getElementById("errorBanner").innerHTML="";
+    var eb=document.getElementById("errorBanner");
+    if(eb) eb.innerHTML="";
     setSyncing(false);renderStats();renderAll();renderHome();updateSyncTime();
   });
 }
@@ -1306,9 +1305,9 @@ function renderHome(){
   if(statsEl){
     var actifs=d.filter(function(e){return e.paiement&&e.paiement.indexOf("Actif")!==-1;}).length;
     var bondes=d.filter(function(e){return e.statut&&e.statut.indexOf("Bonde")!==-1;}).length;
-    var avg=(d.reduce(function(s,e){return s+(e.note||0);},0)/d.length).toFixed(1);
+    var avg=d.length>0?(d.reduce(function(s,e){return s+(e.note||0);},0)/d.length).toFixed(1):"0.0";
     var html="";
-    var chips=[{val:d.length,lbl:"Lieux",cls:"sc-pink"},{val:actifs,lbl:"Actifs",cls:"sc-green"},{val:bondes,lbl:"Bondes",cls:"sc-red"},{val:avg+" &#9733;",lbl:"Note",cls:"sc-cyan"}];
+    var chips=[{val:etablissements.length,lbl:"Lieux",cls:"sc-pink"},{val:actifs,lbl:"Actifs",cls:"sc-green"},{val:bondes,lbl:"Bondes",cls:"sc-red"},{val:avg+" &#9733;",lbl:"Note",cls:"sc-cyan"}];
     chips.forEach(function(c){html+="<div class=\"stat-chip "+c.cls+"\"><div class=\"val\">"+c.val+"</div><div class=\"lbl\">"+c.lbl+"</div></div>";});
     statsEl.innerHTML=html;
   }
@@ -1316,7 +1315,7 @@ function renderHome(){
   if(topEl){
     // Accueil : tous les établissements, top 3 par affluence
     var sorted=d.slice().sort(function(a,b){return(b.affluence||0)-(a.affluence||0);}).slice(0,3);
-    var voirTous="<div style=\"text-align:center;margin-top:1rem;\"><button onclick=\"switchSection('etablissements',document.querySelectorAll('.nav-item')[1])\" style=\"background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;padding:0.55rem 1.2rem;border-radius:100px;cursor:pointer;\">&#128269; Voir tous les lieux ("+d.length+")</button></div>";
+    var voirTous="<div style=\"text-align:center;margin-top:1rem;\"><button onclick=\"switchSection('etablissements',document.querySelectorAll('.nav-item')[1])\" style=\"background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;padding:0.55rem 1.2rem;border-radius:100px;cursor:pointer;\">&#128269; Voir tous les lieux ("+etablissements.length+")</button></div>";
     topEl.innerHTML="<div class=\"cards-list\">"+sorted.map(function(e,i){return buildCard(e,i*0.06,true);}).join("")+"</div>"+voirTous;
   }
 }
@@ -2654,22 +2653,30 @@ function renderAll(){
   }
   var html=archivedHtml;
   if(currentView==="liste"){
-    html="<div class=\"cards-list\">";
+    html+=archivedHtml?"":"";
+    html+="<div class=\"cards-list\">";
     data.forEach(function(e,i){html+=buildCard(e,i*0.04,false);});
     html+="</div>";
   } else {
     var groups={};
     data.forEach(function(e){var c=getCategory(e.type);if(!groups[c])groups[c]=[];groups[c].push(e);});
+    var catHtml="";
     CATEGORIES.forEach(function(cat){
       if(groups[cat.key]&&groups[cat.key].length>0){
-        html+="<div class=\"cat-section\">";
-        html+="<div class=\"cat-header\"><span class=\"cat-icon\">"+cat.icon+"</span><span class=\"cat-name\">"+cat.label+"</span><span class=\"cat-count\">"+groups[cat.key].length+" lieu"+(groups[cat.key].length>1?"x":"")+"</span></div>";
-        html+="<div class=\"cards-list\">";
-        groups[cat.key].forEach(function(e,i){html+=buildCard(e,i*0.04,false);});
-        html+="</div></div>";
+        catHtml+="<div class=\"cat-section\">";
+        catHtml+="<div class=\"cat-header\"><span class=\"cat-icon\">"+cat.icon+"</span><span class=\"cat-name\">"+cat.label+"</span><span class=\"cat-count\">"+groups[cat.key].length+" lieu"+(groups[cat.key].length>1?"x":"")+"</span></div>";
+        catHtml+="<div class=\"cards-list\">";
+        groups[cat.key].forEach(function(e,i){catHtml+=buildCard(e,i*0.04,false);});
+        catHtml+="</div></div>";
       }
     });
-    if(!html)html="<div style=\"text-align:center;padding:3rem;color:var(--muted)\">Aucun resultat</div>";
+    // Fallback: si aucune catégorie reconnue, afficher en liste
+    if(!catHtml){
+      catHtml+="<div class=\"cards-list\">";
+      data.forEach(function(e,i){catHtml+=buildCard(e,i*0.04,false);});
+      catHtml+="</div>";
+    }
+    html+=catHtml;
   }
   // Vue carte : mettre à jour les marqueurs si la carte est visible
   if(currentView==="carte"){
@@ -3192,17 +3199,22 @@ function _startApp(){
   _startAppAttempts++;
   if(typeof window.fbGetDocs==="function" && typeof window.fbCollection==="function" && window.db){
     loadData();
-  } else if(_startAppAttempts < 30){
-    setTimeout(_startApp, 300);
+  } else if(_startAppAttempts < 40){
+    setTimeout(_startApp, 250);
   } else {
-    // Firebase jamais prêt → charger les données locales (mode hors-ligne)
-    etablissements = getDefaults();
-    // Bandeau discret seulement si vraiment hors-ligne
+    // Firebase jamais prêt → afficher les données locales immédiatement
+    // Les données locales sont déjà chargées (pré-population au démarrage)
+    // On s'assure juste que l'affichage est à jour
     var eb = document.getElementById("errorBanner");
     if(eb) eb.innerHTML = "";
     renderStats(); renderAll(); renderHome(); updateSyncTime();
   }
 }
+// Pré-charger immédiatement les données locales pour affichage instantané
+// (Firebase mettra à jour automatiquement dès la connexion)
+etablissements = getDefaults();
+renderStats(); renderAll(); renderHome();
+
 _startApp();
 renderPayments(); updatePayVis();
 
