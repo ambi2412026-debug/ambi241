@@ -239,9 +239,9 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;}
 .gps-no-result span{display:block;font-size:2rem;margin-bottom:0.5rem;}
 
 /* Badge distance sur les cartes */
-.dist-badge{display:inline-flex;align-items:center;gap:0.25rem;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);color:var(--cyan);font-size:0.62rem;font-weight:700;padding:0.12rem 0.45rem;border-radius:6px;margin-left:0.4rem;vertical-align:middle;}
-.dist-badge.dist-close{background:rgba(0,255,170,0.12);border-color:rgba(0,255,170,0.3);color:var(--green);}
-.dist-badge.dist-far{background:rgba(255,215,0,0.1);border-color:rgba(255,215,0,0.25);color:var(--amber);}
+.dist-badge{display:inline-flex;align-items:center;gap:0.2rem;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);color:var(--cyan);font-size:0.55rem;font-weight:500;padding:0.06rem 0.3rem;border-radius:5px;margin-left:0.3rem;vertical-align:middle;text-transform:lowercase;opacity:0.85;}
+.dist-badge.dist-close{background:rgba(0,255,170,0.08);border-color:rgba(0,255,170,0.2);color:var(--green);}
+.dist-badge.dist-far{background:rgba(255,215,0,0.08);border-color:rgba(255,215,0,0.2);color:var(--amber);}
 
 /* Modal GPS détails */
 .gps-detail-modal .modal-title{color:var(--cyan);}
@@ -490,7 +490,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;}
 .pob-sub{font-size:0.7rem;opacity:0.75;margin-top:0.1rem;}
 
 /* FOOTER */
-footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);padding:1.5rem 1rem;position:relative;z-index:1;margin-top:2rem;}
+footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);padding:1.5rem 1rem 6rem;position:relative;z-index:1;margin-top:2rem;display:none;}
 .footer-inner{max-width:640px;margin:0 auto;}
 .footer-logo{display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;}
 .footer-logo img{width:32px;height:32px;border-radius:50%;object-fit:cover;}
@@ -1316,11 +1316,32 @@ var _gpsState = {
   timestamp: null, watchId: null, watching: false,
   radius: 1, sort: "distance", loading: false, error: null, permissionDenied: false
 };
+// ── Coordonnées approximatives des quartiers de Libreville ──
+var QUARTIER_COORDS = {
+  "Centre-ville":      [0.3924, 9.4536],
+  "Louis":             [0.4140, 9.4320],
+  "Batterie IV":       [0.4410, 9.4420],
+  "Montagne Sainte":   [0.4080, 9.4390],
+  "Akebe":             [0.4270, 9.4470],
+  "PK5":               [0.3830, 9.4440],
+  "Nombakele":         [0.4480, 9.4590],
+  "Sotega":            [0.4360, 9.4650],
+  "Awendje":           [0.4300, 9.4740],
+  "Glass":             [0.3720, 9.4580],
+  "Akanda":            [0.5060, 9.3980],
+  "Nzeng-Ayong":       [0.4200, 9.4550],
+  "PK8":               [0.3620, 9.4360],
+  "PK12":              [0.3410, 9.4190],
+  "Owendo":            [0.2940, 9.5020],
+  "Alibandeng":        [0.4580, 9.4720],
+  "Angondje":          [0.4810, 9.4300],
+  "Oloumi":            [0.3690, 9.4340]
+};
 function haversineKm(lat1,lng1,lat2,lng2){var R=6371;var dLat=(lat2-lat1)*Math.PI/180;var dLng=(lng2-lng1)*Math.PI/180;var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
 function fmtDist(km){if(km<0.1)return Math.round(km*1000)+" m";if(km<1)return Math.round(km*1000)+" m";if(km<10)return km.toFixed(1)+" km";return Math.round(km)+" km";}
 function distClass(km){if(km<=0.5)return"dist-close";if(km<=2)return"";return"dist-far";}
 function enrichWithDistances(){if(_gpsState.lat===null)return;etablissements.forEach(function(e){var lat=e.lat,lng=e.lng;if(!lat||!lng){var qc=QUARTIER_COORDS[e.quartier];if(qc){lat=qc[0];lng=qc[1];}}if(lat&&lng){e._distKm=haversineKm(_gpsState.lat,_gpsState.lng,lat,lng);}else{e._distKm=null;}});}
-function filterByRadius(data){if(!_gpsState.active||_gpsState.lat===null)return data;var r=_gpsState.radius;if(r>=999)return data;return data.filter(function(e){return e._distKm!==null&&e._distKm<=r;});}
+function filterByRadius(data){if(!_gpsState.active||_gpsState.lat===null)return data;var r=_gpsState.radius;if(r>=999)return data;return data.filter(function(e){return typeof e._distKm==="number"&&e._distKm<=r;});}
 function sortGpsData(data){if(!_gpsState.active)return data;var s=_gpsState.sort;return data.slice().sort(function(a,b){if(s==="distance"){var da=a._distKm!==null?a._distKm:9999;var db=b._distKm!==null?b._distKm:9999;return da-db;}if(s==="affluence")return(b.affluence||0)-(a.affluence||0);if(s==="note")return(b.note||0)-(a.note||0);return 0;});}
 function getNearbyCount(){if(_gpsState.lat===null||_gpsState.radius>=999)return etablissements.length;return etablissements.filter(function(e){return e._distKm!==null&&e._distKm<=_gpsState.radius;}).length;}
 var CATEGORIES=[
@@ -2322,7 +2343,7 @@ function buildCard(e,delay,compact){
     "<div class=\"card-top\">"+
     "<div class=\"card-row1\"><div>"+
     "<div class=\"card-num\">#"+String(e.id).padStart(3,"0")+"</div>"+
-    "<div class=\"card-name\" onclick=\"openGalerie("+e.id+")\" style=\"cursor:pointer;display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap;\">"+e.nom+" <span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span>"+(e._distKm!=null?"<span class=\"dist-badge "+distClass(e._distKm)+"\">&#128205; "+fmtDist(e._distKm)+"</span>":"")+"</div>"+
+    "<div class=\"card-name\" onclick=\"openGalerie("+e.id+")\" style=\"cursor:pointer;display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap;\">"+e.nom+" <span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span>"+(e._distKm!=null?"<span class=\"dist-badge "+distClass(e._distKm)+"\">"+fmtDist(e._distKm)+"</span>":"")+"</div>"+
     "<span class=\"cat-badge "+ci.badge+"\">"+ci.icon+" "+ci.label+"</span>"+
     "<div style=\"font-size:0.7rem;color:var(--muted);margin-top:0.2rem\">&#128205; "+e.quartier+"</div>"+
     "</div><span class=\"status-pill "+sc+"\">"+e.statut+"</span></div>"+
@@ -3065,6 +3086,8 @@ function onGpsSuccess(pos) {
   _gpsState.loading  = false;
   _gpsState.error    = null;
   _gpsState.permissionDenied = false;
+  // S'assurer que le mode actif est bien positionné avant tout render
+  if (!_gpsState.active) _gpsState.active = true;
 
   enrichWithDistances();
   updateGpsBtn();
@@ -3102,7 +3125,7 @@ function requestGps(highAccuracy) {
   navigator.geolocation.getCurrentPosition(onGpsSuccess, onGpsError, {
     enableHighAccuracy: highAccuracy !== false,
     timeout: 12000,
-    maximumAge: 30000
+    maximumAge: 5000
   });
 }
 
@@ -3389,8 +3412,11 @@ function goHome(){switchSection("accueil",document.querySelector(".nav-item"));}
 function switchSection(name,btn){
   SECS.forEach(function(s){document.getElementById("sec-"+s).classList.toggle("section-hidden",s!==name);});
   if(btn){document.querySelectorAll(".nav-item").forEach(function(b){b.classList.remove("active");});btn.classList.add("active");}
-  // Fermer la carte si on quitte l'onglet établissements
+  // Fermer la carte si on quitte l'onglet etablissements
   if(name!=="etablissements" && window.closeAmbiMap) window.closeAmbiMap();
+  // Afficher le footer uniquement sur la page contacts
+  var footerEl = document.querySelector("footer");
+  if(footerEl){ footerEl.style.display = (name === "contacts") ? "block" : "none"; }
   window.scrollTo(0,0);
 }
 
