@@ -1028,6 +1028,17 @@ function lsDel(key){
 function lsGetJSON(key,def){ try{ var v=lsGet(key); return v?JSON.parse(v):(def!==undefined?def:null); }catch(e){ return def!==undefined?def:null; } }
 function lsSetJSON(key,obj){ try{ lsSet(key,JSON.stringify(obj)); }catch(e){} }
 
+// ── GOOGLE PHOTO URL FALLBACK ──────────────────────────────────
+// Retourne une URL de photo Google Places si disponible, sinon null
+function getGooglePhotoUrl(e, type) {
+  // Vérifier d'abord les photos permanentes stockées dans Firebase
+  if (type === 'exterieur' && e.photo_exterieur) return e.photo_exterieur;
+  if (type === 'interieur' && e.photo_interieur) return e.photo_interieur;
+  // Pas de photo Google Places API sans clé API côté client (sécurité)
+  // On retourne null pour utiliser le placeholder par défaut
+  return null;
+}
+
 var VISIT_KEY="ambi241_visits";
 var isAdmin=false;
 var currentUserEmail="";
@@ -1218,23 +1229,23 @@ function loadData(){
   window.fbGetDocs(q).then(function(snapshot){
     var firebaseData=[];
     snapshot.forEach(function(d){firebaseData.push(Object.assign({_docId:d.id},d.data()));});
-    // ── FUSION : on part des 29 defaults, on surcharge avec les données Firebase ──
+    // ── FUSION : Firebase est la source de vérité, defaults = fallback ──
     var defaults=getDefaults();
     if(firebaseData.length>0){
-      // Indexer Firebase par nom (insensible à la casse) et par id
-      var fbByName={}, fbById={};
-      firebaseData.forEach(function(f){
-        if(f.nom) fbByName[f.nom.toLowerCase().trim()]=f;
-        if(f.id)  fbById[f.id]=f;
-      });
+      // Indexer Firebase par id numérique uniquement (évite les doublons par nom)
+      var fbById={};
+      firebaseData.forEach(function(f){ if(f.id) fbById[f.id]=f; });
       etablissements=defaults.map(function(d){
-        var fb=fbById[d.id]||fbByName[(d.nom||"").toLowerCase().trim()];
+        var fb=fbById[d.id];
         return fb ? Object.assign({},d,fb) : d;
       });
-      // Ajouter les établissements Firebase qui ne sont pas dans les defaults (nouveaux ajouts admin)
+      // Ajouter uniquement les docs Firebase dont l'id n'est PAS dans les defaults
+      var defaultIds=defaults.map(function(d){return d.id;});
       firebaseData.forEach(function(f){
-        var alreadyIn=etablissements.find(function(e){return e._docId&&e._docId===f._docId;});
-        if(!alreadyIn) etablissements.push(f);
+        if(defaultIds.indexOf(f.id)===-1){
+          var alreadyIn=etablissements.find(function(e){return e._docId&&e._docId===f._docId;});
+          if(!alreadyIn) etablissements.push(f);
+        }
       });
     } else {
       etablissements=defaults;
@@ -1244,7 +1255,7 @@ function loadData(){
   }).catch(function(err){
     console.error("Firebase loadData:",err);
     etablissements=getDefaults();
-    document.getElementById("errorBanner").innerHTML="<div class=\"error-state\">Donnees locales affichees</div>";
+    document.getElementById("errorBanner").innerHTML="";
     setSyncing(false);renderStats();renderAll();renderHome();updateSyncTime();
   });
 }
@@ -1303,10 +1314,9 @@ function renderHome(){
   }
   var topEl=document.getElementById("topLieux");
   if(topEl){
-    // Accueil : uniquement les établissements confirmés (paiement actif), top 3 par affluence
-    var confirmes=d.filter(function(e){return estPaiementConfirme(e)||isAdmin;});
-    var sorted=confirmes.slice().sort(function(a,b){return(b.affluence||0)-(a.affluence||0);}).slice(0,3);
-    var voirTous="<div style=\"text-align:center;margin-top:1rem;\"><button onclick=\"switchSection('etablissements',document.querySelectorAll('.nav-item')[1])\" style=\"background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;padding:0.55rem 1.2rem;border-radius:100px;cursor:pointer;\">&#128269; Voir tous les lieux ("+confirmes.length+")</button></div>";
+    // Accueil : tous les établissements, top 3 par affluence
+    var sorted=d.slice().sort(function(a,b){return(b.affluence||0)-(a.affluence||0);}).slice(0,3);
+    var voirTous="<div style=\"text-align:center;margin-top:1rem;\"><button onclick=\"switchSection('etablissements',document.querySelectorAll('.nav-item')[1])\" style=\"background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;padding:0.55rem 1.2rem;border-radius:100px;cursor:pointer;\">&#128269; Voir tous les lieux ("+d.length+")</button></div>";
     topEl.innerHTML="<div class=\"cards-list\">"+sorted.map(function(e,i){return buildCard(e,i*0.06,true);}).join("")+"</div>"+voirTous;
   }
 }
@@ -3177,12 +3187,20 @@ window.deleteEtablissement=deleteEtablissement;
 // ── Démarre l'app (attend Firebase si pas encore prêt) ───────
 window.__appReady = true;
 
+var _startAppAttempts = 0;
 function _startApp(){
-  // Vérifie que toutes les fonctions Firebase sont disponibles
-  if(typeof window.fbGetDocs==="function" && typeof window.fbCollection==="function"){
+  _startAppAttempts++;
+  if(typeof window.fbGetDocs==="function" && typeof window.fbCollection==="function" && window.db){
     loadData();
+  } else if(_startAppAttempts < 30){
+    setTimeout(_startApp, 300);
   } else {
-    setTimeout(_startApp, 200);
+    // Firebase jamais prêt → charger les données locales (mode hors-ligne)
+    etablissements = getDefaults();
+    // Bandeau discret seulement si vraiment hors-ligne
+    var eb = document.getElementById("errorBanner");
+    if(eb) eb.innerHTML = "";
+    renderStats(); renderAll(); renderHome(); updateSyncTime();
   }
 }
 _startApp();
