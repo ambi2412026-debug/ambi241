@@ -1216,9 +1216,29 @@ function loadData(){
   setSyncing(true);
   var q=window.fbQuery(window.fbCollection(window.db,"etablissements"),window.fbOrderBy("id"));
   window.fbGetDocs(q).then(function(snapshot){
-    var data=[];
-    snapshot.forEach(function(d){data.push(Object.assign({_docId:d.id},d.data()));});
-    etablissements=(data&&data.length>0)?data:getDefaults();
+    var firebaseData=[];
+    snapshot.forEach(function(d){firebaseData.push(Object.assign({_docId:d.id},d.data()));});
+    // ── FUSION : on part des 29 defaults, on surcharge avec les données Firebase ──
+    var defaults=getDefaults();
+    if(firebaseData.length>0){
+      // Indexer Firebase par nom (insensible à la casse) et par id
+      var fbByName={}, fbById={};
+      firebaseData.forEach(function(f){
+        if(f.nom) fbByName[f.nom.toLowerCase().trim()]=f;
+        if(f.id)  fbById[f.id]=f;
+      });
+      etablissements=defaults.map(function(d){
+        var fb=fbById[d.id]||fbByName[(d.nom||"").toLowerCase().trim()];
+        return fb ? Object.assign({},d,fb) : d;
+      });
+      // Ajouter les établissements Firebase qui ne sont pas dans les defaults (nouveaux ajouts admin)
+      firebaseData.forEach(function(f){
+        var alreadyIn=etablissements.find(function(e){return e._docId&&e._docId===f._docId;});
+        if(!alreadyIn) etablissements.push(f);
+      });
+    } else {
+      etablissements=defaults;
+    }
     document.getElementById("errorBanner").innerHTML="";
     setSyncing(false);renderStats();renderAll();renderHome();updateSyncTime();
   }).catch(function(err){
@@ -1231,16 +1251,32 @@ function loadData(){
 
 function updateField(id,fields){
   setSyncing(true);
-  // Chercher le document Firestore par son champ id
   var e=etablissements.find(function(x){return x.id===id;});
-  if(!e||!e._docId){showToast("Erreur: etablissement introuvable");setSyncing(false);return;}
+  if(!e){showToast("Erreur: etablissement introuvable");setSyncing(false);return;}
+  // Mettre à jour localement immédiatement (UX fluide)
+  Object.keys(fields).forEach(function(k){e[k]=fields[k];});
+  renderStats();renderAll();renderHome();
+  if(_currentAdmTab==="etabl") renderAdmEtabl();
+  // Si pas de _docId : créer le doc Firebase avec toutes les données
+  if(!e._docId){
+    if(!window.db||typeof window.fbAddDoc!=="function"){setSyncing(false);showToast("Mis à jour localement");return;}
+    var newDoc=Object.assign({},e);
+    delete newDoc._docId;
+    window.fbAddDoc(window.fbCollection(window.db,"etablissements"),newDoc).then(function(ref){
+      e._docId=ref.id;
+      showToast("✅ Créé dans Firebase !");setSyncing(false);updateSyncTime();
+    }).catch(function(err){
+      console.error("Firebase addDoc:",err);
+      showToast("Mis à jour localement");setSyncing(false);
+    });
+    return;
+  }
   var docRef=window.fbDoc(window.db,"etablissements",e._docId);
   window.fbUpdateDoc(docRef,fields).then(function(){
-    Object.keys(fields).forEach(function(k){e[k]=fields[k];});
-    showToast("Mis a jour !");setSyncing(false);renderStats();renderAll();renderHome();updateSyncTime();
+    showToast("Mis à jour !");setSyncing(false);updateSyncTime();
   }).catch(function(err){
     console.error("Firebase updateField:",err);
-    showToast("Erreur mise a jour");setSyncing(false);
+    showToast("Mis à jour localement");setSyncing(false);
   });
 }
 
@@ -3112,17 +3148,20 @@ function adminAddFirebase(){
 function deleteEtablissement(id){
   var etab=etablissements.find(function(x){return x.id===id;});
   if(!etab){showToast("Établissement introuvable");return;}
-  // Seul l'admin ou l'établissement lui-même peut supprimer
   if(!isAdmin && !canEditPhotos(etab)){showToast("Accès refusé");return;}
   if(!confirm("Supprimer définitivement \""+etab.nom+"\" ? Cette action est irréversible.")){return;}
-  if(!etab._docId){showToast("Erreur : ID Firestore introuvable");return;}
+  // Si pas de _docId : suppression locale uniquement (pas encore dans Firebase)
+  if(!etab._docId){
+    etablissements=etablissements.filter(function(x){return x.id!==id;});
+    renderStats();renderAll();renderHome();if(_currentAdmTab==="etabl")renderAdmEtabl();
+    showToast("✅ Supprimé localement");return;
+  }
   var docRef=window.fbDoc(window.db,"etablissements",etab._docId);
-  // Utiliser deleteDoc de Firestore
   if(window.fbDeleteDoc){
     showToast("Suppression en cours...");
     window.fbDeleteDoc(docRef).then(function(){
       etablissements=etablissements.filter(function(x){return x.id!==id;});
-      renderStats();renderAll();renderHome();
+      renderStats();renderAll();renderHome();if(_currentAdmTab==="etabl")renderAdmEtabl();
       showToast("✅ Établissement supprimé !");
     }).catch(function(err){
       showToast("Erreur suppression: "+err.message);
