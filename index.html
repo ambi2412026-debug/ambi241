@@ -864,6 +864,14 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
       </div>
     </div>
     <div class="search-wrap"><span>&#128269;</span><input type="text" id="searchInput" placeholder="Rechercher nom, type, quartier..." oninput="renderAll()"></div>
+    <!-- Bandeau "Mon établissement" — visible uniquement pour les membres propriétaires -->
+    <div id="myEtabBanner" style="display:none;background:linear-gradient(90deg,rgba(255,45,155,0.13),rgba(0,229,255,0.07));border:1.5px solid rgba(255,45,155,0.35);border-radius:14px;padding:0.7rem 0.9rem;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.55rem;">
+      <span style="font-size:1.1rem;">📌</span>
+      <div style="flex:1;">
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;color:var(--pink);">Mon établissement est épinglé en tête</div>
+        <div id="myEtabBannerSub" style="font-size:0.65rem;color:var(--muted);margin-top:0.1rem;">Modérez rapidement votre fiche depuis le haut de la liste</div>
+      </div>
+    </div>
     <div class="filter-row" id="typeChips">
       <div class="fchip active" data-type="all">&#10024; Tous</div>
       <div class="fchip" data-type="Bar">&#127867; Bar</div>
@@ -1178,6 +1186,11 @@ onAuthStateChanged(auth, function(user) {
       window.currentUserPseudo = user.email;
       updateHeaderUser(user.email);
     });
+    // Vérifier si cet utilisateur est admin secondaire (après délai pour que les configs soient chargées)
+    setTimeout(function(){
+      if(typeof checkSecondaryAdminAccess === "function") checkSecondaryAdminAccess();
+      if(typeof renderAll === "function") { renderAll(); renderHome(); }
+    }, 2000);
   } else {
     window.currentUserEmail  = "";
     window.currentUserUID    = null;
@@ -1191,6 +1204,10 @@ onAuthStateChanged(auth, function(user) {
 // Signal que Firebase est prêt — loadData() sera appelé par le script principal
 window.__firebaseReady = true;
 if (window.__appReady) { loadData(); }
+// Charger la config admin (superadmin + admins secondaires) dès que Firebase est prêt
+setTimeout(function(){
+  if(typeof loadAdminConfig === "function") loadAdminConfig();
+}, 1500);
 </script>
 
 <!-- ══ APPLICATION PRINCIPALE (script classique, accès global) ══ -->
@@ -1228,8 +1245,150 @@ function getGooglePhotoUrl(e, type) {
 
 var VISIT_KEY="ambi241_visits";
 var isAdmin=false;
+var isSuperAdmin=false;  // Premier admin / propriétaire de l'app
 var currentUserEmail="";
 var currentType="all";
+
+// ── SUPER-ADMIN (propriétaire unique de l'application) ──────
+// L'email du premier admin est stocké dans Firebase (collection "config/superadmin")
+// et en localStorage comme fallback. Il est le SEUL à pouvoir gérer les autres admins.
+var SUPER_ADMIN_KEY = "ambi241_superadmin_email";
+var _superAdminEmail = "";  // chargé depuis Firebase au démarrage
+var _adminsList = [];       // liste des admins secondaires chargée depuis Firebase
+
+function loadSuperAdmin(){
+  // Lire depuis localStorage en fallback
+  _superAdminEmail = lsGet(SUPER_ADMIN_KEY, "");
+}
+
+function isSuperAdminUser(){
+  if(!currentUserEmail || !_superAdminEmail) return false;
+  return currentUserEmail.toLowerCase().trim() === _superAdminEmail.toLowerCase().trim();
+}
+
+// Charge la config super-admin et la liste des admins depuis Firebase
+function loadAdminConfig(){
+  if(!window.db || typeof window.fbGetDoc !== "function") return;
+  // Charger le superadmin
+  window.fbGetDoc(window.fbDoc(window.db, "config", "superadmin")).then(function(snap){
+    if(snap.exists()){
+      var data = snap.data();
+      _superAdminEmail = data.email || "";
+      lsSet(SUPER_ADMIN_KEY, _superAdminEmail);
+    } else if(!_superAdminEmail && currentUserEmail && isAdmin){
+      // Première connexion admin : se proclamer superadmin
+      _initSuperAdmin(currentUserEmail);
+    }
+    // Rafraîchir l'affichage si panel admin ouvert
+    if(isAdmin && _currentAdmTab === "users") renderAdmUsers();
+  }).catch(function(){});
+
+  // Charger la liste des admins secondaires
+  window.fbGetDoc(window.fbDoc(window.db, "config", "admins")).then(function(snap){
+    if(snap.exists()){
+      _adminsList = snap.data().list || [];
+    }
+    checkSecondaryAdminAccess();
+  }).catch(function(){});
+}
+
+// Initialise le superadmin (première fois)
+function _initSuperAdmin(email){
+  if(!window.db || !window.fbSetDoc || !window.fbDoc) return;
+  window.fbSetDoc(window.fbDoc(window.db, "config", "superadmin"), {
+    email: email,
+    setAt: new Date().toISOString()
+  }).then(function(){
+    _superAdminEmail = email;
+    lsSet(SUPER_ADMIN_KEY, email);
+  }).catch(function(){});
+}
+
+// Vérifie si l'utilisateur connecté est dans la liste des admins secondaires
+function checkSecondaryAdminAccess(){
+  if(!currentUserEmail || isAdmin) return;
+  var em = currentUserEmail.toLowerCase().trim();
+  var found = _adminsList.some(function(a){ return (a.email||"").toLowerCase().trim() === em; });
+  if(found){
+    isAdmin = true;
+    isSuperAdmin = false;
+    // Mettre à jour l'UI
+    var abtn = document.getElementById("adminBtn");
+    if(abtn){ abtn.style.background="rgba(255,215,0,0.2)"; abtn.style.borderColor="rgba(255,215,0,0.6)"; abtn.style.color="#ffd700"; }
+    renderStats(); renderAll(); renderHome(); updatePayVis(); renderPayments();
+    showToast("🔑 Accès Admin secondaire activé");
+  }
+}
+
+// Promouvoir un membre comme admin secondaire (SuperAdmin uniquement)
+function promoteToAdmin(uid, email, pseudo){
+  if(!isSuperAdminUser()){ showToast("Réservé au propriétaire de l'application"); return; }
+  if(!window.db || !window.fbSetDoc || !window.fbDoc){ showToast("Firebase requis"); return; }
+  if(!confirm("Promouvoir " + (pseudo||email) + " comme Admin secondaire ?\n\nIl pourra gérer les établissements, paiements et membres, mais PAS gérer d'autres admins.")){return;}
+
+  // Ajouter à la liste
+  var newList = _adminsList.filter(function(a){ return (a.email||"").toLowerCase() !== email.toLowerCase(); });
+  newList.push({ uid: uid, email: email, pseudo: pseudo||email, promotedAt: new Date().toISOString() });
+
+  window.fbSetDoc(window.fbDoc(window.db, "config", "admins"), { list: newList }).then(function(){
+    _adminsList = newList;
+    showToast("✅ " + (pseudo||email) + " promu Admin secondaire !");
+    renderAdmUsers();
+    // Notifier Firebase user
+    if(window.fbSetDoc && uid){
+      window.fbSetDoc(window.fbDoc(window.db, "users", uid), { isSecondaryAdmin: true }, { merge: true }).catch(function(){});
+    }
+  }).catch(function(err){ showToast("Erreur: "+err.message); });
+}
+
+// Révoquer un admin secondaire (SuperAdmin uniquement)
+function revokeAdmin(uid, email, pseudo){
+  if(!isSuperAdminUser()){ showToast("Réservé au propriétaire de l'application"); return; }
+  if(!confirm("Révoquer les droits Admin de " + (pseudo||email) + " ?\n\nIl redeviendra simple membre.")){ return; }
+
+  var newList = _adminsList.filter(function(a){ return (a.email||"").toLowerCase() !== email.toLowerCase(); });
+  window.fbSetDoc(window.fbDoc(window.db, "config", "admins"), { list: newList }).then(function(){
+    _adminsList = newList;
+    showToast("✅ Droits Admin révoqués pour " + (pseudo||email));
+    renderAdmUsers();
+    if(window.fbSetDoc && uid){
+      window.fbSetDoc(window.fbDoc(window.db, "users", uid), { isSecondaryAdmin: false }, { merge: true }).catch(function(){});
+    }
+  }).catch(function(err){ showToast("Erreur: "+err.message); });
+}
+
+// Céder la propriété de l'application (SuperAdmin → autre personne)
+function transferOwnership(uid, email, pseudo){
+  if(!isSuperAdminUser()){ showToast("Réservé au propriétaire de l'application"); return; }
+  if(!confirm(
+    "⚠️ TRANSFERT DE PROPRIÉTÉ\n\n" +
+    "Vous allez céder la propriété complète d'AMBI241 à :\n" +
+    (pseudo||email) + "\n\n" +
+    "Vous perdrez vos droits SuperAdmin.\n\n" +
+    "Cette action est IRRÉVERSIBLE. Confirmer ?"
+  )){ return; }
+  var oldEmail = _superAdminEmail;
+  window.fbSetDoc(window.fbDoc(window.db, "config", "superadmin"), {
+    email: email,
+    transferredFrom: oldEmail,
+    transferredAt: new Date().toISOString()
+  }).then(function(){
+    _superAdminEmail = email;
+    lsSet(SUPER_ADMIN_KEY, email);
+    isSuperAdmin = false;
+    showToast("✅ Propriété transférée à " + (pseudo||email) + ". Vos droits SuperAdmin ont été révoqués.");
+    renderAdmUsers();
+    renderAdmSettings();
+    // Promouvoir le nouveau proprio en admin
+    if(window.fbSetDoc && uid){
+      window.fbSetDoc(window.fbDoc(window.db, "users", uid), { isSecondaryAdmin: true }, { merge: true }).catch(function(){});
+    }
+  }).catch(function(err){ showToast("Erreur transfert: "+err.message); });
+}
+
+window.promoteToAdmin    = promoteToAdmin;
+window.revokeAdmin       = revokeAdmin;
+window.transferOwnership = transferOwnership;
 var currentStatus="all";
 var currentSort="affluence";
 var currentView="liste";
@@ -1617,6 +1776,7 @@ function pinPress(k){
       if(h===loadPinHash()){
         document.getElementById("pinOverlay").classList.remove("show");
         isAdmin=true;
+        isSuperAdmin = isSuperAdminUser(); // vérifier si c'est le proprio
         var abtn=document.getElementById("adminBtn");
         abtn.style.background="rgba(255,215,0,0.2)";
         abtn.style.borderColor="rgba(255,215,0,0.6)";
@@ -1626,6 +1786,7 @@ function pinPress(k){
         document.getElementById("trafficVal").textContent=t.count+" (total: "+t.total+")";
         document.getElementById("trafficBadge").classList.add("show");
         showToast("Mode Admin activé");
+        loadAdminConfig(); // charger config superadmin + liste admins secondaires
       } else {
         document.getElementById("pinError").style.display="block";
         setTimeout(function(){pinBuf="";updateDots();document.getElementById("pinError").style.display="none";},1200);
@@ -2090,6 +2251,8 @@ function filterData(){
   if(typeof _gpsState !== "undefined" && _gpsState.active && _gpsState.lat !== null){
     data = filterByRadius(data);
     data = sortGpsData(data);
+    // Même en mode GPS : l'établissement du membre toujours en 1er
+    data = _pinMyEtabFirst(data);
     return data;
   }
   data.sort(function(a,b){
@@ -2098,6 +2261,20 @@ function filterData(){
     if(currentSort==="quartier")return(a.quartier||"").localeCompare(b.quartier||"");
     return 0;
   });
+  // ── Épingler l'établissement du membre propriétaire en tête ──
+  data = _pinMyEtabFirst(data);
+  return data;
+}
+
+// Épingle l'établissement du membre connecté en tête de liste (pour modération facile)
+function _pinMyEtabFirst(data){
+  if(isAdmin || !currentUserEmail) return data;
+  var myEm = currentUserEmail.toLowerCase().trim();
+  var idx = data.findIndex(function(e){ return (e.email||"").toLowerCase().trim() === myEm; });
+  if(idx <= 0) return data; // déjà en premier ou pas trouvé
+  var mine = data.splice(idx, 1)[0];
+  mine._isPinned = true;
+  data.unshift(mine);
   return data;
 }
 
@@ -2122,6 +2299,16 @@ function buildCard(e,delay,compact){
   var ci=getCatInfo(cat);
   var aff=e.affluence||0;
   var affColor=aff>70?"var(--red)":aff>40?"var(--amber)":"var(--green)";
+
+  // Bandeau "Mon établissement" si épinglé (membre propriétaire)
+  var pinnedBanner = "";
+  if(e._isPinned && !isAdmin && currentUserEmail){
+    pinnedBanner = "<div style='background:linear-gradient(90deg,rgba(255,45,155,0.15),rgba(0,229,255,0.08));border-bottom:2px solid rgba(255,45,155,0.4);padding:0.42rem 0.9rem;display:flex;align-items:center;gap:0.5rem;'>"
+      +"<span style='font-size:0.85rem;'>📌</span>"
+      +"<span style='font-family:Syne,sans-serif;font-weight:800;font-size:0.72rem;color:var(--pink);'>Mon établissement</span>"
+      +"<span style='font-size:0.62rem;color:var(--muted);'>— Épinglé pour modération rapide</span>"
+      +"</div>";
+  }
 
   // Photos/vidéo de la carte
   var photosHtml="<div class=\"card-photos\">";
@@ -2338,7 +2525,8 @@ function buildCard(e,delay,compact){
   var vipBtn = !compact ? '<div class="card-vip-row"><button class="vip-reserve-btn" '
     + 'onclick="openReservationModal(\'' + e.id + '\',\'' + e.nom.replace(/'/g,'') + '\',' + aff + ')">' 
     + '&#11088; R&#233;server une place VIP</button></div>' : '';
-  return "<div class=\"card\" style=\"animation-delay:"+delay+"s\">"+
+  return "<div class=\"card\" style=\"animation-delay:"+delay+"s;"+(e._isPinned&&!isAdmin?"border:1.5px solid rgba(255,45,155,0.5);box-shadow:0 0 18px rgba(255,45,155,0.12);":"")+"\">"+
+    pinnedBanner+
     photosHtml+
     "<div class=\"card-top\">"+
     "<div class=\"card-row1\"><div>"+
@@ -2919,6 +3107,20 @@ window.castVote           = castVote;
 // RENDER ALL
 function renderAll(){
   loadSoireePhotos();
+
+  // ── Bandeau "Mon établissement" (membres propriétaires uniquement) ──
+  var myBanner = document.getElementById("myEtabBanner");
+  if(myBanner){
+    var myEm = (currentUserEmail||"").toLowerCase().trim();
+    var myEtab = !isAdmin && myEm ? etablissements.find(function(e){ return (e.email||"").toLowerCase().trim() === myEm; }) : null;
+    if(myEtab){
+      myBanner.style.display = "flex";
+      var sub = document.getElementById("myEtabBannerSub");
+      if(sub) sub.textContent = myEtab.nom + " · " + myEtab.quartier + " — Statut : " + (myEtab.statut||"Inconnu");
+    } else {
+      myBanner.style.display = "none";
+    }
+  }
   var data=filterData();
   // Bandeau établissements archivés (admin uniquement)
   var archivedHtml="";
@@ -3997,6 +4199,7 @@ function _startApp(){
 // (Firebase mettra à jour automatiquement dès la connexion)
 etablissements = getDefaults();
 rebuildPaiements();
+loadSuperAdmin();  // charger email superadmin depuis localStorage
 renderStats(); renderAll(); renderHome(); renderPayments();
 
 _startApp();
@@ -4622,39 +4825,119 @@ window.admFilterEtabl=admFilterEtabl;
 
 // ── Membres admin ─────────────────────────────────────────────
 function renderAdmUsers(){
-  var html="";
-  // Essayer de lire les users depuis Firebase
-  if(window.db&&window.fbCollection&&window.fbGetDocs&&window.fbQuery&&window.fbOrderBy){
-    html="<div style='font-size:0.78rem;color:var(--muted);text-align:center;padding:1rem;'>Chargement des membres...</div>";
-    document.getElementById("adminUsersContent").innerHTML=html;
-    var col=window.fbCollection(window.db,"users");
+  var superEmail = _superAdminEmail || lsGet(SUPER_ADMIN_KEY, "");
+  var iAmSuper   = isSuperAdminUser();
+
+  // En-tête : info super-admin + bouton transfert
+  var headerHtml = "";
+  if(iAmSuper){
+    headerHtml += "<div style='background:linear-gradient(135deg,rgba(255,215,0,0.12),rgba(255,45,155,0.08));border:1px solid rgba(255,215,0,0.3);border-radius:14px;padding:0.9rem;margin-bottom:1rem;'>";
+    headerHtml += "<div style='display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem;'>";
+    headerHtml += "<span style='font-size:1rem;'>👑</span><span style='font-family:Syne,sans-serif;font-weight:800;color:var(--amber);font-size:0.85rem;'>Vous êtes le Propriétaire (SuperAdmin)</span></div>";
+    headerHtml += "<div style='font-size:0.7rem;color:var(--muted);'>Vous seul pouvez promouvoir / révoquer des admins et transférer la propriété de l'application.</div>";
+    headerHtml += "</div>";
+  } else if(superEmail){
+    headerHtml += "<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.7rem;margin-bottom:0.8rem;font-size:0.7rem;color:var(--muted);'>";
+    headerHtml += "👑 Propriétaire : <strong style='color:var(--amber);'>"+escHtml(superEmail)+"</strong></div>";
+  }
+
+  // Section admins secondaires
+  var adminsHtml = "<div style='background:rgba(255,215,0,0.04);border:1px solid rgba(255,215,0,0.18);border-radius:14px;padding:0.85rem;margin-bottom:1rem;'>";
+  adminsHtml += "<div style='font-family:Syne,sans-serif;font-weight:800;color:var(--amber);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>🔑 Admins secondaires ("+_adminsList.length+")</div>";
+  if(!_adminsList.length){
+    adminsHtml += "<div style='font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem;'>Aucun admin secondaire pour l'instant</div>";
+  }
+  _adminsList.forEach(function(a){
+    adminsHtml += "<div style='display:flex;align-items:center;gap:0.5rem;background:rgba(255,255,255,0.03);border-radius:10px;padding:0.55rem 0.7rem;margin-bottom:0.4rem;'>";
+    adminsHtml += "<div style='width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--amber),var(--pink));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.8rem;color:#000;flex-shrink:0;'>"+((a.pseudo||a.email||"?")[0]).toUpperCase()+"</div>";
+    adminsHtml += "<div style='flex:1;min-width:0;'>";
+    adminsHtml += "<div style='font-weight:700;font-size:0.78rem;color:var(--text);'>"+escHtml(a.pseudo||"Inconnu")+" <span style='font-size:0.58rem;background:rgba(255,215,0,0.15);color:var(--amber);padding:0.05rem 0.3rem;border-radius:4px;border:1px solid rgba(255,215,0,0.3);'>Admin</span></div>";
+    adminsHtml += "<div style='font-size:0.63rem;color:var(--muted);'>"+escHtml(a.email||"")+"</div>";
+    adminsHtml += "</div>";
+    if(iAmSuper){
+      adminsHtml += "<div style='display:flex;gap:0.3rem;flex-shrink:0;'>";
+      adminsHtml += "<button onclick=\"revokeAdmin('"+escHtml(a.uid||"")+"','"+escHtml(a.email||"")+"','"+escHtml(a.pseudo||"")+"')\" style='font-size:0.62rem;padding:0.22rem 0.5rem;border-radius:6px;background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);color:var(--red);cursor:pointer;font-family:DM Sans,sans-serif;'>✕ Révoquer</button>";
+      adminsHtml += "<button onclick=\"transferOwnership('"+escHtml(a.uid||"")+"','"+escHtml(a.email||"")+"','"+escHtml(a.pseudo||"")+"')\" style='font-size:0.62rem;padding:0.22rem 0.5rem;border-radius:6px;background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.25);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;'>👑 Céder</button>";
+      adminsHtml += "</div>";
+    }
+    adminsHtml += "</div>";
+  });
+  adminsHtml += "</div>";
+
+  document.getElementById("adminUsersContent").innerHTML = headerHtml + adminsHtml + "<div id='adminMembersList'><div style='font-size:0.75rem;color:var(--muted);text-align:center;padding:1.5rem;'>Chargement des membres...</div></div>";
+
+  // Charger les membres depuis Firebase
+  if(window.db && window.fbCollection && window.fbGetDocs){
+    var col = window.fbCollection(window.db, "users");
     window.fbGetDocs(col).then(function(snap){
-      var users=[];
-      snap.forEach(function(d){users.push(Object.assign({uid:d.id},d.data()));});
-      var h="<div style='font-size:0.72rem;color:var(--muted);margin-bottom:0.7rem;'>"+users.length+" membres inscrits</div>";
+      var users = [];
+      snap.forEach(function(d){ users.push(Object.assign({uid:d.id}, d.data())); });
+
+      var h = "<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--cyan);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>👥 Membres inscrits ("+users.length+")</div>";
       if(!users.length){
-        h+="<div style='text-align:center;padding:2rem;color:var(--muted);'>Aucun membre pour l'instant</div>";
+        h += "<div style='text-align:center;padding:2rem;color:var(--muted);'>Aucun membre pour l'instant</div>";
+        document.getElementById("adminMembersList").innerHTML = h; return;
       }
-      users.forEach(function(u){
-        h+="<div class='notif-admin-item'>";
-        h+="<div style='display:flex;align-items:center;gap:0.6rem;'>";
-        h+="<div style='width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--cyan));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.9rem;color:#000;flex-shrink:0;'>"+((u.pseudo||u.email||"?")[0]).toUpperCase()+"</div>";
-        h+="<div style='flex:1;min-width:0;'>";
-        h+="<div style='font-weight:700;font-size:0.82rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>"+escHtml(u.pseudo||"Inconnu")+"</div>";
-        h+="<div style='font-size:0.68rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>"+escHtml(u.email||"")+"</div>";
-        if(u.tel) h+="<div style='font-size:0.65rem;color:var(--cyan);'>"+escHtml(u.tel)+"</div>";
-        h+="</div>";
-        h+="<div style='text-align:right;font-size:0.62rem;color:var(--muted);flex-shrink:0;'>"+(u.createdAt?new Date(u.createdAt).toLocaleDateString("fr-FR"):"")+"</div>";
-        h+="</div>";
-        h+="</div>";
+
+      // Trier : admins secondaires en premier, puis ordre alphabétique
+      var adminEmails = _adminsList.map(function(a){ return (a.email||"").toLowerCase(); });
+      users.sort(function(a,b){
+        var aIsAdm = adminEmails.indexOf((a.email||"").toLowerCase()) !== -1;
+        var bIsAdm = adminEmails.indexOf((b.email||"").toLowerCase()) !== -1;
+        if(aIsAdm && !bIsAdm) return -1;
+        if(!aIsAdm && bIsAdm) return 1;
+        return (a.pseudo||a.email||"").localeCompare(b.pseudo||b.email||"");
       });
-      document.getElementById("adminUsersContent").innerHTML=h;
+
+      users.forEach(function(u){
+        var em = (u.email||"").toLowerCase();
+        var isAdminUser = adminEmails.indexOf(em) !== -1;
+        var isSuperUser = em === (superEmail||"").toLowerCase();
+        var myEtab = etablissements.find(function(e){ return (e.email||"").toLowerCase().trim() === em; });
+
+        h += "<div class='notif-admin-item' style='"+(isAdminUser?"border-color:rgba(255,215,0,0.2);":"")+"'>";
+        h += "<div style='display:flex;align-items:center;gap:0.6rem;'>";
+
+        // Avatar
+        var avatarGrad = isSuperUser ? "linear-gradient(135deg,var(--amber),var(--pink))" : isAdminUser ? "linear-gradient(135deg,var(--amber),var(--cyan))" : "linear-gradient(135deg,var(--pink),var(--cyan))";
+        h += "<div style='width:34px;height:34px;border-radius:50%;background:"+avatarGrad+";display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.9rem;color:#000;flex-shrink:0;'>"+((u.pseudo||u.email||"?")[0]).toUpperCase()+"</div>";
+
+        // Infos
+        h += "<div style='flex:1;min-width:0;'>";
+        h += "<div style='font-weight:700;font-size:0.82rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>"+escHtml(u.pseudo||"Inconnu");
+        if(isSuperUser) h += " <span style='font-size:0.58rem;background:rgba(255,215,0,0.2);color:var(--amber);padding:0.05rem 0.35rem;border-radius:5px;border:1px solid rgba(255,215,0,0.4);'>👑 Propriétaire</span>";
+        else if(isAdminUser) h += " <span style='font-size:0.58rem;background:rgba(255,215,0,0.12);color:var(--amber);padding:0.05rem 0.3rem;border-radius:5px;border:1px solid rgba(255,215,0,0.25);'>🔑 Admin</span>";
+        if(myEtab) h += " <span style='font-size:0.58rem;background:rgba(255,45,155,0.12);color:var(--pink);padding:0.05rem 0.3rem;border-radius:5px;border:1px solid rgba(255,45,155,0.25);'>🏠 "+escHtml(myEtab.nom)+"</span>";
+        h += "</div>";
+        h += "<div style='font-size:0.65rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>"+escHtml(u.email||"")+"</div>";
+        if(u.tel) h += "<div style='font-size:0.62rem;color:var(--cyan);'>"+escHtml(u.tel)+"</div>";
+        h += "</div>";
+
+        // Date
+        h += "<div style='text-align:right;font-size:0.6rem;color:var(--muted);flex-shrink:0;'>"+(u.createdAt?new Date(u.createdAt).toLocaleDateString("fr-FR"):"")+"</div>";
+        h += "</div>";
+
+        // Boutons d'action (SuperAdmin uniquement, et pas sur soi-même)
+        if(iAmSuper && !isSuperUser && u.uid){
+          h += "<div style='display:flex;gap:0.35rem;margin-top:0.5rem;flex-wrap:wrap;'>";
+          if(!isAdminUser){
+            h += "<button onclick=\"promoteToAdmin('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"')\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.35);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;'>🔑 Promouvoir Admin</button>";
+          } else {
+            h += "<button onclick=\"revokeAdmin('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"')\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);color:var(--red);cursor:pointer;font-family:DM Sans,sans-serif;'>✕ Révoquer Admin</button>";
+            h += "<button onclick=\"transferOwnership('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"')\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;'>👑 Céder propriété</button>";
+          }
+          h += "</div>";
+        }
+
+        h += "</div>";
+      });
+      document.getElementById("adminMembersList").innerHTML = h;
     }).catch(function(err){
-      document.getElementById("adminUsersContent").innerHTML="<div style='color:var(--red);font-size:0.8rem;padding:1rem;text-align:center;'>Erreur: "+err.message+"</div>";
+      document.getElementById("adminMembersList").innerHTML = "<div style='color:var(--red);font-size:0.8rem;padding:1rem;text-align:center;'>Erreur: "+err.message+"</div>";
     });
     return;
   }
-  document.getElementById("adminUsersContent").innerHTML="<div style='text-align:center;padding:2rem;color:var(--muted);font-size:0.82rem;'>&#128100; Firebase requis pour voir les membres</div>";
+  document.getElementById("adminMembersList").innerHTML = "<div style='text-align:center;padding:2rem;color:var(--muted);font-size:0.82rem;'>🔥 Firebase requis pour voir les membres</div>";
 }
 
 // ── Notifications admin — journal complet + modération ─────────
@@ -4776,7 +5059,30 @@ function renderAdmModeration(){
 
 // ── Paramètres admin ───────────────────────────────────────────
 function renderAdmSettings(){
+  var iAmSuper = isSuperAdminUser();
+  var superEmail = _superAdminEmail || lsGet(SUPER_ADMIN_KEY, "");
   var html="";
+
+  // Bloc SuperAdmin
+  if(iAmSuper){
+    html+="<div style='background:linear-gradient(135deg,rgba(255,215,0,0.1),rgba(255,45,155,0.07));border:1px solid rgba(255,215,0,0.35);border-radius:14px;padding:1rem;margin-bottom:1rem;'>";
+    html+="<div style='display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;'><span style='font-size:1.1rem;'>👑</span><span style='font-family:Syne,sans-serif;font-weight:800;color:var(--amber);font-size:0.88rem;'>Propriétaire de l'application</span></div>";
+    html+="<div style='font-size:0.72rem;color:var(--muted);line-height:1.6;'>";
+    html+="Vous êtes le <strong style='color:var(--text);'>SuperAdmin</strong> — vous seul pouvez :<br>";
+    html+="• Promouvoir / révoquer des admins secondaires<br>";
+    html+="• Céder la propriété de l'application<br>";
+    html+="• Accéder à tous les paramètres sensibles";
+    html+="</div>";
+    html+="<div style='margin-top:0.7rem;font-size:0.68rem;color:rgba(255,215,0,0.7);'>Email propriétaire : <strong>"+escHtml(superEmail)+"</strong></div>";
+    html+="</div>";
+  } else if(superEmail){
+    html+="<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.75rem;margin-bottom:1rem;'>";
+    html+="<div style='font-size:0.72rem;color:var(--muted);'>👑 Propriétaire : <strong style='color:var(--amber);'>"+escHtml(superEmail)+"</strong></div>";
+    html+="<div style='font-size:0.65rem;color:var(--muted);margin-top:0.2rem;'>Vous êtes Admin secondaire. Certaines actions sont réservées au propriétaire.</div>";
+    html+="</div>";
+  }
+
+  // PIN Admin
   html+="<div style='background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.2);border-radius:14px;padding:1rem;margin-bottom:1rem;'>";
   html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--amber);font-size:0.85rem;margin-bottom:0.7rem;'>⚙️ Paramètres de l'application</div>";
   html+="<div style='font-size:0.75rem;color:var(--muted);margin-bottom:1rem;'>PIN Admin actuel : <strong style='color:var(--amber);letter-spacing:0.2em;'>••••</strong></div>";
@@ -4792,6 +5098,7 @@ function renderAdmSettings(){
   html+="<div>Projet : <strong style='color:var(--text);'>ambi241</strong></div>";
   html+="<div>Email admin : <strong style='color:var(--text);'>ambi2412026@gmail.com</strong></div>";
   html+="<div>Établissements : <strong style='color:var(--green);'>"+etablissements.length+"</strong></div>";
+  html+="<div>Admins secondaires : <strong style='color:var(--amber);'>"+_adminsList.length+"</strong></div>";
   html+="<div>Statut : <strong style='color:var(--green);'>&#9679; Connecté</strong></div>";
   html+="</div></div>";
 
