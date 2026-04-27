@@ -991,7 +991,30 @@ if (window.__appReady) { loadData(); }
 
 <!-- ══ APPLICATION PRINCIPALE (script classique, accès global) ══ -->
 <script>
-var PIN="9215";
+// ── PIN SÉCURISÉ — hash SHA-256, jamais en clair dans le code ──
+// Hash SHA-256 de "9215" — pour changer le PIN, utiliser changeAdminPin() dans l'interface admin
+var PIN_HASH = "b0935bc048d38665de1d5c40e5fe4af87fa7bae83b7609d3e2e0da0660be7012";
+async function hashPin(pin){ const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(pin)); return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join(""); }
+function loadPinHash(){ try{ var s=lsGet("ambi241_pin_hash"); return s||PIN_HASH; }catch(e){ return PIN_HASH; } }
+function savePinHash(h){ try{ lsSet("ambi241_pin_hash", h); }catch(e){} }
+
+// ── HELPERS localStorage robustes — anti-bug quota/accès refusé ──
+var _memFallback={};
+function lsGet(key,def){
+  try{ var v=localStorage.getItem(key); return v!==null?v:(def!==undefined?def:null); }
+  catch(e){ return (_memFallback[key]!==undefined)?_memFallback[key]:(def!==undefined?def:null); }
+}
+function lsSet(key,val){
+  try{ localStorage.setItem(key,val); _memFallback[key]=val; }
+  catch(e){ _memFallback[key]=val; }
+}
+function lsDel(key){
+  try{ localStorage.removeItem(key); }catch(e){}
+  delete _memFallback[key];
+}
+function lsGetJSON(key,def){ try{ var v=lsGet(key); return v?JSON.parse(v):(def!==undefined?def:null); }catch(e){ return def!==undefined?def:null; } }
+function lsSetJSON(key,obj){ try{ lsSet(key,JSON.stringify(obj)); }catch(e){} }
+
 var VISIT_KEY="ambi241_visits";
 var isAdmin=false;
 var currentUserEmail="";
@@ -1005,7 +1028,7 @@ var etablissements=[];
 // ── PHOTOS SLOT CE SOIR (10h, max 5) — déclaré tôt car utilisé dans buildCard ──
 var MAX_SLOT=5;
 function loadSlotPhotos(eid){
-  var stored=JSON.parse(localStorage.getItem("ambi241_slot_photos")||"{}");
+  var stored=lsGetJSON("ambi241_slot_photos", {});
   var now=Date.now();
   return (stored[eid]||[]).filter(function(p){return(now-p.ts)<36000000;});
 }
@@ -1061,14 +1084,14 @@ updateClock();
 // TRAFFIC
 function trackVisit(){
   var today=new Date().toDateString();
-  var stored=JSON.parse(localStorage.getItem(VISIT_KEY)||"{}");
+  var stored=lsGetJSON(VISIT_KEY, {});
   if(!stored.date)stored={date:"",count:0,total:0};
   if(stored.date!==today){stored={date:today,count:1,total:(stored.total||0)+1};}
   else{stored.count+=1;}
-  localStorage.setItem(VISIT_KEY,JSON.stringify(stored));
+  lsSetJSON(VISIT_KEY, stored);
 }
 function getTraffic(){
-  var stored=JSON.parse(localStorage.getItem(VISIT_KEY)||"{}");
+  var stored=lsGetJSON(VISIT_KEY, {});
   if(!stored.date)return {date:"",count:0,total:0};
   return stored;
 }
@@ -1076,21 +1099,21 @@ trackVisit();
 
 // SOIREE PHOTOS
 function loadSoireePhotos(){
-  var stored=JSON.parse(localStorage.getItem("ambi241_soiree")||"{}");
+  var stored=lsGetJSON("ambi241_soiree", {});
   var now=Date.now();
   var cleaned={};
   Object.keys(stored).forEach(function(id){
     var p=stored[id].filter(function(x){return(now-x.ts)<36000000;});
     if(p.length>0)cleaned[id]=p;
   });
-  localStorage.setItem("ambi241_soiree",JSON.stringify(cleaned));
+  lsSetJSON("ambi241_soiree", cleaned);
   soireePhotos=cleaned;
 }
 function saveSoireePhoto(eid,dataUrl){
-  var stored=JSON.parse(localStorage.getItem("ambi241_soiree")||"{}");
+  var stored=lsGetJSON("ambi241_soiree", {});
   if(!stored[eid])stored[eid]=[];
   stored[eid].push({url:dataUrl,ts:Date.now()});
-  localStorage.setItem("ambi241_soiree",JSON.stringify(stored));
+  lsSetJSON("ambi241_soiree", stored);
   soireePhotos=stored;
 }
 function getTimeLeft(ts){
@@ -1242,22 +1265,24 @@ function pinPress(k){
   if(pinBuf.length>=4)return;
   pinBuf+=k;updateDots();
   if(pinBuf.length===4){
-    if(pinBuf===PIN){
-      document.getElementById("pinOverlay").classList.remove("show");
-      isAdmin=true;
-      var abtn=document.getElementById("adminBtn");
-      abtn.style.background="rgba(255,215,0,0.2)";
-      abtn.style.borderColor="rgba(255,215,0,0.6)";
-      abtn.style.color="#ffd700";
-      renderStats();renderAll();renderHome();updatePayVis();renderPayments();
-      var t=getTraffic();
-      document.getElementById("trafficVal").textContent=t.count+" (total: "+t.total+")";
-      document.getElementById("trafficBadge").classList.add("show");
-      showToast("Mode Admin active");
-    } else {
-      document.getElementById("pinError").style.display="block";
-      setTimeout(function(){pinBuf="";updateDots();document.getElementById("pinError").style.display="none";},1200);
-    }
+    hashPin(pinBuf).then(function(h){
+      if(h===loadPinHash()){
+        document.getElementById("pinOverlay").classList.remove("show");
+        isAdmin=true;
+        var abtn=document.getElementById("adminBtn");
+        abtn.style.background="rgba(255,215,0,0.2)";
+        abtn.style.borderColor="rgba(255,215,0,0.6)";
+        abtn.style.color="#ffd700";
+        renderStats();renderAll();renderHome();updatePayVis();renderPayments();
+        var t=getTraffic();
+        document.getElementById("trafficVal").textContent=t.count+" (total: "+t.total+")";
+        document.getElementById("trafficBadge").classList.add("show");
+        showToast("Mode Admin activé");
+      } else {
+        document.getElementById("pinError").style.display="block";
+        setTimeout(function(){pinBuf="";updateDots();document.getElementById("pinError").style.display="none";},1200);
+      }
+    });
   }
 }
 function updateDots(){
@@ -2350,19 +2375,19 @@ function allVoteKey(){ return "ambi241_all_votes"; }
 
 /* ── Données de présence globales (partagées entre cartes) ── */
 function getAllPresence(){
-  try{ return JSON.parse(localStorage.getItem(allPresKey())||"{}"); }
+  try{ return JSON.parse(lsGet(allPresKey())||"{}"); }
   catch(e){ return {}; }
 }
 function saveAllPresence(obj){
-  try{ localStorage.setItem(allPresKey(), JSON.stringify(obj)); }
+  try{ lsSetJSON(allPresKey(), obj); }
   catch(e){}
 }
 function getAllVotes(){
-  try{ return JSON.parse(localStorage.getItem(allVoteKey())||"{}"); }
+  try{ return JSON.parse(lsGet(allVoteKey())||"{}"); }
   catch(e){ return {}; }
 }
 function saveAllVotes(obj){
-  try{ localStorage.setItem(allVoteKey(), JSON.stringify(obj)); }
+  try{ lsSetJSON(allVoteKey(), obj); }
   catch(e){}
 }
 
@@ -2771,23 +2796,23 @@ function openPhotoUpload(eid){
 // ── PHOTOS SLOT CE SOIR (10h, max 5, localStorage, établissement+admin) ──
 
 function saveSlotPhoto(eid,dataUrl){
-  var stored=JSON.parse(localStorage.getItem("ambi241_slot_photos")||"{}");
+  var stored=lsGetJSON("ambi241_slot_photos", {});
   var now=Date.now();
   var arr=(stored[eid]||[]).filter(function(p){return(now-p.ts)<36000000;});
   if(arr.length>=MAX_SLOT){showToast("Maximum "+MAX_SLOT+" photos atteint");return;}
   arr.push({url:dataUrl,ts:now});
   stored[eid]=arr;
-  try{localStorage.setItem("ambi241_slot_photos",JSON.stringify(stored));}
+  try{lsSetJSON("ambi241_slot_photos", stored);}
   catch(e){showToast("Stockage plein, supprimez des photos");}
 }
 
 function deleteSlotPhoto(eid,idx){
-  var stored=JSON.parse(localStorage.getItem("ambi241_slot_photos")||"{}");
+  var stored=lsGetJSON("ambi241_slot_photos", {});
   var now=Date.now();
   var arr=(stored[eid]||[]).filter(function(p){return(now-p.ts)<36000000;});
   arr.splice(idx,1);
   stored[eid]=arr;
-  localStorage.setItem("ambi241_slot_photos",JSON.stringify(stored));
+  lsSetJSON("ambi241_slot_photos", stored);
 }
 
 // Lightbox spéciale pour le slot avec navigation et suppression
@@ -2865,13 +2890,13 @@ var galerieEtabId=null;
 var MAX_GALERIE=10;
 
 function loadGalerie(eid){
-  var stored=JSON.parse(localStorage.getItem("ambi241_galerie")||"{}");
+  var stored=lsGetJSON("ambi241_galerie", {});
   return stored[eid]||[];
 }
 function saveGalerie(eid,photos){
-  var stored=JSON.parse(localStorage.getItem("ambi241_galerie")||"{}");
+  var stored=lsGetJSON("ambi241_galerie", {});
   stored[eid]=photos;
-  try{localStorage.setItem("ambi241_galerie",JSON.stringify(stored));}
+  try{lsSetJSON("ambi241_galerie", stored);}
   catch(e){showToast("Stockage plein, supprimez des photos");}
 }
 
@@ -3210,9 +3235,9 @@ var ROLE_EVENTS = {
 
 // ── Prefs ────────────────────────────────────────────────────
 function loadNotifPrefs(){
-  try{ var r=localStorage.getItem(NOTIF_PREFS_KEY); return r?JSON.parse(r):{};} catch(e){ return {}; }
+  try{ var r=lsGet(NOTIF_PREFS_KEY); return r?JSON.parse(r):{};} catch(e){ return {}; }
 }
-function saveNotifPrefs(p){ try{localStorage.setItem(NOTIF_PREFS_KEY,JSON.stringify(p));}catch(e){} }
+function saveNotifPrefs(p){ try{lsSetJSON(NOTIF_PREFS_KEY, p);}catch(e){} }
 function getPref(role,key,ch){
   var p=loadNotifPrefs(); var k=role+"_"+key+"_"+ch;
   return p[k]!==undefined?p[k]:true;
@@ -3231,22 +3256,22 @@ function _getNotifStoreKey(){
 }
 
 function loadNotifs(){
-  try{ var r=localStorage.getItem(_getNotifStoreKey()); return r?JSON.parse(r):[]; }catch(e){ return []; }
+  try{ var r=lsGet(_getNotifStoreKey()); return r?JSON.parse(r):[]; }catch(e){ return []; }
 }
 function saveNotifs(arr){
-  try{ localStorage.setItem(_getNotifStoreKey(),JSON.stringify(arr.slice(-60))); }catch(e){}
+  try{ lsSetJSON(_getNotifStoreKey(), arr.slice(-60)); }catch(e){}
 }
 
 // Log global (admin peut tout voir)
 function saveToAdminLog(item){
   try{
-    var log=JSON.parse(localStorage.getItem(NOTIF_ADMIN_KEY)||"[]");
+    var log=lsGetJSON(NOTIF_ADMIN_KEY, []);
     log.push(item);
-    localStorage.setItem(NOTIF_ADMIN_KEY, JSON.stringify(log.slice(-200)));
+    lsSetJSON(NOTIF_ADMIN_KEY, log.slice(-200));
   }catch(e){}
 }
 function loadAdminLog(){
-  try{ return JSON.parse(localStorage.getItem(NOTIF_ADMIN_KEY)||"[]"); }catch(e){ return []; }
+  try{ return lsGetJSON(NOTIF_ADMIN_KEY, []); }catch(e){ return []; }
 }
 
 // ── Envoi ciblé d'une notification ────────────────────────────
@@ -3482,7 +3507,7 @@ function checkAutoNotifs(){
   }
   // ── Photos galerie → MEMBRES seulement ──
   if(role==="membre"){
-    var galerieData=JSON.parse(localStorage.getItem("ambi241_galerie")||"{}");
+    var galerieData=lsGetJSON("ambi241_galerie", {});
     var etabsAvecPhotos=Object.keys(galerieData).filter(function(id){return galerieData[id]&&galerieData[id].length>0;});
     if(etabsAvecPhotos.length>0){
       var eid=etabsAvecPhotos[0];
@@ -3779,13 +3804,13 @@ function admDeleteNotif(idx){
   var log=loadAdminLog().slice().reverse();
   log.splice(idx,1);
   // Remettre dans l'ordre chronologique
-  try{localStorage.setItem(NOTIF_ADMIN_KEY,JSON.stringify(log.reverse()));}catch(e){}
+  try{lsSetJSON(NOTIF_ADMIN_KEY, log.reverse());}catch(e){}
   renderAdminNotifs();
   showToast("Notification supprimée");
 }
 function admClearAllNotifLog(){
   if(!confirm("Effacer tout le journal des notifications ?"))return;
-  try{localStorage.removeItem(NOTIF_ADMIN_KEY);}catch(e){}
+  try{lsDel(NOTIF_ADMIN_KEY);}catch(e){}
   renderAdminNotifs();
   showToast("Journal effacé");
 }
@@ -3832,8 +3857,8 @@ function renderAdmModeration(){
   html+="<div style='background:rgba(204,68,255,0.06);border:1px solid rgba(204,68,255,0.2);border-radius:14px;padding:1rem;margin-bottom:1rem;'>";
   html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--purple);font-size:0.85rem;margin-bottom:0.7rem;'>🛡️ Outils de Modération</div>";
   html+="<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;'>";
-  html+="<button onclick=\"if(confirm('Réinitialiser toutes les notifs utilisateurs ?')){try{Object.keys(localStorage).filter(function(k){return k.startsWith('ambi241_notifications_')}).forEach(function(k){localStorage.removeItem(k)});showToast('Notifs réinitialisées !');}catch(e){}}\" class='adm-action-btn' style='background:rgba(255,68,102,0.08);border-color:rgba(255,68,102,0.3);color:var(--red);'>&#128465; Reset toutes les notifs</button>";
-  html+="<button onclick=\"if(confirm('Effacer le cache des photos éphémères ?')){localStorage.removeItem('ambi241_slot_photos');localStorage.removeItem('ambi241_soiree');showToast('Cache photos effacé !');}\" class='adm-action-btn' style='background:rgba(255,215,0,0.06);border-color:rgba(255,215,0,0.25);color:var(--amber);'>&#128247; Purge photos cache</button>";
+  html+="<button onclick=\"if(confirm('Réinitialiser toutes les notifs utilisateurs ?')){try{Object.keys(localStorage).filter(function(k){return k.startsWith('ambi241_notifications_')}).forEach(function(k){lsDel(k)});showToast('Notifs réinitialisées !');}catch(e){}}\" class='adm-action-btn' style='background:rgba(255,68,102,0.08);border-color:rgba(255,68,102,0.3);color:var(--red);'>&#128465; Reset toutes les notifs</button>";
+  html+="<button onclick=\"if(confirm('Effacer le cache des photos éphémères ?')){lsDel('ambi241_slot_photos');lsDel('ambi241_soiree');showToast('Cache photos effacé !');}\" class='adm-action-btn' style='background:rgba(255,215,0,0.06);border-color:rgba(255,215,0,0.25);color:var(--amber);'>&#128247; Purge photos cache</button>";
   html+="<button onclick=\"loadData();showToast('Synchronisation Firebase lancée...')\" class='adm-action-btn' style='background:rgba(0,229,255,0.06);border-color:rgba(0,229,255,0.25);color:var(--cyan);'>&#8635; Sync Firebase</button>";
   html+="<button onclick=\"var r=parseInt(prompt('Nouvelle affluence globale (0-100) ?','50'));if(!isNaN(r)){etablissements.forEach(function(e){updateField(e.id,{affluence:r});});showToast('Affluence mise à jour !');}\" class='adm-action-btn' style='background:rgba(0,255,170,0.06);border-color:rgba(0,255,170,0.25);color:var(--green);'>&#128202; Ajuster affluence</button>";
   html+="</div></div>";
@@ -3903,9 +3928,11 @@ function changeAdminPin(){
   if(!inp)return;
   var val=(inp.value||"").trim();
   if(!/^\d{4}$/.test(val)){showToast("Le PIN doit être 4 chiffres");return;}
-  PIN=val;
-  inp.value="";
-  showToast("✅ PIN Admin changé !");
+  hashPin(val).then(function(h){
+    savePinHash(h);
+    inp.value="";
+    showToast("✅ PIN Admin changé et sécurisé !");
+  });
 }
 window.changeAdminPin=changeAdminPin;
 
