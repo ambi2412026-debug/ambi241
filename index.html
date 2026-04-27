@@ -1262,26 +1262,51 @@ function loadSuperAdmin(){
 }
 
 function isSuperAdminUser(){
-  if(!currentUserEmail || !_superAdminEmail) return false;
-  return currentUserEmail.toLowerCase().trim() === _superAdminEmail.toLowerCase().trim();
+  if(!currentUserEmail) return false;
+  // Fallback : si aucun superadmin défini (Firebase pas encore chargé ou 1ère connexion)
+  // et que l'utilisateur est connecté en tant qu'admin → il EST le superadmin par défaut
+  var superEmail = _superAdminEmail || lsGet(SUPER_ADMIN_KEY, "");
+  if(!superEmail && isAdmin) return true;
+  if(!superEmail) return false;
+  return currentUserEmail.toLowerCase().trim() === superEmail.toLowerCase().trim();
 }
 
 // Charge la config super-admin et la liste des admins depuis Firebase
 function loadAdminConfig(){
   if(!window.db || typeof window.fbGetDoc !== "function") return;
-  // Charger le superadmin
+  // S'assurer que currentUserEmail est synchronisé avec window.currentUserEmail
+  if(!currentUserEmail && window.currentUserEmail) currentUserEmail = window.currentUserEmail;
+
+  // ── Auto-enregistrement immédiat si aucun superadmin en cache ──
+  var cachedSuper = lsGet(SUPER_ADMIN_KEY, "");
+  if(!cachedSuper && isAdmin && currentUserEmail){
+    _superAdminEmail = currentUserEmail;
+    lsSet(SUPER_ADMIN_KEY, currentUserEmail);
+    // Rafraîchir immédiatement l'UI avec le fallback local
+    if(_currentAdmTab === "users") renderAdmUsers();
+    if(_currentAdmTab === "settings") renderAdmSettings();
+  }
+
+  // Charger le superadmin depuis Firebase
   window.fbGetDoc(window.fbDoc(window.db, "config", "superadmin")).then(function(snap){
     if(snap.exists()){
       var data = snap.data();
       _superAdminEmail = data.email || "";
       lsSet(SUPER_ADMIN_KEY, _superAdminEmail);
-    } else if(!_superAdminEmail && currentUserEmail && isAdmin){
-      // Première connexion admin : se proclamer superadmin
+    } else if(isAdmin && currentUserEmail){
+      // Aucun doc Firebase → se proclamer superadmin et l'écrire
       _initSuperAdmin(currentUserEmail);
     }
+    // Toujours synchroniser isSuperAdmin global après résolution Firebase
+    isSuperAdmin = isSuperAdminUser();
     // Rafraîchir l'affichage si panel admin ouvert
     if(isAdmin && _currentAdmTab === "users") renderAdmUsers();
-  }).catch(function(){});
+    if(isAdmin && _currentAdmTab === "settings") renderAdmSettings();
+  }).catch(function(){
+    // En cas d'erreur réseau : utiliser le fallback local
+    isSuperAdmin = isSuperAdminUser();
+    if(isAdmin && _currentAdmTab === "users") renderAdmUsers();
+  });
 
   // Charger la liste des admins secondaires
   window.fbGetDoc(window.fbDoc(window.db, "config", "admins")).then(function(snap){
@@ -1289,6 +1314,8 @@ function loadAdminConfig(){
       _adminsList = snap.data().list || [];
     }
     checkSecondaryAdminAccess();
+    // Recharger l'onglet membres pour afficher la liste à jour
+    if(isAdmin && _currentAdmTab === "users") renderAdmUsers();
   }).catch(function(){});
 }
 
@@ -1301,6 +1328,11 @@ function _initSuperAdmin(email){
   }).then(function(){
     _superAdminEmail = email;
     lsSet(SUPER_ADMIN_KEY, email);
+    isSuperAdmin = true;
+    // Rafraîchir l'UI pour afficher les boutons SuperAdmin
+    if(isAdmin && _currentAdmTab === "users") renderAdmUsers();
+    if(isAdmin && _currentAdmTab === "settings") renderAdmSettings();
+    showToast("👑 Propriétaire enregistré !");
   }).catch(function(){});
 }
 
@@ -1776,7 +1808,8 @@ function pinPress(k){
       if(h===loadPinHash()){
         document.getElementById("pinOverlay").classList.remove("show");
         isAdmin=true;
-        isSuperAdmin = isSuperAdminUser(); // vérifier si c'est le proprio
+        // isSuperAdmin sera mis à jour par loadAdminConfig() après résolution Firebase
+        isSuperAdmin = isSuperAdminUser(); // valeur provisoire (cache localStorage)
         var abtn=document.getElementById("adminBtn");
         abtn.style.background="rgba(255,215,0,0.2)";
         abtn.style.borderColor="rgba(255,215,0,0.6)";
@@ -4705,11 +4738,19 @@ function switchAdmTab(tab){
   // Render content
   if(tab==="overview") renderAdmOverview();
   else if(tab==="etabl") renderAdmEtabl();
-  else if(tab==="users") renderAdmUsers();
+  else if(tab==="users"){
+    // Si la config superadmin n'est pas encore chargée depuis Firebase, recharger
+    if(!_superAdminEmail && window.db) loadAdminConfig();
+    else renderAdmUsers();
+  }
   else if(tab==="notifs") renderAdminNotifs();
   else if(tab==="payments") renderAdmPayments();
   else if(tab==="moderation") renderAdmModeration();
-  else if(tab==="settings") renderAdmSettings();
+  else if(tab==="settings"){
+    // Idem pour l'onglet paramètres
+    if(!_superAdminEmail && window.db) loadAdminConfig();
+    else renderAdmSettings();
+  }
   else if(tab==="reservations") renderAdmReservations();
 }
 window.switchAdmTab=switchAdmTab;
@@ -4826,7 +4867,7 @@ window.admFilterEtabl=admFilterEtabl;
 // ── Membres admin ─────────────────────────────────────────────
 function renderAdmUsers(){
   var superEmail = _superAdminEmail || lsGet(SUPER_ADMIN_KEY, "");
-  var iAmSuper   = isSuperAdminUser();
+  var iAmSuper   = isSuperAdminUser();  // recalcul live (fallback inclus)
 
   // En-tête : info super-admin + bouton transfert
   var headerHtml = "";
@@ -5059,7 +5100,7 @@ function renderAdmModeration(){
 
 // ── Paramètres admin ───────────────────────────────────────────
 function renderAdmSettings(){
-  var iAmSuper = isSuperAdminUser();
+  var iAmSuper = isSuperAdminUser();  // recalcul live (fallback inclus)
   var superEmail = _superAdminEmail || lsGet(SUPER_ADMIN_KEY, "");
   var html="";
 
