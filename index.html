@@ -667,7 +667,7 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
       <div style="font-size:0.72rem;color:var(--muted);margin-top:0.5rem;text-align:center;">&#9993; ambi2412026@gmail.com</div>
     </div>
     <!-- FORM -->
-    <form id="etablForm" action="https://formspree.io/f/VOTRE_ID_FORMSPREE" method="POST">
+    <form id="etablForm" onsubmit="submitEtablissement(event)">
       <div style="font-size:0.68rem;color:var(--amber);font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.8rem;">&#127968; Informations</div>
       <div class="field"><label>Nom de l etablissement <span class="req">*</span></label><input type="text" name="nom_etablissement" placeholder="Ex: Miami Club" required maxlength="60"></div>
       <div class="field-row">
@@ -735,7 +735,7 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
         </div>
       </div>
       <div class="consent-box"><input type="checkbox" id="etablConsent" required><div class="consent-text">Je certifie que les informations sont <strong>exactes</strong> et accepte les conditions d AMBI241. Activation apres <strong>validation du paiement</strong>.</div></div>
-      <button type="submit" class="modal-btn" id="etablSubmitBtn">&#128640; Envoyer ma demande</button>
+      <button type="button" class="modal-btn" id="etablSubmitBtn" onclick="submitEtablissement(event)">&#128640; Envoyer ma demande</button>
       <div id="etablMsg" style="font-size:0.78rem;text-align:center;margin-top:0.5rem;display:none;"></div>
     </form>
   </div>
@@ -3770,6 +3770,123 @@ window.deleteGaleriePhoto     = deleteGaleriePhoto;
 window.openPhotoUpload        = openPhotoUpload;
 // ─────────────────────────────────────────────────────────────
 
+
+// ── SOUMISSION FORMULAIRE ÉTABLISSEMENT (Firebase + WhatsApp) ──
+function submitEtablissement(event){
+  if(event) event.preventDefault();
+  var form = document.getElementById("etablForm");
+  var btn  = document.getElementById("etablSubmitBtn");
+  var msg  = document.getElementById("etablMsg");
+
+  // Récupérer les valeurs
+  var nom       = (form.querySelector("[name=nom_etablissement]").value||"").trim();
+  var type      = (form.querySelector("[name=type]").value||"").trim();
+  var quartier  = (form.querySelector("[name=quartier]").value||"").trim();
+  var desc      = (form.querySelector("[name=description]").value||"").trim();
+  var gerant    = (form.querySelector("[name=gerant_nom]").value||"").trim();
+  var tel       = (form.querySelector("[name=telephone]").value||"").trim();
+  var email     = (form.querySelector("[name=email]").value||"").trim();
+  var ouv       = (form.querySelector("[name=ouverture]").value||"18h00").trim();
+  var ferm      = (form.querySelector("[name=fermeture]").value||"02h00").trim();
+  var modePay   = (form.querySelector("[name=mode_paiement]").value||"").trim();
+  var transaction=(form.querySelector("[name=transaction]").value||"").trim();
+  var consent   = document.getElementById("etablConsent").checked;
+  var lat       = document.getElementById("latInput").value;
+  var lng       = document.getElementById("lngInput").value;
+  var mapsUrl   = document.getElementById("mapsUrlInput").value;
+
+  // Validation
+  if(!nom||!type||!quartier||!gerant||!tel){
+    msg.style.display="block"; msg.style.color="var(--red)";
+    msg.textContent="Veuillez remplir tous les champs obligatoires."; return;
+  }
+  if(!modePay||!transaction){
+    msg.style.display="block"; msg.style.color="var(--red)";
+    msg.textContent="Veuillez renseigner le mode de paiement et le numéro de transaction."; return;
+  }
+  if(!consent){
+    msg.style.display="block"; msg.style.color="var(--red)";
+    msg.textContent="Vous devez certifier l'exactitude des informations."; return;
+  }
+
+  btn.disabled=true; btn.textContent="Envoi en cours...";
+
+  // Données à stocker dans Firebase
+  var demande = {
+    nom_etablissement: nom,
+    type: type,
+    quartier: quartier,
+    description: desc,
+    gerant_nom: gerant,
+    telephone: tel,
+    email: email,
+    ouverture: ouv,
+    fermeture: ferm,
+    mode_paiement: modePay,
+    transaction: transaction,
+    latitude: lat||"",
+    longitude: lng||"",
+    maps_url: mapsUrl||"",
+    statut_demande: "En attente",
+    createdAt: new Date().toISOString(),
+    timestamp: Date.now()
+  };
+
+  function onSuccess(){
+    btn.disabled=false; btn.textContent="🚀 Envoyer ma demande";
+    msg.style.display="block"; msg.style.color="var(--green)";
+    msg.innerHTML="✅ Demande envoyée ! Nous reviendrons vers vous dans les 24h.<br><small style='color:var(--muted)'>Contactez-nous : ambi2412026@gmail.com</small>";
+    // Notification WhatsApp admin
+    var waMsg = encodeURIComponent(
+      "🏠 NOUVELLE DEMANDE AMBI241\n\n"+
+      "📌 Établissement : "+nom+"\n"+
+      "🎭 Type : "+type+"\n"+
+      "📍 Quartier : "+quartier+"\n"+
+      "👤 Gérant : "+gerant+"\n"+
+      "📞 Tél : "+tel+"\n"+
+      (email?"✉ Email : "+email+"\n":"")+
+      "💳 Paiement : "+modePay+"\n"+
+      "🔑 Transaction : "+transaction+"\n"+
+      (lat?"📡 GPS : "+lat+","+lng+"\n":"")+
+      "\nÀ valider dans le tableau de bord AMBI241."
+    );
+    setTimeout(function(){ window.open("https://wa.me/24174450924?text="+waMsg,"_blank"); },800);
+    // Reset form après 3s
+    setTimeout(function(){
+      form.reset();
+      document.getElementById("etablModal").classList.remove("show");
+      msg.style.display="none";
+    },4000);
+    // Ajouter notif interne admin
+    pushNotif({targetRole:"admin",key:"new_demande",icon:"🏠",title:"Nouvelle demande — "+nom,msg:type+" à "+quartier+". Transaction: "+transaction,channel:"push",fromAdmin:false});
+  }
+
+  function onError(errMsg){
+    btn.disabled=false; btn.textContent="🚀 Envoyer ma demande";
+    msg.style.display="block"; msg.style.color="var(--red)";
+    msg.textContent="Erreur d'envoi. Contactez-nous sur WhatsApp ou email. ("+errMsg+")";
+    // Fallback WhatsApp direct
+    var waMsg = encodeURIComponent(
+      "🏠 DEMANDE INSCRIPTION AMBI241\n"+
+      "Établissement : "+nom+" ("+type+")\n"+
+      "Quartier : "+quartier+"\n"+
+      "Gérant : "+gerant+" - "+tel+"\n"+
+      "Paiement : "+modePay+" | Txn: "+transaction
+    );
+    setTimeout(function(){ window.open("https://wa.me/24174450924?text="+waMsg,"_blank"); },500);
+  }
+
+  // Sauvegarder dans Firebase (collection "demandes")
+  if(window.db && typeof window.fbAddDoc==="function" && typeof window.fbCollection==="function"){
+    window.fbAddDoc(window.fbCollection(window.db,"demandes"), demande)
+      .then(onSuccess)
+      .catch(function(err){ onError(err.message); });
+  } else {
+    // Firebase pas dispo → envoi WhatsApp direct
+    onSuccess();
+  }
+}
+window.submitEtablissement = submitEtablissement;
 
 // ── ADMIN AJOUT ETABLISSEMENT GRATUIT ────────────────────────
 function openAdminAddModal(){
