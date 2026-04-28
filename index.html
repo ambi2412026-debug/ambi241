@@ -1262,13 +1262,16 @@ function loadSuperAdmin(){
 }
 
 function isSuperAdminUser(){
-  if(!currentUserEmail) return false;
-  // Fallback : si aucun superadmin défini (Firebase pas encore chargé ou 1ère connexion)
-  // et que l'utilisateur est connecté en tant qu'admin → il EST le superadmin par défaut
-  var superEmail = _superAdminEmail || lsGet(SUPER_ADMIN_KEY, "");
-  if(!superEmail && isAdmin) return true;
-  if(!superEmail) return false;
-  return currentUserEmail.toLowerCase().trim() === superEmail.toLowerCase().trim();
+  // CAS 1 : Admin via PIN sans compte Firebase connecté → propriétaire par défaut
+  if(isAdmin && !currentUserEmail) return true;
+  // CAS 2 : Admin via PIN + compte Firebase connecté
+  if(isAdmin && currentUserEmail){
+    var superEmail = _superAdminEmail || lsGet(SUPER_ADMIN_KEY, "");
+    // Pas encore de superadmin défini → cet admin est le propriétaire
+    if(!superEmail) return true;
+    return currentUserEmail.toLowerCase().trim() === superEmail.toLowerCase().trim();
+  }
+  return false;
 }
 
 // Charge la config super-admin et la liste des admins depuis Firebase
@@ -4872,7 +4875,8 @@ window.admFilterEtabl=admFilterEtabl;
 // ── Membres admin ─────────────────────────────────────────────
 function renderAdmUsers(){
   var superEmail = _superAdminEmail || lsGet(SUPER_ADMIN_KEY, "");
-  var iAmSuper   = isSuperAdminUser();  // recalcul live (fallback inclus)
+  // L'admin connecté via PIN (sans compte Firebase) est TOUJOURS le propriétaire
+  var iAmSuper = isAdmin && isSuperAdminUser();
 
   // En-tête : info super-admin + bouton transfert
   var headerHtml = "";
@@ -4961,7 +4965,9 @@ function renderAdmUsers(){
       users.forEach(function(u){
         var em = (u.email||"").toLowerCase();
         var isAdminUser = adminEmails.indexOf(em) !== -1;
-        var isSuperUser = em === (superEmail||"").toLowerCase();
+        // isSuperUser : marquer le membre si son email = celui du superadmin Firebase
+        // Quand superEmail est vide (PIN admin sans compte), personne n'est marqué superUser → boutons visibles
+        var isSuperUser = superEmail ? (em === superEmail.toLowerCase()) : false;
         var myEtab = etablissements.find(function(e){ return (e.email||"").toLowerCase().trim() === em; });
 
         h += "<div class='notif-admin-item' style='"+(isAdminUser?"border-color:rgba(255,215,0,0.2);":"")+"'>";
@@ -4986,8 +4992,9 @@ function renderAdmUsers(){
         h += "<div style='text-align:right;font-size:0.6rem;color:var(--muted);flex-shrink:0;'>"+(u.createdAt?new Date(u.createdAt).toLocaleDateString("fr-FR"):"")+"</div>";
         h += "</div>";
 
-        // Boutons d'action (SuperAdmin uniquement, et pas sur soi-même)
-        if(iAmSuper && !isSuperUser && u.uid){
+        // Boutons d'action (SuperAdmin uniquement, pas sur soi-même)
+        var isMySelf = currentUserEmail && em === currentUserEmail.toLowerCase();
+        if(iAmSuper && !isSuperUser && !isMySelf){
           h += "<div style='display:flex;gap:0.35rem;margin-top:0.5rem;flex-wrap:wrap;'>";
           if(!isAdminUser){
             h += "<button onclick=\"promoteToAdmin('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"')\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.35);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;'>🔑 Promouvoir Admin</button>";
