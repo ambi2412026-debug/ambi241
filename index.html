@@ -5032,6 +5032,10 @@ function renderAdmUsers(){
         return (a.pseudo||a.email||"").localeCompare(b.pseudo||b.email||"");
       });
 
+      // Registre global pour éviter les problèmes d'échappement dans les onclick inline
+      window._memberProfileRegistry = window._memberProfileRegistry || [];
+      window._memberProfileRegistry = []; // reset à chaque rendu
+
       users.forEach(function(u){
         var em = (u.email||"").toLowerCase();
         var isAdminUser = adminEmails.indexOf(em) !== -1;
@@ -5041,9 +5045,11 @@ function renderAdmUsers(){
         var myEtab = etablissements.find(function(e){ return (e.email||"").toLowerCase().trim() === em; });
 
         var uData = { uid:u.uid||"", email:u.email||"", pseudo:u.pseudo||"", tel:u.tel||"", dob:u.dob||"", createdAt:u.createdAt||"", isAdmin:isAdminUser, etabNom:myEtab?myEtab.nom:"" };
-        var uDataStr = encodeURIComponent(JSON.stringify(uData));
+        var regIdx = window._memberProfileRegistry.length;
+        window._memberProfileRegistry.push(uData);
+
         h += "<div class='notif-admin-item' style='"+(isAdminUser?"border-color:rgba(255,215,0,0.2);":"")+"'>";
-        h += "<div style='display:flex;align-items:center;gap:0.6rem;cursor:pointer;' onclick=\"openUserProfile(decodeURIComponent('"+uDataStr+"'))\">";
+        h += "<div style='display:flex;align-items:center;gap:0.6rem;cursor:pointer;' onclick=\"openUserProfile(window._memberProfileRegistry["+regIdx+"])\">";
 
         // Avatar
         var avatarGrad = isSuperUser ? "linear-gradient(135deg,var(--amber),var(--pink))" : isAdminUser ? "linear-gradient(135deg,var(--amber),var(--cyan))" : "linear-gradient(135deg,var(--pink),var(--cyan))";
@@ -5051,7 +5057,7 @@ function renderAdmUsers(){
 
         // Infos
         h += "<div style='flex:1;min-width:0;'>";
-        h += "<div style='font-weight:700;font-size:0.82rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>"+escHtml(u.pseudo||"Inconnu");
+        h += "<div style='font-weight:700;font-size:0.82rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:underline dotted rgba(255,45,155,0.4);'>"+escHtml(u.pseudo||"Inconnu");
         if(isSuperUser) h += " <span style='font-size:0.58rem;background:rgba(255,215,0,0.2);color:var(--amber);padding:0.05rem 0.35rem;border-radius:5px;border:1px solid rgba(255,215,0,0.4);'>👑 Propriétaire</span>";
         else if(isAdminUser) h += " <span style='font-size:0.58rem;background:rgba(255,215,0,0.12);color:var(--amber);padding:0.05rem 0.3rem;border-radius:5px;border:1px solid rgba(255,215,0,0.25);'>🔑 Admin</span>";
         if(myEtab) h += " <span style='font-size:0.58rem;background:rgba(255,45,155,0.12);color:var(--pink);padding:0.05rem 0.3rem;border-radius:5px;border:1px solid rgba(255,45,155,0.25);'>🏠 "+escHtml(myEtab.nom)+"</span>";
