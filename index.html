@@ -4904,6 +4904,7 @@ function renderAdmUsers(){
       adminsHtml += "<div style='display:flex;gap:0.3rem;flex-shrink:0;'>";
       adminsHtml += "<button onclick=\"revokeAdmin('"+escHtml(a.uid||"")+"','"+escHtml(a.email||"")+"','"+escHtml(a.pseudo||"")+"')\" style='font-size:0.62rem;padding:0.22rem 0.5rem;border-radius:6px;background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);color:var(--red);cursor:pointer;font-family:DM Sans,sans-serif;'>✕ Révoquer</button>";
       adminsHtml += "<button onclick=\"transferOwnership('"+escHtml(a.uid||"")+"','"+escHtml(a.email||"")+"','"+escHtml(a.pseudo||"")+"')\" style='font-size:0.62rem;padding:0.22rem 0.5rem;border-radius:6px;background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.25);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;'>👑 Céder</button>";
+      adminsHtml += "<button onclick=\"designateSuccessor('"+escHtml(a.uid||"")+"','"+escHtml(a.email||"")+"','"+escHtml(a.pseudo||"")+"')\" style='font-size:0.62rem;padding:0.22rem 0.5rem;border-radius:6px;background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.22);color:var(--cyan);cursor:pointer;font-family:DM Sans,sans-serif;'>🔮 Successeur</button>";
       adminsHtml += "</div>";
     }
     adminsHtml += "</div>";
@@ -4990,9 +4991,14 @@ function renderAdmUsers(){
           h += "<div style='display:flex;gap:0.35rem;margin-top:0.5rem;flex-wrap:wrap;'>";
           if(!isAdminUser){
             h += "<button onclick=\"promoteToAdmin('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"')\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.35);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;'>🔑 Promouvoir Admin</button>";
+            h += "<button onclick=\"designateSuccessor('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"')\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.22);color:var(--cyan);cursor:pointer;font-family:DM Sans,sans-serif;'>🔮 Désigner successeur</button>";
           } else {
             h += "<button onclick=\"revokeAdmin('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"')\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);color:var(--red);cursor:pointer;font-family:DM Sans,sans-serif;'>✕ Révoquer Admin</button>";
             h += "<button onclick=\"transferOwnership('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"')\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;'>👑 Céder propriété</button>";
+          }
+          // Bouton Assigner établissement (disponible pour tout membre sans étab déjà assigné)
+          if(!myEtab){
+            h += "<button onclick=\"openAssignEtabModal('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"')\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,45,155,0.08);border:1px solid rgba(255,45,155,0.25);color:var(--pink);cursor:pointer;font-family:DM Sans,sans-serif;'>🏠 Assigner établissement</button>";
           }
           h += "</div>";
         }
@@ -5333,6 +5339,109 @@ window.repondreReservation=repondreReservation;
 window.renderAdmReservations=renderAdmReservations;
 // -----------------------------------------------------------------
 
+// ══════════════════════════════════════════════════════════════════
+// ══  FONCTIONS COMPLÉMENTAIRES : Assignation d'établissements & Successeur
+// ══════════════════════════════════════════════════════════════════
+
+// ── Désigner un établissement pour un utilisateur (via l'admin) ───
+function assignEtablissementToUser(etabId, userEmail, userName){
+  if(!isAdmin){ showToast('Accès admin requis'); return; }
+  var etab = etablissements.find(function(e){ return e.id === etabId; });
+  if(!etab){ showToast('Établissement introuvable'); return; }
+  if(!confirm('Assigner "'+etab.nom+'" à '+userName+' ('+userEmail+') ?\n\nCet utilisateur pourra gérer les photos et le statut de cet établissement.')){ return; }
+
+  updateField(etabId, { email: userEmail });
+
+  if(window.db && window.fbSetDoc && window.fbDoc){
+    window.fbSetDoc(window.fbDoc(window.db, 'users', currentUserUID||'system'), {}, {merge:true}).catch(function(){});
+    if(window.fbAddDoc && window.fbCollection){
+      window.fbAddDoc(window.fbCollection(window.db, 'user_notifications'), {
+        targetEmail: userEmail,
+        icon: '🏠',
+        title: 'Établissement assigné !',
+        msg: 'Vous gérez maintenant "'+etab.nom+'" sur AMBI241.',
+        ts: Date.now(),
+        unread: true
+      }).catch(function(){});
+    }
+  }
+  showToast('✅ '+etab.nom+' assigné à '+userName);
+  if(typeof renderAdmUsers === 'function') setTimeout(renderAdmUsers, 800);
+}
+
+// ── Désigner un successeur potentiel (en cas de vente / cession) ─
+function designateSuccessor(uid, email, pseudo){
+  if(!isSuperAdminUser()){ showToast('⛔ Réservé au Propriétaire'); return; }
+  if(!confirm(
+    '👑 Désigner "'+pseudo+'" ('+email+') comme successeur ?\n\n' +
+    'En cas de vente ou de cession de l\'application,\n' +
+    'il sera proposé comme nouveau propriétaire.\n\n' +
+    'Vous restez propriétaire jusqu\'à la cession effective.'
+  )){ return; }
+
+  var data = { uid: uid, email: email, pseudo: pseudo, designatedAt: new Date().toISOString(), designatedBy: currentUserEmail || '' };
+
+  if(window.db && window.fbSetDoc && window.fbDoc){
+    window.fbSetDoc(window.fbDoc(window.db, 'config', 'successor'), data)
+      .then(function(){
+        lsSetJSON('ambi241_successor', data);
+        showToast('✅ Successeur désigné : '+pseudo);
+        if(typeof renderAdmUsers === 'function') renderAdmUsers();
+      })
+      .catch(function(err){ showToast('Erreur: '+err.message); });
+  } else {
+    lsSetJSON('ambi241_successor', data);
+    showToast('✅ Successeur désigné : '+pseudo+' (hors-ligne)');
+  }
+}
+
+window.assignEtablissementToUser = assignEtablissementToUser;
+window.designateSuccessor        = designateSuccessor;
+
+// ── Modal pour assigner un établissement à un utilisateur ─────────
+function openAssignEtabModal(uid, email, pseudo){
+  if(!isAdmin){ showToast('Accès admin requis'); return; }
+  // Établissements sans propriétaire assigné (ou pas d'email)
+  var available = etablissements.filter(function(e){ return !(e.email && e.email.trim()); });
+  if(!available.length){
+    showToast('Tous les établissements ont déjà un propriétaire');
+    return;
+  }
+  var opts = available.map(function(e){ return '<option value="'+e.id+'">'+e.nom+' ('+e.quartier+')</option>'; }).join('');
+  var html =
+    '<div style="position:fixed;inset:0;z-index:400;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:1rem;" id="assignEtabOverlay" onclick="if(event.target===this)closeAssignEtabModal()">' +
+    '<div style="background:var(--surface);border:1px solid rgba(255,45,155,0.3);border-radius:20px;padding:1.5rem;width:min(360px,100%);position:relative;">' +
+    '<div style="font-family:Syne,sans-serif;font-weight:800;color:var(--pink);font-size:1rem;margin-bottom:0.3rem;">🏠 Assigner un établissement</div>' +
+    '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:1rem;">À : <strong style="color:var(--text);">'+escHtml(pseudo)+' ('+escHtml(email)+')</strong></div>' +
+    '<div class="field"><label>Choisir l\'établissement</label>' +
+    '<select id="assignEtabSelect" style="width:100%;background:var(--surface2);border:1px solid rgba(255,45,155,0.2);border-radius:10px;color:var(--text);padding:0.65rem 0.9rem;font-family:DM Sans,sans-serif;font-size:0.88rem;">'+opts+'</select></div>' +
+    '<button onclick="doAssignEtab(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="width:100%;padding:0.75rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--pink),var(--cyan));color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;margin-top:0.5rem;">✅ Confirmer l\'assignation</button>' +
+    '<button onclick="closeAssignEtabModal()" style="width:100%;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.82rem;cursor:pointer;margin-top:0.4rem;">Annuler</button>' +
+    '</div></div>';
+  var el = document.createElement('div');
+  el.id = '_assignEtabWrap';
+  el.innerHTML = html;
+  document.body.appendChild(el);
+}
+
+function closeAssignEtabModal(){
+  var el = document.getElementById('_assignEtabWrap');
+  if(el) el.remove();
+}
+
+function doAssignEtab(uid, email, pseudo){
+  var sel = document.getElementById('assignEtabSelect');
+  if(!sel) return;
+  var etabId = parseInt(sel.value);
+  closeAssignEtabModal();
+  assignEtablissementToUser(etabId, email, pseudo);
+}
+
+window.openAssignEtabModal = openAssignEtabModal;
+window.closeAssignEtabModal = closeAssignEtabModal;
+window.doAssignEtab = doAssignEtab;
+
+// ══════════════════════════════════════════════════════════════════
 </script>
 
 <!-- MODAL MOT DE PASSE OUBLIÉ -->
