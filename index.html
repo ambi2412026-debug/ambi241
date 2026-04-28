@@ -1207,7 +1207,7 @@ if (window.__appReady) { loadData(); }
 // Charger la config admin (superadmin + admins secondaires) dès que Firebase est prêt
 setTimeout(function(){
   if(typeof loadAdminConfig === "function") loadAdminConfig();
-}, 1500);
+}, 400);
 </script>
 
 <!-- ══ APPLICATION PRINCIPALE (script classique, accès global) ══ -->
@@ -1273,7 +1273,11 @@ function isSuperAdminUser(){
 
 // Charge la config super-admin et la liste des admins depuis Firebase
 function loadAdminConfig(){
-  if(!window.db || typeof window.fbGetDoc !== "function") return;
+  if(!window.db || typeof window.fbGetDoc !== "function"){
+    // Firebase pas encore initialise : reessayer dans 300ms
+    setTimeout(function(){ loadAdminConfig(); }, 300);
+    return;
+  }
   // S'assurer que currentUserEmail est synchronisé avec window.currentUserEmail
   if(!currentUserEmail && window.currentUserEmail) currentUserEmail = window.currentUserEmail;
 
@@ -4739,9 +4743,10 @@ function switchAdmTab(tab){
   if(tab==="overview") renderAdmOverview();
   else if(tab==="etabl") renderAdmEtabl();
   else if(tab==="users"){
-    // Si la config superadmin n'est pas encore chargée depuis Firebase, recharger
-    if(!_superAdminEmail && window.db) loadAdminConfig();
-    else renderAdmUsers();
+    // renderAdmUsers gere lui-meme le retry Firebase en interne
+    renderAdmUsers();
+    // Lancer aussi loadAdminConfig si superadmin pas encore resolu
+    if(!_superAdminEmail) loadAdminConfig();
   }
   else if(tab==="notifs") renderAdminNotifs();
   else if(tab==="payments") renderAdmPayments();
@@ -4907,8 +4912,30 @@ function renderAdmUsers(){
 
   document.getElementById("adminUsersContent").innerHTML = headerHtml + adminsHtml + "<div id='adminMembersList'><div style='font-size:0.75rem;color:var(--muted);text-align:center;padding:1.5rem;'>Chargement des membres...</div></div>";
 
-  // Charger les membres depuis Firebase
-  if(window.db && window.fbCollection && window.fbGetDocs){
+  // Charger les membres depuis Firebase (avec retry si pas encore dispo)
+  function _loadMembers(attempt){
+    attempt = attempt || 1;
+    if(!window.db || typeof window.fbCollection !== "function" || typeof window.fbGetDocs !== "function"){
+      if(attempt <= 20){
+        // Firebase pas encore pret : reessayer dans 300ms (max 6 secondes)
+        document.getElementById("adminMembersList").innerHTML = "<div style='text-align:center;padding:2rem;color:var(--muted);font-size:0.78rem;'>⏳ Connexion Firebase en cours...</div>";
+        setTimeout(function(){ _loadMembers(attempt+1); }, 300);
+      } else {
+        document.getElementById("adminMembersList").innerHTML = "<div style='text-align:center;padding:2rem;color:var(--red);font-size:0.82rem;'>❌ Firebase non disponible. Vérifiez votre connexion.</div>";
+      }
+      return;
+    }
+    // Firebase pret : charger aussi la config superadmin si besoin
+    if(!_superAdminEmail && isAdmin && currentUserEmail){
+      if(!lsGet(SUPER_ADMIN_KEY, "")){
+        _superAdminEmail = currentUserEmail;
+        lsSet(SUPER_ADMIN_KEY, currentUserEmail);
+        isSuperAdmin = true;
+        // Re-render header avec le bon statut SuperAdmin
+        renderAdmUsers();
+        return;
+      }
+    }
     var col = window.fbCollection(window.db, "users");
     window.fbGetDocs(col).then(function(snap){
       var users = [];
@@ -4976,9 +5003,8 @@ function renderAdmUsers(){
     }).catch(function(err){
       document.getElementById("adminMembersList").innerHTML = "<div style='color:var(--red);font-size:0.8rem;padding:1rem;text-align:center;'>Erreur: "+err.message+"</div>";
     });
-    return;
   }
-  document.getElementById("adminMembersList").innerHTML = "<div style='text-align:center;padding:2rem;color:var(--muted);font-size:0.82rem;'>🔥 Firebase requis pour voir les membres</div>";
+  _loadMembers(1);
 }
 
 // ── Notifications admin — journal complet + modération ─────────
