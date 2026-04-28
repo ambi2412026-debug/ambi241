@@ -1365,7 +1365,6 @@ function promoteToAdmin(uid, email, pseudo){
   if(!window.db || !window.fbSetDoc || !window.fbDoc){ showToast("Firebase requis"); return; }
   if(!confirm("Promouvoir " + (pseudo||email) + " comme Admin secondaire ?\n\nIl pourra gérer les établissements, paiements et membres, mais PAS gérer d'autres admins.")){return;}
 
-  // Ajouter à la liste
   var newList = _adminsList.filter(function(a){ return (a.email||"").toLowerCase() !== email.toLowerCase(); });
   newList.push({ uid: uid, email: email, pseudo: pseudo||email, promotedAt: new Date().toISOString() });
 
@@ -1373,10 +1372,33 @@ function promoteToAdmin(uid, email, pseudo){
     _adminsList = newList;
     showToast("✅ " + (pseudo||email) + " promu Admin secondaire !");
     renderAdmUsers();
-    // Notifier Firebase user
-    if(window.fbSetDoc && uid){
+
+    // ── Mettre à jour le profil Firebase de l'utilisateur ──
+    if(uid){
       window.fbSetDoc(window.fbDoc(window.db, "users", uid), { isSecondaryAdmin: true }, { merge: true }).catch(function(){});
     }
+
+    // ── Notification instantanée dans Firebase (lue au prochain login du membre) ──
+    var notifData = {
+      targetUid:   uid   || "",
+      targetEmail: email || "",
+      icon:  "🔑",
+      title: "Vous êtes maintenant Admin !",
+      msg:   "Le propriétaire d'AMBI241 vous a accordé les droits d'administration. Entrez le code PIN pour accéder au tableau de bord.",
+      key:   "promoted_admin",
+      channel: "push",
+      fromAdmin: true,
+      ts:    Date.now(),
+      unread: true
+    };
+    window.fbAddDoc(window.fbCollection(window.db, "user_notifications"), notifData).catch(function(){});
+
+    // ── Notification locale immédiate (si le membre est connecté sur cet appareil) ──
+    pushNotif({ targetRole:"all", key:"promoted_admin", icon:"🔑",
+      title:"Nouveau droit Admin attribué",
+      msg: (pseudo||email) + " est maintenant Admin secondaire.",
+      channel:"push", fromAdmin:true });
+
   }).catch(function(err){ showToast("Erreur: "+err.message); });
 }
 
@@ -1390,9 +1412,27 @@ function revokeAdmin(uid, email, pseudo){
     _adminsList = newList;
     showToast("✅ Droits Admin révoqués pour " + (pseudo||email));
     renderAdmUsers();
-    if(window.fbSetDoc && uid){
+
+    // ── Mettre à jour le profil Firebase ──
+    if(uid){
       window.fbSetDoc(window.fbDoc(window.db, "users", uid), { isSecondaryAdmin: false }, { merge: true }).catch(function(){});
     }
+
+    // ── Notification instantanée de révocation ──
+    var notifData = {
+      targetUid:   uid   || "",
+      targetEmail: email || "",
+      icon:  "🔒",
+      title: "Droits Admin révoqués",
+      msg:   "Vos droits d'administration sur AMBI241 ont été révoqués par le propriétaire.",
+      key:   "revoked_admin",
+      channel: "push",
+      fromAdmin: true,
+      ts:    Date.now(),
+      unread: true
+    };
+    window.fbAddDoc(window.fbCollection(window.db, "user_notifications"), notifData).catch(function(){});
+
   }).catch(function(err){ showToast("Erreur: "+err.message); });
 }
 
@@ -2062,6 +2102,8 @@ function loginUser(){
       updateHeaderUser(pseudo);
       msg.textContent = "Connexion réussie ! Bienvenue " + pseudo + " !";
     }).catch(function(){ updateHeaderUser(user.email); });
+    // ── Vérifier les notifications en attente pour cet utilisateur ──
+    setTimeout(function(){ checkPendingUserNotifications(user.uid, email); }, 1200);
     setTimeout(function(){closeUserModal();},1500);
   }).catch(function(err){
     if(btn){btn.disabled=false;btn.textContent="🔒 Se connecter";}
@@ -2070,6 +2112,34 @@ function loginUser(){
       msg.textContent="Email ou mot de passe incorrect.";
     else msg.textContent="Erreur: "+err.message;
   });
+}
+
+// ── Vérifie et affiche les notifications Firebase en attente ──────
+function checkPendingUserNotifications(uid, email){
+  if(!window.db || !window.fbCollection || !window.fbQuery || !window.fbWhere || !window.fbGetDocs) return;
+  // Requête : notifs ciblées par uid OU par email, non lues
+  var q = window.fbQuery(
+    window.fbCollection(window.db, "user_notifications"),
+    window.fbWhere("unread", "==", true),
+    window.fbWhere("targetUid", "==", uid||"")
+  );
+  window.fbGetDocs(q).then(function(snap){
+    snap.forEach(function(docSnap){
+      var n = docSnap.data();
+      // Afficher la notification localement
+      pushNotif({
+        targetRole: "all",
+        key:        n.key || "notif",
+        icon:       n.icon || "🔔",
+        title:      n.title || "Notification",
+        msg:        n.msg || "",
+        channel:    "push",
+        fromAdmin:  true
+      });
+      // Marquer comme lue dans Firebase
+      window.fbUpdateDoc(window.fbDoc(window.db, "user_notifications", docSnap.id), { unread: false }).catch(function(){});
+    });
+  }).catch(function(){});
 }
 
 // ── MISE À JOUR HEADER SELON CONNEXION ───────────────────────
@@ -4970,8 +5040,10 @@ function renderAdmUsers(){
         var isSuperUser = superEmail ? (em === superEmail.toLowerCase()) : false;
         var myEtab = etablissements.find(function(e){ return (e.email||"").toLowerCase().trim() === em; });
 
+        var uData = { uid:u.uid||"", email:u.email||"", pseudo:u.pseudo||"", tel:u.tel||"", dob:u.dob||"", createdAt:u.createdAt||"", isAdmin:isAdminUser, etabNom:myEtab?myEtab.nom:"" };
+        var uDataStr = encodeURIComponent(JSON.stringify(uData));
         h += "<div class='notif-admin-item' style='"+(isAdminUser?"border-color:rgba(255,215,0,0.2);":"")+"'>";
-        h += "<div style='display:flex;align-items:center;gap:0.6rem;'>";
+        h += "<div style='display:flex;align-items:center;gap:0.6rem;cursor:pointer;' onclick=\"openUserProfile(decodeURIComponent('"+uDataStr+"'))\">";
 
         // Avatar
         var avatarGrad = isSuperUser ? "linear-gradient(135deg,var(--amber),var(--pink))" : isAdminUser ? "linear-gradient(135deg,var(--amber),var(--cyan))" : "linear-gradient(135deg,var(--pink),var(--cyan))";
@@ -5404,6 +5476,86 @@ function designateSuccessor(uid, email, pseudo){
 
 window.assignEtablissementToUser = assignEtablissementToUser;
 window.designateSuccessor        = designateSuccessor;
+
+// ── Modal profil utilisateur (clic sur un membre) ─────────────────
+function openUserProfile(userData){
+  if(typeof userData === "string"){ try{ userData=JSON.parse(userData); }catch(e){ return; } }
+  var uid      = userData.uid      || "";
+  var email    = userData.email    || "";
+  var pseudo   = userData.pseudo   || "Inconnu";
+  var tel      = userData.tel      || "";
+  var dob      = userData.dob      || "";
+  var created  = userData.createdAt|| "";
+  var isAdm    = userData.isAdmin  || false;
+  var etabNom  = userData.etabNom  || "";
+  var initiale = (pseudo[0]||"?").toUpperCase();
+  var dateStr  = created ? new Date(created).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}) : "—";
+  var dobStr   = dob ? new Date(dob).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}) : "—";
+  var iAmSuper = isAdmin && isSuperAdminUser();
+
+  var html =
+    '<div id="_userProfileOverlay" style="position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:1rem;" onclick="if(event.target===this)closeUserProfile()">' +
+    '<div style="background:var(--surface);border:1px solid rgba(255,45,155,0.3);border-radius:24px;padding:1.6rem 1.4rem;width:min(380px,100%);max-height:88vh;overflow-y:auto;box-shadow:0 0 40px rgba(255,45,155,0.2);animation:popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);position:relative;">' +
+
+    // Fermer
+    '<button onclick="closeUserProfile()" style="position:absolute;top:1rem;right:1rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--muted);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:0.9rem;display:flex;align-items:center;justify-content:center;">✕</button>' +
+
+    // Avatar + nom
+    '<div style="text-align:center;margin-bottom:1.2rem;">' +
+    '<div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-family:Syne,sans-serif;font-weight:800;font-size:1.6rem;color:#fff;margin:0 auto 0.7rem;">'+initiale+'</div>' +
+    '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.05rem;color:var(--text);">'+escHtml(pseudo)+'</div>' +
+    (isAdm ? '<span style="display:inline-block;font-size:0.65rem;font-weight:700;background:rgba(255,215,0,0.15);color:var(--amber);padding:0.15rem 0.5rem;border-radius:6px;border:1px solid rgba(255,215,0,0.3);margin-top:0.3rem;">🔑 Admin secondaire</span>' : '') +
+    (etabNom ? '<span style="display:inline-block;font-size:0.65rem;font-weight:700;background:rgba(255,45,155,0.12);color:var(--pink);padding:0.15rem 0.5rem;border-radius:6px;border:1px solid rgba(255,45,155,0.25);margin-top:0.3rem;margin-left:0.3rem;">🏠 '+escHtml(etabNom)+'</span>' : '') +
+    '</div>' +
+
+    // Infos
+    '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:1rem;margin-bottom:1rem;">' +
+    _profileRow("✉️","Email", email||"—") +
+    _profileRow("📞","Téléphone", tel||"—") +
+    _profileRow("🎂","Date de naissance", dobStr) +
+    _profileRow("📅","Membre depuis", dateStr) +
+    _profileRow("🏠","Établissement", etabNom||"Aucun") +
+    _profileRow("🆔","UID Firebase", uid ? uid.substring(0,16)+"…" : "—") +
+    '</div>' +
+
+    // Actions (SuperAdmin uniquement)
+    (iAmSuper && email ? (
+      '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;">' +
+      (!isAdm ?
+        '<button onclick="closeUserProfile();promoteToAdmin(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="flex:1;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,215,0,0.35);background:rgba(255,215,0,0.1);color:var(--amber);font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;">🔑 Promouvoir Admin</button>' :
+        '<button onclick="closeUserProfile();revokeAdmin(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="flex:1;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.1);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;">✕ Révoquer Admin</button>'
+      ) +
+      (!etabNom ?
+        '<button onclick="closeUserProfile();openAssignEtabModal(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="flex:1;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,45,155,0.3);background:rgba(255,45,155,0.08);color:var(--pink);font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;">🏠 Assigner établissement</button>' : ''
+      ) +
+      '<button onclick="closeUserProfile();designateSuccessor(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="flex:1;padding:0.55rem;border-radius:10px;border:1px solid rgba(0,229,255,0.25);background:rgba(0,229,255,0.07);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;">🔮 Successeur</button>' +
+      '</div>'
+    ) : '') +
+
+    '</div></div>';
+
+  var wrap = document.createElement("div");
+  wrap.id = "_userProfileWrap";
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap);
+}
+
+function _profileRow(icon, label, value){
+  return '<div style="display:flex;align-items:center;gap:0.7rem;padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.05);">' +
+    '<span style="font-size:0.95rem;width:22px;text-align:center;flex-shrink:0;">'+icon+'</span>' +
+    '<div style="flex:1;">' +
+    '<div style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">'+label+'</div>' +
+    '<div style="font-size:0.82rem;color:var(--text);font-weight:500;margin-top:0.08rem;">'+escHtml(String(value))+'</div>' +
+    '</div></div>';
+}
+
+function closeUserProfile(){
+  var el = document.getElementById("_userProfileWrap");
+  if(el) el.remove();
+}
+
+window.openUserProfile  = openUserProfile;
+window.closeUserProfile = closeUserProfile;
 
 // ── Modal pour assigner un établissement à un utilisateur ─────────
 function openAssignEtabModal(uid, email, pseudo){
