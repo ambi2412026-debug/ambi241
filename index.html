@@ -454,6 +454,28 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .comments-empty{text-align:center;padding:1.2rem 0.5rem;color:var(--muted);font-size:0.78rem;}
 .comments-empty span{display:block;font-size:1.8rem;margin-bottom:0.4rem;}
 
+/* ══ RÉPONSES AUX COMMENTAIRES ══ */
+.reply-btn{background:none;border:none;color:var(--muted);font-size:0.68rem;font-weight:700;cursor:pointer;padding:0.15rem 0.3rem;border-radius:5px;transition:color 0.15s;font-family:'DM Sans',sans-serif;}
+.reply-btn:hover,.reply-btn:active{color:var(--pink);}
+.replies-list{margin-top:0.5rem;padding-left:0.8rem;border-left:2px solid rgba(255,45,155,0.2);display:flex;flex-direction:column;gap:0.4rem;}
+.reply-item{display:flex;gap:0.45rem;padding:0.4rem 0;}
+.reply-avatar{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.6rem;font-weight:800;color:#fff;flex-shrink:0;}
+.reply-content{flex:1;min-width:0;}
+.reply-author{font-size:0.72rem;font-weight:700;color:var(--text);}
+.reply-text{font-size:0.76rem;color:var(--text);line-height:1.45;word-break:break-word;margin-top:0.1rem;}
+.reply-time{font-size:0.6rem;color:rgba(255,255,255,0.3);margin-left:0.3rem;}
+.reply-del-btn{background:none;border:none;color:rgba(255,68,102,0.5);font-size:0.68rem;cursor:pointer;padding:0.1rem 0.25rem;border-radius:4px;transition:color 0.15s;margin-left:auto;}
+.reply-del-btn:hover{color:var(--red);}
+.reply-input-wrap{margin-top:0.5rem;padding-left:0.8rem;border-left:2px solid rgba(255,45,155,0.3);display:none;}
+.reply-input-wrap.open{display:block;}
+.reply-input-row{display:flex;gap:0.4rem;align-items:flex-end;}
+.reply-textarea{flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,45,155,0.2);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.78rem;padding:0.5rem 0.7rem;outline:none;resize:none;min-height:40px;line-height:1.4;}
+.reply-textarea:focus{border-color:rgba(255,45,155,0.45);}
+.reply-textarea::placeholder{color:var(--muted);}
+.reply-send-btn{background:linear-gradient(135deg,var(--pink),var(--purple));border:none;color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:0.7rem;padding:0.4rem 0.75rem;border-radius:10px;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.reply-send-btn:disabled{opacity:0.4;cursor:not-allowed;}
+.reply-cancel-btn{background:none;border:none;color:var(--muted);font-size:0.68rem;cursor:pointer;padding:0.2rem;margin-left:0.2rem;}
+
 /* ══ PRÉSENCE & VOTES SYSTÈME ══ */
 /* Bouton Je suis là — circulaire jaune */
 .presence-btn{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#ffd700,#ffaa00);border:3px solid rgba(255,215,0,0.5);color:#000;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.25s;box-shadow:0 0 14px rgba(255,215,0,0.45),0 2px 8px rgba(0,0,0,0.4);flex-shrink:0;position:relative;}
@@ -652,7 +674,7 @@ const i18n = {
       /* Nav bas */
       nav_accueil:       "Accueil",
       nav_lieux:         "Lieux",
-      nav_posts:         "Posts",
+      nav_posts:         "Discussions",
       nav_tarifs:        "Tarifs",
       nav_contact:       "Contact",
       /* Sync bar */
@@ -739,7 +761,7 @@ const i18n = {
       top_ce_soir_sub:   "— 3 best spots",
       nav_accueil:       "Home",
       nav_lieux:         "Places",
-      nav_posts:         "Posts",
+      nav_posts:         "Discussions",
       nav_tarifs:        "Pricing",
       nav_contact:       "Contact",
       sync_live:         "Live data",
@@ -816,7 +838,7 @@ const i18n = {
       top_ce_soir_sub:   "— 3 mejores lugares",
       nav_accueil:       "Inicio",
       nav_lieux:         "Lugares",
-      nav_posts:         "Posts",
+      nav_posts:         "Discussions",
       nav_tarifs:        "Tarifas",
       nav_contact:       "Contacto",
       sync_live:         "Datos en directo",
@@ -1723,7 +1745,7 @@ if (document.readyState === 'loading') {
 <nav class="bottom-nav">
   <button class="nav-item active" onclick="switchSection('accueil',this)"><span class="nav-icon">&#127968;</span>Accueil</button>
   <button class="nav-item" onclick="switchSection('etablissements',this)"><span class="nav-icon">&#128269;</span>Lieux</button>
-  <button class="nav-item" onclick="switchSection('publications',this)"><span class="nav-icon">&#128221;</span>Posts</button>
+  <button class="nav-item" onclick="switchSection('publications',this)"><span class="nav-icon">&#128172;</span>Discussions</button>
   <button class="nav-item" onclick="switchSection('paiements',this)"><span class="nav-icon">&#128179;</span>Tarifs</button>
   <button class="nav-item" onclick="switchSection('contacts',this)"><span class="nav-icon">&#128241;</span>Contact</button>
   <button class="nav-item" id="adminNavBtn" onclick="openAdminDashboard(this)" style="display:none;"><span class="nav-icon">&#9881;&#65039;</span>Admin</button>
@@ -3687,7 +3709,47 @@ function renderOneComment(e, c){
     html += r.k+(count>0?" "+count:"");
     html += "</button>";
   });
+  // Bouton Répondre (visible par tous, action requiert connexion)
+  html += "<button class=\"reply-btn\" onclick=\"toggleReplyInput("+e.id+",'"+c.id+"')\">&#8618; Répondre</button>";
   html += "</div>";
+
+  // Affichage des réponses existantes
+  var replies = c.replies || [];
+  if(replies.length > 0){
+    html += "<div class=\"replies-list\" id=\"replies-"+c.id+"\">";
+    replies.forEach(function(r, ri){
+      var rInitials = getInitials(r.pseudo||"M");
+      var rColor = avatarColor(r.pseudo||"M");
+      var canDelReply = isAdmin || (window.currentUserUID && r.uid === window.currentUserUID);
+      html += "<div class=\"reply-item\" id=\"ritem-"+c.id+"-"+ri+"\">";
+      html += "<div class=\"reply-avatar\" style=\"background:"+rColor+";\">"+rInitials+"</div>";
+      html += "<div class=\"reply-content\">";
+      html += "<span class=\"reply-author\">"+escHtml(r.pseudo||"Membre")+"</span>";
+      html += "<span class=\"reply-time\">"+fmtCommentDate(r.ts)+"</span>";
+      if(canDelReply){
+        html += "<button class=\"reply-del-btn\" onclick=\"deleteReply("+e.id+",'"+c.id+"',"+ri+")\" title=\"Supprimer\">🗑</button>";
+      }
+      html += "<div class=\"reply-text\">"+escHtml(r.text||"")+"</div>";
+      html += "</div></div>";
+    });
+    html += "</div>";
+  } else {
+    html += "<div class=\"replies-list\" id=\"replies-"+c.id+"\" style=\"display:none;\"></div>";
+  }
+
+  // Zone de saisie réponse (cachée par défaut)
+  html += "<div class=\"reply-input-wrap\" id=\"rinput-"+c.id+"\">";
+  if(window.currentUserUID || window.currentUserEmail){
+    html += "<div class=\"reply-input-row\">";
+    html += "<textarea class=\"reply-textarea\" id=\"rtxt-"+c.id+"\" placeholder=\"Répondre à "+escHtml(c.pseudo||"Membre")+"...\" maxlength=\"300\" rows=\"1\"></textarea>";
+    html += "<button class=\"reply-send-btn\" id=\"rsend-"+c.id+"\" onclick=\"postReply("+e.id+",'"+c.id+"')\">↵ Envoyer</button>";
+    html += "<button class=\"reply-cancel-btn\" onclick=\"toggleReplyInput("+e.id+",'"+c.id+"')\">✕</button>";
+    html += "</div>";
+  } else {
+    html += "<div style=\"font-size:0.72rem;color:var(--muted);padding:0.4rem 0;\">&#128100; <button onclick=\"document.getElementById('userOverlay').classList.add('show');switchUserTab('connexion')\" style=\"background:none;border:none;color:var(--cyan);cursor:pointer;font-size:0.72rem;text-decoration:underline;\">Connectez-vous</button> pour répondre</div>";
+  }
+  html += "</div>";
+
   html += "</div></div>";
   return html;
 }
@@ -3879,6 +3941,84 @@ window.toggleReaction    = toggleReaction;
 window.loadMoreComments  = loadMoreComments;
 window.updateCharCount   = updateCharCount;
 window.appendEmoji       = appendEmoji;
+
+/* ── Toggle zone de réponse ── */
+function toggleReplyInput(eid, cid){
+  var wrap = document.getElementById("rinput-"+cid);
+  if(!wrap) return;
+  var isOpen = wrap.classList.contains("open");
+  // Fermer tous les autres inputs de réponse dans la même section
+  var section = document.getElementById("cb-"+eid);
+  if(section){
+    section.querySelectorAll(".reply-input-wrap.open").forEach(function(el){
+      el.classList.remove("open");
+    });
+  }
+  if(!isOpen){
+    wrap.classList.add("open");
+    var ta = document.getElementById("rtxt-"+cid);
+    if(ta){ ta.focus(); }
+  }
+}
+
+/* ── Poster une réponse ── */
+function postReply(eid, cid){
+  if(!window.currentUserUID && !window.currentUserEmail){ showToast("Connectez-vous pour répondre"); return; }
+  var ta = document.getElementById("rtxt-"+cid);
+  if(!ta) return;
+  var text = ta.value.trim();
+  if(!text){ ta.focus(); return; }
+
+  var btn = document.getElementById("rsend-"+cid);
+  if(btn){ btn.disabled = true; btn.textContent = "..."; }
+
+  var pseudo = window.currentUserPseudo || window.currentUserEmail || "Membre";
+  var reply = {
+    uid:    window.currentUserUID || "",
+    pseudo: pseudo,
+    text:   text,
+    ts:     Date.now(),
+    isAdmin: isAdmin
+  };
+
+  // Récupérer le commentaire parent et ajouter la réponse dans son tableau
+  var docRef = window.fbDoc(window.db, "etablissements", String(eid), "commentaires", cid);
+  window.fbGetDoc(docRef).then(function(snap){
+    if(!snap.exists()){ showToast("Commentaire introuvable"); return; }
+    var existing = snap.data().replies || [];
+    existing.push(reply);
+    return window.fbUpdateDoc(docRef, { replies: existing });
+  }).then(function(){
+    ta.value = "";
+    if(btn){ btn.disabled = false; btn.textContent = "↵ Envoyer"; }
+    var wrap = document.getElementById("rinput-"+cid);
+    if(wrap) wrap.classList.remove("open");
+    fetchComments(eid);
+    showToast("Réponse publiée !");
+  }).catch(function(err){
+    if(btn){ btn.disabled = false; btn.textContent = "↵ Envoyer"; }
+    showToast("Erreur: "+(err&&err.message||err));
+  });
+}
+
+/* ── Supprimer une réponse ── */
+function deleteReply(eid, cid, replyIndex){
+  if(!confirm("Supprimer cette réponse ?")) return;
+  var docRef = window.fbDoc(window.db, "etablissements", String(eid), "commentaires", cid);
+  window.fbGetDoc(docRef).then(function(snap){
+    if(!snap.exists()) return;
+    var replies = snap.data().replies || [];
+    replies.splice(replyIndex, 1);
+    return window.fbUpdateDoc(docRef, { replies: replies });
+  }).then(function(){
+    fetchComments(eid);
+    showToast("Réponse supprimée");
+  }).catch(function(err){ showToast("Erreur: "+(err&&err.message||err)); });
+}
+
+window.toggleReplyInput = toggleReplyInput;
+window.postReply        = postReply;
+window.deleteReply      = deleteReply;
 
 // ══════════════════════════════════════════════════════════════
 // ══  SYSTÈME PRÉSENCE + VOTES + CLASSEMENT RÉEL             ══
