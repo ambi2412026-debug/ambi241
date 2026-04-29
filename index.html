@@ -748,6 +748,36 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 .wa-progress-lbl{font-size:0.7rem;color:#25d366;text-align:center;}
 .wa-admin-broadcast-btn{width:100%;padding:0.75rem;border-radius:12px;border:1px solid rgba(37,211,102,0.4);background:rgba(37,211,102,0.08);color:#25d366;font-family:'Syne',sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;margin-bottom:1rem;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:0.4rem;}
 .wa-admin-broadcast-btn:active{opacity:0.8;}
+
+/* ══ MODAL GUIDE ══ */
+.guide-btn{background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.25);color:var(--cyan);font-size:0.7rem;font-weight:700;padding:0.2rem 0.45rem;border-radius:20px;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:0.25rem;transition:all 0.2s;white-space:nowrap;flex-shrink:0;}
+.guide-btn:active{opacity:0.75;}
+.guide-overlay{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);align-items:center;justify-content:center;padding:1rem;}
+.guide-overlay.show{display:flex;}
+.guide-modal{background:var(--surface);border:1px solid rgba(0,229,255,0.25);border-radius:24px;width:min(420px,100%);max-height:88vh;overflow-y:auto;box-shadow:0 0 40px rgba(0,229,255,0.12);animation:popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);position:relative;}
+.guide-modal-head{padding:1.4rem 1.5rem 0.8rem;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:space-between;gap:0.8rem;position:sticky;top:0;background:var(--surface);z-index:1;border-radius:24px 24px 0 0;}
+.guide-modal-title{font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem;color:var(--cyan);}
+.guide-close{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:var(--muted);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:0.9rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.guide-tabs{display:flex;gap:0.3rem;background:var(--surface2);border-radius:10px;padding:0.25rem;margin:1rem 1.5rem 0;}
+.guide-tab{flex:1;padding:0.4rem 0.3rem;border-radius:7px;font-size:0.75rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;transition:all 0.2s;text-align:center;}
+.guide-tab.active{background:var(--cyan);color:#000;}
+.guide-body{padding:1rem 1.5rem 1.5rem;}
+.guide-panel{display:none;}
+.guide-panel.active{display:block;}
+.guide-step{display:flex;gap:0.8rem;margin-bottom:1rem;align-items:flex-start;}
+.guide-step-num{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--pink));color:#000;font-family:'Syne',sans-serif;font-weight:800;font-size:0.75rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:0.05rem;}
+.guide-step-text{flex:1;}
+.guide-step-title{font-family:'Syne',sans-serif;font-weight:700;font-size:0.85rem;color:var(--text);margin-bottom:0.2rem;}
+.guide-step-desc{font-size:0.75rem;color:var(--muted);line-height:1.5;}
+.guide-role-card{background:var(--surface2);border-radius:12px;padding:0.85rem;margin-bottom:0.7rem;border:1px solid rgba(255,255,255,0.06);}
+.guide-role-title{font-family:'Syne',sans-serif;font-weight:800;font-size:0.85rem;margin-bottom:0.5rem;}
+.guide-role-list{font-size:0.75rem;color:var(--muted);line-height:1.8;padding-left:1rem;}
+.guide-tool-row{display:flex;gap:0.7rem;align-items:flex-start;padding:0.6rem 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+.guide-tool-row:last-child{border-bottom:none;}
+.guide-tool-icon{font-size:1.1rem;flex-shrink:0;width:24px;text-align:center;margin-top:0.05rem;}
+.guide-tool-info{flex:1;}
+.guide-tool-name{font-size:0.8rem;font-weight:700;color:var(--text);}
+.guide-tool-desc{font-size:0.72rem;color:var(--muted);margin-top:0.1rem;line-height:1.4;}
 </style>
 
 <!-- ══ AMBI241 i18n — Sélecteur de Langue 🌍 ══ -->
@@ -1530,6 +1560,8 @@ if (document.readyState === 'loading') {
     </div>
     <button class="user-btn" id="userLoginBtn" onclick="document.getElementById('userOverlay').classList.add('show')">&#128100;</button>
     <button class="admin-btn" id="adminBtn" onclick="toggleAdmin()">&#128273;</button>
+    <!-- ★ BOUTON GUIDE ★ -->
+    <button class="guide-btn" onclick="document.getElementById('guideOverlay').classList.add('show')" title="Guide d'utilisation">&#9432; Guide</button>
   </div>
 </header>
 
@@ -8961,6 +8993,172 @@ window.doAssignEtab = doAssignEtab;
     </div>
   </div>
 </div>
+<!-- ══ MODAL GUIDE ══ -->
+<div class="guide-overlay" id="guideOverlay" onclick="if(event.target===this)closeGuide()">
+  <div class="guide-modal">
+    <div class="guide-modal-head">
+      <div class="guide-modal-title">&#9432; Guide AMBI241</div>
+      <button class="guide-close" onclick="closeGuide()">&#10005;</button>
+    </div>
+    <div class="guide-tabs">
+      <button class="guide-tab active" onclick="switchGuideTab('how')">Comment ça marche</button>
+      <button class="guide-tab" onclick="switchGuideTab('roles')">Les rôles</button>
+      <button class="guide-tab" onclick="switchGuideTab('tools')">Les outils</button>
+    </div>
+    <div class="guide-body">
+
+      <!-- ONGLET : COMMENT ÇA MARCHE -->
+      <div class="guide-panel active" id="guide-how">
+        <div class="guide-step">
+          <div class="guide-step-num">1</div>
+          <div class="guide-step-text">
+            <div class="guide-step-title">Parcourir les lieux</div>
+            <div class="guide-step-desc">Explorez les bars, discos, restaurants et rooftops de Libreville. Filtrez par type, statut ou quartier, triez par affluence ou note.</div>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-step-num">2</div>
+          <div class="guide-step-text">
+            <div class="guide-step-title">Voir l'ambiance en direct</div>
+            <div class="guide-step-desc">Chaque fiche affiche le statut (Bondé, Animé, Calme), le pourcentage d'affluence et les photos du soir — mis à jour en temps réel.</div>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-step-num">3</div>
+          <div class="guide-step-text">
+            <div class="guide-step-title">Créer un compte membre</div>
+            <div class="guide-step-desc">Inscrivez-vous pour laisser des avis, noter les établissements, faire des réservations VIP et recevoir des notifications personnalisées.</div>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-step-num">4</div>
+          <div class="guide-step-text">
+            <div class="guide-step-title">Inscrire votre établissement</div>
+            <div class="guide-step-desc">Vous êtes propriétaire ? Inscrivez votre lieu à partir de 5 000 XAF/mois et soyez visible de tous les noctambules de Libreville.</div>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-step-num">5</div>
+          <div class="guide-step-text">
+            <div class="guide-step-title">Gérer & mettre à jour (Admin)</div>
+            <div class="guide-step-desc">Les administrateurs accèdent au tableau de bord complet : modification des fiches, photos éphémères, WhatsApp groupé, statistiques, paiements et notifications.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ONGLET : LES RÔLES -->
+      <div class="guide-panel" id="guide-roles">
+        <div class="guide-role-card">
+          <div class="guide-role-title" style="color:var(--amber)">&#128272; Administrateur</div>
+          <ul class="guide-role-list">
+            <li>Modifier le statut et l'affluence des lieux</li>
+            <li>Uploader photos permanentes et éphémères</li>
+            <li>Gérer les paiements et abonnements</li>
+            <li>Envoyer des messages WhatsApp groupés</li>
+            <li>Accéder aux statistiques et visiteurs</li>
+            <li>Gérer les membres et admins secondaires</li>
+          </ul>
+        </div>
+        <div class="guide-role-card">
+          <div class="guide-role-title" style="color:var(--pink)">&#127979; Manager (Établissement)</div>
+          <ul class="guide-role-list">
+            <li>Mettre à jour les infos de son établissement</li>
+            <li>Ajouter des photos soirée éphémères</li>
+            <li>Voir les avis et notes reçus</li>
+            <li>Accéder à ses statistiques de consultation</li>
+          </ul>
+        </div>
+        <div class="guide-role-card">
+          <div class="guide-role-title" style="color:var(--cyan)">&#128100; Utilisateur / Membre</div>
+          <ul class="guide-role-list">
+            <li>Consulter toutes les fiches et photos</li>
+            <li>Laisser des avis et noter les lieux</li>
+            <li>Faire des demandes de réservation VIP</li>
+            <li>Publier dans les discussions</li>
+            <li>Recevoir des notifications personnalisées</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ONGLET : LES OUTILS -->
+      <div class="guide-panel" id="guide-tools">
+        <div class="guide-tool-row">
+          <div class="guide-tool-icon">&#128205;</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Carte interactive</div>
+            <div class="guide-tool-desc">Visualisez tous les lieux sur une carte Libreville avec leur statut en temps réel.</div>
+          </div>
+        </div>
+        <div class="guide-tool-row">
+          <div class="guide-tool-icon">&#128247;</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Photos soirée</div>
+            <div class="guide-tool-desc">Photos éphémères (10h) uploadées par les établissements pour montrer l'ambiance du soir.</div>
+          </div>
+        </div>
+        <div class="guide-tool-row">
+          <div class="guide-tool-icon">&#128172;</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">WhatsApp Groupé</div>
+            <div class="guide-tool-desc">Outil admin pour envoyer un message WhatsApp à plusieurs établissements en un clic.</div>
+          </div>
+        </div>
+        <div class="guide-tool-row">
+          <div class="guide-tool-icon">&#11088;</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Réservation VIP</div>
+            <div class="guide-tool-desc">Demandez une place VIP dans un établissement directement depuis sa fiche.</div>
+          </div>
+        </div>
+        <div class="guide-tool-row">
+          <div class="guide-tool-icon">&#128276;</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Notifications</div>
+            <div class="guide-tool-desc">Alertes personnalisées selon votre rôle : nouvelles soirées, paiements, avis reçus…</div>
+          </div>
+        </div>
+        <div class="guide-tool-row">
+          <div class="guide-tool-icon">&#128202;</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Tableau de bord Admin</div>
+            <div class="guide-tool-desc">Statistiques de visites, gestion des paiements, historique des contacts et membres.</div>
+          </div>
+        </div>
+        <div class="guide-tool-row">
+          <div class="guide-tool-icon">&#128221;</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Discussions</div>
+            <div class="guide-tool-desc">Forum communautaire pour partager avis, bons plans et questions sur les sorties.</div>
+          </div>
+        </div>
+        <div class="guide-tool-row">
+          <div class="guide-tool-icon">&#127760;</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Multilingue</div>
+            <div class="guide-tool-desc">Interface disponible en Français, English et Español pour accueillir tous les visiteurs.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+function closeGuide(){
+  document.getElementById('guideOverlay').classList.remove('show');
+}
+function switchGuideTab(tab){
+  document.querySelectorAll('.guide-tab').forEach(function(t){t.classList.remove('active');});
+  document.querySelectorAll('.guide-panel').forEach(function(p){p.classList.remove('active');});
+  var idx = {how:0, roles:1, tools:2}[tab];
+  document.querySelectorAll('.guide-tab')[idx].classList.add('active');
+  document.getElementById('guide-'+tab).classList.add('active');
+}
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape') closeGuide();
+});
+</script>
 
 </body>
 </html>
