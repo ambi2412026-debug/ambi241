@@ -311,6 +311,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;}
 .cb-resto{background:rgba(255,215,0,0.12);color:var(--amber);border:1px solid rgba(255,215,0,0.25);}
 .cb-roof{background:rgba(0,229,255,0.12);color:var(--cyan);border:1px solid rgba(0,229,255,0.25);}
 .cb-snack{background:rgba(0,255,170,0.12);color:var(--green);border:1px solid rgba(0,255,170,0.25);}
+.cb-hotel{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.28);color:var(--cyan);}
 .status-pill{display:inline-flex;align-items:center;padding:0.28rem 0.6rem;border-radius:100px;font-size:0.68rem;font-weight:700;white-space:nowrap;flex-shrink:0;margin-left:0.5rem;}
 .s-rouge{background:rgba(255,68,102,0.15);color:#ff6680;border:1px solid rgba(255,68,102,0.3);}
 .s-vert{background:rgba(0,255,170,0.12);color:#00ffaa;border:1px solid rgba(0,255,170,0.25);}
@@ -669,6 +670,7 @@ const i18n = {
       filter_resto:      "🍽 Resto",
       filter_rooftop:    "🏙 Rooftop",
       filter_snack:      "🍔 Snack",
+      filter_hotel:      "🏨 Hôtels",
       status_all:        "Tous",
       status_packed:     "🔴 Bondé",
       status_lively:     "🟢 Animé",
@@ -751,6 +753,7 @@ const i18n = {
       filter_resto:      "🍽 Restaurant",
       filter_rooftop:    "🏙 Rooftop",
       filter_snack:      "🍔 Snack",
+      filter_hotel:      "🏨 Hotels",
       status_all:        "All",
       status_packed:     "🔴 Packed",
       status_lively:     "🟢 Lively",
@@ -827,6 +830,7 @@ const i18n = {
       filter_resto:      "🍽 Restaurante",
       filter_rooftop:    "🏙 Rooftop",
       filter_snack:      "🍔 Snack",
+      filter_hotel:      "🏨 Hoteles",
       status_all:        "Todos",
       status_packed:     "🔴 Lleno",
       status_lively:     "🟢 Animado",
@@ -966,7 +970,7 @@ const i18n = {
 
     /* --- Filtres type --- */
     const typeChips = document.querySelectorAll('#typeChips .fchip');
-    const typeKeys  = ['filter_all','filter_bar','filter_disco','filter_resto','filter_rooftop','filter_snack'];
+    const typeKeys  = ['filter_all','filter_bar','filter_disco','filter_resto','filter_rooftop','filter_snack','filter_hotel'];
     typeChips.forEach((c, i) => { if (typeKeys[i]) c.textContent = d[typeKeys[i]]; });
 
     /* --- Filtres statut --- */
@@ -1458,6 +1462,7 @@ if (document.readyState === 'loading') {
       <div class="fchip" data-type="Restaurant">&#127374; Resto</div>
       <div class="fchip" data-type="Rooftop">&#127970; Rooftop</div>
       <div class="fchip" data-type="Snack">&#127839; Snack</div>
+      <div class="fchip" data-type="Hotel">&#127968; Hôtels</div>
     </div>
     <div class="filter-row">
       <div class="fchip schip-all active" data-status="all">Tous</div>
@@ -2226,12 +2231,14 @@ var CATEGORIES=[
   {key:"Discotheque",label:"Discotheque et Club",icon:"&#127925;",badge:"cb-club"},
   {key:"Restaurant",label:"Restaurant et Cafe",icon:"&#127374;",badge:"cb-resto"},
   {key:"Rooftop",label:"Rooftop et Terrasse",icon:"&#127970;",badge:"cb-roof"},
-  {key:"Snack",label:"Snack-Bar",icon:"&#127839;",badge:"cb-snack"}
+  {key:"Snack",label:"Snack-Bar",icon:"&#127839;",badge:"cb-snack"},
+  {key:"Hotel",label:"Hôtel / Motel",icon:"&#127968;",badge:"cb-hotel"}
 ];
 
 function getCategory(type){
   if(!type)return "Bar";
   var t=type.toLowerCase();
+  if(t.indexOf("hotel")!==-1||t.indexOf("h\u00f4tel")!==-1||t.indexOf("motel")!==-1||t.indexOf("residence")!==-1||t.indexOf("r\u00e9sidence")!==-1||t.indexOf("lodge")!==-1||t.indexOf("inn")!==-1||t.indexOf("suites")!==-1)return "Hotel";
   if(t.indexOf("disco")!==-1||t.indexOf("nightclub")!==-1||t.indexOf("night club")!==-1)return "Discotheque";
   if(t.indexOf("snack")!==-1)return "Snack";
   if(t.indexOf("rooftop")!==-1)return "Rooftop";
@@ -2362,7 +2369,28 @@ function getDefaults(){
     {id:50,nom:"MAISON M GABON",type:"Patisserie Cafe",quartier:"Glass",ambiance:"Chill",statut:"Ouvert - Calme",note:3.9,avis:207,contact:"+241 60 17 11 11",paiement:"En attente",affluence:40,lat:0.3718245,lng:9.4614964,place_id:"ChIJLW5kY4s9fxARPDquzK-fMv0",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJLW5kY4s9fxARPDquzK-fMv0",photo_interieur:"",photo_exterieur:""},
     {id:51,nom:"La Foret Noire Owendo",type:"Patisserie Cafe",quartier:"Glass",ambiance:"Chill",statut:"Ouvert - Calme",note:3.8,avis:468,contact:"+241 66 77 97 47",paiement:"En attente",affluence:40,lat:0.3311202,lng:9.4870622,place_id:"ChIJpfugDh0_fxARU9lZtYUZXBc",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJpfugDh0_fxARU9lZtYUZXBc",photo_interieur:"",photo_exterieur:""},
     {id:52,nom:"CACAO Patisserie Restaurant",type:"Patisserie Cafe",quartier:"Akanda",ambiance:"Chill",statut:"Ouvert - Calme",note:4.1,avis:75,contact:"+241 60 20 33 33",paiement:"En attente",affluence:44,lat:0.4916073,lng:9.397478,place_id:"ChIJz3T9_colfxARu98C4UxBI44",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJz3T9_colfxARu98C4UxBI44",photo_interieur:"",photo_exterieur:""},
-    {id:53,nom:"Glass Restaurant",type:"Restaurant",quartier:"Glass",ambiance:"Anime",statut:"Ouvert - Calme",note:3.9,avis:259,contact:"+241 77 17 68 63",paiement:"En attente",affluence:41,lat:0.3735488,lng:9.4568002,place_id:"ChIJi3cE6M89fxARgpT9h_Cb3Q8",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJi3cE6M89fxARgpT9h_Cb3Q8",photo_interieur:"",photo_exterieur:""}
+    {id:53,nom:"Glass Restaurant",type:"Restaurant",quartier:"Glass",ambiance:"Anime",statut:"Ouvert - Calme",note:3.9,avis:259,contact:"+241 77 17 68 63",paiement:"En attente",affluence:41,lat:0.3735488,lng:9.4568002,place_id:"ChIJi3cE6M89fxARgpT9h_Cb3Q8",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJi3cE6M89fxARgpT9h_Cb3Q8",photo_interieur:"",photo_exterieur:""},
+    /* ════ HÔTELS / MOTELS ════ */
+    {id:101,nom:"Radisson Blu Okoumé Palace",type:"Hôtel 5 étoiles",quartier:"Centre-ville",ambiance:"Luxe",statut:"Ouvert - Anime",note:4.5,avis:701,contact:"+241 011 44 80 00",paiement:"Actif",affluence:72,lat:0.3913,lng:9.4536,maps_url:"https://www.google.com/maps/search/Radisson+Blu+Okoume+Palace+Libreville",description:"Hôtel 5 étoiles situé au 5 Boulevard de Nice. 306 chambres avec vue océan, 2 piscines extérieures, restaurant Olatano, bar Wai, restaurant indien Amaya. Navette aéroport gratuite. Salle de conférence 450 personnes.",photo_interieur:"",photo_exterieur:""},
+    {id:102,nom:"Park Inn by Radisson Libreville",type:"Hôtel 4 étoiles",quartier:"Centre-ville",ambiance:"Moderne",statut:"Ouvert - Anime",note:4.2,avis:312,contact:"+241 011 79 00 00",paiement:"Actif",affluence:65,lat:0.3940,lng:9.4530,maps_url:"https://www.google.com/maps/search/Park+Inn+Radisson+Libreville",description:"Hôtel 4 étoiles au 5 Boulevard de Nice BP 2254. 140 chambres, vue mer, piscine, restaurant. À 2 km de l'aéroport Léon M'ba. Idéal pour les voyageurs d'affaires.",photo_interieur:"",photo_exterieur:""},
+    {id:103,nom:"Hôtel Re-Ndama",type:"Hôtel 4 étoiles",quartier:"Centre-ville",ambiance:"Classique",statut:"Ouvert - Anime",note:4.0,avis:188,contact:"+241 011 76 50 00",paiement:"Actif",affluence:60,lat:0.3920,lng:9.4520,maps_url:"https://www.google.com/maps/search/Hotel+Re-Ndama+Libreville",description:"Hôtel 4 étoiles situé sur le Boulevard de l'Indépendance. 256 chambres. Hôtel 6 étages en bord d'Atlantique. Restaurant panoramique, bar, piscine.",photo_interieur:"",photo_exterieur:""},
+    {id:104,nom:"Onomo Hotel Libreville",type:"Hôtel 4 étoiles",quartier:"Angondje",ambiance:"Moderne",statut:"Ouvert - Calme",note:4.1,avis:245,contact:"+241 011 70 10 00",paiement:"Actif",affluence:55,lat:0.4810,lng:9.4300,maps_url:"https://www.google.com/maps/search/Onomo+Hotel+Libreville",description:"Hôtel 4 étoiles au Quartier des Ambassades, Route d'Angondjé. 120 chambres, design contemporain, piscine, restaurant, salle de sport. BP 23791.",photo_interieur:"",photo_exterieur:""},
+    {id:105,nom:"Hôtel Hibiscus Louis",type:"Hôtel 3 étoiles",quartier:"Louis",ambiance:"Gabonais",statut:"Ouvert - Anime",note:4.3,avis:156,contact:"+241 077 12 34 56",paiement:"Actif",affluence:68,lat:0.4140,lng:9.4320,maps_url:"https://www.google.com/maps/search/Hotel+Hibiscus+Louis+Libreville",description:"Hôtel 3 étoiles avec ambiance locale gabonaise authentique. Vue sur la mer, piscine, restaurant. Très apprécié des habitués pour son charme et son atmosphère locale.",photo_interieur:"",photo_exterieur:""},
+    {id:106,nom:"Roma Hôtel & Restaurant",type:"Hôtel 3 étoiles",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Anime",note:4.3,avis:403,contact:"+241 074 44 98 64",paiement:"Actif",affluence:59,lat:0.4104582,lng:9.4307524,maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ7ejDdqA7fxARFpD3K1c7dEY",description:"Hôtel 4 étoiles avec restaurant, bar et jardin. Idéalement situé à Louis. Restaurant gastronomique, bar animé, terrasse. Très proche des meilleures boîtes de nuit.",photo_interieur:"",photo_exterieur:""},
+    {id:107,nom:"Hôtel Le Cristal",type:"Hôtel 3 étoiles",quartier:"Centre-ville",ambiance:"Classique",statut:"Ouvert - Calme",note:4.0,avis:142,contact:"+241 077 23 45 67",paiement:"Actif",affluence:50,lat:0.4330,lng:9.4420,maps_url:"https://www.google.com/maps/search/Hotel+Le+Cristal+Libreville",description:"Hôtel 3 étoiles bien situé en centre-ville. Chambres climatisées, WiFi gratuit, restaurant. Apprécié par les familles et voyageurs d'affaires.",photo_interieur:"",photo_exterieur:""},
+    {id:108,nom:"Hôtel Leet Dorian",type:"Hôtel 2 étoiles",quartier:"Centre-ville",ambiance:"Budget",statut:"Ouvert - Calme",note:3.8,avis:98,contact:"+241 077 89 01 23",paiement:"Actif",affluence:40,lat:0.4310,lng:9.4410,maps_url:"https://www.google.com/maps/search/Hotel+Leet+Dorian+Libreville",description:"Hôtel économique en plein centre-ville. Chambres propres, WiFi, accueil 24h/24. Option idéale pour les petits budgets. Proche des commerces et transports.",photo_interieur:"",photo_exterieur:""},
+    {id:109,nom:"MINA Hotel Libreville",type:"Hôtel 3 étoiles",quartier:"Centre-ville",ambiance:"Moderne",statut:"Ouvert - Anime",note:4.1,avis:87,contact:"+241 066 34 56 78",paiement:"Actif",affluence:58,lat:0.3960,lng:9.4460,maps_url:"https://www.google.com/maps/search/MINA+Hotel+Libreville",description:"Hôtel moderne en plein cœur de Libreville. Accepte les animaux de compagnie. WiFi haut débit, restaurant, parking privé. Design contemporain.",photo_interieur:"",photo_exterieur:""},
+    {id:110,nom:"Hôtel Impérial",type:"Hôtel 3 étoiles",quartier:"Centre-ville",ambiance:"Classique",statut:"Ouvert - Calme",note:3.9,avis:74,contact:"+241 077 45 67 89",paiement:"Actif",affluence:45,lat:0.3950,lng:9.4480,maps_url:"https://www.google.com/maps/search/Hotel+Imperial+Libreville",description:"Hôtel 3 étoiles avec bar, parking privé gratuit. À 1,3 miles de la Statue nationale de l'Abolition de l'Esclavage. Service courtois et confortable.",photo_interieur:"",photo_exterieur:""},
+    {id:111,nom:"Hôtel La Sablière",type:"Hôtel 3 étoiles",quartier:"Centre-ville",ambiance:"Charme",statut:"Ouvert - Calme",note:4.2,avis:63,contact:"+241 077 56 78 90",paiement:"Actif",affluence:52,lat:0.3965,lng:9.4470,maps_url:"https://www.google.com/maps/search/Hotel+La+Sabliere+Libreville",description:"Au cœur de Libreville, tenu par Jean-François, propriétaire poète et passionné. Atmosphère unique et personnalisée. Très bonne cuisine. Adresse insolite.",photo_interieur:"",photo_exterieur:""},
+    {id:112,nom:"Nomad Suites Residence",type:"Résidence hôtelière",quartier:"Centre-ville",ambiance:"Moderne",statut:"Ouvert - Calme",note:4.0,avis:55,contact:"+241 066 67 89 01",paiement:"Actif",affluence:42,lat:0.3930,lng:9.4500,maps_url:"https://www.google.com/maps/search/Nomad+Suites+Libreville",description:"Résidence hôtelière moderne proche de l'aéroport. Appartements équipés, WiFi, parking. Idéal pour les séjours longue durée ou professionnels.",photo_interieur:"",photo_exterieur:""},
+    {id:113,nom:"Résidence Hôtelière du Phare",type:"Résidence hôtelière",quartier:"Centre-ville",ambiance:"Classique",statut:"Ouvert - Calme",note:3.9,avis:41,contact:"+241 077 78 90 12",paiement:"Actif",affluence:38,lat:0.3945,lng:9.4490,maps_url:"https://www.google.com/maps/search/Residence+Hoteliere+Phare+Libreville",description:"Résidence hôtelière bien équipée près de l'aéroport. Appartements climatisés, WiFi gratuit, parking sécurisé. Navette disponible sur demande.",photo_interieur:"",photo_exterieur:""},
+    {id:114,nom:"Hotel Tropicana Libreville",type:"Hôtel 2 étoiles",quartier:"Centre-ville",ambiance:"Tropical",statut:"Ouvert - Calme",note:3.7,avis:32,contact:"+241 066 89 01 23",paiement:"Actif",affluence:35,lat:0.3935,lng:9.4510,maps_url:"https://www.google.com/maps/search/Hotel+Tropicana+Libreville",description:"Hôtel abordable proche de l'aéroport. Chambres climatisées, restauration légère, parking. Accueil chaleureux. Option économique appréciée.",photo_interieur:"",photo_exterieur:""},
+    {id:115,nom:"La Baie des Tortues Luth",type:"Hôtel Balnéaire",quartier:"Akanda",ambiance:"Nature",statut:"Ouvert - Calme",note:4.4,avis:128,contact:"+241 077 90 12 34",paiement:"Actif",affluence:55,lat:0.5060,lng:9.3980,maps_url:"https://www.google.com/maps/search/Baie+des+Tortues+Luth+Libreville",description:"Hôtel balnéaire 2,5 étoiles face à l'Atlantique. Piscine extérieure, plage privée, restaurant-bar. Observation des tortues marines. Séjours nature et famille.",photo_interieur:"",photo_exterieur:""},
+    {id:116,nom:"La Maringa El Magnifico",type:"Hôtel Resort",quartier:"Akanda",ambiance:"Luxe",statut:"Ouvert - Anime",note:4.2,avis:89,contact:"+241 077 01 23 45",paiement:"Actif",affluence:62,lat:0.5050,lng:9.3990,maps_url:"https://www.google.com/maps/search/La+Maringa+El+Magnifico+Libreville",description:"Resort hôtelier avec jardin, plage privée, salon commun, restaurant et boîte de nuit. WiFi gratuit. Cadre exceptionnel au bord de l'océan.",photo_interieur:"",photo_exterieur:""},
+    {id:117,nom:"Namaste Hôtel & Restaurant",type:"Hôtel 3 étoiles",quartier:"Centre-ville",ambiance:"Familial",statut:"Ouvert - Anime",note:4.5,avis:116,contact:"+241 066 12 34 56",paiement:"Actif",affluence:68,lat:0.4050,lng:9.4440,maps_url:"https://www.google.com/maps/search/Namaste+Hotel+Libreville",description:"Hôtel familial avec jardin, terrasse, restaurant et parking privé. 18 min à pied de la Statue de l'Abolition. Ambiance chaleureuse, cuisine variée.",photo_interieur:"",photo_exterieur:""},
+    {id:118,nom:"Résidence Kaliste",type:"Résidence hôtelière",quartier:"Louis",ambiance:"Calme",statut:"Ouvert - Calme",note:3.9,avis:44,contact:"+241 077 23 45 67",paiement:"Actif",affluence:36,lat:0.4140,lng:9.4330,maps_url:"https://www.google.com/maps/search/Residence+Kaliste+Libreville",description:"Résidence 5 min à pied de la marina Michel Marine. Appartements spacieux, WiFi, parking. Idéal pour séjour d'affaires ou longue durée.",photo_interieur:"",photo_exterieur:""},
+    {id:119,nom:"Hotel Le Meridien Libreville",type:"Hôtel 5 étoiles",quartier:"Centre-ville",ambiance:"Luxe",statut:"Ouvert - Anime",note:4.3,avis:327,contact:"+241 011 72 00 00",paiement:"Actif",affluence:70,lat:0.3920,lng:9.4525,maps_url:"https://www.google.com/maps/search/Le+Meridien+Libreville",description:"Grand hôtel 5 étoiles face à l'Atlantique avec vue panoramique. Piscine, restaurants, salle de sport, spa. Référence du luxe à Libreville depuis des décennies.",photo_interieur:"",photo_exterieur:""},
+    {id:120,nom:"Hôtel Résidence Océane",type:"Résidence hôtelière",quartier:"Centre-ville",ambiance:"Calme",statut:"Ouvert - Calme",note:4.0,avis:38,contact:"+241 066 34 56 78",paiement:"Actif",affluence:40,lat:0.3955,lng:9.4475,maps_url:"https://www.google.com/maps/search/Residence+Oceane+Libreville",description:"Résidence hôtelière de qualité en centre-ville. Appartements équipés (cuisine, salon, WiFi), parking privé. Service 24h/24. À quelques minutes de la marina.",photo_interieur:"",photo_exterieur:""}
   ];
 }
 
@@ -3287,6 +3315,7 @@ function buildCard(e,delay,compact){
     "</div><span class=\"status-pill "+sc+"\">"+e.statut+"</span></div>"+
     affBar+
     "<div class=\"card-ambiance\"><span class=\"lbl\">Ambiance</span><span class=\"val\">"+e.ambiance+"</span></div>"+
+    (e.description && getCategory(e.type)==="Hotel" ? "<div style=\"font-size:0.72rem;color:var(--muted);line-height:1.5;padding:0.4rem 0.7rem;background:rgba(0,229,255,0.04);border-radius:8px;margin:0.4rem 0;border-left:2px solid rgba(0,229,255,0.3);\">&#127968; "+e.description+"</div>" : "")+
     "<div class=\"info-line\">&#128222; <a href=\"tel:"+((e.contact||"").replace(/\s/g,""))+"\" style=\"color:var(--cyan);text-decoration:none;font-weight:600;\">"+e.contact+"</a></div>"+
     mapsBtn+
     "</div>"+soireeHtml+
