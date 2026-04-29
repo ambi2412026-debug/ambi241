@@ -2361,6 +2361,213 @@ loadSoireePhotos();
 
 // ── FIREBASE — Lecture et mise à jour des établissements ──────
 
+// ══════════════════════════════════════════════════════════════
+// ══  MOTEUR DYNAMIQUE — Score de classement pondéré         ══
+// ══════════════════════════════════════════════════════════════
+
+var _rankWeights = {
+  affluence: 40,   // %
+  note:       25,
+  avis:       15,
+  presences:  10,
+  votes:      10
+};
+
+var _rankSort = { col: "score", asc: false };
+
+var RANK_WEIGHTS_KEY = "ambi241_rank_weights";
+
+function loadRankWeights(){
+  var saved = lsGetJSON(RANK_WEIGHTS_KEY, null);
+  if(saved && typeof saved === "object"){
+    Object.keys(_rankWeights).forEach(function(k){ if(saved[k]!==undefined) _rankWeights[k]=saved[k]; });
+  }
+}
+
+function saveRankWeights(){
+  lsSetJSON(RANK_WEIGHTS_KEY, _rankWeights);
+}
+
+/* Calcule un score global 0-100 pour un établissement */
+function computeRankScore(e){
+  var w = _rankWeights;
+  var pd = getPresenceData(e.id);
+  var vd = getVoteData(e.id);
+
+  // Affluence : déjà 0-100
+  var sAff = Math.min(100, Math.max(0, e.affluence || 0));
+  // Note : 0-5 → 0-100
+  var sNote = Math.min(100, Math.max(0, ((e.note || 0) / 5) * 100));
+  // Avis : log scale (0 avis → 0, 1000+ → 100)
+  var sAvis = Math.min(100, Math.round(Math.log10(Math.max(1, e.avis || 0) + 1) / Math.log10(1001) * 100));
+  // Présences : 0-20+ → 0-100 (cap 20)
+  var sPresences = Math.min(100, Math.round((pd.count / 20) * 100));
+  // Votes nets : ratio positif
+  var totalVotes = vd.pos + vd.neg;
+  var sVotes = totalVotes > 0 ? Math.round((vd.pos / totalVotes) * 100) : 50;
+
+  var total = (w.affluence/100)*sAff + (w.note/100)*sNote + (w.avis/100)*sAvis + (w.presences/100)*sPresences + (w.votes/100)*sVotes;
+  // Normaliser si poids total != 100
+  var wSum = w.affluence + w.note + w.avis + w.presences + w.votes;
+  if(wSum > 0) total = total / (wSum/100);
+
+  return {
+    score:     Math.round(total),
+    affluence: Math.round(sAff),
+    note:      Math.round(sNote),
+    avis:      Math.round(sAvis),
+    presences: Math.round(sPresences),
+    votes:     Math.round(sVotes)
+  };
+}
+
+/* Applique un statut dynamique basé sur l'affluence réelle (sans écraser les overrides admin) */
+function applyDynamicStatus(e){
+  if(e._adminOverride) return; // l'admin a fixé manuellement → respecter
+  var pd = getPresenceData(e.id);
+  var vd = getVoteData(e.id);
+  var realAff = computeRealAffluence(e, pd, vd);
+  if(realAff >= 75) e.statut = "Ouvert - Bonde";
+  else if(realAff >= 40) e.statut = "Ouvert - Anime";
+  else e.statut = "Ouvert - Calme";
+}
+
+// ── Tableau de bord classement admin ──────────────────────────
+function renderAdmClassement(){
+  loadRankWeights();
+  var container = document.getElementById("adminClassementContent");
+  if(!container) return;
+
+  var w = _rankWeights;
+  var wSum = w.affluence + w.note + w.avis + w.presences + w.votes;
+
+  // Build scored list
+  var scored = etablissements.map(function(e){
+    var res = computeRankScore(e);
+    return Object.assign({}, e, { _rank: res });
+  });
+  // Sort
+  scored.sort(function(a,b){
+    var col = _rankSort.col;
+    var va = col==="score" ? a._rank.score : (col==="nom" ? a.nom : (a._rank[col]!==undefined ? a._rank[col] : (a[col]||0)));
+    var vb = col==="score" ? b._rank.score : (col==="nom" ? b.nom : (b._rank[col]!==undefined ? b._rank[col] : (b[col]||0)));
+    if(typeof va==="string") return _rankSort.asc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return _rankSort.asc ? va - vb : vb - va;
+  });
+
+  var html = "";
+
+  // ── Titre ──
+  html += "<div style='font-family:Syne,sans-serif;font-weight:800;color:var(--amber);font-size:0.95rem;margin-bottom:1rem;'>🏆 Classement Dynamique</div>";
+
+  // ── Éditeur de poids ──
+  html += "<div style='background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.2);border-radius:14px;padding:1rem;margin-bottom:1.2rem;'>";
+  html += "<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:0.7rem;'>";
+  html += "<span style='font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;color:var(--amber);'>⚖️ Pondération des critères</span>";
+  html += "<span style='font-size:0.68rem;color:"+(wSum===100?"var(--green)":"var(--red)")+";font-weight:700;'>Total: "+wSum+"%</span>";
+  html += "</div>";
+  var criteria = [
+    {key:"affluence", label:"Affluence", color:"var(--red)"},
+    {key:"note",      label:"Note ★",   color:"var(--amber)"},
+    {key:"avis",      label:"Avis",      color:"var(--cyan)"},
+    {key:"presences", label:"Présences", color:"var(--green)"},
+    {key:"votes",     label:"Votes",     color:"var(--purple)"}
+  ];
+  criteria.forEach(function(c){
+    html += "<div style='display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;'>";
+    html += "<span style='font-size:0.75rem;color:var(--text);width:80px;flex-shrink:0;'>"+c.label+"</span>";
+    html += "<input type='range' min='0' max='100' value='"+w[c.key]+"' step='5' style='flex:1;accent-color:"+c.color+";' oninput=\"_rankWeights['"+c.key+"']=parseInt(this.value);saveRankWeights();renderAdmClassement();\">";
+    html += "<span style='font-size:0.78rem;font-weight:800;color:"+c.color+";width:32px;text-align:right;'>"+w[c.key]+"%</span>";
+    html += "</div>";
+  });
+  html += "<div style='display:flex;gap:0.5rem;margin-top:0.6rem;'>";
+  html += "<button onclick=\"_rankWeights={affluence:40,note:25,avis:15,presences:10,votes:10};saveRankWeights();renderAdmClassement();\" style='flex:1;padding:0.4rem;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.72rem;cursor:pointer;'>↺ Réinitialiser</button>";
+  html += "<button onclick='renderAdmClassement()' style='flex:1;padding:0.4rem;border-radius:8px;border:1px solid rgba(0,255,170,0.3);background:rgba(0,255,170,0.08);color:var(--green);font-family:Syne,sans-serif;font-weight:700;font-size:0.72rem;cursor:pointer;'>↻ Actualiser</button>";
+  html += "</div></div>";
+
+  // ── Table triable ──
+  function sortBtn(col, label){
+    var active = _rankSort.col === col;
+    var arrow = active ? (_rankSort.asc ? " ↑" : " ↓") : "";
+    return "<button onclick=\"_rankSort={col:'"+col+"',asc:"+(!active?false:!_rankSort.asc)+"};renderAdmClassement();\" style='background:"+(active?"rgba(255,215,0,0.15)":"rgba(255,255,255,0.04)")+";border:1px solid "+(active?"rgba(255,215,0,0.4)":"rgba(255,255,255,0.08)")+";color:"+(active?"var(--amber)":"var(--muted)")+";font-size:0.6rem;font-weight:700;padding:0.18rem 0.45rem;border-radius:5px;cursor:pointer;font-family:DM Sans,sans-serif;'>"+label+arrow+"</button>";
+  }
+
+  html += "<div style='display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.7rem;align-items:center;'>";
+  html += "<span style='font-size:0.65rem;color:var(--muted);margin-right:0.2rem;'>Trier :</span>";
+  html += sortBtn("score","Score");
+  html += sortBtn("nom","Nom");
+  html += sortBtn("affluence","Affluence");
+  html += sortBtn("note","Note");
+  html += sortBtn("avis","Avis");
+  html += sortBtn("presences","Présences");
+  html += sortBtn("votes","Votes");
+  html += "</div>";
+
+  // Medals
+  var medals = ["🥇","🥈","🥉"];
+
+  scored.forEach(function(e, idx){
+    var r = e._rank;
+    var medal = medals[idx] || "#"+(idx+1);
+    var isOverride = !!e._adminOverride;
+    var rankClass = idx===0 ? "rgba(255,215,0,0.1)" : idx===1 ? "rgba(192,192,192,0.07)" : idx===2 ? "rgba(205,127,50,0.07)" : "rgba(255,255,255,0.02)";
+    var borderClass = idx===0 ? "rgba(255,215,0,0.3)" : idx===1 ? "rgba(192,192,192,0.2)" : idx===2 ? "rgba(205,127,50,0.2)" : "rgba(255,255,255,0.06)";
+
+    html += "<div style='background:"+rankClass+";border:1px solid "+borderClass+";border-radius:14px;padding:0.8rem;margin-bottom:0.55rem;'>";
+
+    // Row 1: medal + name + score
+    html += "<div style='display:flex;align-items:center;gap:0.55rem;margin-bottom:0.5rem;'>";
+    html += "<span style='font-size:1.1rem;width:24px;text-align:center;flex-shrink:0;'>"+medal+"</span>";
+    html += "<div style='flex:1;min-width:0;'>";
+    html += "<div style='font-weight:700;font-size:0.85rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>"+e.nom+(isOverride?" <span style='font-size:0.58rem;background:rgba(255,215,0,0.15);border:1px solid rgba(255,215,0,0.4);color:var(--amber);border-radius:4px;padding:0.06rem 0.3rem;'>✏️ Override</span>":"")+"</div>";
+    html += "<div style='font-size:0.62rem;color:var(--muted);'>"+e.type+" · "+e.quartier+"</div>";
+    html += "</div>";
+    html += "<div style='text-align:right;flex-shrink:0;'>";
+    html += "<div style='font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;color:"+(r.score>=70?"var(--green)":r.score>=40?"var(--amber)":"var(--red)")+";'>"+r.score+"</div>";
+    html += "<div style='font-size:0.6rem;color:var(--muted);'>/ 100</div>";
+    html += "</div></div>";
+
+    // Score bar
+    html += "<div style='background:rgba(255,255,255,0.05);border-radius:100px;height:5px;margin-bottom:0.55rem;overflow:hidden;'>";
+    html += "<div style='height:100%;width:"+r.score+"%;background:linear-gradient(90deg,"+(r.score>=70?"var(--green)":r.score>=40?"var(--amber)":"var(--red)")+",transparent);border-radius:100px;transition:width 0.6s;'></div></div>";
+
+    // Détail critères
+    html += "<div style='display:grid;grid-template-columns:repeat(5,1fr);gap:0.3rem;margin-bottom:0.5rem;'>";
+    [
+      {k:"affluence",l:"Afflux",c:"var(--red)"},
+      {k:"note",l:"Note",c:"var(--amber)"},
+      {k:"avis",l:"Avis",c:"var(--cyan)"},
+      {k:"presences",l:"Prés.",c:"var(--green)"},
+      {k:"votes",l:"Votes",c:"var(--purple)"}
+    ].forEach(function(cr){
+      html += "<div style='text-align:center;background:rgba(255,255,255,0.03);border-radius:8px;padding:0.3rem 0.1rem;'>";
+      html += "<div style='font-size:0.72rem;font-weight:800;color:"+cr.c+";'>"+r[cr.k]+"</div>";
+      html += "<div style='font-size:0.55rem;color:var(--muted);'>"+cr.l+"</div>";
+      html += "</div>";
+    });
+    html += "</div>";
+
+    // Admin actions row
+    html += "<div style='display:flex;gap:0.3rem;flex-wrap:wrap;align-items:center;'>";
+    var statusOpts = ["Ouvert - Anime","Ouvert - Bonde","Ouvert - Calme","Ferme"];
+    statusOpts.forEach(function(s){
+      var isActive = e.statut === s;
+      html += "<button onclick=\"updateField("+e.id+",{statut:'"+s+"',_adminOverride:true});\" style='font-size:0.58rem;padding:0.18rem 0.42rem;border-radius:5px;cursor:pointer;border:1px solid "+(isActive?"rgba(255,45,155,0.5)":"rgba(255,255,255,0.1)")+";background:"+(isActive?"rgba(255,45,155,0.18)":"transparent")+";color:"+(isActive?"var(--pink)":"var(--muted)")+";font-family:DM Sans,sans-serif;'>"+s.replace("Ouvert - ","")+"</button>";
+    });
+    if(isOverride){
+      html += "<button onclick=\"updateField("+e.id+",{_adminOverride:false});\" style='font-size:0.58rem;padding:0.18rem 0.42rem;border-radius:5px;cursor:pointer;border:1px solid rgba(0,229,255,0.35);background:rgba(0,229,255,0.08);color:var(--cyan);font-family:DM Sans,sans-serif;margin-left:auto;'>↺ Libérer</button>";
+    }
+    html += "</div></div>";
+  });
+
+  container.innerHTML = html;
+}
+
+window.renderAdmClassement = renderAdmClassement;
+
+// Charger les poids au démarrage
+(function(){ loadRankWeights(); })();
+
 function getDefaults(){
   return [
     {id:1,nom:"Lounge Bar",type:"Bar Lounge",quartier:"Centre-ville",ambiance:"Festif",statut:"Ouvert - Bonde",note:4.2,avis:38,contact:"+241 074 123 456",paiement:"Actif",affluence:85,maps_url:"https://maps.google.com/?q=Lounge+Bar+Libreville",photo_interieur:"",photo_exterieur:""},
@@ -2483,6 +2690,8 @@ function loadData(){
     }
     document.getElementById("errorBanner").innerHTML="";
     rebuildPaiements();
+    // Appliquer le statut dynamique basé sur l'affluence réelle
+    etablissements.forEach(function(e){ applyDynamicStatus(e); });
     setSyncing(false);renderStats();renderAll();renderHome();renderPayments();updateSyncTime();if(typeof i18n!=="undefined")i18n.applyTranslations();
     loadPaiementsFromFirebase();
   }).catch(function(err){
@@ -2491,6 +2700,8 @@ function loadData(){
     var eb=document.getElementById("errorBanner");
     if(eb) eb.innerHTML="";
     rebuildPaiements();
+    // Appliquer le statut dynamique même en mode fallback
+    etablissements.forEach(function(e){ applyDynamicStatus(e); });
     setSyncing(false);renderStats();renderAll();renderHome();renderPayments();updateSyncTime();if(typeof i18n!=="undefined")i18n.applyTranslations();
   });
 }
@@ -2499,10 +2710,22 @@ function updateField(id,fields){
   setSyncing(true);
   var e=etablissements.find(function(x){return x.id===id;});
   if(!e){showToast("Erreur: etablissement introuvable");setSyncing(false);return;}
+  // Marquer _adminOverride si l'admin modifie le statut manuellement
+  if(fields.statut !== undefined && fields._adminOverride === undefined){
+    fields._adminOverride = true;
+  }
+  // Permettre la réinitialisation explicite de l'override
+  if(fields._adminOverride === false){
+    e._adminOverride = false;
+    fields._adminOverride = false;
+    // Ré-appliquer le statut dynamique
+    applyDynamicStatus(e);
+  }
   // Mettre à jour localement immédiatement (UX fluide)
   Object.keys(fields).forEach(function(k){e[k]=fields[k];});
   renderStats();renderAll();renderHome();
   if(_currentAdmTab==="etabl") renderAdmEtabl();
+  if(_currentAdmTab==="classement") renderAdmClassement();
   // Si pas de _docId : créer le doc Firebase avec toutes les données
   if(!e._docId){
     if(!window.db||typeof window.fbAddDoc!=="function"){setSyncing(false);showToast("Mis à jour localement");return;}
@@ -5956,7 +6179,7 @@ window.closeAdminDashboard=closeAdminDashboard;
 
 function switchAdmTab(tab){
   _currentAdmTab=tab;
-  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations"];
+  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement"];
   tabs.forEach(function(t){
     var btn=document.getElementById("admtab-"+t);
     var panel=document.getElementById("admpanel-"+t);
@@ -5982,6 +6205,7 @@ function switchAdmTab(tab){
     else renderAdmSettings();
   }
   else if(tab==="reservations") renderAdmReservations();
+  else if(tab==="classement") renderAdmClassement();
 }
 window.switchAdmTab=switchAdmTab;
 
@@ -6078,11 +6302,15 @@ function renderAdmEtabl(){
     html+="<div style='font-size:0.7rem;color:var(--muted);'>"+e.type+" · "+e.quartier+"</div></div>";
     html+="<span style='font-size:0.65rem;font-weight:700;color:"+sc+";white-space:nowrap;'>"+e.statut+"</span></div>";
     html+="<div style='display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem;'>";
-    html+="<div style='display:flex;gap:0.4rem;flex-wrap:wrap;'>";
+    html+="<div style='display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;'>";
     var statusOpts=["Ouvert - Anime","Ouvert - Bonde","Ouvert - Calme","Ferme"];
     statusOpts.forEach(function(s){
       html+="<button onclick=\"updateField("+e.id+",{statut:'"+s+"'})\" style='font-size:0.6rem;padding:0.2rem 0.45rem;border-radius:5px;cursor:pointer;border:1px solid rgba(255,255,255,0.12);background:"+(e.statut===s?"rgba(255,45,155,0.2)":"transparent")+";color:"+(e.statut===s?"var(--pink)":"var(--muted)")+";font-family:DM Sans,sans-serif;'>"+s.replace("Ouvert - ","")+"</button>";
     });
+    if(e._adminOverride){
+      html+="<span style='font-size:0.58rem;background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.35);color:var(--amber);border-radius:4px;padding:0.06rem 0.3rem;margin-left:0.2rem;'>✏️ Override</span>";
+      html+="<button onclick=\"updateField("+e.id+",{_adminOverride:false})\" style='font-size:0.58rem;padding:0.18rem 0.42rem;border-radius:5px;cursor:pointer;border:1px solid rgba(0,229,255,0.35);background:rgba(0,229,255,0.08);color:var(--cyan);font-family:DM Sans,sans-serif;'>↺ Libérer</button>";
+    }
     html+="</div>";
     html+="<input type='number' min='0' max='100' value='"+(e.affluence||0)+"' onchange=\"updateField("+e.id+",{affluence:parseInt(this.value)})\" title='Affluence %' style='width:55px;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:var(--amber);font-size:0.8rem;padding:0.25rem 0.4rem;text-align:center;'>";
     html+="</div>";
@@ -7115,8 +7343,9 @@ window.doAssignEtab = doAssignEtab;
       <button class="adm-tab" id="admtab-moderation" onclick="switchAdmTab('moderation')">&#128737; Modération</button>
       <button class="adm-tab" id="admtab-connexions" onclick="switchAdmTab('connexions')">&#128247; Connexions</button>
       <button class="adm-tab" id="admtab-settings" onclick="switchAdmTab('settings')">&#9881; Paramètres</button>
-    </div>
       <button class="adm-tab" id="admtab-reservations" onclick="switchAdmTab('reservations')">&#11088; Réserv. VIP</button>
+      <button class="adm-tab" id="admtab-classement" onclick="switchAdmTab('classement')">&#127942; Classement</button>
+    </div>
 
     <div style="padding:1rem;">
 
@@ -7198,6 +7427,11 @@ window.doAssignEtab = doAssignEtab;
           <button onclick="renderAdmReservations()" style="float:right;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);color:var(--cyan);font-size:0.7rem;padding:0.25rem 0.55rem;border-radius:8px;cursor:pointer;">&#8635; Actualiser</button>
         </div>
         <div id="adminReservContent">Chargement...</div>
+      </div>
+
+      <!-- ── Classement ── -->
+      <div id="admpanel-classement" style="display:none;">
+        <div id="adminClassementContent">Chargement...</div>
       </div>
 
     </div>
