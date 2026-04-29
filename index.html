@@ -136,6 +136,30 @@ header{position:sticky;top:0;z-index:100;background:rgba(13,0,20,0.96);backdrop-
 .success-msg h3{font-family:'Syne',sans-serif;font-weight:800;color:var(--green);}
 .success-msg p{font-size:0.82rem;color:var(--muted);margin-top:0.4rem;line-height:1.5;}
 
+/* ══ SUBSCRIPTION PLAN CARDS ══ */
+.sub-plan-card{position:relative;background:var(--surface2);border:2px solid rgba(255,255,255,0.07);border-radius:14px;padding:0.75rem 0.5rem;text-align:center;cursor:pointer;transition:all 0.22s;overflow:hidden;user-select:none;}
+.sub-plan-card:active{transform:scale(0.96);}
+.sub-plan-card.active{border-color:var(--amber);background:rgba(255,215,0,0.08);box-shadow:0 0 16px rgba(255,215,0,0.18);}
+.sub-plan-card[data-plan="trimestriel"].active{border-color:var(--pink);background:rgba(255,45,155,0.09);box-shadow:0 0 16px rgba(255,45,155,0.2);}
+.sub-plan-card[data-plan="annuel"].active{border-color:var(--cyan);background:rgba(0,229,255,0.08);box-shadow:0 0 16px rgba(0,229,255,0.2);}
+.spc-badge{font-size:0.52rem;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:0.35rem;min-height:14px;}
+.spc-badge.popular{color:var(--pink);}
+.spc-badge.best{color:var(--cyan);}
+.spc-icon{font-size:1.3rem;margin-bottom:0.25rem;}
+.spc-name{font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;color:var(--text);margin-bottom:0.2rem;}
+.spc-price{font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;color:var(--amber);line-height:1.1;}
+.spc-price span{font-size:0.52rem;color:var(--muted);font-weight:400;display:block;}
+.spc-period{font-size:0.58rem;color:var(--muted);margin-top:0.1rem;}
+.spc-saving{font-size:0.56rem;font-weight:700;color:var(--green);margin-top:0.2rem;min-height:12px;}
+/* Admin subscription badge */
+.sub-status-badge{display:inline-flex;align-items:center;gap:0.3rem;font-size:0.62rem;font-weight:700;padding:0.15rem 0.5rem;border-radius:6px;vertical-align:middle;}
+.ssb-actif{background:rgba(0,255,170,0.12);color:var(--green);border:1px solid rgba(0,255,170,0.3);}
+.ssb-expire{background:rgba(255,68,102,0.12);color:var(--red);border:1px solid rgba(255,68,102,0.3);}
+.ssb-alerte{background:rgba(255,215,0,0.12);color:var(--amber);border:1px solid rgba(255,215,0,0.3);}
+.ssb-attente{background:rgba(255,165,0,0.12);color:#ffa500;border:1px solid rgba(255,165,0,0.3);}
+/* Renewal warning banner */
+.renewal-banner{background:rgba(255,45,155,0.09);border:1.5px solid rgba(255,45,155,0.4);border-radius:13px;padding:0.85rem 1rem;margin-bottom:0.8rem;animation:pulse-border 2s infinite;}
+@keyframes pulse-border{0%,100%{border-color:rgba(255,45,155,0.4)}50%{border-color:rgba(255,45,155,0.9)}}
 /* LIGHTBOX */
 .lightbox{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.95);align-items:center;justify-content:center;}
 .lightbox.show{display:flex;}
@@ -1312,15 +1336,64 @@ if (document.readyState === 'loading') {
       <div class="modal-title">Inscrire mon etablissement</div>
       <div class="modal-sub">Remplissez ce formulaire. Validation apres paiement.</div>
     </div>
-    <!-- PRIX -->
-    <div style="background:linear-gradient(135deg,rgba(255,215,0,0.1),rgba(0,255,170,0.06));border:1px solid rgba(255,215,0,0.25);border-radius:12px;padding:0.9rem;margin-bottom:1.1rem;">
-      <div style="font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem;">Frais d inscription</div>
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.6rem;color:var(--amber);">5 000 <span style="font-size:0.85rem;color:var(--muted);">XAF</span></div>
-      <div class="ib-methods" style="margin-top:0.6rem;">
-        <div class="ib-method"><div class="im-icon">&#128992;</div><div class="im-name">Airtel Money</div><div class="im-num">+241 74 450 924</div></div>
-        <div class="ib-method"><div class="im-icon">&#128994;</div><div class="im-name">Moov Money</div><div class="im-num">+241 60 141 924</div></div>
+    <!-- CHOIX ABONNEMENT -->
+    <div style="margin-bottom:1.1rem;">
+      <div style="font-size:0.68rem;color:var(--amber);font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.7rem;">&#128197; Choisir votre formule</div>
+      <div id="subPlansGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-bottom:0.8rem;">
+        <!-- Mensuel -->
+        <div class="sub-plan-card active" data-plan="mensuel" onclick="selectSubPlan('mensuel',this)">
+          <div class="spc-badge">Flexible</div>
+          <div class="spc-icon">📅</div>
+          <div class="spc-name">Mensuel</div>
+          <div class="spc-price">5 000<span>XAF</span></div>
+          <div class="spc-period">/mois</div>
+          <div class="spc-saving"></div>
+        </div>
+        <!-- Trimestriel -->
+        <div class="sub-plan-card" data-plan="trimestriel" onclick="selectSubPlan('trimestriel',this)">
+          <div class="spc-badge popular">⭐ Populaire</div>
+          <div class="spc-icon">📆</div>
+          <div class="spc-name">Trimestriel</div>
+          <div class="spc-price">12 000<span>XAF</span></div>
+          <div class="spc-period">/3 mois</div>
+          <div class="spc-saving">Économisez 3 000 XAF</div>
+        </div>
+        <!-- Annuel -->
+        <div class="sub-plan-card" data-plan="annuel" onclick="selectSubPlan('annuel',this)">
+          <div class="spc-badge best">🏆 Best</div>
+          <div class="spc-icon">🗓️</div>
+          <div class="spc-name">Annuel</div>
+          <div class="spc-price">40 000<span>XAF</span></div>
+          <div class="spc-period">/an</div>
+          <div class="spc-saving">Économisez 20 000 XAF</div>
+        </div>
       </div>
-      <div style="font-size:0.72rem;color:var(--muted);margin-top:0.5rem;text-align:center;">&#9993; ambi2412026@gmail.com</div>
+      <!-- Résumé abonnement sélectionné -->
+      <div id="subPlanSummary" style="background:linear-gradient(135deg,rgba(255,215,0,0.1),rgba(0,255,170,0.06));border:1px solid rgba(255,215,0,0.25);border-radius:12px;padding:0.9rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+          <div>
+            <div id="subSummaryName" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:var(--amber);">Abonnement Mensuel</div>
+            <div id="subSummaryDuration" style="font-size:0.68rem;color:var(--muted);margin-top:0.1rem;">Valable 1 mois · Renouvelable</div>
+          </div>
+          <div style="text-align:right;">
+            <div id="subSummaryPrice" style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.5rem;color:var(--amber);">5 000 <span style="font-size:0.78rem;color:var(--muted);">XAF</span></div>
+          </div>
+        </div>
+        <div id="subSummaryFeatures" style="font-size:0.72rem;color:var(--muted);line-height:1.7;margin-bottom:0.6rem;">
+          ✅ Fiche établissement complète<br>✅ Photos & galerie<br>✅ Mise à jour affluence temps réel<br>✅ Renouvellement avant échéance requis
+        </div>
+        <div style="background:rgba(255,45,155,0.07);border:1px solid rgba(255,45,155,0.2);border-radius:8px;padding:0.55rem 0.7rem;">
+          <div style="font-size:0.65rem;color:var(--muted);margin-bottom:0.2rem;">⚠️ Renouvellement automatique désactivé si non payé avant l'échéance</div>
+          <div id="subSummaryEcheance" style="font-size:0.72rem;font-weight:700;color:var(--pink);">📅 Échéance estimée : 1 mois après activation</div>
+        </div>
+        <div class="ib-methods" style="margin-top:0.7rem;">
+          <div class="ib-method"><div class="im-icon">&#128992;</div><div class="im-name">Airtel Money</div><div class="im-num">+241 74 450 924</div></div>
+          <div class="ib-method"><div class="im-icon">&#128994;</div><div class="im-name">Moov Money</div><div class="im-num">+241 60 141 924</div></div>
+        </div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-top:0.4rem;text-align:center;">&#9993; ambi2412026@gmail.com</div>
+      </div>
+      <input type="hidden" name="abonnement_type" id="abonnementTypeInput" value="mensuel">
+      <input type="hidden" name="abonnement_montant" id="abonnementMontantInput" value="5000">
     </div>
     <!-- FORM -->
     <form id="etablForm" onsubmit="submitEtablissement(event)">
@@ -1575,23 +1648,49 @@ if (document.readyState === 'loading') {
 
   <!-- SEC: PAIEMENTS -->
   <div id="sec-paiements" class="section-hidden">
-    <div class="inscription-box">
-      <div class="ib-title">Inscription — Tarif</div>
-      <div class="ib-price">5 000 <span>XAF / etablissement</span></div>
-      <div class="ib-methods">
-        <div class="ib-method"><div class="im-icon">&#128992;</div><div class="im-name">Airtel Money</div><div class="im-num">+241 74 450 924</div></div>
-        <div class="ib-method"><div class="im-icon">&#128994;</div><div class="im-name">Moov Money</div><div class="im-num">+241 60 141 924</div></div>
+    <!-- Grille des formules d'abonnement -->
+    <div style="text-align:center;margin-bottom:1.2rem;">
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.15rem;color:var(--text);">💎 Nos <span style="color:var(--pink);">Formules</span></div>
+      <div style="font-size:0.78rem;color:var(--muted);margin-top:0.3rem;">Choisissez la formule qui convient à votre établissement</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.6rem;margin-bottom:1.2rem;">
+      <!-- Mensuel -->
+      <div style="background:rgba(255,215,0,0.06);border:2px solid rgba(255,215,0,0.2);border-radius:16px;padding:1rem 0.7rem;text-align:center;">
+        <div style="font-size:1.5rem;margin-bottom:0.3rem;">📅</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.82rem;color:var(--amber);">Mensuel</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;color:var(--text);margin:0.4rem 0 0.1rem;">5 000</div>
+        <div style="font-size:0.6rem;color:var(--muted);">XAF / mois</div>
+        <div style="font-size:0.58rem;color:var(--green);margin-top:0.3rem;min-height:14px;">Flexible</div>
+      </div>
+      <!-- Trimestriel - Populaire -->
+      <div style="background:rgba(255,45,155,0.08);border:2px solid rgba(255,45,155,0.4);border-radius:16px;padding:1rem 0.7rem;text-align:center;position:relative;">
+        <div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:var(--pink);color:#000;font-size:0.52rem;font-weight:800;padding:0.15rem 0.5rem;border-radius:20px;white-space:nowrap;">⭐ POPULAIRE</div>
+        <div style="font-size:1.5rem;margin-bottom:0.3rem;">📆</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.82rem;color:var(--pink);">Trimestriel</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;color:var(--text);margin:0.4rem 0 0.1rem;">12 000</div>
+        <div style="font-size:0.6rem;color:var(--muted);">XAF / 3 mois</div>
+        <div style="font-size:0.58rem;color:var(--green);margin-top:0.3rem;">-3 000 XAF</div>
+      </div>
+      <!-- Annuel - Best -->
+      <div style="background:rgba(0,229,255,0.06);border:2px solid rgba(0,229,255,0.25);border-radius:16px;padding:1rem 0.7rem;text-align:center;position:relative;">
+        <div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:var(--cyan);color:#000;font-size:0.52rem;font-weight:800;padding:0.15rem 0.5rem;border-radius:20px;white-space:nowrap;">🏆 BEST</div>
+        <div style="font-size:1.5rem;margin-bottom:0.3rem;">🗓️</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.82rem;color:var(--cyan);">Annuel</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;color:var(--text);margin:0.4rem 0 0.1rem;">40 000</div>
+        <div style="font-size:0.6rem;color:var(--muted);">XAF / an</div>
+        <div style="font-size:0.58rem;color:var(--green);margin-top:0.3rem;">-20 000 XAF</div>
       </div>
     </div>
     <div id="payVisitor" style="margin-bottom:1rem;">
       <div style="background:rgba(0,255,170,0.06);border:1px solid rgba(0,255,170,0.15);border-radius:14px;padding:1.2rem;margin-bottom:0.8rem;">
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:var(--green);margin-bottom:0.6rem;">&#10003; Ce qui est inclus</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:var(--green);margin-bottom:0.6rem;">&#10003; Ce qui est inclus (toutes formules)</div>
         <div style="font-size:0.8rem;color:var(--muted);line-height:1.8;">
           &#128247; Fiche établissement avec photos<br>
           &#128202; Mise à jour affluence en temps réel<br>
           &#127775; Avis et notes visibles par tous<br>
           &#128205; Lien Google Maps direct<br>
           &#128222; Affichage de votre contact<br>
+          &#128273; Renouvellement avant échéance requis<br>
           &#9203; Activation sous 24h après paiement
         </div>
       </div>
@@ -4631,6 +4730,32 @@ function toggleConfirme(index){
   var p=paiements[index];
   if(!p)return;
   var newStatut=p.statut==="Confirme"?"En attente":"Confirme";
+  // Si confirmation → activer l'abonnement sur l'établissement associé
+  if(newStatut === "Confirme"){
+    var etabMatch = etablissements.find(function(e){
+      return e.nom && p.nom && e.nom.toLowerCase().indexOf(p.nom.toLowerCase().slice(0,10)) !== -1;
+    });
+    if(etabMatch && etabMatch.id){
+      var planKey = p.abonnement_type || etabMatch.abonnement_type || "mensuel";
+      var planData = SUBSCRIPTION_PLANS[planKey] || SUBSCRIPTION_PLANS["mensuel"];
+      var now = Date.now();
+      var updateSubData = {
+        abonnement_type: planKey,
+        abonnement_activated_at: now,
+        abonnement_echeance: computeEcheance(planKey, now).toISOString(),
+        paiement: "Actif — "+planData.label
+      };
+      if(window.db && window.fbDoc && window.fbUpdateDoc){
+        window.fbUpdateDoc(window.fbDoc(window.db,"etablissements",String(etabMatch.id)), updateSubData)
+          .then(function(){
+            etabMatch.abonnement_type = planKey;
+            etabMatch.abonnement_activated_at = now;
+            etabMatch.abonnement_echeance = updateSubData.abonnement_echeance;
+            etabMatch.paiement = updateSubData.paiement;
+          }).catch(function(){});
+      }
+    }
+  }
   // Mise à jour Firebase si disponible
   if(window.db && window.fbDoc && window.fbUpdateDoc){
     var docRef=window.fbDoc(window.db,"paiements",p.id);
@@ -4638,7 +4763,7 @@ function toggleConfirme(index){
       paiements[index].statut=newStatut;
       renderPayments();
       renderPayments();renderAll();renderHome();
-      showToast(newStatut==="Confirme"?"✅ Paiement confirmé — établissement visible":"⏳ Remis en attente — établissement archivé");
+      showToast(newStatut==="Confirme"?"✅ Paiement confirmé — abonnement activé":"⏳ Remis en attente — établissement archivé");
     }).catch(function(){
       paiements[index].statut=newStatut;
       renderPayments();renderAll();renderHome();
@@ -4647,7 +4772,7 @@ function toggleConfirme(index){
   } else {
     paiements[index].statut=newStatut;
     renderPayments();renderAll();renderHome();
-    showToast(newStatut==="Confirme"?"✅ Paiement confirmé — établissement visible":"⏳ Remis en attente — établissement archivé");
+    showToast(newStatut==="Confirme"?"✅ Paiement confirmé — abonnement activé":"⏳ Remis en attente — établissement archivé");
   }
 }
 window.toggleConfirme=toggleConfirme;
@@ -5529,6 +5654,176 @@ window.openPhotoUpload        = openPhotoUpload;
 // ─────────────────────────────────────────────────────────────
 
 
+// ══════════════════════════════════════════════════════════════
+// ══  SYSTÈME D'ABONNEMENT ÉTABLISSEMENTS                     ══
+// ══════════════════════════════════════════════════════════════
+
+var SUBSCRIPTION_PLANS = {
+  mensuel:     { label:"Mensuel",     icon:"📅", montant:5000,  dureeJours:30,   dureeLabel:"1 mois",   saving:"" },
+  trimestriel: { label:"Trimestriel", icon:"📆", montant:12000, dureeJours:90,   dureeLabel:"3 mois",  saving:"Économisez 3 000 XAF" },
+  annuel:      { label:"Annuel",      icon:"🗓️", montant:40000, dureeJours:365,  dureeLabel:"1 an",    saving:"Économisez 20 000 XAF" }
+};
+
+function selectSubPlan(plan, cardEl){
+  var plans = SUBSCRIPTION_PLANS;
+  if(!plans[plan]) return;
+  // Update card visuals
+  document.querySelectorAll(".sub-plan-card").forEach(function(c){ c.classList.remove("active"); });
+  if(cardEl) cardEl.classList.add("active");
+  // Update hidden inputs
+  var typeInput = document.getElementById("abonnementTypeInput");
+  var montantInput = document.getElementById("abonnementMontantInput");
+  if(typeInput) typeInput.value = plan;
+  if(montantInput) montantInput.value = plans[plan].montant;
+  // Update summary
+  var p = plans[plan];
+  var nameEl = document.getElementById("subSummaryName");
+  var durEl  = document.getElementById("subSummaryDuration");
+  var priceEl= document.getElementById("subSummaryPrice");
+  var echEl  = document.getElementById("subSummaryEcheance");
+  if(nameEl) nameEl.textContent = p.icon+" Abonnement "+p.label;
+  if(durEl)  durEl.textContent  = "Valable "+p.dureeLabel+" · Renouvelable avant échéance";
+  if(priceEl) priceEl.innerHTML = p.montant.toLocaleString("fr-FR")+" <span style='font-size:0.78rem;color:var(--muted);'>XAF</span>";
+  if(echEl)  echEl.textContent  = "📅 Échéance estimée : "+p.dureeLabel+" après activation";
+  // Notify amount change for the banner too
+  var inscBannerBtn = document.querySelector(".inscrire-big-btn");
+  // don't update banner — it opens modal
+}
+window.selectSubPlan = selectSubPlan;
+
+// ── Calcul date d'échéance ─────────────────────────────────────
+function computeEcheance(plan, startTs){
+  var p = SUBSCRIPTION_PLANS[plan];
+  if(!p) return null;
+  var start = startTs ? new Date(startTs) : new Date();
+  return new Date(start.getTime() + p.dureeJours * 86400000);
+}
+
+// ── Vérifier statut abonnement d'un établissement ─────────────
+function getSubscriptionStatus(etab){
+  if(!etab) return "aucun";
+  var type      = etab.abonnement_type || "mensuel";
+  var activatedAt = etab.abonnement_activated_at || etab.timestamp || Date.now();
+  var echeance  = computeEcheance(type, activatedAt);
+  if(!echeance) return "aucun";
+  var now = Date.now();
+  var msLeft = echeance.getTime() - now;
+  var daysLeft = Math.ceil(msLeft / 86400000);
+  if(daysLeft <= 0)  return "expire";
+  if(daysLeft <= 7)  return "critique";  // < 7j
+  if(daysLeft <= 14) return "alerte";    // < 14j
+  return "actif";
+}
+
+function getDaysLeft(etab){
+  var type = etab.abonnement_type || "mensuel";
+  var activatedAt = etab.abonnement_activated_at || etab.timestamp || Date.now();
+  var echeance = computeEcheance(type, activatedAt);
+  if(!echeance) return null;
+  return Math.ceil((echeance.getTime() - Date.now()) / 86400000);
+}
+
+function getEcheanceStr(etab){
+  var type = etab.abonnement_type || "mensuel";
+  var activatedAt = etab.abonnement_activated_at || etab.timestamp || Date.now();
+  var echeance = computeEcheance(type, activatedAt);
+  if(!echeance) return "—";
+  return echeance.toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"});
+}
+
+// ── Vérification automatique et notifications ─────────────────
+function checkSubscriptionRenewals(){
+  if(!window.db || !isAdmin) return;
+  var now = Date.now();
+  etablissements.forEach(function(etab){
+    if(!etab.paiement || etab.paiement.indexOf("Actif") === -1) return;
+    var status = getSubscriptionStatus(etab);
+    var daysLeft = getDaysLeft(etab);
+    if(daysLeft === null) return;
+    // Notifications d'avertissement
+    if(status === "expire"){
+      pushNotif({targetRole:"admin",key:"sub_expire_"+etab.id,icon:"🔴",title:"Abonnement EXPIRÉ — "+etab.nom,msg:"L'abonnement de "+etab.nom+" a expiré. Renouvellement en attente.",channel:"push"});
+    } else if(status === "critique"){
+      pushNotif({targetRole:"admin",key:"sub_critique_"+etab.id+"_d"+daysLeft,icon:"⚠️",title:"⚠️ Échéance dans "+daysLeft+"j — "+etab.nom,msg:"Rappel urgent : l'abonnement expire dans "+daysLeft+" jour(s). Contacter l'établissement.",channel:"push"});
+    } else if(status === "alerte" && daysLeft === 14){
+      pushNotif({targetRole:"admin",key:"sub_alerte14_"+etab.id,icon:"🔔",title:"Rappel abonnement — "+etab.nom,msg:"L'abonnement expire dans 14 jours ("+getEcheanceStr(etab)+").",channel:"push"});
+    }
+  });
+}
+
+// Lancer la vérification périodique
+setTimeout(function(){
+  checkSubscriptionRenewals();
+  setInterval(checkSubscriptionRenewals, 3600000); // toutes les heures
+}, 8000);
+
+// ── Notification établissement : rappel renouvellement ────────
+function notifyEtablissementRenewal(etab){
+  var status = getSubscriptionStatus(etab);
+  var daysLeft = getDaysLeft(etab);
+  if(status === "expire"){
+    pushNotif({targetRole:"etablissement",key:"my_sub_expire",icon:"🔴",title:"Votre abonnement est expiré !",msg:"Votre fiche n'est plus visible. Renouvelez votre abonnement pour rester sur AMBI241.",channel:"push"});
+  } else if(status === "critique"){
+    pushNotif({targetRole:"etablissement",key:"my_sub_critique",icon:"⚠️",title:"Abonnement expire dans "+daysLeft+"j !",msg:"Procédez au renouvellement avant le "+getEcheanceStr(etab)+" pour maintenir votre visibilité.",channel:"push"});
+  } else if(status === "alerte"){
+    pushNotif({targetRole:"etablissement",key:"my_sub_alerte",icon:"🔔",title:"Rappel renouvellement — "+daysLeft+" jours",msg:"Votre abonnement expire le "+getEcheanceStr(etab)+". Renouvelez dès maintenant.",channel:"push"});
+  }
+}
+window.notifyEtablissementRenewal = notifyEtablissementRenewal;
+
+// ── Badge de statut abonnement ─────────────────────────────────
+function renderSubStatusBadge(etab){
+  var status = getSubscriptionStatus(etab);
+  var daysLeft = getDaysLeft(etab);
+  var plan = SUBSCRIPTION_PLANS[etab.abonnement_type] || SUBSCRIPTION_PLANS["mensuel"];
+  if(status === "expire"){
+    return "<span class='sub-status-badge ssb-expire'>🔴 Expiré</span>";
+  } else if(status === "critique"){
+    return "<span class='sub-status-badge ssb-alerte'>⚠️ "+daysLeft+"j restants</span>";
+  } else if(status === "alerte"){
+    return "<span class='sub-status-badge ssb-alerte'>🔔 "+daysLeft+"j restants</span>";
+  } else if(status === "actif"){
+    return "<span class='sub-status-badge ssb-actif'>✅ Actif · "+plan.label+"</span>";
+  }
+  return "<span class='sub-status-badge ssb-attente'>⏳ En attente</span>";
+}
+window.renderSubStatusBadge = renderSubStatusBadge;
+
+// ── Renouvellement admin depuis le dashboard ───────────────────
+window.renewSubscription = function(etabId, plan){
+  if(!isAdmin){ showToast("Accès admin requis"); return; }
+  var etab = etablissements.find(function(e){ return String(e.id) === String(etabId); });
+  if(!etab){ showToast("Établissement introuvable"); return; }
+  var p = SUBSCRIPTION_PLANS[plan];
+  if(!p){ showToast("Formule invalide"); return; }
+  var now = Date.now();
+  var nowIso = new Date().toISOString();
+  // Si déjà actif, repart de la date d'échéance actuelle pour ne pas perdre de jours
+  var daysLeft = getDaysLeft(etab);
+  var baseTs = (daysLeft && daysLeft > 0) ? (Date.now() + daysLeft*86400000) : now;
+  var updateData = {
+    abonnement_type: plan,
+    abonnement_activated_at: now,
+    abonnement_echeance: computeEcheance(plan, now).toISOString(),
+    paiement: "Actif — "+p.label
+  };
+  if(window.db && window.fbDoc && window.fbUpdateDoc){
+    window.fbUpdateDoc(window.fbDoc(window.db, "etablissements", String(etabId)), updateData)
+      .then(function(){
+        etab.abonnement_type = plan;
+        etab.abonnement_activated_at = now;
+        etab.abonnement_echeance = updateData.abonnement_echeance;
+        etab.paiement = updateData.paiement;
+        showToast("✅ Abonnement "+p.label+" activé pour "+etab.nom);
+        renderAdmPayments();
+        pushNotif({targetRole:"admin",key:"sub_renewed_"+etabId,icon:"✅",title:"Abonnement renouvelé — "+etab.nom,msg:p.label+" activé. Échéance : "+getEcheanceStr(etab),channel:"push"});
+      }).catch(function(err){ showToast("Erreur : "+err.message); });
+  } else {
+    showToast("Firebase non disponible");
+  }
+};
+
+// ══════════════════════════════════════════════════════════════
 // ── SOUMISSION FORMULAIRE ÉTABLISSEMENT (Firebase + WhatsApp) ──
 function submitEtablissement(event){
   if(event) event.preventDefault();
@@ -5548,6 +5843,9 @@ function submitEtablissement(event){
   var ferm      = (form.querySelector("[name=fermeture]").value||"02h00").trim();
   var modePay   = (form.querySelector("[name=mode_paiement]").value||"").trim();
   var transaction=(form.querySelector("[name=transaction]").value||"").trim();
+  var abonnementType   = (document.getElementById("abonnementTypeInput") ? document.getElementById("abonnementTypeInput").value : "mensuel");
+  var abonnementMontant= (document.getElementById("abonnementMontantInput") ? parseInt(document.getElementById("abonnementMontantInput").value)||5000 : 5000);
+  var subPlan = SUBSCRIPTION_PLANS[abonnementType] || SUBSCRIPTION_PLANS["mensuel"];
   var consent   = document.getElementById("etablConsent").checked;
   var lat       = document.getElementById("latInput").value;
   var lng       = document.getElementById("lngInput").value;
@@ -5582,6 +5880,9 @@ function submitEtablissement(event){
     fermeture: ferm,
     mode_paiement: modePay,
     transaction: transaction,
+    abonnement_type: abonnementType,
+    abonnement_montant: abonnementMontant,
+    abonnement_duree: subPlan.dureeLabel,
     latitude: lat||"",
     longitude: lng||"",
     maps_url: mapsUrl||"",
@@ -5605,6 +5906,7 @@ function submitEtablissement(event){
       (email?"✉ Email : "+email+"\n":"")+
       "💳 Paiement : "+modePay+"\n"+
       "🔑 Transaction : "+transaction+"\n"+
+      "📅 Abonnement : "+subPlan.label+" — "+subPlan.montant.toLocaleString("fr-FR")+" XAF ("+subPlan.dureeLabel+")\n"+
       (lat?"📡 GPS : "+lat+","+lng+"\n":"")+
       "\nÀ valider dans le tableau de bord AMBI241."
     );
@@ -5616,7 +5918,7 @@ function submitEtablissement(event){
       msg.style.display="none";
     },4000);
     // Ajouter notif interne admin
-    pushNotif({targetRole:"admin",key:"new_demande",icon:"🏠",title:"Nouvelle demande — "+nom,msg:type+" à "+quartier+". Transaction: "+transaction,channel:"push",fromAdmin:false});
+    pushNotif({targetRole:"admin",key:"new_demande",icon:"🏠",title:"Nouvelle demande — "+nom,msg:type+" à "+quartier+". "+subPlan.label+" ("+subPlan.montant.toLocaleString("fr-FR")+" XAF). Txn: "+transaction,channel:"push",fromAdmin:false});
   }
 
   function onError(errMsg){
@@ -6168,6 +6470,8 @@ function checkAutoNotifs(){
     if(myEtab){
       if(myEtab.paiement&&myEtab.paiement.indexOf("Actif")!==-1){
         pushNotif({targetRole:"etablissement",key:"paiement_confirmed",icon:"✅",title:"Abonnement actif — "+myEtab.nom,msg:"Votre fiche est visible par tous les utilisateurs AMBI241.",channel:"push"});
+        // Vérifier renouvellement
+        notifyEtablissementRenewal(myEtab);
       }
       if((myEtab.affluence||0)>=80){
         pushNotif({targetRole:"etablissement",key:"top_affluence",icon:"🏆",title:"🏆 Vous êtes dans le Top 3 !",msg:myEtab.nom+" affiche "+myEtab.affluence+"% d'affluence.",channel:"push"});
@@ -6391,6 +6695,7 @@ function renderAdmEtabl(){
     html+="<div style='display:flex;gap:0.4rem;margin-top:0.4rem;'>";
     html+="<button onclick=\"deleteEtablissement("+e.id+")\" style='font-size:0.65rem;padding:0.2rem 0.5rem;border-radius:6px;background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.3);color:var(--red);cursor:pointer;'>&#128465; Supprimer</button>";
     html+="<button onclick=\"showToast('ID: "+e._docId+" · Email: "+(e.email||"N/A")+"')\" style='font-size:0.65rem;padding:0.2rem 0.5rem;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:var(--muted);cursor:pointer;'>&#128065; Infos</button>";
+    html+="<span style='margin-left:auto;'>"+renderSubStatusBadge(e)+"</span>";
     html+="</div>";
     html+="</div>";
   });
@@ -6606,31 +6911,114 @@ function renderAdmPayments(){
   var pending=paiements.filter(function(p){return p.statut==="En attente";});
   var rev=confirmed.reduce(function(s,p){return s+p.montant;},0);
   var html="";
+
+  // ── KPIs ──
   html+="<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:1rem;'>";
   html+="<div class='adm-kpi'><div class='kv' style='color:var(--green);'>"+confirmed.length+"</div><div class='kl'>Confirmés</div></div>";
   html+="<div class='adm-kpi'><div class='kv' style='color:var(--amber);'>"+pending.length+"</div><div class='kl'>En attente</div></div>";
   html+="<div class='adm-kpi'><div class='kv' style='color:var(--cyan);font-size:0.85rem;'>"+rev.toLocaleString("fr-FR")+" XAF</div><div class='kl'>Revenus</div></div>";
   html+="</div>";
+
+  // ── Alertes Abonnements expirants ──
+  var alertEtabs = etablissements.filter(function(e){
+    if(!e.paiement||e.paiement.indexOf("Actif")===-1) return false;
+    var s = getSubscriptionStatus(e);
+    return s==="expire"||s==="critique"||s==="alerte";
+  });
+  if(alertEtabs.length > 0){
+    html+="<div class='renewal-banner'>";
+    html+="<div style='font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;color:var(--pink);margin-bottom:0.5rem;'>🔔 Abonnements nécessitant attention ("+alertEtabs.length+")</div>";
+    alertEtabs.forEach(function(etab){
+      var status = getSubscriptionStatus(etab);
+      var daysLeft = getDaysLeft(etab);
+      var planKey = etab.abonnement_type || "mensuel";
+      var plan = SUBSCRIPTION_PLANS[planKey];
+      var statusIcon = status==="expire"?"🔴":status==="critique"?"⚠️":"🔔";
+      var statusLabel = status==="expire"?"Expiré":status==="critique"?"Critique — "+daysLeft+"j":"Alerte — "+daysLeft+"j";
+      html+="<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:0.7rem;margin-bottom:0.45rem;'>";
+      html+="<div style='display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:0.45rem;'>";
+      html+="<div style='flex:1;min-width:0;'>";
+      html+="<div style='font-weight:700;font-size:0.82rem;color:var(--text);'>"+statusIcon+" "+escHtml(etab.nom)+"</div>";
+      html+="<div style='font-size:0.65rem;color:var(--muted);'>"+statusLabel+" · Formule : "+(plan?plan.label:"Mensuel")+" · Échéance : "+getEcheanceStr(etab)+"</div>";
+      html+="</div>";
+      html+="</div>";
+      html+="<div style='display:grid;grid-template-columns:repeat(3,1fr);gap:0.3rem;'>";
+      Object.keys(SUBSCRIPTION_PLANS).forEach(function(planId){
+        var p = SUBSCRIPTION_PLANS[planId];
+        var isActive = planKey===planId;
+        html+="<button onclick=\"renewSubscription('"+etab.id+"','"+planId+"')\" style='padding:0.35rem 0.2rem;border-radius:7px;border:1px solid "+(isActive?"var(--amber)":"rgba(255,255,255,0.1)")+";background:"+(isActive?"rgba(255,215,0,0.1)":"rgba(255,255,255,0.03)")+";color:"+(isActive?"var(--amber)":"var(--muted)")+";font-size:0.6rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;'>"+p.icon+" "+p.label+"<br><span style=\"font-size:0.55rem;\">"+p.montant.toLocaleString("fr-FR")+" XAF</span></button>";
+      });
+      html+="</div>";
+      html+="</div>";
+    });
+    html+="</div>";
+  }
+
+  // ── Paiements en attente ──
   if(pending.length>0){
     html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--amber);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.5rem;'>⚠️ En attente de validation</div>";
     pending.forEach(function(p,i){
       var idx=paiements.indexOf(p);
+      var subLabel = p.abonnement_type ? " · "+(SUBSCRIPTION_PLANS[p.abonnement_type]||{label:p.abonnement_type}).label : "";
       html+="<div class='notif-admin-item' style='border-color:rgba(255,215,0,0.2);'>";
-      html+="<div style='display:flex;justify-content:space-between;'><div><div style='font-weight:700;font-size:0.83rem;color:var(--text);'>"+escHtml(p.nom)+"</div><div style='font-size:0.7rem;color:var(--muted);'>"+p.id+" · "+p.mode+" · "+p.date+"</div></div><div style='font-weight:800;color:var(--amber);font-size:0.9rem;'>"+p.montant.toLocaleString("fr-FR")+" XAF</div></div>";
+      html+="<div style='display:flex;justify-content:space-between;'><div><div style='font-weight:700;font-size:0.83rem;color:var(--text);'>"+escHtml(p.nom)+"</div><div style='font-size:0.7rem;color:var(--muted);'>"+p.id+" · "+p.mode+" · "+p.date+subLabel+"</div></div><div style='font-weight:800;color:var(--amber);font-size:0.9rem;'>"+p.montant.toLocaleString("fr-FR")+" XAF</div></div>";
       html+="<button onclick='toggleConfirme("+idx+")' style='width:100%;margin-top:0.6rem;padding:0.5rem;border-radius:8px;border:none;background:linear-gradient(135deg,var(--green),var(--cyan));color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer;'>&#10003; Confirmer ce paiement</button>";
       html+="</div>";
     });
   }
-  html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--green);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;margin:0.8rem 0 0.5rem;'>✅ Confirmés</div>";
-  confirmed.forEach(function(p,i){
-    var idx=paiements.indexOf(p);
-    html+="<div class='notif-admin-item' style='border-color:rgba(0,255,170,0.15);'>";
-    html+="<div style='display:flex;justify-content:space-between;align-items:center;'>";
-    html+="<div><div style='font-weight:600;font-size:0.8rem;color:var(--text);'>"+escHtml(p.nom)+"</div><div style='font-size:0.65rem;color:var(--muted);'>"+p.id+" · "+p.mode+"</div></div>";
-    html+="<div style='text-align:right;'><div style='font-weight:700;color:var(--green);font-size:0.82rem;'>"+p.montant.toLocaleString("fr-FR")+" XAF</div>";
-    html+="<button onclick='toggleConfirme("+idx+")' style='font-size:0.6rem;padding:0.15rem 0.4rem;border-radius:4px;background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.25);color:var(--red);cursor:pointer;'>Annuler</button></div>";
+
+  // ── Abonnements actifs avec tableau ──
+  html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--green);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;margin:0.8rem 0 0.5rem;'>📋 Abonnements établissements</div>";
+  var etabsActifs = etablissements.filter(function(e){ return e.paiement && e.paiement.indexOf("Actif") !== -1; });
+  if(!etabsActifs.length){
+    html+="<div style='text-align:center;padding:1.2rem;color:var(--muted);font-size:0.78rem;'>Aucun abonnement actif</div>";
+  }
+  etabsActifs.forEach(function(etab){
+    var status = getSubscriptionStatus(etab);
+    var daysLeft = getDaysLeft(etab);
+    var planKey = etab.abonnement_type || "mensuel";
+    var plan = SUBSCRIPTION_PLANS[planKey] || SUBSCRIPTION_PLANS["mensuel"];
+    var statusBadge = renderSubStatusBadge(etab);
+    html+="<div class='notif-admin-item' style='border-color:rgba(0,255,170,0.12);margin-bottom:0.55rem;'>";
+    html+="<div style='display:flex;align-items:flex-start;justify-content:space-between;gap:0.5rem;'>";
+    html+="<div style='flex:1;min-width:0;'>";
+    html+="<div style='font-weight:700;font-size:0.82rem;color:var(--text);'>"+escHtml(etab.nom)+"</div>";
+    html+="<div style='font-size:0.65rem;color:var(--muted);margin-top:0.1rem;'>"+plan.icon+" "+plan.label+" · Échéance : "+getEcheanceStr(etab)+"</div>";
+    html+="<div style='margin-top:0.3rem;'>"+statusBadge+"</div>";
+    html+="</div>";
+    html+="<div style='flex-shrink:0;text-align:right;'>";
+    html+="<div style='font-weight:800;font-size:0.82rem;color:var(--green);'>"+plan.montant.toLocaleString("fr-FR")+" XAF</div>";
+    html+="<div style='font-size:0.58rem;color:var(--muted);'>"+plan.dureeLabel+"</div>";
     html+="</div></div>";
+    // Renouvellement inline
+    if(status!=="actif" || (daysLeft && daysLeft <= 30)){
+      html+="<div style='margin-top:0.5rem;'>";
+      html+="<div style='font-size:0.62rem;color:var(--muted);margin-bottom:0.25rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;'>Renouveler :</div>";
+      html+="<div style='display:grid;grid-template-columns:repeat(3,1fr);gap:0.25rem;'>";
+      Object.keys(SUBSCRIPTION_PLANS).forEach(function(pid){
+        var pp = SUBSCRIPTION_PLANS[pid];
+        var isCurrent = pid === planKey;
+        html+="<button onclick=\"renewSubscription('"+etab.id+"','"+pid+"')\" style='padding:0.3rem 0.2rem;border-radius:7px;border:1px solid "+(isCurrent?"var(--amber)":"rgba(255,255,255,0.1)")+";background:"+(isCurrent?"rgba(255,215,0,0.08)":"rgba(255,255,255,0.02)")+";color:"+(isCurrent?"var(--amber)":"var(--muted)")+";font-size:0.6rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;'>"+pp.icon+" "+pp.label+"</button>";
+      });
+      html+="</div></div>";
+    }
+    html+="</div>";
   });
+
+  // ── Anciens paiements confirmés (legacy) ──
+  if(confirmed.length > 0){
+    html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;margin:0.8rem 0 0.5rem;'>🗂 Historique paiements</div>";
+    confirmed.forEach(function(p,i){
+      var idx=paiements.indexOf(p);
+      html+="<div class='notif-admin-item' style='border-color:rgba(0,255,170,0.15);'>";
+      html+="<div style='display:flex;justify-content:space-between;align-items:center;'>";
+      html+="<div><div style='font-weight:600;font-size:0.8rem;color:var(--text);'>"+escHtml(p.nom)+"</div><div style='font-size:0.65rem;color:var(--muted);'>"+p.id+" · "+p.mode+"</div></div>";
+      html+="<div style='text-align:right;'><div style='font-weight:700;color:var(--green);font-size:0.82rem;'>"+p.montant.toLocaleString("fr-FR")+" XAF</div>";
+      html+="<button onclick='toggleConfirme("+idx+")' style='font-size:0.6rem;padding:0.15rem 0.4rem;border-radius:4px;background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.25);color:var(--red);cursor:pointer;'>Annuler</button></div>";
+      html+="</div></div>";
+    });
+  }
+
   document.getElementById("adminPaymentsContent").innerHTML=html;
 }
 
