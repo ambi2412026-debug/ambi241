@@ -1393,6 +1393,13 @@ if (document.readyState === 'loading') {
       </div>
       <div id="loginMsg" style="font-size:0.78rem;text-align:center;margin-top:0.5rem;display:none;"></div>
     </div>
+    <!-- UTILISATEURS BLOQUÉS (affiché quand connecté) -->
+    <div id="blockedUsersSection" style="display:none;">
+      <div class="blocked-users-section">
+        <div class="blocked-users-title">🚫 Utilisateurs bloqués</div>
+        <div id="blockedUsersPanel"><div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem 0;">Aucun utilisateur bloqué</div></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1833,8 +1840,16 @@ if (document.readyState === 'loading') {
   <div class="overlay" id="pubComposeOverlay" onclick="if(event.target===this)closePubCompose()">
     <div class="modal pub-compose-modal" style="position:relative;max-height:90vh;overflow-y:auto;">
       <button class="modal-close" onclick="closePubCompose()">&#10005;</button>
-      <div class="modal-title">&#128221; Nouvelle publication</div>
+      <div class="modal-title" id="pubComposeTitle">&#128221; Nouvelle publication</div>
       <div class="modal-sub">Partagez avec la communauté AMBI241</div>
+
+      <!-- Bannière "En réponse à" -->
+      <div id="pubReplyBanner" class="pub-reply-banner" style="display:none;">
+        <span style="font-size:1rem;">↩</span>
+        <span class="pub-reply-banner-text" id="pubReplyBannerText">En réponse à...</span>
+        <button class="pub-reply-banner-cancel" onclick="cancelPubReply()">✕</button>
+      </div>
+
       <div class="field">
         <label>Type</label>
         <div class="pub-type-row">
@@ -2049,12 +2064,18 @@ onAuthStateChanged(auth, function(user) {
     setTimeout(function(){
       if(typeof checkSecondaryAdminAccess === "function") checkSecondaryAdminAccess();
       if(typeof renderAll === "function") { renderAll(); renderHome(); }
+      // Afficher la section utilisateurs bloqués dans le profil
+      var bu = document.getElementById("blockedUsersSection");
+      if(bu) bu.style.display = "block";
+      if(typeof window.renderBlockedUsersPanel === "function") window.renderBlockedUsersPanel();
     }, 2000);
   } else {
     window.currentUserEmail  = "";
     window.currentUserUID    = null;
     window.currentUserPseudo = "";
     updateHeaderUser(null);
+    var bu = document.getElementById("blockedUsersSection");
+    if(bu) bu.style.display = "none";
   }
   // Déclenche le rendu si l'app est déjà initialisée
   if (typeof renderAll === "function") { renderAll(); renderHome(); }
@@ -8001,6 +8022,96 @@ window.doAssignEtab = doAssignEtab;
 .role-etablissement{background:rgba(0,255,170,0.12);color:var(--green);}
 .role-visiteur{background:rgba(255,255,255,0.08);color:var(--muted);}
 .role-all{background:rgba(255,45,155,0.12);color:var(--pink);}
+
+/* ══ DISCUSSIONS — NOUVELLES FONCTIONNALITÉS ══ */
+
+/* ── Réponse à une publication ── */
+.pub-reply-banner{background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.2);border-radius:10px;padding:0.45rem 0.75rem;font-size:0.72rem;color:var(--cyan);display:flex;align-items:center;gap:0.5rem;margin-bottom:0.55rem;}
+.pub-reply-banner-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pub-reply-banner-cancel{background:none;border:none;color:var(--muted);font-size:0.8rem;cursor:pointer;padding:0;line-height:1;flex-shrink:0;}
+.pub-reply-banner-cancel:hover{color:var(--red);}
+.pub-comment-item.is-reply{margin-left:2.2rem;border-left:2px solid rgba(0,229,255,0.2);padding-left:0.6rem;}
+.pub-comment-reply-tag{font-size:0.65rem;color:var(--cyan);margin-bottom:0.2rem;display:flex;align-items:center;gap:0.25rem;}
+
+/* ── Réponse à un commentaire ── */
+.pub-cmt-reply-wrap{margin-left:2.4rem;margin-top:0.35rem;}
+.pub-cmt-reply-item{display:flex;gap:0.4rem;margin-bottom:0.4rem;}
+.pub-cmt-reply-avatar{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.55rem;font-weight:800;color:#fff;flex-shrink:0;}
+.pub-cmt-reply-body{flex:1;background:rgba(255,255,255,0.025);border-radius:8px;padding:0.35rem 0.5rem;}
+.pub-cmt-reply-meta{display:flex;align-items:center;gap:0.35rem;margin-bottom:0.15rem;}
+.pub-cmt-reply-author{font-size:0.68rem;font-weight:700;color:var(--text);}
+.pub-cmt-reply-time{font-size:0.58rem;color:rgba(255,255,255,0.3);margin-left:auto;}
+.pub-cmt-reply-text{font-size:0.74rem;color:var(--muted);line-height:1.45;word-break:break-word;}
+.pub-cmt-reply-tag{font-size:0.62rem;color:var(--cyan);font-weight:600;}
+.pub-cmt-reply-input-row{display:flex;gap:0.35rem;align-items:flex-end;margin-top:0.4rem;margin-left:2.4rem;}
+.pub-cmt-reply-input-row textarea{flex:1;background:rgba(255,255,255,0.035);border:1px solid rgba(0,229,255,0.2);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.74rem;padding:0.38rem 0.55rem;outline:none;resize:none;min-height:32px;line-height:1.4;}
+.pub-cmt-reply-input-row textarea:focus{border-color:rgba(0,229,255,0.45);}
+.pub-cmt-reply-send{background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:0.65rem;padding:0.35rem 0.6rem;border-radius:8px;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.pub-cmt-reply-cancel{background:none;border:1px solid rgba(255,255,255,0.1);color:var(--muted);font-size:0.65rem;padding:0.35rem 0.5rem;border-radius:8px;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+
+/* ── Bouton Répondre dans commentaire ── */
+.pub-cmt-action-row{display:flex;align-items:center;gap:0.5rem;margin-top:0.3rem;}
+.pub-cmt-reply-btn{background:none;border:none;color:var(--muted);font-size:0.68rem;font-weight:600;cursor:pointer;padding:0.15rem 0.3rem;border-radius:5px;transition:color 0.15s;font-family:'DM Sans',sans-serif;}
+.pub-cmt-reply-btn:hover{color:var(--cyan);}
+.pub-cmt-like-btn{background:none;border:none;color:var(--muted);font-size:0.68rem;font-weight:600;cursor:pointer;padding:0.15rem 0.3rem;border-radius:5px;transition:color 0.15s;font-family:'DM Sans',sans-serif;}
+.pub-cmt-like-btn:hover,.pub-cmt-like-btn.active{color:var(--pink);}
+
+/* ── Menu contextuel (3 points) ── */
+.pub-menu-btn{background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:0.2rem 0.4rem;border-radius:6px;line-height:1;flex-shrink:0;transition:color 0.15s;}
+.pub-menu-btn:hover{color:var(--text);}
+.pub-context-menu{position:absolute;top:100%;right:0;z-index:200;background:var(--surface);border:1px solid rgba(255,255,255,0.1);border-radius:12px;min-width:170px;box-shadow:0 8px 30px rgba(0,0,0,0.6);overflow:hidden;animation:popIn 0.18s cubic-bezier(0.34,1.56,0.64,1);}
+.pub-context-item{display:flex;align-items:center;gap:0.5rem;padding:0.65rem 0.9rem;font-size:0.8rem;font-weight:600;cursor:pointer;transition:background 0.12s;font-family:'DM Sans',sans-serif;color:var(--text);background:none;border:none;width:100%;text-align:left;}
+.pub-context-item:hover{background:rgba(255,255,255,0.06);}
+.pub-context-item.danger{color:var(--red);}
+.pub-context-item.danger:hover{background:rgba(255,68,102,0.1);}
+.pub-context-item.warning{color:var(--amber);}
+.pub-card-head-wrap{position:relative;}
+
+/* ── Blocage utilisateur ── */
+.block-overlay{display:none;position:fixed;inset:0;z-index:350;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);align-items:center;justify-content:center;padding:1rem;}
+.block-overlay.show{display:flex;}
+.block-modal{background:var(--surface);border:1px solid rgba(255,68,102,0.35);border-radius:22px;padding:1.8rem 1.5rem;width:min(360px,100%);text-align:center;animation:popIn 0.28s cubic-bezier(0.34,1.56,0.64,1);}
+.block-icon{font-size:2.8rem;margin-bottom:0.5rem;}
+.block-title{font-family:'Syne',sans-serif;font-size:1.05rem;font-weight:800;color:var(--red);margin-bottom:0.25rem;}
+.block-sub{font-size:0.78rem;color:var(--muted);line-height:1.5;margin-bottom:1.2rem;}
+.block-consequences{background:rgba(255,68,102,0.06);border:1px solid rgba(255,68,102,0.2);border-radius:12px;padding:0.8rem;text-align:left;margin-bottom:1.2rem;}
+.block-consequences li{font-size:0.75rem;color:var(--muted);line-height:1.7;list-style:none;display:flex;align-items:flex-start;gap:0.4rem;}
+.block-consequences li::before{content:"•";color:var(--red);flex-shrink:0;margin-top:0.1rem;}
+.block-actions{display:flex;gap:0.5rem;}
+.block-btn-confirm{flex:1;padding:0.7rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--red),#cc2244);color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;transition:opacity 0.2s;}
+.block-btn-confirm:active{opacity:0.8;}
+.block-btn-cancel{flex:1;padding:0.7rem;border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--muted);font-family:'DM Sans',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;}
+
+/* ── Signalement ── */
+.report-overlay{display:none;position:fixed;inset:0;z-index:350;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);align-items:center;justify-content:center;padding:1rem;}
+.report-overlay.show{display:flex;}
+.report-modal{background:var(--surface);border:1px solid rgba(255,215,0,0.3);border-radius:22px;padding:1.6rem 1.4rem;width:min(360px,100%);animation:popIn 0.28s cubic-bezier(0.34,1.56,0.64,1);}
+.report-title{font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:var(--amber);margin-bottom:0.25rem;}
+.report-sub{font-size:0.75rem;color:var(--muted);margin-bottom:1rem;}
+.report-reasons{display:flex;flex-direction:column;gap:0.4rem;margin-bottom:1rem;}
+.report-reason{display:flex;align-items:center;gap:0.6rem;padding:0.6rem 0.8rem;border-radius:10px;border:1px solid rgba(255,255,255,0.07);background:rgba(255,255,255,0.02);cursor:pointer;font-size:0.8rem;color:var(--text);font-family:'DM Sans',sans-serif;transition:all 0.15s;}
+.report-reason:hover{border-color:rgba(255,215,0,0.3);background:rgba(255,215,0,0.05);}
+.report-reason.selected{border-color:var(--amber);background:rgba(255,215,0,0.08);color:var(--amber);}
+.report-send-btn{width:100%;padding:0.7rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--amber),#ff8c00);color:#000;font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;margin-top:0.2rem;}
+.report-cancel-btn{width:100%;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:none;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:0.82rem;cursor:pointer;margin-top:0.4rem;}
+
+/* ── Utilisateurs bloqués (dans le profil) ── */
+.blocked-users-section{background:rgba(255,68,102,0.04);border:1px solid rgba(255,68,102,0.15);border-radius:14px;padding:0.9rem;margin-top:1rem;}
+.blocked-users-title{font-size:0.72rem;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.6rem;}
+.blocked-user-item{display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+.blocked-user-item:last-child{border-bottom:none;}
+.blocked-user-name{font-size:0.78rem;font-weight:600;color:var(--text);}
+.blocked-user-date{font-size:0.62rem;color:var(--muted);}
+.unblock-btn{font-size:0.65rem;font-weight:700;padding:0.22rem 0.55rem;border-radius:7px;border:1px solid rgba(0,255,170,0.3);background:rgba(0,255,170,0.07);color:var(--green);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s;}
+.unblock-btn:hover{background:rgba(0,255,170,0.15);}
+
+/* ── Publication masquée (utilisateur bloqué) ── */
+.pub-card.blocked-content{opacity:0.35;pointer-events:none;filter:blur(1px);position:relative;}
+.pub-card.blocked-content::after{content:"🚫 Contenu masqué";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;color:var(--red);background:rgba(13,0,20,0.6);border-radius:18px;pointer-events:all;}
+
+/* ── Tag "En réponse à" dans la publication ── */
+.pub-reply-to-tag{background:rgba(0,229,255,0.06);border-left:2px solid var(--cyan);padding:0.35rem 0.65rem;margin:0 1rem 0.5rem;border-radius:0 8px 8px 0;font-size:0.72rem;color:var(--muted);}
+.pub-reply-to-tag span{color:var(--cyan);font-weight:700;}
 </style>
 
 <!-- MODAL LEGAL (CGU / Confidentialite) -->
@@ -8752,7 +8863,7 @@ window.doAssignEtab = doAssignEtab;
     if(btn) btn.classList.add("active");
   };
 
-  window.openPubCompose = function(){
+  window.openPubCompose = function(replyToPubId, replyToPseudo){
     if(!window.currentUserUID){
       showToast("Connectez-vous pour publier !");
       document.getElementById("userOverlay").classList.add("show");
@@ -8761,6 +8872,20 @@ window.doAssignEtab = doAssignEtab;
     populateEtabSelect();
     _pubPhotos = [];
     renderPubPhotoGrid();
+    // Gestion réponse à une publication
+    _pubReplyTo = replyToPubId ? { pubId: replyToPubId, pseudo: replyToPseudo||"quelqu'un" } : null;
+    var replyBanner = document.getElementById("pubReplyBanner");
+    var replyBannerText = document.getElementById("pubReplyBannerText");
+    if(replyBanner && replyBannerText){
+      if(_pubReplyTo){
+        replyBannerText.textContent = "En réponse à @"+escHtml(_pubReplyTo.pseudo);
+        replyBanner.style.display = "flex";
+        // Pré-remplir le type en avis
+        window.selectPubType("avis");
+      } else {
+        replyBanner.style.display = "none";
+      }
+    }
     document.getElementById("pubComposeOverlay").classList.add("show");
   };
 
@@ -8769,9 +8894,18 @@ window.doAssignEtab = doAssignEtab;
     document.getElementById("pubTitleInput").value = "";
     document.getElementById("pubTextInput").value = "";
     _pubPhotos = [];
+    _pubReplyTo = null;
+    var replyBanner = document.getElementById("pubReplyBanner");
+    if(replyBanner) replyBanner.style.display = "none";
     renderPubPhotoGrid();
     var msg = document.getElementById("pubMsg");
     if(msg){ msg.style.display="none"; }
+  };
+
+  window.cancelPubReply = function(){
+    _pubReplyTo = null;
+    var replyBanner = document.getElementById("pubReplyBanner");
+    if(replyBanner) replyBanner.style.display = "none";
   };
 
   window.submitPub = async function(){
@@ -8797,6 +8931,11 @@ window.doAssignEtab = doAssignEtab;
         comments: 0,
         createdAt: window.fbServerTimestamp()
       };
+      // Réponse à une publication parente
+      if(_pubReplyTo){
+        data.replyToId = _pubReplyTo.pubId;
+        data.replyToPseudo = _pubReplyTo.pseudo;
+      }
       var docRef = await window.fbAddDoc(window.fbCollection(window.db, "publications"), data);
       // Upload photos si présentes
       if(_pubPhotos.length){
@@ -8809,7 +8948,7 @@ window.doAssignEtab = doAssignEtab;
       btn.disabled = false;
       btn.textContent = "🚀 Publier";
       window.closePubCompose();
-      showToast("Publication envoyée ✓");
+      showToast(_pubReplyTo ? "Réponse publiée ✓" : "Publication envoyée ✓");
     } catch(e) {
       btn.disabled = false;
       btn.textContent = "🚀 Publier";
@@ -8828,6 +8967,659 @@ window.doAssignEtab = doAssignEtab;
     window.fbUpdateDoc(window.fbDoc(window.db, "publications", id), { likes: newVal })
       .catch(function(){ if(spanEl) spanEl.textContent = current; btn.classList.remove("liked"); });
   };
+
+  // ══════════════════════════════════════════════════════
+  // ══ NOUVELLES FONCTIONNALITÉS DISCUSSIONS           ══
+  // ══════════════════════════════════════════════════════
+
+  // ── État réponse publication et blocage ──
+  var _pubReplyTo = null;
+  var _reportTarget = null;
+  var _blockTarget = null;
+  var _reportReason = null;
+
+  // ── Clés localStorage ──
+  function getBlockedUsers(){ try{ return JSON.parse(localStorage.getItem("ambi241_blocked_users")||"{}"); }catch(e){ return {}; } }
+  function saveBlockedUsers(obj){ try{ localStorage.setItem("ambi241_blocked_users", JSON.stringify(obj)); }catch(e){} }
+  function isBlocked(uid){ if(!uid) return false; var bl = getBlockedUsers(); return !!bl[uid]; }
+
+  // ── Modifier renderPubs pour masquer les publications des bloqués ──
+  var _origRenderPubs = renderPubs;
+  function renderPubsWithBlock(){
+    var list = document.getElementById("pubList");
+    if(!list) return;
+    var blocked = getBlockedUsers();
+    var filtered = _pubData.filter(function(p){
+      return (_pubTab === "tous" || p.type === _pubTab);
+    });
+    if(!filtered.length){
+      list.innerHTML = '<div class="pub-empty"><span>&#128221;</span>Aucune publication pour le moment.<br><small>Soyez le premier à publier !</small></div>';
+      var lm = document.getElementById("pubLoadMore");
+      if(lm) lm.style.display = "none";
+      return;
+    }
+    var show = filtered.slice(0, _pubPage);
+    list.innerHTML = show.map(function(p){
+      var card = buildPubCard(p);
+      // Si l'auteur est bloqué, masquer
+      if(p.uid && blocked[p.uid] && p.uid !== window.currentUserUID){
+        return '<div class="pub-card" style="padding:0.9rem 1rem;display:flex;align-items:center;gap:0.6rem;opacity:0.5;">'
+          +'<span style="font-size:1.2rem;">🚫</span>'
+          +'<div><div style="font-size:0.78rem;font-weight:700;color:var(--muted);">Contenu masqué</div>'
+          +'<div style="font-size:0.65rem;color:rgba(255,255,255,0.25);">Cet utilisateur est bloqué — <button onclick="openUnblockFromFeed(\''+escHtml(p.uid)+'\',\''+escHtml(p.pseudo||"cet utilisateur")+'\')" style="background:none;border:none;color:var(--cyan);font-size:0.65rem;cursor:pointer;text-decoration:underline;font-family:DM Sans,sans-serif;">Débloquer</button></div>'
+          +'</div></div>';
+      }
+      return card;
+    }).join("");
+    var lm = document.getElementById("pubLoadMore");
+    if(lm) lm.style.display = filtered.length > _pubPage ? "block" : "none";
+  }
+  renderPubs = renderPubsWithBlock;
+
+  // ── Reconstruit buildPubCard avec nouvelles fonctionnalités ──
+  function buildPubCard(p){
+    var typeLabel = {annonce:"Annonce",soiree:"Soirée",avis:"Avis",news:"News"}[p.type] || "Post";
+    var typeClass = "pub-type-"+(p.type||"avis");
+    var typeEmoji = {annonce:"&#128227;",soiree:"&#127881;",avis:"&#11088;",news:"&#128240;"}[p.type] || "&#128221;";
+    var initiale = (p.pseudo||p.auteur||"?")[0].toUpperCase();
+    var ts = "";
+    if(p.createdAt && p.createdAt.toDate){
+      var d = p.createdAt.toDate();
+      ts = d.toLocaleDateString("fr-FR",{day:"numeric",month:"short"}) + " · " + d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+    }
+    var roleClass = p.role === "admin" ? "pub-badge-admin" : (p.role === "etablissement" ? "pub-badge-etab" : "pub-badge-member");
+    var roleLabel = p.role === "admin" ? "&#9881; Admin" : (p.role === "etablissement" ? "&#127968; Établ." : "&#128100; Membre");
+    var etabTag = p.etab ? '<span class="pub-etab-tag">&#128205; '+escHtml(p.etab)+'</span>' : "";
+    var likes = p.likes || 0;
+    var comments = p.comments || 0;
+
+    // Photos
+    var photosHtml = "";
+    var photos = Array.isArray(p.photos) ? p.photos : [];
+    if(photos.length){
+      var cnt = Math.min(photos.length, 5);
+      var countClass = "count-"+cnt;
+      var imgs = photos.slice(0,5).map(function(url){
+        return '<img class="pub-photo-img'+(cnt===1?" tall":"")
+          +'" src="'+escHtml(url)+'" alt="" loading="lazy" onclick="openPubPhotoLightbox(\''+escHtml(url)+'\')">';
+      }).join("");
+      photosHtml = '<div class="pub-photos"><div class="pub-photos-row '+countClass+'">'+imgs+'</div></div>';
+    }
+
+    // Tag "En réponse à"
+    var replyTag = "";
+    if(p.replyToId && p.replyToPseudo){
+      replyTag = '<div class="pub-reply-to-tag">↩ En réponse à <span>@'+escHtml(p.replyToPseudo)+'</span></div>';
+    }
+
+    // Section commentaires
+    var commentsSection = buildCommentsSection(p._id, comments);
+
+    // Menu contextuel
+    var menuId = "pubMenu_"+p._id;
+    var isOwner = window.currentUserUID && window.currentUserUID === p.uid;
+    var menuItems = "";
+    menuItems += '<button class="pub-context-item" onclick="openPubCompose(\''+p._id+'\',\''+escHtml(p.pseudo||"Anonyme")+'\');closePubMenu(\''+p._id+'\')">↩ Répondre à cette publication</button>';
+    menuItems += '<button class="pub-context-item" onclick="sharePub(\''+p._id+'\');closePubMenu(\''+p._id+'\')">🔗 Copier le lien</button>';
+    if(!isOwner && window.currentUserUID){
+      menuItems += '<button class="pub-context-item warning" onclick="openReportModal(\'pub\',\''+p._id+'\',\''+escHtml(p.pseudo||"")+'\');closePubMenu(\''+p._id+'\')">⚠️ Signaler</button>';
+      menuItems += '<button class="pub-context-item danger" onclick="openBlockModal(\''+escHtml(p.uid||"")+'\',\''+escHtml(p.pseudo||"Anonyme")+'\');closePubMenu(\''+p._id+'\')">🚫 Bloquer @'+escHtml(p.pseudo||"Anonyme")+'</button>';
+    }
+    if(isOwner || window.isAdmin){
+      menuItems += '<button class="pub-context-item danger" onclick="deletePub(\''+p._id+'\');closePubMenu(\''+p._id+'\')">🗑 Supprimer</button>';
+    }
+
+    var menuHtml = '<div style="position:relative;">'
+      +'<button class="pub-menu-btn" onclick="togglePubMenu(\''+p._id+'\',event)" title="Plus d\'options">⋯</button>'
+      +'<div class="pub-context-menu" id="'+menuId+'" style="display:none;">'+menuItems+'</div>'
+      +'</div>';
+
+    return '<div class="pub-card" data-pubid="'+escHtml(p._id)+'">'
+      +'<div class="pub-card-head">'
+      +'<div class="pub-avatar" style="background:'+avatarColorPub(p.pseudo||"A")+'">'+initiale+'</div>'
+      +'<div class="pub-meta">'
+      +'<div class="pub-author">'+escHtml(p.pseudo||p.auteur||"Anonyme")+'<span class="pub-badge '+roleClass+'">'+roleLabel+'</span></div>'
+      +'<div class="pub-time">'+ts+' &nbsp;<span class="pub-type-chip '+typeClass+'">'+typeEmoji+' '+typeLabel+'</span></div>'
+      +'</div>'
+      +menuHtml
+      +'</div>'
+      +replyTag
+      +(p.titre ? '<div class="pub-body"><div class="pub-title">'+escHtml(p.titre)+'</div>' : '<div class="pub-body">')
+      +'<div class="pub-text">'+escHtml(p.texte||"")+'</div>'
+      +'</div>'
+      +photosHtml
+      +'<div class="pub-footer">'
+      +'<button class="pub-action-btn" onclick="likePub(\''+p._id+'\',this)">&#10084;&#65039; <span>'+likes+'</span></button>'
+      +'<button class="pub-action-btn" onclick="togglePubComments(\''+p._id+'\',this)">&#128172; <span>'+comments+'</span></button>'
+      +'<button class="pub-action-btn" style="margin-left:auto;" onclick="openPubCompose(\''+p._id+'\',\''+escHtml(p.pseudo||"Anonyme")+'\')">&#8629; Répondre</button>'
+      +'</div>'
+      +commentsSection
+      +'</div>';
+  }
+
+  // Couleur avatar déterministe pour publications
+  var PUB_AVATAR_COLORS = [
+    "linear-gradient(135deg,#ff2d9b,#cc44ff)",
+    "linear-gradient(135deg,#00e5ff,#00ffaa)",
+    "linear-gradient(135deg,#ffd700,#ff2d9b)",
+    "linear-gradient(135deg,#cc44ff,#00e5ff)",
+    "linear-gradient(135deg,#00ffaa,#ffd700)",
+    "linear-gradient(135deg,#ff4466,#ff2d9b)"
+  ];
+  function avatarColorPub(pseudo){
+    var h = 0;
+    for(var i=0;i<(pseudo||"").length;i++) h = (h*31 + pseudo.charCodeAt(i)) & 0xffff;
+    return PUB_AVATAR_COLORS[h % PUB_AVATAR_COLORS.length];
+  }
+
+  // ── Amélioration de buildCommentsSection avec réponses aux commentaires ──
+  function buildCommentsSection(pubId, count){
+    var inputHtml = window.currentUserUID
+      ? '<div id="pubCmtReplyBanner_'+pubId+'" class="pub-reply-banner" style="display:none;">'
+        +'<span style="font-size:1rem;">↩</span>'
+        +'<span class="pub-reply-banner-text" id="pubCmtReplyBannerText_'+pubId+'">En réponse à...</span>'
+        +'<button class="pub-reply-banner-cancel" onclick="cancelCmtReply(\''+pubId+'\')">✕</button>'
+        +'</div>'
+        +'<div class="pub-comment-input-row">'
+        +'<textarea class="pub-comment-textarea" id="pubCmtTxt_'+pubId+'" placeholder="Votre commentaire..." maxlength="300" rows="1"></textarea>'
+        +'<button class="pub-comment-send" onclick="sendPubComment(\''+pubId+'\')">Envoyer</button>'
+        +'</div>'
+      : '<div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.4rem 0;">Connectez-vous pour commenter</div>';
+
+    return '<div class="pub-comments-section hidden" id="pubCmtSection_'+pubId+'">'
+      +'<div id="pubCmtList_'+pubId+'"><div class="pub-comments-empty">Chargement...</div></div>'
+      +inputHtml
+      +'</div>';
+  }
+
+  // ── Toggle section commentaires ──
+  window.togglePubComments = function(pubId, btn){
+    var section = document.getElementById("pubCmtSection_"+pubId);
+    if(!section) return;
+    var isOpen = !section.classList.contains("hidden");
+    if(isOpen){
+      section.classList.add("hidden");
+      if(btn) btn.classList.remove("active-comment");
+    } else {
+      section.classList.remove("hidden");
+      if(btn) btn.classList.add("active-comment");
+      loadPubComments(pubId);
+      // Reconstruire le champ si utilisateur vient de se connecter
+      if(!section.querySelector(".pub-comment-textarea") && window.currentUserUID){
+        var inp = document.createElement("div");
+        inp.className = "pub-comment-input-row";
+        inp.innerHTML = '<textarea class="pub-comment-textarea" id="pubCmtTxt_'+pubId+'" placeholder="Votre commentaire..." maxlength="300" rows="1"></textarea>'
+          +'<button class="pub-comment-send" onclick="sendPubComment(\''+pubId+'\')">Envoyer</button>';
+        section.appendChild(inp);
+      }
+    }
+  };
+
+  // ── Charger commentaires d'une publication avec réponses enrichies ──
+  var _pubCmtReplyTo = {}; // { pubId: { cmtId, pseudo } }
+
+  function loadPubComments(pubId){
+    var listEl = document.getElementById("pubCmtList_"+pubId);
+    if(!listEl || !window.db) return;
+    listEl.innerHTML = '<div class="pub-comments-empty">Chargement...</div>';
+    var blocked = getBlockedUsers();
+    var q = window.fbQuery(
+      window.fbCollection(window.db, "publications", pubId, "comments"),
+      window.fbOrderBy("createdAt", "asc")
+    );
+    window.fbGetDocs(q).then(function(snap){
+      if(snap.empty){
+        listEl.innerHTML = '<div class="pub-comments-empty">&#128172; Aucun commentaire. Soyez le premier !</div>';
+        return;
+      }
+      var html = "";
+      snap.forEach(function(doc){
+        var c = doc.data();
+        var initiale = (c.pseudo||"?")[0].toUpperCase();
+        var ctime = "";
+        if(c.createdAt && c.createdAt.toDate){
+          var cd = c.createdAt.toDate();
+          ctime = cd.toLocaleDateString("fr-FR",{day:"numeric",month:"short"})+" · "+cd.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+        }
+        var canDel = (window.isAdmin || (window.currentUserUID && window.currentUserUID === c.uid));
+        var delBtn = canDel ? '<button class="pub-comment-del" onclick="deletePubComment(\''+pubId+'\',\''+doc.id+'\',this)" title="Supprimer">&#10005;</button>' : "";
+
+        // Masquer commentaires des utilisateurs bloqués
+        if(c.uid && blocked[c.uid] && c.uid !== window.currentUserUID){
+          html += '<div class="pub-comment-item" style="opacity:0.4;">'
+            +'<div class="pub-comment-avatar" style="background:rgba(255,68,102,0.3);">🚫</div>'
+            +'<div class="pub-comment-body">'
+            +'<div class="pub-comment-meta"><span class="pub-comment-author" style="color:var(--muted);">Contenu masqué</span>'
+            +'<span class="pub-comment-time">Utilisateur bloqué</span></div>'
+            +'</div></div>';
+          return;
+        }
+
+        // Tag de réponse si le commentaire répond à quelqu'un
+        var replyTagHtml = "";
+        if(c.replyToCmtPseudo){
+          replyTagHtml = '<div class="pub-comment-reply-tag">↩ <span style="font-weight:700;color:var(--cyan);">@'+escHtml(c.replyToCmtPseudo)+'</span></div>';
+        }
+
+        // Likes du commentaire
+        var cmtLikes = c.likes || 0;
+        var hasLiked = window.currentUserUID && Array.isArray(c.likedBy) && c.likedBy.indexOf(window.currentUserUID) !== -1;
+
+        // Boutons d'action sur le commentaire
+        var actionsHtml = '<div class="pub-cmt-action-row">';
+        actionsHtml += '<button class="pub-cmt-like-btn'+(hasLiked?" active":"")+'" onclick="likePubComment(\''+pubId+'\',\''+doc.id+'\',this)">❤ '+cmtLikes+'</button>';
+        if(window.currentUserUID){
+          actionsHtml += '<button class="pub-cmt-reply-btn" onclick="startCmtReply(\''+pubId+'\',\''+doc.id+'\',\''+escHtml(c.pseudo||"Anonyme")+'\')">↩ Répondre</button>';
+        }
+        if(!canDel && window.currentUserUID && c.uid !== window.currentUserUID){
+          actionsHtml += '<button class="pub-cmt-reply-btn" onclick="openReportModal(\'comment\',\''+pubId+'_'+doc.id+'\',\''+escHtml(c.pseudo||"")+'\')">⚠️ Signaler</button>';
+          actionsHtml += '<button class="pub-cmt-reply-btn" style="color:var(--red);" onclick="openBlockModal(\''+escHtml(c.uid||"")+'\',\''+escHtml(c.pseudo||"Anonyme")+'\')">🚫 Bloquer</button>';
+        }
+        actionsHtml += delBtn;
+        actionsHtml += '</div>';
+
+        // Sous-réponses au commentaire
+        var replies = Array.isArray(c.cmtReplies) ? c.cmtReplies : [];
+        var repliesHtml = "";
+        if(replies.length){
+          repliesHtml += '<div class="pub-cmt-reply-wrap">';
+          replies.forEach(function(r, ri){
+            if(r.uid && blocked[r.uid] && r.uid !== window.currentUserUID) return;
+            var rInit = (r.pseudo||"?")[0].toUpperCase();
+            var rCol = avatarColorPub(r.pseudo||"A");
+            var canDelR = window.isAdmin || (window.currentUserUID && window.currentUserUID === r.uid);
+            var rDelBtn = canDelR ? '<button style="background:none;border:none;color:rgba(255,68,102,0.5);font-size:0.62rem;cursor:pointer;margin-left:auto;" onclick="deletePubCmtReply(\''+pubId+'\',\''+doc.id+'\','+ri+')">✕</button>' : "";
+            var rTag = r.replyToPseudo ? '<div class="pub-cmt-reply-tag">↩ @'+escHtml(r.replyToPseudo)+'</div>' : "";
+            repliesHtml += '<div class="pub-cmt-reply-item">'
+              +'<div class="pub-cmt-reply-avatar" style="background:'+rCol+';">'+rInit+'</div>'
+              +'<div class="pub-cmt-reply-body">'
+              +rTag
+              +'<div class="pub-cmt-reply-meta"><span class="pub-cmt-reply-author">'+escHtml(r.pseudo||"Anonyme")+'</span>'
+              +'<span class="pub-cmt-reply-time">'+timeAgoShort(r.ts||0)+'</span>'+rDelBtn+'</div>'
+              +'<div class="pub-cmt-reply-text">'+escHtml(r.text||"")+'</div>'
+              +'</div></div>';
+          });
+          repliesHtml += '</div>';
+        }
+
+        html += '<div class="pub-comment-item" id="pubCmt_'+doc.id+'">'
+          +'<div class="pub-comment-avatar" style="background:'+avatarColorPub(c.pseudo||"A")+'">'+escHtml(initiale)+'</div>'
+          +'<div class="pub-comment-body">'
+          +'<div class="pub-comment-meta"><span class="pub-comment-author">'+escHtml(c.pseudo||"Anonyme")+'</span>'
+          +'<span class="pub-comment-time">'+ctime+'</span></div>'
+          +replyTagHtml
+          +'<div class="pub-comment-text">'+escHtml(c.texte||"")+'</div>'
+          +actionsHtml
+          +'</div>'
+          +'</div>'
+          +repliesHtml
+          +'<div id="pubCmtReplyInput_'+pubId+'_'+doc.id+'" style="display:none;"></div>';
+      });
+      listEl.innerHTML = html || '<div class="pub-comments-empty">&#128172; Aucun commentaire visible.</div>';
+    }).catch(function(){
+      listEl.innerHTML = '<div class="pub-comments-empty">Erreur de chargement.</div>';
+    });
+  }
+
+  // ── Démarrer une réponse à un commentaire ──
+  window.startCmtReply = function(pubId, cmtId, pseudo){
+    if(!window.currentUserUID){ showToast("Connectez-vous pour répondre"); return; }
+    _pubCmtReplyTo[pubId] = { cmtId: cmtId, pseudo: pseudo };
+    // Mettre à jour le banner de réponse
+    var banner = document.getElementById("pubCmtReplyBanner_"+pubId);
+    var bannerText = document.getElementById("pubCmtReplyBannerText_"+pubId);
+    if(banner && bannerText){
+      bannerText.textContent = "En réponse à @"+pseudo;
+      banner.style.display = "flex";
+    }
+    // Scroll et focus sur le textarea principal
+    var ta = document.getElementById("pubCmtTxt_"+pubId);
+    if(ta){
+      ta.focus();
+      ta.placeholder = "Répondre à @"+pseudo+"...";
+      ta.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
+
+  window.cancelCmtReply = function(pubId){
+    delete _pubCmtReplyTo[pubId];
+    var banner = document.getElementById("pubCmtReplyBanner_"+pubId);
+    if(banner) banner.style.display = "none";
+    var ta = document.getElementById("pubCmtTxt_"+pubId);
+    if(ta) ta.placeholder = "Votre commentaire...";
+  };
+
+  // ── Envoyer un commentaire (enrichi avec réponse) ──
+  window.sendPubComment = function(pubId){
+    if(!window.currentUserUID){ showToast("Connectez-vous pour commenter"); return; }
+    var ta = document.getElementById("pubCmtTxt_"+pubId);
+    if(!ta) return;
+    var texte = ta.value.trim();
+    if(!texte){ showToast("Commentaire vide"); return; }
+    var sendBtn = ta.parentNode ? ta.parentNode.querySelector(".pub-comment-send") : null;
+    if(sendBtn) sendBtn.disabled = true;
+
+    var replyInfo = _pubCmtReplyTo[pubId];
+    var data = {
+      uid: window.currentUserUID,
+      pseudo: window.currentUserPseudo || window.currentUserEmail || "Anonyme",
+      texte: texte,
+      likes: 0,
+      likedBy: [],
+      cmtReplies: [],
+      createdAt: window.fbServerTimestamp()
+    };
+    if(replyInfo){
+      data.replyToCmtId = replyInfo.cmtId;
+      data.replyToCmtPseudo = replyInfo.pseudo;
+    }
+
+    window.fbAddDoc(window.fbCollection(window.db, "publications", pubId, "comments"), data)
+      .then(function(){
+        ta.value = "";
+        ta.placeholder = "Votre commentaire...";
+        if(sendBtn) sendBtn.disabled = false;
+        window.cancelCmtReply(pubId);
+        // Incrémenter le compteur
+        var cardEl = document.querySelector('[data-pubid="'+pubId+'"]');
+        if(cardEl){
+          var cmtSpan = cardEl.querySelector('.pub-action-btn:nth-child(2) span');
+          if(cmtSpan) cmtSpan.textContent = (parseInt(cmtSpan.textContent)||0) + 1;
+        }
+        window.fbUpdateDoc(window.fbDoc(window.db, "publications", pubId), {
+          comments: ((_pubData.find(function(p){return p._id===pubId;})||{}).comments||0) + 1
+        }).catch(function(){});
+        loadPubComments(pubId);
+      })
+      .catch(function(e){
+        if(sendBtn) sendBtn.disabled = false;
+        showToast("Erreur : "+e.message);
+      });
+  };
+
+  // ── Liker un commentaire ──
+  window.likePubComment = function(pubId, cmtId, btn){
+    if(!window.currentUserUID){ showToast("Connectez-vous pour liker"); return; }
+    var docRef = window.fbDoc(window.db, "publications", pubId, "comments", cmtId);
+    window.fbGetDoc(docRef).then(function(snap){
+      if(!snap.exists()) return;
+      var data = snap.data();
+      var likedBy = Array.isArray(data.likedBy) ? data.likedBy.slice() : [];
+      var idx = likedBy.indexOf(window.currentUserUID);
+      var newLikes;
+      if(idx === -1){
+        likedBy.push(window.currentUserUID);
+        newLikes = (data.likes||0) + 1;
+        if(btn){ btn.classList.add("active"); btn.textContent = "❤ "+newLikes; }
+      } else {
+        likedBy.splice(idx,1);
+        newLikes = Math.max(0,(data.likes||1) - 1);
+        if(btn){ btn.classList.remove("active"); btn.textContent = "❤ "+newLikes; }
+      }
+      window.fbUpdateDoc(docRef, { likes: newLikes, likedBy: likedBy }).catch(function(){});
+    }).catch(function(){});
+  };
+
+  // ── Réponse imbriquée dans un commentaire (stockée dans cmtReplies[]) ──
+  window.sendPubCmtReply = function(pubId, cmtId, replyToPseudo){
+    if(!window.currentUserUID){ showToast("Connectez-vous pour répondre"); return; }
+    var ta = document.getElementById("crtxt_"+pubId+"_"+cmtId);
+    if(!ta) return;
+    var text = ta.value.trim();
+    if(!text){ ta.focus(); return; }
+    var btn = document.getElementById("crsend_"+pubId+"_"+cmtId);
+    if(btn){ btn.disabled = true; btn.textContent = "..."; }
+    var reply = {
+      uid: window.currentUserUID,
+      pseudo: window.currentUserPseudo || window.currentUserEmail || "Anonyme",
+      text: text,
+      replyToPseudo: replyToPseudo || null,
+      ts: Date.now()
+    };
+    var docRef = window.fbDoc(window.db, "publications", pubId, "comments", cmtId);
+    window.fbGetDoc(docRef).then(function(snap){
+      if(!snap.exists()) return;
+      var existing = snap.data().cmtReplies || [];
+      existing.push(reply);
+      return window.fbUpdateDoc(docRef, { cmtReplies: existing });
+    }).then(function(){
+      ta.value = "";
+      if(btn){ btn.disabled = false; btn.textContent = "↵"; }
+      var inputWrap = document.getElementById("pubCmtReplyInput_"+pubId+"_"+cmtId);
+      if(inputWrap) inputWrap.style.display = "none";
+      loadPubComments(pubId);
+      showToast("Réponse publiée !");
+    }).catch(function(err){
+      if(btn){ btn.disabled = false; btn.textContent = "↵"; }
+      showToast("Erreur : "+(err&&err.message||err));
+    });
+  };
+
+  // ── Supprimer une réponse imbriquée ──
+  window.deletePubCmtReply = function(pubId, cmtId, replyIdx){
+    if(!confirm("Supprimer cette réponse ?")) return;
+    var docRef = window.fbDoc(window.db, "publications", pubId, "comments", cmtId);
+    window.fbGetDoc(docRef).then(function(snap){
+      if(!snap.exists()) return;
+      var replies = snap.data().cmtReplies || [];
+      replies.splice(replyIdx, 1);
+      return window.fbUpdateDoc(docRef, { cmtReplies: replies });
+    }).then(function(){
+      loadPubComments(pubId);
+      showToast("Réponse supprimée");
+    }).catch(function(err){ showToast("Erreur : "+(err&&err.message||err)); });
+  };
+
+  // ── Supprimer un commentaire ──
+  window.deletePubComment = function(pubId, cmtId, btn){
+    if(!window.currentUserUID && !window.isAdmin){ showToast("Non autorisé"); return; }
+    if(!confirm("Supprimer ce commentaire ?")) return;
+    window.fbDeleteDoc(window.fbDoc(window.db, "publications", pubId, "comments", cmtId))
+      .then(function(){
+        var el = document.getElementById("pubCmt_"+cmtId);
+        if(el) el.remove();
+        var cardEl = document.querySelector('[data-pubid="'+pubId+'"]');
+        if(cardEl){
+          var cmtSpan = cardEl.querySelector('.pub-action-btn:nth-child(2) span');
+          if(cmtSpan){ var v = Math.max(0,(parseInt(cmtSpan.textContent)||0)-1); cmtSpan.textContent = v; }
+        }
+        window.fbUpdateDoc(window.fbDoc(window.db, "publications", pubId), {
+          comments: Math.max(0, ((_pubData.find(function(p){return p._id===pubId;})||{}).comments||1) - 1)
+        }).catch(function(){});
+      })
+      .catch(function(e){ showToast("Erreur : "+e.message); });
+  };
+
+  // ── Supprimer une publication ──
+  window.deletePub = function(pubId){
+    if(!window.currentUserUID && !window.isAdmin){ showToast("Non autorisé"); return; }
+    if(!confirm("Supprimer définitivement cette publication ?")) return;
+    window.fbDeleteDoc(window.fbDoc(window.db, "publications", pubId))
+      .then(function(){
+        showToast("Publication supprimée");
+        // Retirer localement
+        _pubData = _pubData.filter(function(p){ return p._id !== pubId; });
+        renderPubsWithBlock();
+      })
+      .catch(function(e){ showToast("Erreur : "+e.message); });
+  };
+
+  // ── Partager publication ──
+  window.sharePub = function(pubId){
+    var url = window.location.href.split("?")[0]+"?pub="+pubId;
+    if(navigator.clipboard){
+      navigator.clipboard.writeText(url).then(function(){ showToast("🔗 Lien copié !"); }).catch(function(){
+        prompt("Copier ce lien :", url);
+      });
+    } else {
+      prompt("Copier ce lien :", url);
+    }
+  };
+
+  // ── Menu contextuel (3 points) ──
+  var _openMenuId = null;
+  window.togglePubMenu = function(pubId, event){
+    event.stopPropagation();
+    var menu = document.getElementById("pubMenu_"+pubId);
+    if(!menu) return;
+    var isOpen = menu.style.display !== "none";
+    // Fermer tous les menus
+    document.querySelectorAll(".pub-context-menu").forEach(function(m){ m.style.display = "none"; });
+    if(!isOpen){
+      menu.style.display = "block";
+      _openMenuId = pubId;
+    } else {
+      _openMenuId = null;
+    }
+  };
+  window.closePubMenu = function(pubId){
+    var menu = document.getElementById("pubMenu_"+(pubId||_openMenuId));
+    if(menu) menu.style.display = "none";
+    _openMenuId = null;
+  };
+  document.addEventListener("click", function(){ 
+    document.querySelectorAll(".pub-context-menu").forEach(function(m){ m.style.display = "none"; });
+    _openMenuId = null;
+  });
+
+  // ── SYSTÈME DE BLOCAGE ──
+  window.openBlockModal = function(uid, pseudo){
+    if(!window.currentUserUID){ showToast("Connectez-vous pour bloquer un utilisateur"); return; }
+    if(!uid){ showToast("Impossible d'identifier cet utilisateur"); return; }
+    if(uid === window.currentUserUID){ showToast("Vous ne pouvez pas vous bloquer vous-même"); return; }
+    _blockTarget = { uid: uid, pseudo: pseudo };
+    var el = document.getElementById("blockTargetName");
+    if(el) el.textContent = "@"+pseudo;
+    var title = document.getElementById("blockModalTitle");
+    if(title) title.textContent = "Bloquer @"+pseudo;
+    document.getElementById("blockUserOverlay").classList.add("show");
+  };
+
+  window.closeBlockModal = function(){
+    document.getElementById("blockUserOverlay").classList.remove("show");
+    _blockTarget = null;
+  };
+
+  window.confirmBlockUser = function(){
+    if(!_blockTarget) return;
+    var blocked = getBlockedUsers();
+    blocked[_blockTarget.uid] = { pseudo: _blockTarget.pseudo, blockedAt: Date.now() };
+    saveBlockedUsers(blocked);
+    window.closeBlockModal();
+    showToast("🚫 @"+_blockTarget.pseudo+" est maintenant bloqué");
+    renderPubsWithBlock();
+    // Sauvegarder dans Firebase si possible
+    if(window.db && window.currentUserUID && window.fbSetDoc && window.fbDoc){
+      window.fbSetDoc(window.fbDoc(window.db,"blocked_users",window.currentUserUID+"_"+_blockTarget.uid),{
+        blockerUid: window.currentUserUID,
+        blockedUid: _blockTarget.uid,
+        blockedPseudo: _blockTarget.pseudo,
+        blockedAt: Date.now()
+      }).catch(function(){});
+    }
+  };
+
+  window.openUnblockFromFeed = function(uid, pseudo){
+    if(confirm("Débloquer @"+pseudo+" ?")){
+      unblockUser(uid, pseudo);
+    }
+  };
+
+  window.unblockUser = function(uid, pseudo){
+    var blocked = getBlockedUsers();
+    delete blocked[uid];
+    saveBlockedUsers(blocked);
+    showToast("✅ @"+pseudo+" a été débloqué");
+    renderPubsWithBlock();
+    // Supprimer de Firebase si possible
+    if(window.db && window.currentUserUID && window.fbDeleteDoc && window.fbDoc){
+      window.fbDeleteDoc(window.fbDoc(window.db,"blocked_users",window.currentUserUID+"_"+uid)).catch(function(){});
+    }
+    renderBlockedUsersPanel();
+  };
+
+  // ── Panel utilisateurs bloqués (dans profil) ──
+  window.renderBlockedUsersPanel = function(){
+    var container = document.getElementById("blockedUsersPanel");
+    if(!container) return;
+    var blocked = getBlockedUsers();
+    var keys = Object.keys(blocked);
+    if(!keys.length){
+      container.innerHTML = '<div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem 0;">Aucun utilisateur bloqué</div>';
+      return;
+    }
+    var html = "";
+    keys.forEach(function(uid){
+      var b = blocked[uid];
+      var ago = b.blockedAt ? timeAgoShort(b.blockedAt) : "";
+      html += '<div class="blocked-user-item">'
+        +'<div><div class="blocked-user-name">🚫 @'+escHtml(b.pseudo||uid)+'</div>'
+        +'<div class="blocked-user-date">Bloqué '+ago+'</div></div>'
+        +'<button class="unblock-btn" onclick="unblockUser(\''+uid+'\',\''+escHtml(b.pseudo||uid)+'\')">Débloquer</button>'
+        +'</div>';
+    });
+    container.innerHTML = html;
+  };
+
+  // ── SYSTÈME DE SIGNALEMENT ──
+  window.openReportModal = function(type, targetId, pseudo){
+    if(!window.currentUserUID){ showToast("Connectez-vous pour signaler"); return; }
+    _reportTarget = { type: type, id: targetId, pseudo: pseudo };
+    _reportReason = null;
+    document.querySelectorAll(".report-reason").forEach(function(b){ b.classList.remove("selected"); });
+    document.getElementById("reportOverlay").classList.add("show");
+  };
+
+  window.closeReportModal = function(){
+    document.getElementById("reportOverlay").classList.remove("show");
+    _reportTarget = null;
+    _reportReason = null;
+  };
+
+  window.selectReportReason = function(btn, reason){
+    document.querySelectorAll(".report-reason").forEach(function(b){ b.classList.remove("selected"); });
+    btn.classList.add("selected");
+    _reportReason = reason;
+  };
+
+  window.confirmReport = function(){
+    if(!_reportReason){ showToast("Choisissez une raison"); return; }
+    if(!_reportTarget) return;
+    var reportData = {
+      reporterUid: window.currentUserUID,
+      reporterPseudo: window.currentUserPseudo || "Anonyme",
+      targetType: _reportTarget.type,
+      targetId: _reportTarget.id,
+      targetPseudo: _reportTarget.pseudo,
+      reason: _reportReason,
+      ts: Date.now(),
+      status: "pending"
+    };
+    // Sauvegarder le signalement dans Firebase
+    if(window.db && window.fbAddDoc && window.fbCollection){
+      window.fbAddDoc(window.fbCollection(window.db, "reports"), reportData)
+        .then(function(){
+          // Notifier l'admin
+          try{ pushNotif({targetRole:"admin",key:"new_report",icon:"⚠️",title:"Nouveau signalement",msg:"Contenu signalé par @"+(window.currentUserPseudo||"?")+": "+_reportReason,channel:"push",fromAdmin:false}); }catch(e){}
+        })
+        .catch(function(){});
+    }
+    window.closeReportModal();
+    showToast("⚠️ Signalement envoyé — merci pour votre vigilance");
+  };
+
+  // ── Utilitaire temps court ──
+  function timeAgoShort(ts){
+    var diff = Date.now() - ts;
+    if(diff < 60000) return "à l'instant";
+    if(diff < 3600000) return Math.floor(diff/60000)+"min";
+    if(diff < 86400000) return Math.floor(diff/3600000)+"h";
+    return Math.floor(diff/86400000)+"j";
+  }
+
+  // Exposer renderBlockedUsersPanel
+  window.openBlockModal = window.openBlockModal;
+  window.renderBlockedUsersPanel = window.renderBlockedUsersPanel;
 
   // ══════════════════════════════════════════════════════════════
   // ══  WHATSAPP BROADCAST — Envoi groupé / individuel admin    ══
@@ -8972,6 +9764,45 @@ window.doAssignEtab = doAssignEtab;
 
 })();
 </script>
+<!-- ══ MODAL BLOCAGE UTILISATEUR ══ -->
+<div class="block-overlay" id="blockUserOverlay" onclick="if(event.target===this)closeBlockModal()">
+  <div class="block-modal">
+    <div class="block-icon">🚫</div>
+    <div class="block-title" id="blockModalTitle">Bloquer cet utilisateur</div>
+    <div class="block-sub" id="blockModalSub">Vous êtes sur le point de bloquer <strong id="blockTargetName">cet utilisateur</strong>.</div>
+    <div class="block-consequences">
+      <ul>
+        <li>Ses publications ne seront plus visibles pour vous</li>
+        <li>Ses commentaires seront masqués dans toutes les discussions</li>
+        <li>Il ne pourra pas interagir avec vos publications</li>
+        <li>Vous pouvez le débloquer à tout moment dans votre profil</li>
+      </ul>
+    </div>
+    <div class="block-actions">
+      <button class="block-btn-cancel" onclick="closeBlockModal()">Annuler</button>
+      <button class="block-btn-confirm" id="blockConfirmBtn" onclick="confirmBlockUser()">🚫 Bloquer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL SIGNALEMENT ══ -->
+<div class="report-overlay" id="reportOverlay" onclick="if(event.target===this)closeReportModal()">
+  <div class="report-modal">
+    <div style="font-size:1.6rem;text-align:center;margin-bottom:0.6rem;">⚠️</div>
+    <div class="report-title">Signaler ce contenu</div>
+    <div class="report-sub">Choisissez la raison du signalement. L'équipe AMBI241 examinera votre rapport.</div>
+    <div class="report-reasons" id="reportReasonsList">
+      <button class="report-reason" onclick="selectReportReason(this,'spam')">🗑 Spam ou publicité</button>
+      <button class="report-reason" onclick="selectReportReason(this,'inappropriate')">🔞 Contenu inapproprié</button>
+      <button class="report-reason" onclick="selectReportReason(this,'harassment')">😡 Harcèlement ou menaces</button>
+      <button class="report-reason" onclick="selectReportReason(this,'fake')">❌ Fausses informations</button>
+      <button class="report-reason" onclick="selectReportReason(this,'other')">💬 Autre raison</button>
+    </div>
+    <button class="report-send-btn" onclick="confirmReport()">⚠️ Envoyer le signalement</button>
+    <button class="report-cancel-btn" onclick="closeReportModal()">Annuler</button>
+  </div>
+</div>
+
 <!-- ══ MODAL WHATSAPP BROADCAST ══ -->
 <div class="overlay" id="waBroadcastOverlay" onclick="if(event.target===this)closeWaBroadcast()">
   <div class="wa-modal" style="position:relative;">
