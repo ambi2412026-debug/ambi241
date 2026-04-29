@@ -312,6 +312,14 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;}
 .cb-roof{background:rgba(0,229,255,0.12);color:var(--cyan);border:1px solid rgba(0,229,255,0.25);}
 .cb-snack{background:rgba(0,255,170,0.12);color:var(--green);border:1px solid rgba(0,255,170,0.25);}
 .cb-hotel{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.28);color:var(--cyan);}
+
+/* ══ CONTACT BUTTONS ══ */
+.card-contact-row{display:flex;gap:0.4rem;padding:0.55rem 0.9rem;flex-wrap:wrap;border-top:1px solid rgba(255,255,255,0.05);}
+.cc-btn{display:inline-flex;align-items:center;gap:0.3rem;padding:0.38rem 0.7rem;border-radius:20px;font-size:0.72rem;font-weight:700;text-decoration:none;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:all 0.18s;flex-shrink:0;}
+.cc-btn:active{opacity:0.75;transform:scale(0.96);}
+.cc-btn-wa{background:rgba(37,211,102,0.12);border:1px solid rgba(37,211,102,0.3);color:#25d366;}
+.cc-btn-tel{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);}
+.cc-btn-mail{background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);color:var(--amber);}
 .status-pill{display:inline-flex;align-items:center;padding:0.28rem 0.6rem;border-radius:100px;font-size:0.68rem;font-weight:700;white-space:nowrap;flex-shrink:0;margin-left:0.5rem;}
 .s-rouge{background:rgba(255,68,102,0.15);color:#ff6680;border:1px solid rgba(255,68,102,0.3);}
 .s-vert{background:rgba(0,255,170,0.12);color:#00ffaa;border:1px solid rgba(0,255,170,0.25);}
@@ -1536,6 +1544,7 @@ if (document.readyState === 'loading') {
         <button id="tabPaiements" onclick="switchAdminTab('paiements')" style="flex:1;padding:0.45rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:none;background:var(--amber);color:#000;font-family:'DM Sans',sans-serif;transition:all 0.2s;">&#128179; Paiements</button>
         <button id="tabVisiteurs" onclick="switchAdminTab('visiteurs')" style="flex:1;padding:0.45rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--amber);font-family:'DM Sans',sans-serif;transition:all 0.2s;">&#128202; Visiteurs</button>
         <button id="tabStatistiques" onclick="switchAdminTab('statistiques')" style="flex:1;padding:0.45rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--amber);font-family:'DM Sans',sans-serif;transition:all 0.2s;">&#128293; Stats</button>
+        <button id="tabContacts" onclick="switchAdminTab('contacts')" style="flex:1;padding:0.45rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--amber);font-family:'DM Sans',sans-serif;transition:all 0.2s;">&#128172; Contacts</button>
       </div>
       <!-- BOUTON AJOUT ADMIN GRATUIT -->
       <button onclick="openAdminAddModal()" style="width:100%;padding:0.75rem;border-radius:12px;border:2px dashed rgba(255,215,0,0.5);background:rgba(255,215,0,0.08);color:var(--amber);font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;margin-bottom:1rem;transition:all 0.2s;">&#43; Ajouter un établissement (gratuit)</button>
@@ -1550,6 +1559,10 @@ if (document.readyState === 'loading') {
       <!-- PANEL STATISTIQUES -->
       <div id="panelStatistiques" style="display:none">
         <div id="statsAdminPanel"></div>
+      </div>
+      <!-- PANEL CONTACTS CLIQUÉS -->
+      <div id="panelContacts" style="display:none">
+        <div id="contactsAdminPanel"><div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.82rem;">Chargement des contacts...</div></div>
       </div>
     </div>
     <!-- fallback payList pour compatibilité -->
@@ -2568,7 +2581,7 @@ function updatePayVis(){
 }
 
 function switchAdminTab(tab){
-  var tabs=["paiements","visiteurs","statistiques"];
+  var tabs=["paiements","visiteurs","statistiques","contacts"];
   tabs.forEach(function(t){
     var btn=document.getElementById("tab"+t.charAt(0).toUpperCase()+t.slice(1));
     var panel=document.getElementById("panel"+t.charAt(0).toUpperCase()+t.slice(1));
@@ -2576,7 +2589,57 @@ function switchAdminTab(tab){
     if(btn){btn.style.background=active?"var(--amber)":"transparent";btn.style.color=active?"#000":"var(--amber)";}
     if(panel)panel.style.display=active?"block":"none";
   });
+  if(tab==="contacts") renderContactsAdmin();
 }
+
+// ── Render admin contacts log panel ──
+function renderContactsAdmin(){
+  var panel=document.getElementById("contactsAdminPanel");
+  if(!panel)return;
+  if(!window.db||!window.fbGetDocs||!window.fbCollection){
+    panel.innerHTML="<div style='color:var(--muted);font-size:0.8rem;text-align:center;padding:2rem;'>Firebase non disponible</div>";
+    return;
+  }
+  panel.innerHTML="<div style='text-align:center;padding:2rem;color:var(--muted);font-size:0.8rem;'>⏳ Chargement...</div>";
+  window.fbGetDocs(window.fbCollection(window.db,"contact_clicks")).then(function(snap){
+    var clicks=[];
+    snap.forEach(function(doc){ clicks.push(Object.assign({_id:doc.id},doc.data())); });
+    clicks.sort(function(a,b){return (b.ts||0)-(a.ts||0);});
+    if(!clicks.length){
+      panel.innerHTML="<div style='text-align:center;padding:3rem;color:var(--muted);font-size:0.82rem;'>📭 Aucun contact enregistré pour l'instant</div>";
+      return;
+    }
+    var byChannel={whatsapp:0,telephone:0,email:0};
+    clicks.forEach(function(c){ byChannel[c.channel]=(byChannel[c.channel]||0)+1; });
+    var html="<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:1rem;'>";
+    html+="<div style='background:rgba(37,211,102,0.08);border:1px solid rgba(37,211,102,0.25);border-radius:10px;padding:0.7rem;text-align:center;'><div style='font-size:1.3rem;font-weight:800;color:#25d366;'>"+byChannel.whatsapp+"</div><div style='font-size:0.62rem;color:var(--muted);'>💬 WhatsApp</div></div>";
+    html+="<div style='background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.25);border-radius:10px;padding:0.7rem;text-align:center;'><div style='font-size:1.3rem;font-weight:800;color:var(--cyan);'>"+byChannel.telephone+"</div><div style='font-size:0.62rem;color:var(--muted);'>📞 Appels</div></div>";
+    html+="<div style='background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.25);border-radius:10px;padding:0.7rem;text-align:center;'><div style='font-size:1.3rem;font-weight:800;color:var(--amber);'>"+byChannel.email+"</div><div style='font-size:0.62rem;color:var(--muted);'>✉️ Emails</div></div>";
+    html+="</div>";
+    html+="<div style='font-size:0.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.5rem;'>📋 Historique ("+clicks.length+" entrées)</div>";
+    html+="<div style='display:flex;flex-direction:column;gap:0.5rem;'>";
+    clicks.slice(0,50).forEach(function(c){
+      var chIcon={whatsapp:"💬",telephone:"📞",email:"✉️"}[c.channel]||"📲";
+      var chColor={whatsapp:"#25d366",telephone:"var(--cyan)",email:"var(--amber)"}[c.channel]||"var(--muted)";
+      var dt=c.ts ? new Date(c.ts).toLocaleString("fr-FR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) : "—";
+      html+="<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.75rem 0.9rem;'>";
+      html+="<div style='display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.3rem;'>";
+      html+="<span style='font-size:0.82rem;font-weight:700;color:var(--text);'>"+chIcon+" "+escHtml(c.etabNom||"—")+"</span>";
+      html+="<span style='font-size:0.62rem;color:var(--muted);'>"+dt+"</span></div>";
+      html+="<div style='display:flex;gap:0.5rem;flex-wrap:wrap;font-size:0.68rem;'>";
+      html+="<span style='color:"+chColor+";font-weight:700;border:1px solid;border-color:"+chColor+";border-radius:5px;padding:0.08rem 0.35rem;'>"+c.channel+"</span>";
+      html+="<span style='color:var(--muted);'>👤 "+escHtml(c.pseudo||c.email||"Anonyme")+"</span>";
+      if(c.email && c.email!=="non connecté") html+="<span style='color:var(--cyan);'>"+escHtml(c.email)+"</span>";
+      html+="</div></div>";
+    });
+    html+="</div>";
+    if(clicks.length>50) html+="<div style='text-align:center;color:var(--muted);font-size:0.72rem;padding:0.8rem;'>... et "+(clicks.length-50)+" entrées supplémentaires</div>";
+    panel.innerHTML=html;
+  }).catch(function(err){
+    panel.innerHTML="<div style='color:var(--red);font-size:0.8rem;padding:1rem;'>Erreur : "+err.message+"</div>";
+  });
+}
+window.renderContactsAdmin = renderContactsAdmin;
 
 function renderVisitors(){
   var t=getTraffic();
@@ -2700,6 +2763,41 @@ function renderStatsAdmin(){
 
   var panel=document.getElementById("statsAdminPanel");
   if(panel)panel.innerHTML=html;
+
+  // ── Charger les stats de contacts depuis Firebase ──
+  if(window.db && window.fbGetDocs && window.fbCollection){
+    window.fbGetDocs(window.fbCollection(window.db,"contact_clicks")).then(function(snap){
+      var clicks=[];
+      snap.forEach(function(doc){ clicks.push(doc.data()); });
+      if(!clicks.length)return;
+      var byChannel={whatsapp:0,telephone:0,email:0};
+      var byEtab={};
+      clicks.forEach(function(c){
+        byChannel[c.channel]=(byChannel[c.channel]||0)+1;
+        byEtab[c.etabNom]=(byEtab[c.etabNom]||0)+1;
+      });
+      var topEtabs=Object.entries(byEtab).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
+      var chHtml="<div style='margin-top:1rem;'>";
+      chHtml+="<div style='font-family:Syne,sans-serif;font-size:0.72rem;font-weight:700;color:#25d366;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>📲 Contacts cliqués ("+clicks.length+" total)</div>";
+      chHtml+="<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:0.8rem;'>";
+      chHtml+="<div style='background:rgba(37,211,102,0.07);border:1px solid rgba(37,211,102,0.2);border-radius:10px;padding:0.7rem;text-align:center;'><div style='font-size:1.1rem;font-weight:800;color:#25d366;'>"+byChannel.whatsapp+"</div><div style='font-size:0.62rem;color:var(--muted);'>WhatsApp</div></div>";
+      chHtml+="<div style='background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.2);border-radius:10px;padding:0.7rem;text-align:center;'><div style='font-size:1.1rem;font-weight:800;color:var(--cyan);'>"+byChannel.telephone+"</div><div style='font-size:0.62rem;color:var(--muted);'>Téléphone</div></div>";
+      chHtml+="<div style='background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.2);border-radius:10px;padding:0.7rem;text-align:center;'><div style='font-size:1.1rem;font-weight:800;color:var(--amber);'>"+byChannel.email+"</div><div style='font-size:0.62rem;color:var(--muted);'>Email</div></div>";
+      chHtml+="</div>";
+      if(topEtabs.length){
+        chHtml+="<div style='font-size:0.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.4rem;'>🏆 Top établissements contactés</div>";
+        chHtml+="<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:0.8rem;'>";
+        topEtabs.forEach(function(e,i){
+          chHtml+="<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;'>";
+          chHtml+="<span style='font-size:0.78rem;color:var(--text);'>"+["🥇","🥈","🥉","4️⃣","5️⃣"][i]+" "+e[0]+"</span>";
+          chHtml+="<span style='font-size:0.75rem;font-weight:700;color:var(--pink);'>"+e[1]+" clic"+(e[1]>1?"s":"")+"</span></div>";
+        });
+        chHtml+="</div>";
+      }
+      chHtml+="</div>";
+      if(panel) panel.innerHTML += chHtml;
+    }).catch(function(){});
+  }
 }
 
 // USER ACCOUNT
@@ -3070,6 +3168,56 @@ function makeStars(n){
 }
 
 // BUILD CARD - all strings use double quotes
+// ══════════════════════════════════════════════════════════════
+// ══  CONTACT CLICK — Log Firebase + Notif Admin              ══
+// ══════════════════════════════════════════════════════════════
+function logContactClick(etabId, etabNom, channel){
+  var ts = Date.now();
+  var uid  = window.currentUserUID  || "anonyme";
+  var email= window.currentUserEmail|| "non connecté";
+  var pseudo=window.currentUserPseudo||email;
+
+  var logData = {
+    etabId:   String(etabId),
+    etabNom:  etabNom || "",
+    channel:  channel,        // "whatsapp" | "telephone" | "email"
+    uid:      uid,
+    email:    email,
+    pseudo:   pseudo,
+    ts:       ts,
+    userAgent: navigator.userAgent || "",
+    platform:  navigator.platform  || "",
+    sessionId: uid + "_" + ts
+  };
+
+  // ── Écriture dans Firebase "contact_clicks" ──
+  if(window.db && window.fbAddDoc && window.fbCollection){
+    window.fbAddDoc(window.fbCollection(window.db,"contact_clicks"), logData)
+      .then(function(){
+        // ── Notif push admin ──
+        if(typeof pushNotif === "function"){
+          var icons = {whatsapp:"💬", telephone:"📞", email:"✉️"};
+          var labels= {whatsapp:"WhatsApp", telephone:"Appel", email:"Email"};
+          pushNotif({
+            targetRole:"admin",
+            key:"contact_"+channel+"_"+etabId+"_"+ts,
+            icon: icons[channel]||"📲",
+            title:"Contact "+ (labels[channel]||channel)+" — "+etabNom,
+            msg:(pseudo||email)+" a contacté cet établissement via "+(labels[channel]||channel)+".",
+            channel:"push",
+            fromAdmin:false
+          });
+        }
+      }).catch(function(){});
+  }
+
+  // ── Notif locale si admin connecté ──
+  if(isAdmin && typeof showToast==="function"){
+    showToast("📲 Contact: "+etabNom+" via "+(channel==="whatsapp"?"WhatsApp":channel==="telephone"?"Tél":"Email"));
+  }
+}
+window.logContactClick = logContactClick;
+
 function buildCard(e,delay,compact){
   delay=delay||0;compact=compact||false;
   var sc=statusClass(e.statut);
@@ -3316,11 +3464,32 @@ function buildCard(e,delay,compact){
     affBar+
     "<div class=\"card-ambiance\"><span class=\"lbl\">Ambiance</span><span class=\"val\">"+e.ambiance+"</span></div>"+
     (e.description && getCategory(e.type)==="Hotel" ? "<div style=\"font-size:0.72rem;color:var(--muted);line-height:1.5;padding:0.4rem 0.7rem;background:rgba(0,229,255,0.04);border-radius:8px;margin:0.4rem 0;border-left:2px solid rgba(0,229,255,0.3);\">&#127968; "+e.description+"</div>" : "")+
-    "<div class=\"info-line\">&#128222; <a href=\"tel:"+((e.contact||"").replace(/\s/g,""))+"\" style=\"color:var(--cyan);text-decoration:none;font-weight:600;\">"+e.contact+"</a></div>"+
     mapsBtn+
     "</div>"+soireeHtml+
     presRow+
     vipBtn+
+    // ── BARRE CONTACT cliquable (WhatsApp / Tél / Email) ──
+    (function(){
+      var tel = (e.contact||"").replace(/\s/g,"");
+      var nom = (e.nom||"").replace(/'/g,"");
+      var waNum = tel.replace(/\+/g,"");
+      var waMsg = encodeURIComponent("Bonjour "+nom+" (via AMBI241), je souhaite vous contacter.");
+      var waUrl = "https://wa.me/"+waNum+"?text="+waMsg;
+      var mailUrl = e.email ? "mailto:"+e.email : "mailto:ambi2412026@gmail.com?subject=Contact%20"+encodeURIComponent(nom)+"%20via%20AMBI241";
+      var html = "<div class='card-contact-row'>";
+      // Téléphone
+      if(tel){
+        html += "<a class='cc-btn cc-btn-tel' href='tel:"+tel+"' onclick=\"logContactClick('"+e.id+"','"+nom+"','telephone')\" title='Appeler'>&#128222; Appeler</a>";
+      }
+      // WhatsApp — seulement si numéro disponible
+      if(waNum && waNum.length >= 8){
+        html += "<a class='cc-btn cc-btn-wa' href='"+waUrl+"' target='_blank' onclick=\"logContactClick('"+e.id+"','"+nom+"','whatsapp')\" title='WhatsApp'>&#128172; WhatsApp</a>";
+      }
+      // Email
+      html += "<a class='cc-btn cc-btn-mail' href='"+mailUrl+"' onclick=\"logContactClick('"+e.id+"','"+nom+"','email')\" title='Email'>&#9993; Email</a>";
+      html += "</div>";
+      return html;
+    })()+
     "<div class=\"card-bottom\">"+
     "<div style=\"display:flex;align-items:center\"><div class=\"stars\">"+makeStars(e.note)+"</div>"+
     "<span class=\"note\">"+e.note+"</span><span class=\"avis\">"+e.avis+" avis</span></div>"+
