@@ -1619,6 +1619,7 @@ if (document.readyState === 'loading') {
         <button class="hero-btn hero-btn-primary" onclick="switchSection('etablissements',document.querySelectorAll('.nav-item')[1])">&#128269; Explorer les lieux</button>
         <button class="hero-btn hero-btn-secondary" onclick="document.getElementById('etablModal').classList.add('show')">+ Inscrire mon etablissement</button>
         <button class="hero-btn" onclick="quickNearby()" style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);">&#128205; Près de moi</button>
+        <button class="hero-btn hero-btn-install" id="installPwaBtn" onclick="installPWA()" style="display:none;background:linear-gradient(135deg,rgba(204,68,255,0.18),rgba(255,45,155,0.12));border:1px solid rgba(204,68,255,0.45);color:var(--purple);font-weight:800;">&#128640; Installer Ambi241</button>
       </div>
     </div>
     <!-- STATS RAPIDES -->
@@ -9502,6 +9503,36 @@ window.doAssignEtab = doAssignEtab;
     <button class="rating-submit-btn" id="ratingSubmitBtn" onclick="submitRating()" disabled>&#11088; Envoyer ma note</button>
   </div>
 </div>
+
+<script>
+/* ══ PWA INSTALL ══ */
+var _pwaInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', function(e){
+  e.preventDefault();
+  _pwaInstallPrompt = e;
+  var btn = document.getElementById('installPwaBtn');
+  if(btn) btn.style.display = 'inline-flex';
+});
+window.addEventListener('appinstalled', function(){
+  _pwaInstallPrompt = null;
+  var btn = document.getElementById('installPwaBtn');
+  if(btn) btn.style.display = 'none';
+  showToast('✅ Ambi241 installé avec succès !');
+});
+function installPWA(){
+  if(_pwaInstallPrompt){
+    _pwaInstallPrompt.prompt();
+    _pwaInstallPrompt.userChoice.then(function(r){
+      if(r.outcome==='accepted'){ showToast('&#128640; Installation en cours...'); }
+      _pwaInstallPrompt = null;
+      var btn = document.getElementById('installPwaBtn');
+      if(btn) btn.style.display = 'none';
+    });
+  } else {
+    showToast('Ouvrez ce site dans votre navigateur pour installer l\'app');
+  }
+}
+</script>
 
 <script>
 function closeGuide(){
