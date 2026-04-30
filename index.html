@@ -166,6 +166,21 @@ header{position:sticky;top:0;z-index:100;background:rgba(13,0,20,0.96);backdrop-
 .lightbox img{max-width:95vw;max-height:90vh;object-fit:contain;border-radius:8px;}
 .lightbox-close{position:absolute;top:1rem;right:1rem;background:rgba(255,255,255,0.1);border:none;color:white;width:40px;height:40px;border-radius:50%;cursor:pointer;font-size:1.2rem;display:flex;align-items:center;justify-content:center;}
 
+/* ══ RATING MODAL ══ */
+.rating-modal-wrap{background:var(--surface);border:1px solid rgba(255,215,0,0.3);border-radius:24px;padding:1.8rem 1.5rem;width:min(380px,100%);max-height:90vh;overflow-y:auto;box-shadow:0 0 40px rgba(255,215,0,0.15);animation:popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);position:relative;}
+.rating-stars-row{display:flex;gap:0.4rem;justify-content:center;margin:1rem 0;}
+.rating-star{font-size:2.2rem;cursor:pointer;transition:transform 0.15s,filter 0.15s;filter:grayscale(1);opacity:0.35;user-select:none;}
+.rating-star.on{filter:none;opacity:1;color:#ffd700;}
+.rating-star:hover{transform:scale(1.2);}
+.rating-value-lbl{text-align:center;font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:var(--amber);min-height:1.2rem;margin-bottom:0.5rem;}
+.rating-submit-btn{width:100%;padding:0.8rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--amber),var(--pink));color:#000;font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;cursor:pointer;margin-top:0.5rem;transition:opacity 0.2s;}
+.rating-submit-btn:disabled{opacity:0.4;cursor:not-allowed;}
+/* Live data badges in card */
+.live-note-badge{display:inline-flex;align-items:center;gap:0.2rem;background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.3);border-radius:6px;padding:0.12rem 0.45rem;font-size:0.72rem;font-weight:800;color:var(--amber);}
+.live-presence-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px rgba(0,255,170,0.7);animation:pulse 1.5s infinite;margin-right:3px;}
+.rate-btn{background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.3);color:var(--amber);font-size:0.72rem;font-weight:700;padding:0.28rem 0.6rem;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;display:inline-flex;align-items:center;gap:0.25rem;}
+.rate-btn:active{opacity:0.75;}
+
 /* MAIN */
 main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;width:100%;box-sizing:border-box;}
 @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
@@ -2116,6 +2131,165 @@ if (window.__appReady) { loadData(); }
 setTimeout(function(){
   if(typeof loadAdminConfig === "function") loadAdminConfig();
 }, 400);
+
+// ══════════════════════════════════════════════════════════════
+// ══  MOTEUR DONNÉES RÉELLES FIRESTORE — TEMPS RÉEL          ══
+// ══  Présences · Votes · Notes · Avis · Classement Live     ══
+// ══════════════════════════════════════════════════════════════
+
+// Cache global temps réel (partagé avec le script principal)
+window._livePresences = {};  // { eid: { count: N, users: [...] } }
+window._liveVotes     = {};  // { eid: { pos: N, neg: N, myVote: null|'pos'|'neg' } }
+window._liveRatings   = {};  // { eid: { note: X.X, avis: N } }
+
+var _presUnsubs  = {}; // unsubscribe map pour présences
+var _voteUnsubs  = {}; // unsubscribe map pour votes
+var _rateUnsubs  = {}; // unsubscribe map pour ratings
+
+// ── Abonner un établissement à ses flux Firestore ────────────
+function _subscribeEtab(eid) {
+  var eidStr = String(eid);
+
+  // ── Présences (sous-collection) ──────────────────────────────
+  if (!_presUnsubs[eidStr]) {
+    try {
+      var presCol = collection(db, "etablissements", eidStr, "presences");
+      _presUnsubs[eidStr] = onSnapshot(presCol, function(snap) {
+        var now = Date.now();
+        var TTL = 3 * 3600 * 1000;
+        var users = [];
+        snap.forEach(function(d) {
+          var data = d.data();
+          if (data.ts && (now - data.ts) < TTL) {
+            users.push({ uid: d.id, pseudo: data.pseudo || "Visiteur", ts: data.ts });
+          }
+        });
+        window._livePresences[eidStr] = { count: users.length, users: users };
+        _patchCardPresence(eid);
+        _updateRankScoreLive();
+      }, function() {});
+    } catch(e) {}
+  }
+
+  // ── Votes (sous-collection) ──────────────────────────────────
+  if (!_voteUnsubs[eidStr]) {
+    try {
+      var voteCol = collection(db, "etablissements", eidStr, "votes");
+      _voteUnsubs[eidStr] = onSnapshot(voteCol, function(snap) {
+        var pos = 0, neg = 0, myVote = null;
+        var myUid = window.currentUserUID || null;
+        snap.forEach(function(d) {
+          var v = d.data().vote;
+          if (v === "pos") pos++;
+          if (v === "neg") neg++;
+          if (myUid && d.id === myUid) myVote = v || null;
+        });
+        window._liveVotes[eidStr] = { pos: pos, neg: neg, myVote: myVote };
+        _patchCardVotes(eid);
+        _updateRankScoreLive();
+      }, function() {});
+    } catch(e) {}
+  }
+
+  // ── Ratings / Notes (sous-collection "ratings") ──────────────
+  if (!_rateUnsubs[eidStr]) {
+    try {
+      var rateCol = collection(db, "etablissements", eidStr, "ratings");
+      _rateUnsubs[eidStr] = onSnapshot(rateCol, function(snap) {
+        var total = 0, count = 0;
+        snap.forEach(function(d) {
+          var r = d.data().rating;
+          if (r >= 1 && r <= 5) { total += r; count++; }
+        });
+        var avgNote = count > 0 ? Math.round((total / count) * 10) / 10 : 0;
+        window._liveRatings[eidStr] = { note: avgNote, avis: count };
+        // Mettre à jour l'établissement local
+        var etab = (typeof etablissements !== "undefined") ? etablissements.find(function(x){ return x.id === eid; }) : null;
+        if (etab && count > 0) {
+          etab.note = avgNote;
+          etab.avis = count;
+        }
+        _patchCardRating(eid);
+        _updateRankScoreLive();
+      }, function() {});
+    } catch(e) {}
+  }
+}
+
+// ── Patch en direct des éléments DOM sans re-render total ───
+function _patchCardPresence(eid) {
+  var eidStr = String(eid);
+  var live = window._livePresences[eidStr] || { count: 0, users: [] };
+  // Mettre à jour le compteur dans la carte via l'élément id
+  var presCountEls = document.querySelectorAll("[data-live-pres='"+eidStr+"']");
+  presCountEls.forEach(function(el) {
+    el.textContent = live.count;
+  });
+  var presLabelEls = document.querySelectorAll("[data-live-presl='"+eidStr+"']");
+  presLabelEls.forEach(function(el) {
+    el.textContent = live.count + " pers. sur place";
+  });
+}
+
+function _patchCardVotes(eid) {
+  var eidStr = String(eid);
+  var live = window._liveVotes[eidStr] || { pos: 0, neg: 0, myVote: null };
+  var posEl = document.getElementById("vpos-" + eidStr);
+  var negEl = document.getElementById("vneg-" + eidStr);
+  if (posEl) posEl.textContent = live.pos;
+  if (negEl) negEl.textContent = live.neg;
+}
+
+function _patchCardRating(eid) {
+  var eidStr = String(eid);
+  var live = window._liveRatings[eidStr];
+  if (!live) return;
+  var noteEls = document.querySelectorAll("[data-live-note='"+eidStr+"']");
+  noteEls.forEach(function(el) { el.textContent = live.note.toFixed(1); });
+  var avisEls = document.querySelectorAll("[data-live-avis='"+eidStr+"']");
+  avisEls.forEach(function(el) { el.textContent = live.avis + " avis"; });
+}
+
+// ── Recalcul du score de classement et mise à jour en direct ──
+function _updateRankScoreLive() {
+  if (typeof etablissements === "undefined" || !etablissements.length) return;
+  // Re-calculer le score de chaque étab avec les données live
+  var scored = etablissements.map(function(e) {
+    var eidStr = String(e.id);
+    var lp = window._livePresences[eidStr] || { count: 0 };
+    var lv = window._liveVotes[eidStr]     || { pos: 0, neg: 0 };
+    var base = e.affluence || 0;
+    var presBonus = Math.min(lp.count * 3, 30);
+    var voteBonus = (lv.pos * 2) - (lv.neg * 3);
+    var realAff = Math.max(0, Math.min(100, base + presBonus + voteBonus));
+    return { id: e.id, score: realAff };
+  }).sort(function(a, b) { return b.score - a.score; });
+  // Mettre à jour les badges de rang dans le DOM
+  scored.forEach(function(r, idx) {
+    var rankEls = document.querySelectorAll("[data-live-rank='"+r.id+"']");
+    var medal = idx === 0 ? "🏆 #1" : idx === 1 ? "🥈 #2" : idx === 2 ? "🥉 #3" : "#" + (idx + 1);
+    var color = idx === 0 ? "var(--amber)" : idx === 1 ? "#c0c0c0" : idx === 2 ? "#cd7f32" : "var(--muted)";
+    rankEls.forEach(function(el) {
+      el.textContent = medal;
+      el.style.color = color;
+    });
+  });
+}
+
+// ── S'abonner à tous les étabs connus ────────────────────────
+function _subscribeAllEtabs() {
+  if (typeof etablissements === "undefined") return;
+  etablissements.forEach(function(e) { _subscribeEtab(e.id); });
+}
+
+// Appeler dès que Firebase est prêt + après chaque loadData
+window._subscribeAllEtabs = _subscribeAllEtabs;
+
+// Abonnement immédiat (les établissements locaux sont déjà chargés)
+setTimeout(function() {
+  _subscribeAllEtabs();
+}, 800);
+
 </script>
 
 <!-- ══ APPLICATION PRINCIPALE (script classique, accès global) ══ -->
@@ -2389,21 +2563,10 @@ function loadSlotPhotos(eid){
   var now=Date.now();
   return (stored[eid]||[]).filter(function(p){return(now-p.ts)<36000000;});
 }
-// ── PAIEMENTS : générés dynamiquement depuis les établissements ──
-// Les 8 entrées hardcodées sont conservées comme base historique,
-// les établissements manquants sont ajoutés automatiquement.
-var _paiementsBase=[
-  {id:"PAY-001",nom:"Lounge Bar",mode:"Airtel Money",montant:5000,date:"2025-01-15",statut:"Confirme"},
-  {id:"PAY-002",nom:"Miami Club",mode:"Moov Money",montant:5000,date:"2025-01-16",statut:"Confirme"},
-  {id:"PAY-003",nom:"Urban Rooftop",mode:"Airtel Money",montant:5000,date:"2025-01-17",statut:"Confirme"},
-  {id:"PAY-004",nom:"Azor Discotheque",mode:"Moov Money",montant:5000,date:"2025-01-18",statut:"Confirme"},
-  {id:"PAY-005",nom:"Jazz Cafe",mode:"Airtel Money",montant:5000,date:"2025-01-19",statut:"Confirme"},
-  {id:"PAY-006",nom:"Le Nid Bar",mode:"Moov Money",montant:5000,date:"2025-01-20",statut:"En attente"},
-  {id:"PAY-007",nom:"Savana Resto",mode:"Airtel Money",montant:5000,date:"2025-01-21",statut:"Confirme"},
-  {id:"PAY-008",nom:"Sky Lounge",mode:"Moov Money",montant:5000,date:"2025-01-22",statut:"Confirme"}
-];
+// ── PAIEMENTS : chargés depuis Firebase, pas de base hardcodée fictive ──
+var _paiementsBase=[];  // sera alimenté exclusivement par Firebase + établissements réels
 var _paiementsFirebase=[]; // chargés depuis Firebase
-var paiements=_paiementsBase.slice();
+var paiements=[];
 
 // Génère le tableau paiements complet : base + Firebase + tous les établissements non couverts
 function rebuildPaiements(){
@@ -2418,10 +2581,15 @@ function rebuildPaiements(){
     if(!merged[key]){
       var modes=["Airtel Money","Moov Money"];
       var mode=modes[i%2];
-      // Date fictive relative à l'ordre d'inscription
-      var base=new Date("2025-01-15");
-      base.setDate(base.getDate()+i);
-      var dateStr=base.getFullYear()+"-"+String(base.getMonth()+1).padStart(2,"0")+"-"+String(base.getDate()).padStart(2,"0");
+      // Date réelle si disponible (abonnement_activated_at), sinon date du jour
+      var dateStr = "";
+      if(e.abonnement_activated_at){
+        var d=new Date(e.abonnement_activated_at);
+        dateStr=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+      } else {
+        var today=new Date();
+        dateStr=today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
+      }
       // Statut basé sur le champ paiement de l'établissement
       var statut=(e.paiement&&e.paiement.indexOf("Actif")!==-1)?"Confirme":"En attente";
       var num=Object.keys(merged).length+1;
@@ -2788,24 +2956,17 @@ window.renderAdmClassement = renderAdmClassement;
 
 function getDefaults(){
   return [
-    {id:1,nom:"Lounge Bar",type:"Bar Lounge",quartier:"Centre-ville",ambiance:"Festif",statut:"Ouvert - Bonde",note:4.2,avis:38,contact:"+241 074 123 456",paiement:"Actif",affluence:85,maps_url:"https://maps.google.com/?q=Lounge+Bar+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:2,nom:"Miami Club",type:"Discotheque",quartier:"Louis",ambiance:"Tres Festif",statut:"Ouvert - Anime",note:4.5,avis:62,contact:"+241 066 789 012",paiement:"Actif",affluence:70,maps_url:"https://maps.google.com/?q=Miami+Club+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:3,nom:"Urban Rooftop",type:"Bar Rooftop",quartier:"Montagne Sainte",ambiance:"Chill",statut:"Ouvert - Calme",note:3.9,avis:21,contact:"+241 077 345 678",paiement:"Actif",affluence:30,maps_url:"https://maps.google.com/?q=Urban+Rooftop+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:4,nom:"Azor Discotheque",type:"Discotheque",quartier:"Batterie IV",ambiance:"Tres Festif",statut:"Ouvert - Bonde",note:4.7,avis:95,contact:"+241 062 901 234",paiement:"Actif",affluence:95,maps_url:"https://maps.google.com/?q=Azor+Discotheque+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:5,nom:"Jazz Cafe",type:"Cafe Restaurant",quartier:"Akebe",ambiance:"Chill",statut:"Ouvert - Anime",note:4.1,avis:17,contact:"+241 074 567 890",paiement:"Actif",affluence:45,maps_url:"https://maps.google.com/?q=Jazz+Cafe+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:6,nom:"Le Nid Bar",type:"Snack-Bar",quartier:"PK5",ambiance:"Festif",statut:"Ouvert - Calme",note:3.6,avis:8,contact:"+241 066 234 567",paiement:"En attente",affluence:20,maps_url:"https://maps.google.com/?q=Le+Nid+Bar+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:7,nom:"Savana Resto",type:"Restaurant",quartier:"Nombakele",ambiance:"Festif",statut:"Ouvert - Anime",note:4.3,avis:44,contact:"+241 077 890 123",paiement:"Actif",affluence:60,maps_url:"https://maps.google.com/?q=Savana+Resto+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:8,nom:"Sky Lounge",type:"Bar Rooftop",quartier:"Sotega",ambiance:"Tres Festif",statut:"Ouvert - Bonde",note:4.6,avis:79,contact:"+241 062 456 789",paiement:"Actif",affluence:90,maps_url:"https://maps.google.com/?q=Sky+Lounge+Libreville",photo_interieur:"",photo_exterieur:""},
+    // Établissements réels vérifiés via Google Places (place_id + coordonnées GPS)
     {id:9,nom:"Yoka_Lounge",type:"Discotheque",quartier:"Centre-ville",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:153,contact:"+241 77 46 11 46",paiement:"En attente",affluence:46,lat:0.4399067,lng:9.4178608,place_id:"ChIJdX05QME7fxAR2Pvl8RHwxhM",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJdX05QME7fxAR2Pvl8RHwxhM",photo_interieur:"",photo_exterieur:""},
     {id:10,nom:"No Stress",type:"Bar",quartier:"Louis",ambiance:"Anime",statut:"Ouvert - Calme",note:3.9,avis:695,contact:"+241 66 26 66 94",paiement:"En attente",affluence:49,lat:0.4062708,lng:9.4330562,place_id:"ChIJR8fPZg47fxARj_2tJJo_ZEI",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJR8fPZg47fxARj_2tJJo_ZEI",photo_interieur:"",photo_exterieur:""},
-    {id:11,nom:"HYPE BAR LOUNGE",type:"Bar Lounge",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:343,contact:"+241 00 00 00 00",paiement:"En attente",affluence:49,lat:0.3970804,lng:9.4450048,place_id:"ChIJ5cGvApA7fxAR0ivmZjTaBps",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ5cGvApA7fxAR0ivmZjTaBps",photo_interieur:"",photo_exterieur:""},
+    {id:11,nom:"HYPE BAR LOUNGE",type:"Bar Lounge",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:343,contact:"",paiement:"En attente",affluence:49,lat:0.3970804,lng:9.4450048,place_id:"ChIJ5cGvApA7fxAR0ivmZjTaBps",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ5cGvApA7fxAR0ivmZjTaBps",photo_interieur:"",photo_exterieur:""},
     {id:12,nom:"IBIZA NIGHTCLUB",type:"Discotheque",quartier:"Awendje",ambiance:"Anime",statut:"Ouvert - Calme",note:3.5,avis:59,contact:"+241 66 06 08 94",paiement:"En attente",affluence:21,lat:0.4304241,lng:9.4741436,place_id:"ChIJbe9wK8Q9fxARn7pfCKr8u_4",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJbe9wK8Q9fxARn7pfCKr8u_4",photo_interieur:"",photo_exterieur:""},
     {id:13,nom:"Insomnia",type:"Discotheque",quartier:"Louis",ambiance:"Anime",statut:"Ouvert - Calme",note:3.5,avis:21,contact:"+241 66 29 89 41",paiement:"En attente",affluence:20,lat:0.4097084,lng:9.4317941,place_id:"ChIJw01_DQs7fxARkcOP8RNoPbk",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJw01_DQs7fxARkcOP8RNoPbk",photo_interieur:"",photo_exterieur:""},
     {id:14,nom:"The Spot",type:"Bar",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.2,avis:67,contact:"+241 66 49 31 88",paiement:"En attente",affluence:49,lat:0.41765,lng:9.46948,place_id:"ChIJTWOdc549fxAR3cja4Xt39BM",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJTWOdc549fxAR3cja4Xt39BM",photo_interieur:"",photo_exterieur:""},
     {id:15,nom:"LIroko",type:"Bar Lounge",quartier:"Glass",ambiance:"Anime",statut:"Ouvert - Calme",note:3.8,avis:340,contact:"+241 74 51 84 57",paiement:"En attente",affluence:37,lat:0.3693162,lng:9.4570184,place_id:"ChIJIYbaaJ8_fxARpezZORim6j8",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJIYbaaJ8_fxARpezZORim6j8",photo_interieur:"",photo_exterieur:""},
     {id:16,nom:"Le Stone",type:"Bar Lounge",quartier:"Akanda",ambiance:"Festif",statut:"Ouvert - Calme",note:4.2,avis:48,contact:"+241 66 12 39 56",paiement:"En attente",affluence:48,lat:0.5093725,lng:9.4057482,place_id:"ChIJEZY8nIElfxAR_N7fhQ91vd0",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJEZY8nIElfxAR_N7fhQ91vd0",photo_interieur:"",photo_exterieur:""},
     {id:17,nom:"The Black Moon",type:"Discotheque",quartier:"Akanda",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:40,contact:"+241 74 01 57 57",paiement:"En attente",affluence:43,lat:0.504208,lng:9.392055,place_id:"ChIJX6CeljklfxARsIUQ8oAAhJY",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJX6CeljklfxARsIUQ8oAAhJY",photo_interieur:"",photo_exterieur:""},
-    {id:18,nom:"New Sunset Lounge Bar",type:"Discotheque",quartier:"Louis",ambiance:"Anime",statut:"Ouvert - Calme",note:3.9,avis:65,contact:"+241 00 00 00 00",paiement:"En attente",affluence:37,lat:0.4073798,lng:9.4318995,place_id:"ChIJM4PQrzk7fxARdEpzXhhKc2w",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJM4PQrzk7fxARdEpzXhhKc2w",photo_interieur:"",photo_exterieur:""},
+    {id:18,nom:"New Sunset Lounge Bar",type:"Discotheque",quartier:"Louis",ambiance:"Anime",statut:"Ouvert - Calme",note:3.9,avis:65,contact:"",paiement:"En attente",affluence:37,lat:0.4073798,lng:9.4318995,place_id:"ChIJM4PQrzk7fxARdEpzXhhKc2w",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJM4PQrzk7fxARdEpzXhhKc2w",photo_interieur:"",photo_exterieur:""},
     {id:19,nom:"Chez Dede",type:"Restaurant",quartier:"Centre-ville",ambiance:"Tres Festif",statut:"Ouvert - Anime",note:4.6,avis:96,contact:"+241 62 12 58 00",paiement:"En attente",affluence:64,lat:0.4430902,lng:9.4240407,place_id:"ChIJ59RZctElfxAROG3gBalmhP0",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ59RZctElfxAROG3gBalmhP0",photo_interieur:"",photo_exterieur:""},
     {id:20,nom:"La Voile Rouge",type:"Restaurant",quartier:"Louis",ambiance:"Anime",statut:"Ouvert - Calme",note:3.9,avis:802,contact:"+241 11 44 87 92",paiement:"En attente",affluence:52,lat:0.4257589,lng:9.4212315,place_id:"ChIJpYXkniI7fxARDtu78sQ_za4",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJpYXkniI7fxARDtu78sQ_za4",photo_interieur:"",photo_exterieur:""},
     {id:21,nom:"LOdika",type:"Restaurant",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.0,avis:338,contact:"+241 11 73 69 20",paiement:"En attente",affluence:46,lat:0.4127673,lng:9.4327373,place_id:"ChIJd3pt8go7fxARWFx8G63ZfnM",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJd3pt8go7fxARWFx8G63ZfnM",photo_interieur:"",photo_exterieur:""},
@@ -2823,13 +2984,13 @@ function getDefaults(){
     {id:33,nom:"Entre Nous Restaurant & Bar",type:"Bar",quartier:"Centre-ville",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:139,contact:"+241 66 99 21 98",paiement:"En attente",affluence:45,lat:0.4409874,lng:9.4434806,place_id:"ChIJN_z4U1Y7fxARTpu3F2bzwPU",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJN_z4U1Y7fxARTpu3F2bzwPU",photo_interieur:"",photo_exterieur:""},
     {id:34,nom:"Bineva Snack-Bar",type:"Snack-Bar",quartier:"Nzeng-Ayong",ambiance:"Tres Festif",statut:"Ouvert - Anime",note:5.0,avis:1,contact:"+241 66 10 90 46",paiement:"En attente",affluence:80,lat:0.4153086,lng:9.4815077,place_id:"ChIJ514xOuw9fxARKE9_zP4megk",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ514xOuw9fxARKE9_zP4megk",photo_interieur:"",photo_exterieur:""},
     {id:35,nom:"VIP Night Club",type:"Discotheque",quartier:"Louis",ambiance:"Anime",statut:"Ouvert - Calme",note:3.8,avis:204,contact:"+241 77 89 24 62",paiement:"En attente",affluence:35,lat:0.4091286,lng:9.4328372,place_id:"ChIJW8uY4go7fxAR8SIYtQ4mx1M",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJW8uY4go7fxAR8SIYtQ4mx1M",photo_interieur:"",photo_exterieur:""},
-    {id:36,nom:"Cotton Club",type:"Discotheque",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:73,contact:"+241 00 00 00 00",paiement:"En attente",affluence:44,lat:0.4120434,lng:9.4285665,place_id:"ChIJD3ZXHQw7fxARxNdszKkhkek",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJD3ZXHQw7fxARxNdszKkhkek",photo_interieur:"",photo_exterieur:""},
+    {id:36,nom:"Cotton Club",type:"Discotheque",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:73,contact:"",paiement:"En attente",affluence:44,lat:0.4120434,lng:9.4285665,place_id:"ChIJD3ZXHQw7fxARxNdszKkhkek",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJD3ZXHQw7fxARxNdszKkhkek",photo_interieur:"",photo_exterieur:""},
     {id:37,nom:"Boomerang Night Club",type:"Discotheque",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:23,contact:"+241 62 28 19 19",paiement:"En attente",affluence:43,lat:0.4073107,lng:9.4345255,place_id:"ChIJA16SUHU7fxARc1L4R_yR9a0",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJA16SUHU7fxARc1L4R_yR9a0",photo_interieur:"",photo_exterieur:""},
-    {id:38,nom:"La Noche Discotheque",type:"Discotheque",quartier:"Centre-ville",ambiance:"Anime",statut:"Ouvert - Calme",note:3.9,avis:8,contact:"+241 00 00 00 00",paiement:"En attente",affluence:36,lat:0.4386529,lng:9.4402257,place_id:"ChIJUylRSDk7fxAR1e4BG88skSg",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJUylRSDk7fxAR1e4BG88skSg",photo_interieur:"",photo_exterieur:""},
+    {id:38,nom:"La Noche Discotheque",type:"Discotheque",quartier:"Centre-ville",ambiance:"Anime",statut:"Ouvert - Calme",note:3.9,avis:8,contact:"",paiement:"En attente",affluence:36,lat:0.4386529,lng:9.4402257,place_id:"ChIJUylRSDk7fxAR1e4BG88skSg",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJUylRSDk7fxAR1e4BG88skSg",photo_interieur:"",photo_exterieur:""},
     {id:39,nom:"THE LIGHTS",type:"Discotheque",quartier:"Akanda",ambiance:"Tres Festif",statut:"Ouvert - Calme",note:4.3,avis:23,contact:"+241 66 13 09 75",paiement:"En attente",affluence:51,lat:0.5110594,lng:9.4061635,place_id:"ChIJqdY9hQ09fxAR3Pd6kAHiAa8",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJqdY9hQ09fxAR3Pd6kAHiAa8",photo_interieur:"",photo_exterieur:""},
-    {id:40,nom:"CEYO NIGHTCLUB",type:"Discotheque",quartier:"Nzeng-Ayong",ambiance:"Anime",statut:"Ouvert - Calme",note:3.8,avis:38,contact:"+241 00 00 00 00",paiement:"En attente",affluence:31,lat:0.4333249,lng:9.4841343,place_id:"ChIJ5-vIs9I9fxAR4A79RMNnJoQ",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ5-vIs9I9fxAR4A79RMNnJoQ",photo_interieur:"",photo_exterieur:""},
-    {id:41,nom:"Le Phoenix Night Club",type:"Discotheque",quartier:"Nzeng-Ayong",ambiance:"Festif",statut:"Ouvert - Calme",note:4.2,avis:10,contact:"+241 00 00 00 00",paiement:"En attente",affluence:48,lat:0.4274256,lng:9.4774206,place_id:"ChIJe75Tmr88fxARevbrLUcTvzc",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJe75Tmr88fxARevbrLUcTvzc",photo_interieur:"",photo_exterieur:""},
-    {id:42,nom:"LOxy Snack Bar Et Nightclub",type:"Discotheque",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.2,avis:19,contact:"+241 00 00 00 00",paiement:"En attente",affluence:48,lat:0.3976322,lng:9.4410695,place_id:"ChIJL2WJsrg7fxARA9LHKr8EPNs",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJL2WJsrg7fxARA9LHKr8EPNs",photo_interieur:"",photo_exterieur:""},
+    {id:40,nom:"CEYO NIGHTCLUB",type:"Discotheque",quartier:"Nzeng-Ayong",ambiance:"Anime",statut:"Ouvert - Calme",note:3.8,avis:38,contact:"",paiement:"En attente",affluence:31,lat:0.4333249,lng:9.4841343,place_id:"ChIJ5-vIs9I9fxAR4A79RMNnJoQ",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ5-vIs9I9fxAR4A79RMNnJoQ",photo_interieur:"",photo_exterieur:""},
+    {id:41,nom:"Le Phoenix Night Club",type:"Discotheque",quartier:"Nzeng-Ayong",ambiance:"Festif",statut:"Ouvert - Calme",note:4.2,avis:10,contact:"",paiement:"En attente",affluence:48,lat:0.4274256,lng:9.4774206,place_id:"ChIJe75Tmr88fxARevbrLUcTvzc",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJe75Tmr88fxARevbrLUcTvzc",photo_interieur:"",photo_exterieur:""},
+    {id:42,nom:"LOxy Snack Bar Et Nightclub",type:"Discotheque",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.2,avis:19,contact:"",paiement:"En attente",affluence:48,lat:0.3976322,lng:9.4410695,place_id:"ChIJL2WJsrg7fxARA9LHKr8EPNs",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJL2WJsrg7fxARA9LHKr8EPNs",photo_interieur:"",photo_exterieur:""},
     {id:43,nom:"Sunset Rooftop",type:"Bar Rooftop",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.0,avis:2,contact:"+241 74 25 19 80",paiement:"En attente",affluence:40,lat:0.4072794,lng:9.4345055,place_id:"ChIJnYM_TwA7fxARl3xJ9aYT-vs",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJnYM_TwA7fxARl3xJ9aYT-vs",photo_interieur:"",photo_exterieur:""},
     {id:44,nom:"RoofTop LBV",type:"Bar Rooftop",quartier:"Akanda",ambiance:"Tres Festif",statut:"Ouvert - Anime",note:4.6,avis:5,contact:"+241 66 05 06 07",paiement:"En attente",affluence:63,lat:0.4980418,lng:9.392425,place_id:"ChIJvyxcu_wlfxARvNyqCRU2g9A",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJvyxcu_wlfxARvNyqCRU2g9A",photo_interieur:"",photo_exterieur:""},
     {id:45,nom:"Rooftop Libreville",type:"Bar Rooftop",quartier:"Centre-ville",ambiance:"Tres Festif",statut:"Ouvert - Anime",note:4.7,avis:3,contact:"+241 77 61 68 59",paiement:"En attente",affluence:68,lat:0.4362396,lng:9.4280635,place_id:"ChIJLQ9rzIk7fxARfED3YnR-n0M",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJLQ9rzIk7fxARfED3YnR-n0M",photo_interieur:"",photo_exterieur:""},
@@ -2912,6 +3073,8 @@ function loadData(){
     etablissements.forEach(function(e){ applyDynamicStatus(e); });
     setSyncing(false);renderStats();renderAll();renderHome();renderPayments();updateSyncTime();if(typeof i18n!=="undefined")i18n.applyTranslations();
     loadPaiementsFromFirebase();
+    // S'abonner aux flux temps réel pour tous les établissements chargés
+    if (typeof window._subscribeAllEtabs === "function") { window._subscribeAllEtabs(); }
   }).catch(function(err){
     console.error("Firebase loadData:",err);
     etablissements=getDefaults();
@@ -3119,60 +3282,143 @@ function renderVisitors(){
   var t=getTraffic();
   var total=t.total||0;
   var today=t.count||0;
-  // Données simulées d'origines (basées sur la diaspora gabonaise et visiteurs typiques)
-  var pays=[
-    {flag:"🇬🇦",nom:"Gabon",ville:"Libreville",pct:72,color:"var(--green)"},
-    {flag:"🇨🇲",nom:"Cameroun",ville:"Douala / Yaounde",pct:9,color:"var(--cyan)"},
-    {flag:"🇫🇷",nom:"France",ville:"Paris / Lyon",pct:7,color:"var(--pink)"},
-    {flag:"🇨🇬",nom:"Congo-Brazza",ville:"Brazzaville",pct:5,color:"var(--purple)"},
-    {flag:"🇸🇳",nom:"Sénégal",ville:"Dakar",pct:3,color:"var(--amber)"},
-    {flag:"🌍",nom:"Autres",ville:"Divers",pct:4,color:"var(--muted)"}
-  ];
-  var villes=[
-    {flag:"🏙️",nom:"Libreville",pct:65},
-    {flag:"🌆",nom:"Port-Gentil",pct:12},
-    {flag:"🏘️",nom:"Oyem",pct:5},
-    {flag:"🏙️",nom:"Paris",pct:7},
-    {flag:"🌍",nom:"Autres villes",pct:11}
-  ];
+
+  var panel=document.getElementById("visitorsPanel");
+  if(!panel) return;
+
+  // Compteurs locaux (trafic session courant)
   var html="";
-  // Compteurs
   html+="<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:1rem;'>";
   html+="<div style='background:rgba(0,255,170,0.06);border:1px solid rgba(0,255,170,0.2);border-radius:12px;padding:0.9rem;text-align:center;'>";
   html+="<div style='font-size:1.6rem;font-family:Syne,sans-serif;font-weight:800;color:var(--green);'>"+today+"</div>";
-  html+="<div style='font-size:0.7rem;color:var(--muted);'>Aujourd'hui</div></div>";
+  html+="<div style='font-size:0.7rem;color:var(--muted);'>Vues aujourd'hui</div></div>";
   html+="<div style='background:rgba(204,68,255,0.06);border:1px solid rgba(204,68,255,0.2);border-radius:12px;padding:0.9rem;text-align:center;'>";
   html+="<div style='font-size:1.6rem;font-family:Syne,sans-serif;font-weight:800;color:var(--purple);'>"+total+"</div>";
-  html+="<div style='font-size:0.7rem;color:var(--muted);'>Total cumule</div></div></div>";
+  html+="<div style='font-size:0.7rem;color:var(--muted);'>Total cumulé</div></div></div>";
 
-  // Origines par pays
-  html+="<div style='font-family:Syne,sans-serif;font-size:0.72rem;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>🌍 Origines par pays</div>";
-  html+="<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:0.9rem;margin-bottom:1rem;'>";
-  pays.forEach(function(p){
-    html+="<div style='margin-bottom:0.65rem;'>";
-    html+="<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;'>";
-    html+="<span style='font-size:0.82rem;'>"+p.flag+" <strong style='color:var(--text);'>"+p.nom+"</strong> <span style='color:var(--muted);font-size:0.7rem;'>"+p.ville+"</span></span>";
-    html+="<span style='font-size:0.78rem;font-weight:700;color:"+p.color+";'>"+p.pct+"%</span></div>";
-    html+="<div style='height:5px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;'>";
-    html+="<div style='height:100%;width:"+p.pct+"%;background:"+p.color+";border-radius:3px;transition:width 0.6s;'></div></div></div>";
+  html+="<div id='visitorsFirebaseData'><div style='text-align:center;padding:2rem;color:var(--muted);font-size:0.82rem;'>⏳ Chargement des connexions…</div></div>";
+  panel.innerHTML=html;
+
+  // Charger les vraies données depuis Firestore connection_logs
+  if(!window.db || !window.fbGetDocs || !window.fbCollection){
+    document.getElementById("visitorsFirebaseData").innerHTML="<div style='text-align:center;padding:1.5rem;color:var(--muted);font-size:0.78rem;'>Firebase non disponible</div>";
+    return;
+  }
+
+  window.fbGetDocs(window.fbCollection(window.db,"connection_logs")).then(function(snap){
+    var logs=[];
+    snap.forEach(function(d){ logs.push(d.data()); });
+
+    var fbHtml="";
+
+    if(!logs.length){
+      fbHtml="<div style='text-align:center;padding:2rem;color:var(--muted);font-size:0.82rem;'>📭 Aucune connexion enregistrée pour l'instant</div>";
+      document.getElementById("visitorsFirebaseData").innerHTML=fbHtml;
+      return;
+    }
+
+    // Compteur membres connectés
+    fbHtml+="<div style='background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.15);border-radius:12px;padding:0.9rem;margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;'>";
+    fbHtml+="<div style='font-size:0.8rem;font-weight:700;color:var(--cyan);'>👤 Membres connectés (total Firebase)</div>";
+    fbHtml+="<div style='font-family:Syne,sans-serif;font-weight:800;font-size:1.3rem;color:var(--cyan);'>"+logs.length+"</div></div>";
+
+    // Fréquences par timezone
+    var tzMap={};
+    logs.forEach(function(l){
+      var tz = l.timezone || "Inconnue";
+      tzMap[tz]=(tzMap[tz]||0)+1;
+    });
+    var tzList=Object.entries(tzMap).sort(function(a,b){return b[1]-a[1];}).slice(0,6);
+    if(tzList.length){
+      fbHtml+="<div style='font-family:Syne,sans-serif;font-size:0.72rem;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>🌍 Fuseaux horaires</div>";
+      fbHtml+="<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:0.9rem;margin-bottom:1rem;'>";
+      tzList.forEach(function(tz){
+        var pct=Math.round((tz[1]/logs.length)*100);
+        fbHtml+="<div style='margin-bottom:0.6rem;'>";
+        fbHtml+="<div style='display:flex;justify-content:space-between;margin-bottom:0.2rem;'>";
+        fbHtml+="<span style='font-size:0.78rem;color:var(--text);'>"+tz[0]+"</span>";
+        fbHtml+="<span style='font-size:0.74rem;font-weight:700;color:var(--amber);'>"+tz[1]+" ("+pct+"%)</span></div>";
+        fbHtml+="<div style='height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;'>";
+        fbHtml+="<div style='height:100%;width:"+pct+"%;background:var(--amber);border-radius:2px;'></div></div></div>";
+      });
+      fbHtml+="</div>";
+    }
+
+    // Appareils
+    var devMap={Mobile:0, Desktop:0, Tablette:0, Inconnu:0};
+    logs.forEach(function(l){
+      var ua=(l.userAgent||"").toLowerCase();
+      if(ua.indexOf("mobile")!==-1||ua.indexOf("android")!==-1||ua.indexOf("iphone")!==-1) devMap.Mobile++;
+      else if(ua.indexOf("tablet")!==-1||ua.indexOf("ipad")!==-1) devMap.Tablette++;
+      else if(ua.length>10) devMap.Desktop++;
+      else devMap.Inconnu++;
+    });
+    fbHtml+="<div style='font-family:Syne,sans-serif;font-size:0.72rem;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>📱 Appareils</div>";
+    fbHtml+="<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:1rem;'>";
+    [{k:"Mobile",ic:"📱",c:"var(--pink)"},{k:"Desktop",ic:"💻",c:"var(--cyan)"},{k:"Tablette",ic:"📟",c:"var(--purple)"}].forEach(function(d){
+      var n=devMap[d.k];
+      var pct=logs.length>0?Math.round((n/logs.length)*100):0;
+      fbHtml+="<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:0.7rem;text-align:center;'>";
+      fbHtml+="<div style='font-size:1.1rem;'>"+d.ic+"</div>";
+      fbHtml+="<div style='font-family:Syne,sans-serif;font-weight:800;font-size:0.95rem;color:"+d.c+";'>"+pct+"%</div>";
+      fbHtml+="<div style='font-size:0.62rem;color:var(--muted);'>"+d.k+"</div></div>";
+    });
+    fbHtml+="</div>";
+
+    // Langues navigateur
+    var langMap={};
+    logs.forEach(function(l){
+      var lang=(l.language||"").split("-")[0]||"?";
+      langMap[lang]=(langMap[lang]||0)+1;
+    });
+    var langList=Object.entries(langMap).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
+    if(langList.length>1){
+      fbHtml+="<div style='font-family:Syne,sans-serif;font-size:0.72rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>🗣️ Langues navigateur</div>";
+      fbHtml+="<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:0.9rem;margin-bottom:1rem;'>";
+      langList.forEach(function(l){
+        var pct=Math.round((l[1]/logs.length)*100);
+        fbHtml+="<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;'>";
+        fbHtml+="<span style='font-size:0.78rem;color:var(--text);text-transform:uppercase;'>"+l[0]+"</span>";
+        fbHtml+="<span style='font-size:0.74rem;font-weight:700;color:var(--green);'>"+l[1]+" ("+pct+"%)</span></div>";
+      });
+      fbHtml+="</div>";
+    }
+
+    // Résolution écran
+    var resMap={};
+    logs.forEach(function(l){
+      var r=l.screenRes||"Inconnue";
+      resMap[r]=(resMap[r]||0)+1;
+    });
+    var resList=Object.entries(resMap).sort(function(a,b){return b[1]-a[1];}).slice(0,4);
+    if(resList.length){
+      fbHtml+="<div style='font-family:Syne,sans-serif;font-size:0.72rem;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>🖥️ Résolutions</div>";
+      fbHtml+="<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:0.9rem;margin-bottom:1rem;'>";
+      resList.forEach(function(r){
+        fbHtml+="<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;'>";
+        fbHtml+="<span style='font-size:0.78rem;color:var(--text);'>"+r[0]+"</span>";
+        fbHtml+="<span style='font-size:0.74rem;font-weight:700;color:var(--purple);'>"+r[1]+" connexion"+(r[1]>1?"s":"")+"</span></div>";
+      });
+      fbHtml+="</div>";
+    }
+
+    // Connexions récentes
+    var sorted=logs.slice().sort(function(a,b){return (b.connectedAtMs||0)-(a.connectedAtMs||0);}).slice(0,10);
+    fbHtml+="<div style='font-family:Syne,sans-serif;font-size:0.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>🕐 10 Dernières connexions</div>";
+    fbHtml+="<div style='display:flex;flex-direction:column;gap:0.4rem;'>";
+    sorted.forEach(function(l){
+      var dt=l.connectedAtMs ? new Date(l.connectedAtMs).toLocaleString("fr-FR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) : "—";
+      fbHtml+="<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:0.6rem 0.8rem;display:flex;justify-content:space-between;align-items:center;'>";
+      fbHtml+="<div><div style='font-size:0.8rem;font-weight:700;color:var(--text);'>"+escHtml(l.pseudo||l.email||"Membre")+"</div>";
+      fbHtml+="<div style='font-size:0.62rem;color:var(--muted);'>"+escHtml(l.timezone||"")+"</div></div>";
+      fbHtml+="<span style='font-size:0.62rem;color:var(--muted);'>"+dt+"</span></div>";
+    });
+    fbHtml+="</div>";
+
+    document.getElementById("visitorsFirebaseData").innerHTML=fbHtml;
+  }).catch(function(err){
+    document.getElementById("visitorsFirebaseData").innerHTML="<div style='color:var(--red);font-size:0.8rem;padding:1rem;'>Erreur Firestore : "+err.message+"</div>";
   });
-  html+="</div>";
-
-  // Origines par ville
-  html+="<div style='font-family:Syne,sans-serif;font-size:0.72rem;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>🏙️ Top villes</div>";
-  html+="<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:0.9rem;margin-bottom:1rem;'>";
-  villes.forEach(function(v){
-    html+="<div style='display:flex;align-items:center;gap:0.6rem;margin-bottom:0.55rem;'>";
-    html+="<span style='font-size:0.88rem;width:24px;text-align:center;'>"+v.flag+"</span>";
-    html+="<div style='flex:1;'><div style='display:flex;justify-content:space-between;'><span style='font-size:0.8rem;color:var(--text);'>"+v.nom+"</span><span style='font-size:0.75rem;color:var(--cyan);font-weight:700;'>"+v.pct+"%</span></div>";
-    html+="<div style='height:4px;background:rgba(255,255,255,0.06);border-radius:2px;margin-top:0.2rem;'><div style='height:100%;width:"+v.pct+"%;background:var(--cyan);border-radius:2px;'></div></div></div></div>";
-  });
-  html+="</div>";
-
-  html+="<div style='font-size:0.68rem;color:var(--muted);text-align:center;padding:0.4rem;'>Données estimées basées sur le trafic de la session</div>";
-
-  var panel=document.getElementById("visitorsPanel");
-  if(panel)panel.innerHTML=html;
 }
 
 function renderStatsAdmin(){
@@ -3633,8 +3879,25 @@ function filterData(){
     return data;
   }
   data.sort(function(a,b){
-    if(currentSort==="affluence")return(b.affluence||0)-(a.affluence||0);
-    if(currentSort==="note")return(b.note||0)-(a.note||0);
+    if(currentSort==="affluence"){
+      // Utiliser l'affluence réelle (live) si disponible
+      var aLive = window._livePresences && window._liveVotes ? (function(){
+        var lp = window._livePresences[String(a.id)]||{count:0};
+        var lv = window._liveVotes[String(a.id)]||{pos:0,neg:0};
+        return Math.max(0,Math.min(100,(a.affluence||0)+Math.min(lp.count*3,30)+(lv.pos*2)-(lv.neg*3)));
+      })() : (a.affluence||0);
+      var bLive = window._livePresences && window._liveVotes ? (function(){
+        var lp = window._livePresences[String(b.id)]||{count:0};
+        var lv = window._liveVotes[String(b.id)]||{pos:0,neg:0};
+        return Math.max(0,Math.min(100,(b.affluence||0)+Math.min(lp.count*3,30)+(lv.pos*2)-(lv.neg*3)));
+      })() : (b.affluence||0);
+      return bLive - aLive;
+    }
+    if(currentSort==="note"){
+      var aN = (window._liveRatings && window._liveRatings[String(a.id)] && window._liveRatings[String(a.id)].avis > 0) ? window._liveRatings[String(a.id)].note : (a.note||0);
+      var bN = (window._liveRatings && window._liveRatings[String(b.id)] && window._liveRatings[String(b.id)].avis > 0) ? window._liveRatings[String(b.id)].note : (b.note||0);
+      return bN - aN;
+    }
     if(currentSort==="quartier")return(a.quartier||"").localeCompare(b.quartier||"");
     return 0;
   });
@@ -3737,106 +4000,55 @@ function buildCard(e,delay,compact,rank){
       +"</div>";
   }
 
-  // Photos/vidéo de la carte
-  var photosHtml="<div class=\"card-photos\">";
-
-  // BANNIÈRE PHOTO PERMANENTE — photo intérieur ou extérieur en pleine largeur
-  var coverUrl = e.photo_interieur || e.photo_exterieur || "";
-  if(coverUrl){
-    photosHtml = "<div style='position:relative;width:100%;height:180px;overflow:hidden;background:#000;'>"
-      +"<img src='"+coverUrl+"' alt='"+e.nom+"' style='width:100%;height:100%;object-fit:cover;display:block;' onerror=\"this.style.display='none'\">"
-      +"<div style='position:absolute;inset:0;background:linear-gradient(to bottom,transparent 40%,rgba(0,0,0,0.75));'></div>"
-      +"<span style='position:absolute;bottom:8px;left:10px;font-size:0.6rem;font-weight:700;color:rgba(255,255,255,0.9);background:rgba(0,0,0,0.5);padding:0.15rem 0.45rem;border-radius:5px;'>"
-      +(e.photo_interieur?"🏠 Intérieur":"🌍 Extérieur")+"</span>"
-      +(canEditPhotos(e)?"<button onclick=\"event.stopPropagation();openPhotoModal("+e.id+","+(e.photo_interieur?"'interieur'":"'exterieur'")+")\" style='position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:0.7rem;font-weight:700;padding:0.3rem 0.6rem;cursor:pointer;z-index:5;'>✏️ Modifier</button>":"")
-      +"</div>";
-    photosHtml += "<div class=\"card-photos\">";
-  } else {
-    photosHtml = "<div class=\"card-photos\">";
-    if(canEditPhotos(e)){
-      photosHtml = "<div style='width:100%;'>"
-        +"<button onclick=\"openPhotoModal("+e.id+",'exterieur')\" style='width:100%;padding:0.55rem;background:rgba(255,45,155,0.06);border:2px dashed rgba(255,45,155,0.25);border-radius:0;color:var(--pink);font-size:0.72rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;display:flex;align-items:center;justify-content:center;gap:0.4rem;'>📸 Ajouter une photo permanente (URL ou upload)</button>"
-        +"<div class=\"card-photos\">";
-    } else {
-      photosHtml = "<div class=\"card-photos\">";
-    }
-  }
-
-  // SLOT GAUCHE → 5 photos éphémères 10h (visible par tous, ajout/suppr admin ou établissement)
+  // ── PHOTOS : 2 colonnes côte à côte ──────────────────────────
+  // Gauche : photos éphémères ce soir (slot)
+  // Droite : photo permanente (intérieur > extérieur > Google)
   var slotPhotos=loadSlotPhotos(e.id);
-  photosHtml+="<div class=\"media-slot\">";
-  if(slotPhotos.length>0){
-    photosHtml+="<div style=\"position:relative;height:90px;overflow:hidden;background:#000;\">";
-    // Affiche la 1ère photo en thumbnail, avec indicateur de compte
-    photosHtml+="<img src=\""+slotPhotos[0].url+"\" style=\"width:100%;height:100%;object-fit:cover;display:block;cursor:pointer;\" onclick=\"openSlotLightbox("+e.id+",0)\">";
-    photosHtml+="<span style=\"position:absolute;bottom:3px;left:4px;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.9);background:rgba(0,0,0,0.6);padding:0.12rem 0.35rem;border-radius:4px;z-index:2;\">&#128248; "+slotPhotos.length+"/"+MAX_SLOT+"</span>";
-    photosHtml+="<span style=\"position:absolute;bottom:3px;right:4px;font-size:0.56rem;color:rgba(255,255,255,0.7);background:rgba(0,0,0,0.5);padding:0.1rem 0.3rem;border-radius:4px;z-index:2;\">"+getTimeLeft(slotPhotos[0].ts)+"</span>";
-    photosHtml+="</div>";
-  } else {
-    photosHtml+="<div class=\"no-photo\" style=\"height:90px;\">";
-    if(canEditPhotos(e)){
-      photosHtml+="<span style=\"font-size:1.4rem;\">&#128248;</span><small style=\"color:var(--muted);font-size:0.6rem;\">Photos ce soir</small>";
-    } else {
-      photosHtml+="<span>&#128248;</span><small>Photos ce soir</small>";
-    }
-    photosHtml+="</div>";
-  }
-  if(canEditPhotos(e)){
-    photosHtml+="<div class=\"media-action-bar\">";
-    if(slotPhotos.length<MAX_SLOT){
-      // label natif → ouvre directement le sélecteur de fichier sur Android (même pattern que galerie)
-      photosHtml+="<label for=\"__fileSlotPhoto\" class=\"mab-btn mab-upload\" style=\"flex:2;text-align:center;cursor:pointer;\" onclick=\"window.__slotUploadEid="+e.id+"\">&#43; Photo</label>";
-    }
-    if(slotPhotos.length>0){
-      photosHtml+="<button class=\"mab-btn mab-del\" onclick=\"openSlotLightbox("+e.id+",0)\">&#128269; Voir</button>";
-    }
-    photosHtml+="</div>";
-  }
-  photosHtml+="</div>";
+  var permPhoto = e.photo_interieur || e.photo_exterieur || getGooglePhotoUrl(e,'exterieur') || "";
 
-  // SLOT DROIT → Photo extérieur permanente (visible par tous)
-  if(e.photo_exterieur){
-    photosHtml+="<div class=\"media-slot\">";
-    photosHtml+="<div class=\"photo-wrap\" onclick=\"openLightbox(this.querySelector('img').src)\">";
-    photosHtml+="<img src=\""+e.photo_exterieur+"\" alt=\"Ext\">";
-    photosHtml+="<span class=\"photo-label\">&#127758; Ext&eacute;rieur</span>";
-    if(canEditPhotos(e)){
-      photosHtml+="<button onclick=\"event.stopPropagation();triggerPermPhotoUpload("+e.id+",'exterieur')\" style=\"position:absolute;top:4px;right:4px;z-index:5;background:rgba(0,229,255,0.85);border:none;border-radius:6px;color:#000;font-size:0.62rem;font-weight:700;padding:0.2rem 0.4rem;cursor:pointer;\">&#9998;</button>";
-    }
-    photosHtml+="</div>";
-    if(canEditPhotos(e)){
-      photosHtml+="<div class=\"media-action-bar\">";
-      photosHtml+="<button class=\"mab-btn mab-upload\" onclick=\"triggerPermPhotoUpload("+e.id+",'exterieur')\">&#128247; Changer</button>";
-      photosHtml+="<button class=\"mab-btn mab-del\" onclick=\"deletePermPhoto("+e.id+",'exterieur')\">&#128465; Suppr.</button>";
-      photosHtml+="</div>";
-    }
-    photosHtml+="</div>";
+  var photosHtml = "<div style='display:grid;grid-template-columns:1fr 1fr;gap:2px;width:100%;height:120px;overflow:hidden;border-radius:0;'>";
+
+  // ── Colonne gauche : slot éphémère ce soir ──
+  photosHtml += "<div style='position:relative;height:120px;overflow:hidden;background:rgba(255,45,155,0.06);cursor:pointer;'>";
+  if(slotPhotos.length>0){
+    photosHtml += "<img src='"+slotPhotos[0].url+"' style='width:100%;height:100%;object-fit:cover;display:block;' onclick='openSlotLightbox("+e.id+",0)'>";
+    photosHtml += "<span style='position:absolute;bottom:4px;left:4px;font-size:0.52rem;font-weight:700;color:#fff;background:rgba(0,0,0,0.6);padding:0.1rem 0.3rem;border-radius:4px;'>📸 "+slotPhotos.length+"/"+MAX_SLOT+"</span>";
+    photosHtml += "<span style='position:absolute;bottom:4px;right:4px;font-size:0.5rem;color:rgba(255,255,255,0.8);background:rgba(0,0,0,0.5);padding:0.08rem 0.28rem;border-radius:4px;'>"+getTimeLeft(slotPhotos[0].ts)+"</span>";
   } else {
-    photosHtml+="<div class=\"media-slot\">";
-    // Fallback: Google Places photo ou placeholder categorie
-    var fallbackExt = getGooglePhotoUrl(e, 'exterieur');
-    if (fallbackExt) {
-      photosHtml+="<div class=\"photo-wrap\" onclick=\"openLightbox('"+fallbackExt+"')\"><img src=\""+fallbackExt+"\" alt=\"Ext\" style=\"width:100%;height:90px;object-fit:cover;\"><span class=\"photo-label\">&#127758; Google</span></div>";
-    } else {
-      photosHtml+="<div class=\"no-photo\" style=\"height:90px;\">";
-      if(canEditPhotos(e)){
-        photosHtml+="<span style=\"font-size:1.4rem;\">&#127758;</span><small style=\"color:var(--muted);font-size:0.6rem;\">Photo ext&eacute;rieur</small>";
-      } else {
-        photosHtml+="<span>&#127758;</span><small>Ext&eacute;rieur</small>";
-      }
-      photosHtml+="</div>";
-    }
+    photosHtml += "<div style='height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.25rem;'>";
+    photosHtml += "<span style='font-size:1.5rem;opacity:0.5;'>📸</span>";
+    photosHtml += "<span style='font-size:0.55rem;color:var(--muted);'>Photos ce soir</span>";
     if(canEditPhotos(e)){
-      photosHtml+="<div class=\"media-action-bar\">";
-      photosHtml+="<button class=\"mab-btn mab-upload\" style=\"width:100%;\" onclick=\"triggerPermPhotoUpload("+e.id+",'exterieur')\">&#127758; Ajouter</button>";
-      photosHtml+="</div>";
+      photosHtml += "<label for='__fileSlotPhoto' style='font-size:0.6rem;font-weight:700;color:var(--pink);cursor:pointer;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.3);padding:0.2rem 0.5rem;border-radius:6px;margin-top:0.2rem;' onclick='window.__slotUploadEid="+e.id+"'>+ Ajouter</label>";
     }
-    photosHtml+="</div>";
+    photosHtml += "</div>";
   }
-  photosHtml+="</div>"; // ferme card-photos
-  // Ferme le wrapper bannière/bouton ajout si présent
-  var _hasCover = e.photo_interieur || e.photo_exterieur;
-  if(_hasCover || canEditPhotos(e)){ photosHtml+="</div>"; }
+  // Bouton ajout discret si canEdit et qu'il y a déjà des photos
+  if(canEditPhotos(e) && slotPhotos.length>0 && slotPhotos.length<MAX_SLOT){
+    photosHtml += "<label for='__fileSlotPhoto' style='position:absolute;top:4px;right:4px;font-size:0.55rem;font-weight:700;color:#fff;background:rgba(255,45,155,0.75);border-radius:5px;padding:0.15rem 0.4rem;cursor:pointer;z-index:5;' onclick='window.__slotUploadEid="+e.id+"'>+</label>";
+  }
+  photosHtml += "</div>";
+
+  // ── Colonne droite : photo permanente ──
+  photosHtml += "<div style='position:relative;height:120px;overflow:hidden;background:rgba(0,229,255,0.04);cursor:pointer;'>";
+  if(permPhoto){
+    photosHtml += "<img src='"+permPhoto+"' style='width:100%;height:100%;object-fit:cover;display:block;' onclick=\"openLightbox('"+permPhoto+"')\" onerror=\"this.style.display='none';this.parentElement.querySelector('.no-perm').style.display='flex'\">";
+    if(canEditPhotos(e)){
+      var permType = e.photo_interieur ? "interieur" : "exterieur";
+      photosHtml += "<button onclick=\"event.stopPropagation();openPhotoModal("+e.id+",'"+permType+"')\" style='position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.3);border-radius:6px;color:#fff;font-size:0.6rem;font-weight:700;padding:0.15rem 0.4rem;cursor:pointer;z-index:5;'>✏️</button>";
+    }
+  } else {
+    photosHtml += "<div class='no-perm' style='height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.25rem;'>";
+    photosHtml += "<span style='font-size:1.5rem;opacity:0.5;'>🏠</span>";
+    photosHtml += "<span style='font-size:0.55rem;color:var(--muted);'>Photo lieu</span>";
+    if(canEditPhotos(e)){
+      photosHtml += "<button onclick=\"openPhotoModal("+e.id+",'exterieur')\" style='font-size:0.6rem;font-weight:700;color:var(--cyan);cursor:pointer;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);padding:0.2rem 0.5rem;border-radius:6px;margin-top:0.2rem;'>+ Ajouter</button>";
+    }
+    photosHtml += "</div>";
+  }
+  photosHtml += "</div>";
+
+  photosHtml += "</div>"; // ferme grid
 
   // Photos soiree ephemeres
   var sp=soireePhotos[e.id]||[];
@@ -3949,7 +4161,8 @@ function buildCard(e,delay,compact,rank){
   var myPresence = isUserPresent(e.id);
   var myVote     = getMyVote(e.id);
   var presCountHtml = presData.count > 0
-    ? "<span class=\"presence-count green-count\">"+presData.count+"</span>" : "";
+    ? "<span class=\"presence-count green-count\" data-live-pres=\""+e.id+"\">"+presData.count+"</span>"
+    : "<span class=\"presence-count green-count\" data-live-pres=\""+e.id+"\" style=\"display:none\">0</span>";
   var presBtn = "<button class=\"presence-btn"+(myPresence?" active-presence":"")+"\" onclick=\"openPresenceModal("+e.id+")\" title=\""+(myPresence?"Vous êtes ici !":"Je suis là !")+"\">"
     + (myPresence ? "&#10003;" : "&#128204;") + presCountHtml + "</button>";
 
@@ -3957,9 +4170,9 @@ function buildCard(e,delay,compact,rank){
   var presRow = "<div class=\"card-presence-row\">"
     + presBtn
     + "<div class=\"presence-info\">"
-    + "<div class=\"presence-label\">&#128204; Présences confirmées"+rankBadge+"</div>"
+    + "<div class=\"presence-label\">&#128204; Présences confirmées<span class=\"ranking-badge rank-other\" data-live-rank=\""+e.id+"\" style=\"margin-left:0.4rem;font-size:0.65rem;\">"+buildRankBadge(e.id).replace(/<[^>]+>/g,"")+"</span></div>"
     + "<div class=\"presence-live\"><div class=\"presence-dot "+dotClass+"\"></div>"
-    + presData.count+" pers. sur place &bull; Score réel: <strong style=\"color:var(--amber);margin-left:0.2rem;\">"+realAff+"%</strong></div>"
+    + "<span data-live-presl=\""+e.id+"\">"+presData.count+" pers. sur place</span> &bull; Score réel: <strong style=\"color:var(--amber);margin-left:0.2rem;\">"+realAff+"%</strong></div>"
     + "</div>"
     + "<div class=\"vote-btns\">"
     + "<button class=\"vote-btn vote-pos"+(myVote==="pos"?" voted":"")+"\" onclick=\"castVote("+e.id+",'pos')\">&#128077; <span id=\"vpos-"+e.id+"\">"+voteData.pos+"</span></button>"
@@ -4018,8 +4231,10 @@ function buildCard(e,delay,compact,rank){
       return html;
     })()+
     "<div class=\"card-bottom\">"+
-    "<div style=\"display:flex;align-items:center\"><div class=\"stars\">"+makeStars(e.note)+"</div>"+
-    "<span class=\"note\">"+e.note+"</span><span class=\"avis\">"+e.avis+" avis</span></div>"+
+    "<div style=\"display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;\"><div class=\"stars\">"+makeStars(e.note)+"</div>"+
+    "<span class=\"note\" data-live-note=\""+e.id+"\">"+e.note+"</span><span class=\"avis\" data-live-avis=\""+e.id+"\">"+e.avis+" avis</span>"+
+    (!compact?"<button class=\"rate-btn\" onclick=\"openRatingModal("+e.id+")\">&#11088; Noter</button>":"")+
+    "</div>"+
     "<span class=\"pay-tag "+(e.paiement&&e.paiement.indexOf("Actif")!==-1?"pay-ok":"pay-wait")+"\">"+e.paiement+"</span>"+
     "</div>"+ep+commentsHtml+"</div>";
 }
@@ -4563,10 +4778,11 @@ function registerPresence(eid){
   saveAllPresence(all);
   // Mémoriser aussi en session pour les anonymes
   sessionStorage.setItem("ambi241_anon_presence_"+eid, String(Date.now()));
-  // Sauvegarder dans Firebase si connecté
-  if(window.db && window.currentUserUID){
-    var ref = window.fbDoc(window.db, "etablissements", String(eid), "presences", window.currentUserUID);
-    window.fbSetDoc(ref, { uid: window.currentUserUID, pseudo: pseudo, ts: Date.now() }).catch(function(){});
+  // Sauvegarder dans Firebase (pour tous, pas seulement si connecté)
+  var fbUid = window.currentUserUID || uid;
+  if(window.db && window.fbDoc && window.fbSetDoc){
+    var ref = window.fbDoc(window.db, "etablissements", String(eid), "presences", fbUid);
+    window.fbSetDoc(ref, { uid: fbUid, pseudo: pseudo, ts: Date.now() }).catch(function(){});
   }
 }
 
@@ -4617,10 +4833,11 @@ function castVote(eid, type){
   else        { v[type].splice(idx,1); showToast("Vote retiré"); }
   all[eid] = v;
   saveAllVotes(all);
-  // Sauvegarder Firebase si connecté
-  if(window.db && window.currentUserUID){
-    var ref = window.fbDoc(window.db, "etablissements", String(eid), "votes", window.currentUserUID);
-    window.fbSetDoc(ref, { uid: window.currentUserUID, vote: idx===-1?type:null, ts: Date.now() }).catch(function(){});
+  // Sauvegarder Firebase (pour tous, anonymes inclus)
+  var fbUid = window.currentUserUID || uid;
+  if(window.db && window.fbDoc && window.fbSetDoc){
+    var ref = window.fbDoc(window.db, "etablissements", String(eid), "votes", fbUid);
+    window.fbSetDoc(ref, { uid: fbUid, vote: idx===-1?type:null, ts: Date.now() }).catch(function(){});
   }
   renderAll(); renderHome();
 }
@@ -4696,6 +4913,114 @@ window.closePresenceModal = closePresenceModal;
 window.confirmPresenceWhatsApp = confirmPresenceWhatsApp;
 window.confirmPresenceGPS = confirmPresenceGPS;
 window.castVote           = castVote;
+
+// ══════════════════════════════════════════════════════════════
+// ══  SYSTÈME DE NOTATION ÉTOILES (RATINGS FIRESTORE)        ══
+// ══════════════════════════════════════════════════════════════
+
+var _ratingEid   = null;
+var _ratingValue = 0;
+
+var RATING_LABELS = ["","😕 Décevant","😐 Passable","🙂 Bien","😊 Très bien","🔥 Excellent !"];
+
+function openRatingModal(eid) {
+  if (!window.currentUserUID && !window.currentUserEmail) {
+    showToast("Connectez-vous pour noter cet établissement");
+    document.getElementById("userOverlay") && document.getElementById("userOverlay").classList.add("show");
+    return;
+  }
+  _ratingEid = eid;
+  _ratingValue = 0;
+  var etab = etablissements.find(function(x){ return x.id === eid; }) || {};
+  document.getElementById("ratingModalSub").textContent = "Notez : " + (etab.nom || "");
+  document.getElementById("ratingMsg").style.display = "none";
+  document.getElementById("ratingComment").value = "";
+  document.getElementById("ratingSubmitBtn").disabled = true;
+  document.getElementById("ratingValueLbl").textContent = "";
+  _updateRatingStars(0);
+  document.getElementById("ratingOverlay").classList.add("show");
+}
+
+function closeRatingModal() {
+  document.getElementById("ratingOverlay").classList.remove("show");
+  _ratingEid = null;
+}
+
+function setRatingStar(val) {
+  _ratingValue = val;
+  _updateRatingStars(val);
+  document.getElementById("ratingValueLbl").textContent = RATING_LABELS[val] || "";
+  document.getElementById("ratingSubmitBtn").disabled = false;
+}
+
+function _updateRatingStars(val) {
+  document.querySelectorAll("#ratingStarsRow .rating-star").forEach(function(el) {
+    var v = parseInt(el.getAttribute("data-val"), 10);
+    el.classList.toggle("on", v <= val);
+  });
+}
+
+function submitRating() {
+  if (!_ratingEid || _ratingValue < 1) return;
+  if (!window.currentUserUID && !window.currentUserEmail) {
+    showToast("Connexion requise");
+    return;
+  }
+  var btn = document.getElementById("ratingSubmitBtn");
+  var msg = document.getElementById("ratingMsg");
+  btn.disabled = true;
+  btn.textContent = "Envoi en cours...";
+
+  var uid = window.currentUserUID || (window.currentUserEmail + "_anon");
+  var pseudo = window.currentUserPseudo || window.currentUserEmail || "Membre";
+  var ratingData = {
+    uid: uid,
+    pseudo: pseudo,
+    rating: _ratingValue,
+    comment: document.getElementById("ratingComment").value.trim(),
+    ts: Date.now()
+  };
+
+  if (!window.db || typeof window.fbDoc !== "function") {
+    msg.style.display = "block"; msg.style.color = "var(--red)";
+    msg.textContent = "Firebase non disponible";
+    btn.disabled = false; btn.textContent = "⭐ Envoyer ma note";
+    return;
+  }
+
+  // Stocker dans etablissements/{eid}/ratings/{uid} (1 vote par user)
+  var ref = window.fbDoc(window.db, "etablissements", String(_ratingEid), "ratings", uid);
+  window.fbSetDoc(ref, ratingData).then(function() {
+    msg.style.display = "block"; msg.style.color = "var(--green)";
+    msg.textContent = "✅ Note enregistrée ! Merci pour votre avis.";
+    btn.textContent = "✅ Envoyé !";
+    // Notification admin
+    if (typeof pushNotif === "function") {
+      var etab = etablissements.find(function(x){ return x.id === _ratingEid; }) || {};
+      pushNotif({
+        targetRole: "admin",
+        key: "rating_"+_ratingEid+"_"+uid,
+        icon: "⭐",
+        title: "Nouvelle note — " + (etab.nom || ""),
+        msg: pseudo + " a donné " + _ratingValue + "/5 à " + (etab.nom || ""),
+        channel: "push",
+        fromAdmin: false
+      });
+    }
+    setTimeout(closeRatingModal, 1800);
+  }).catch(function(err) {
+    msg.style.display = "block"; msg.style.color = "var(--red)";
+    msg.textContent = "Erreur: " + err.message;
+    btn.disabled = false; btn.textContent = "⭐ Envoyer ma note";
+  });
+}
+
+window.openRatingModal  = openRatingModal;
+window.closeRatingModal = closeRatingModal;
+window.setRatingStar    = setRatingStar;
+window.submitRating     = submitRating;
+
+
 
 // RENDER ALL
 function renderAll(){
@@ -9141,6 +9466,29 @@ window.doAssignEtab = doAssignEtab;
       </div>
 
     </div>
+  </div>
+</div>
+
+<!-- ══ MODAL NOTATION ══ -->
+<div class="overlay" id="ratingOverlay" onclick="if(event.target===this)closeRatingModal()">
+  <div class="rating-modal-wrap">
+    <button class="modal-close" onclick="closeRatingModal()">&#10005;</button>
+    <div class="modal-title" style="color:var(--amber);">&#11088; Noter cet établissement</div>
+    <div class="modal-sub" id="ratingModalSub">Donnez votre avis sur l'ambiance et la qualité</div>
+    <div class="rating-stars-row" id="ratingStarsRow">
+      <span class="rating-star" data-val="1" onclick="setRatingStar(1)">&#9733;</span>
+      <span class="rating-star" data-val="2" onclick="setRatingStar(2)">&#9733;</span>
+      <span class="rating-star" data-val="3" onclick="setRatingStar(3)">&#9733;</span>
+      <span class="rating-star" data-val="4" onclick="setRatingStar(4)">&#9733;</span>
+      <span class="rating-star" data-val="5" onclick="setRatingStar(5)">&#9733;</span>
+    </div>
+    <div class="rating-value-lbl" id="ratingValueLbl"></div>
+    <div class="field">
+      <label>Commentaire (optionnel)</label>
+      <textarea id="ratingComment" placeholder="Décrivez l'ambiance, la musique, le service…" maxlength="300" rows="3"></textarea>
+    </div>
+    <div id="ratingMsg" style="display:none;font-size:0.8rem;margin-bottom:0.5rem;text-align:center;"></div>
+    <button class="rating-submit-btn" id="ratingSubmitBtn" onclick="submitRating()" disabled>&#11088; Envoyer ma note</button>
   </div>
 </div>
 
