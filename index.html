@@ -2,9 +2,36 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="AMBI241 - Trouvez l'ambiance des bars et restaurants de Libreville en temps réel">
 <title>AMBI241 - Ambiance Libreville en Direct</title>
+
+<!-- ══ PWA MANIFEST ══ -->
+<link rel="manifest" href="manifest.json">
+
+<!-- ══ PWA META iOS (Apple) ══ -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AMBI241">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" sizes="152x152" href="icons/icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-192.png">
+<link rel="apple-touch-icon" sizes="167x167" href="icons/icon-192.png">
+
+<!-- ══ PWA META Android / Chrome ══ -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0d0014">
+<meta name="application-name" content="AMBI241">
+<meta name="msapplication-TileColor" content="#0d0014">
+<meta name="msapplication-TileImage" content="icons/icon-192.png">
+
+<!-- ══ Open Graph (partage réseaux sociaux) ══ -->
+<meta property="og:title" content="AMBI241 - Ambiance Libreville en Direct">
+<meta property="og:description" content="Trouvez l'ambiance des bars et restaurants de Libreville en temps réel">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://ambi2412026-debug.github.io/ambi241">
+<meta property="og:image" content="icons/icon-512.png">
+
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 <style>
@@ -9507,6 +9534,122 @@ document.addEventListener('keydown', function(e){
   if(e.key==='Escape') closeGuide();
 });
 </script>
+
+
+<!-- ══════════════════════════════════════════════
+     PWA - INSTALLATION BANNER + SERVICE WORKER
+══════════════════════════════════════════════ -->
+
+<!-- Bouton d'installation flottant Android/Chrome -->
+<div id="pwa-install-banner" style="
+  display:none;
+  position:fixed;
+  bottom:90px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:9999;
+  background:linear-gradient(135deg,#1a0028,#130020);
+  border:1px solid rgba(255,45,155,0.4);
+  border-radius:20px;
+  padding:0.9rem 1.2rem;
+  box-shadow:0 8px 40px rgba(255,45,155,0.25);
+  align-items:center;
+  gap:0.8rem;
+  max-width:320px;
+  width:calc(100vw - 2rem);
+">
+  <div style="font-size:1.8rem;flex-shrink:0;">📲</div>
+  <div style="flex:1;">
+    <div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;color:#fff0f8;margin-bottom:0.15rem;">Installer AMBI241</div>
+    <div style="font-size:0.7rem;color:#b088c0;line-height:1.3;">Accès direct depuis ton écran d'accueil, même hors connexion</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:0.4rem;flex-shrink:0;">
+    <button id="pwa-install-btn" style="background:linear-gradient(135deg,#ff2d9b,#cc44ff);border:none;color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.72rem;padding:0.4rem 0.8rem;border-radius:10px;cursor:pointer;white-space:nowrap;">✚ Installer</button>
+    <button id="pwa-dismiss-btn" style="background:transparent;border:1px solid rgba(255,255,255,0.1);color:#b088c0;font-size:0.65rem;padding:0.3rem 0.5rem;border-radius:8px;cursor:pointer;">Plus tard</button>
+  </div>
+</div>
+
+<!-- Toast instructions iOS -->
+<div id="ios-install-toast" style="
+  display:none;
+  position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
+  z-index:9999;background:rgba(13,0,20,0.97);
+  border:1px solid rgba(255,45,155,0.4);border-radius:16px;
+  padding:1rem 1.2rem;max-width:300px;width:calc(100vw - 2rem);
+  text-align:center;box-shadow:0 8px 30px rgba(0,0,0,0.7);
+">
+  <div style="font-size:1.5rem;margin-bottom:0.4rem;">📱</div>
+  <div style="font-family:Syne,sans-serif;font-weight:800;color:#ff2d9b;font-size:0.85rem;margin-bottom:0.4rem;">Installer sur iPhone</div>
+  <div style="font-size:0.73rem;color:#b088c0;line-height:1.5;">
+    Appuie sur <strong style="color:#fff;">Partager</strong> en bas de Safari<br>
+    puis <strong style="color:#fff;">"Sur l'écran d'accueil"</strong>
+  </div>
+  <button onclick="document.getElementById('ios-install-toast').style.display='none';" style="margin-top:0.8rem;background:rgba(255,45,155,0.15);border:1px solid rgba(255,45,155,0.3);color:#ff2d9b;border-radius:8px;padding:0.35rem 1rem;font-size:0.75rem;cursor:pointer;">OK compris</button>
+</div>
+
+<script>
+// ══ PWA SERVICE WORKER ══
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('sw.js')
+      .then(function(reg) { console.log('SW AMBI241 OK:', reg.scope); })
+      .catch(function(err) { console.log('SW erreur:', err); });
+  });
+}
+
+// ══ DÉTECTION iOS ══
+function isIOS() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+}
+function isStandalone() {
+  return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+}
+
+// ══ BANNER ANDROID/CHROME ══
+var deferredPrompt = null;
+var installBanner = document.getElementById('pwa-install-banner');
+
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  deferredPrompt = e;
+  setTimeout(function() {
+    if (!localStorage.getItem('pwa-dismissed')) {
+      installBanner.style.display = 'flex';
+    }
+  }, 3000);
+});
+
+document.getElementById('pwa-install-btn').addEventListener('click', function() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(function(c) {
+      if (c.outcome === 'accepted') installBanner.style.display = 'none';
+      deferredPrompt = null;
+    });
+  }
+});
+
+document.getElementById('pwa-dismiss-btn').addEventListener('click', function() {
+  installBanner.style.display = 'none';
+  localStorage.setItem('pwa-dismissed', '1');
+});
+
+// ══ BANNER iOS ══
+if (isIOS() && !isStandalone()) {
+  setTimeout(function() {
+    if (!localStorage.getItem('ios-shown')) {
+      document.getElementById('ios-install-toast').style.display = 'block';
+      localStorage.setItem('ios-shown', '1');
+    }
+  }, 4000);
+}
+
+window.addEventListener('appinstalled', function() {
+  installBanner.style.display = 'none';
+  console.log('AMBI241 installee !');
+});
+</script>
+
 
 </body>
 </html>
