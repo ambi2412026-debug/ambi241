@@ -3230,8 +3230,8 @@ function saveRankWeights(){
 /* Calcule un score global 0-100 pour un établissement */
 function computeRankScore(e){
   var w = _rankWeights;
-  var pd = getPresenceData(e.id);
-  var vd = getVoteData(e.id);
+  var pd = getPresenceData(e.id) || { count: 0, list: [] };
+  var vd = getVoteData(e.id) || { pos: 0, neg: 0 };
 
   // Affluence : déjà 0-100
   var sAff = Math.min(100, Math.max(0, e.affluence || 0));
@@ -3263,8 +3263,8 @@ function computeRankScore(e){
 /* Applique un statut dynamique basé sur l'affluence réelle (sans écraser les overrides admin) */
 function applyDynamicStatus(e){
   if(e._adminOverride) return; // l'admin a fixé manuellement → respecter
-  var pd = getPresenceData(e.id);
-  var vd = getVoteData(e.id);
+  var pd = getPresenceData(e.id) || { count: 0, list: [] };
+  var vd = getVoteData(e.id) || { pos: 0, neg: 0 };
   var realAff = computeRealAffluence(e, pd, vd);
   if(realAff >= 75) e.statut = "Ouvert - Bonde";
   else if(realAff >= 40) e.statut = "Ouvert - Anime";
@@ -4698,8 +4698,8 @@ function buildCard(e,delay,compact,rank){
   var commentsHtml = compact ? "" : buildCommentsSection(e);
 
   // ── Présence & Votes ──
-  var presData   = getPresenceData(e.id);
-  var voteData   = getVoteData(e.id);
+  var presData   = getPresenceData(e.id) || { count: 0, list: [] };
+  var voteData   = getVoteData(e.id) || { pos: 0, neg: 0 };
   var realAff    = computeRealAffluence(e, presData, voteData);
   var rankBadge  = buildRankBadge(e.id);
   var myPresence = isUserPresent(e.id);
@@ -5286,14 +5286,18 @@ function saveAllVotes(obj){
 
 /* ── Récupère le nombre de présences actives pour un étab ── */
 function getPresenceData(eid){
-  var all = getAllPresence();
-  var list = all[eid] || [];
-  var now  = Date.now();
-  // Nettoyer les présences expirées
-  list = list.filter(function(p){ return (now - p.ts) < PRESENCE_TTL; });
-  all[eid] = list;
-  saveAllPresence(all);
-  return { count: list.length, list: list };
+  try {
+    var all = getAllPresence();
+    var list = (all && all[eid]) ? all[eid] : [];
+    var now  = Date.now();
+    // Nettoyer les présences expirées
+    list = list.filter(function(p){ return p && (now - p.ts) < PRESENCE_TTL; });
+    all[eid] = list;
+    saveAllPresence(all);
+    return { count: list.length, list: list };
+  } catch(err) {
+    return { count: 0, list: [] };
+  }
 }
 
 /* ── L'utilisateur actuel est-il présent ? ── */
@@ -5388,22 +5392,30 @@ function castVote(eid, type){
 
 /* ── Calcul affluence réelle (présences + votes + base admin) ── */
 function computeRealAffluence(e, presData, voteData){
+  if(!e) return 0;
   var base = e.affluence || 0;
+  // Null-safe presData
+  var safePresData = (presData && typeof presData === 'object') ? presData : { count: 0, list: [] };
+  var presCount = (typeof safePresData.count === 'number') ? safePresData.count : 0;
+  // Null-safe voteData
+  var safeVoteData = (voteData && typeof voteData === 'object') ? voteData : { pos: 0, neg: 0 };
+  var posVotes = (typeof safeVoteData.pos === 'number') ? safeVoteData.pos : 0;
+  var negVotes = (typeof safeVoteData.neg === 'number') ? safeVoteData.neg : 0;
   // Chaque présence confirmée ajoute du poids (max +30 pts pour 10 présences)
-  var presBonus = Math.min(presData.count * 3, 30);
+  var presBonus = Math.min(presCount * 3, 30);
   // Votes : chaque pos +2, chaque neg -3
-  var voteBonus = (voteData.pos * 2) - (voteData.neg * 3);
+  var voteBonus = (posVotes * 2) - (negVotes * 3);
   var result = Math.max(0, Math.min(100, base + presBonus + voteBonus));
   return result;
 }
 
 /* ── Classement en temps réel basé sur affluence réelle ── */
 function buildRankBadge(eid){
-  if(!etablissements.length) return "";
+  if(!etablissements || !etablissements.length) return "";
   // Calculer l'affluence réelle de tous les étabs
   var ranked = etablissements.map(function(e){
-    var pd = getPresenceData(e.id);
-    var vd = getVoteData(e.id);
+    var pd = getPresenceData(e.id) || { count: 0, list: [] };
+    var vd = getVoteData(e.id) || { pos: 0, neg: 0 };
     return { id: e.id, score: computeRealAffluence(e, pd, vd) };
   }).sort(function(a,b){ return b.score - a.score; });
   var pos = ranked.findIndex(function(r){ return r.id === eid; }) + 1;
