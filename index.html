@@ -686,6 +686,35 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 .pub-comments-empty{font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem 0;}
 .pub-action-btn.active-comment{color:var(--cyan);}
 
+/* ══ VIDÉOS COURTES PUBLICATIONS ══ */
+.pub-video-wrap{position:relative;width:100%;background:#000;border-radius:12px;overflow:hidden;margin:0 0.75rem 0.75rem;width:calc(100% - 1.5rem);}
+.pub-video-player{width:100%;max-height:300px;display:block;border-radius:12px;background:#000;}
+.pub-video-duration{position:absolute;bottom:6px;right:8px;background:rgba(0,0,0,0.7);color:#fff;font-size:0.6rem;font-weight:700;padding:0.12rem 0.4rem;border-radius:4px;pointer-events:none;}
+.pub-video-badge{position:absolute;top:6px;left:8px;background:rgba(255,45,155,0.85);color:#fff;font-size:0.58rem;font-weight:800;padding:0.1rem 0.4rem;border-radius:4px;pointer-events:none;text-transform:uppercase;letter-spacing:0.06em;}
+.pub-video-deleted{background:rgba(255,68,102,0.07);border:1px solid rgba(255,68,102,0.2);border-radius:12px;padding:0.85rem 1rem;margin:0 0.75rem 0.75rem;display:flex;align-items:center;gap:0.6rem;font-size:0.78rem;color:var(--red);}
+/* Compose vidéo */
+.pub-video-compose-zone{border:2px dashed rgba(204,68,255,0.4);border-radius:12px;background:rgba(204,68,255,0.04);padding:1rem;text-align:center;cursor:pointer;position:relative;transition:all 0.2s;margin-bottom:0.8rem;}
+.pub-video-compose-zone:hover{background:rgba(204,68,255,0.08);border-color:rgba(204,68,255,0.6);}
+.pub-video-compose-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.pub-video-preview-wrap{position:relative;border-radius:10px;overflow:hidden;background:#000;margin-bottom:0.6rem;}
+.pub-video-preview{width:100%;max-height:180px;display:block;border-radius:10px;}
+.pub-video-info{font-size:0.72rem;color:var(--muted);text-align:center;margin-top:0.3rem;}
+.pub-video-warn{background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.3);border-radius:10px;padding:0.65rem 0.8rem;font-size:0.75rem;color:var(--amber);line-height:1.5;margin-bottom:0.6rem;display:none;}
+.pub-video-warn.show{display:block;}
+.pub-video-remove-btn{position:absolute;top:5px;right:5px;background:rgba(255,68,102,0.85);border:none;color:#fff;width:24px;height:24px;border-radius:50%;font-size:0.7rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+/* Admin suppression vidéo modale */
+.vid-del-overlay{display:none;position:fixed;inset:0;z-index:400;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);align-items:center;justify-content:center;padding:1rem;}
+.vid-del-overlay.show{display:flex;}
+.vid-del-modal{background:var(--surface);border:1px solid rgba(255,68,102,0.4);border-radius:20px;padding:1.6rem 1.4rem;width:min(370px,100%);box-shadow:0 0 40px rgba(255,68,102,0.2);animation:popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);}
+.vid-del-title{font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:var(--red);margin-bottom:0.4rem;}
+.vid-del-sub{font-size:0.78rem;color:var(--muted);margin-bottom:1rem;line-height:1.5;}
+.vid-del-reasons{display:flex;flex-direction:column;gap:0.4rem;margin-bottom:1rem;}
+.vid-del-reason{display:flex;align-items:center;gap:0.6rem;background:rgba(255,68,102,0.05);border:1px solid rgba(255,68,102,0.15);border-radius:10px;padding:0.6rem 0.8rem;cursor:pointer;transition:all 0.15s;font-size:0.8rem;color:var(--muted);}
+.vid-del-reason:active,.vid-del-reason.selected{background:rgba(255,68,102,0.12);border-color:rgba(255,68,102,0.4);color:var(--red);}
+.vid-del-reason .vdr-icon{font-size:1rem;flex-shrink:0;}
+.vid-del-confirm-btn{width:100%;padding:0.75rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--red),rgba(255,100,50,0.9));color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;margin-bottom:0.4rem;}
+.vid-del-cancel-btn{width:100%;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:0.82rem;cursor:pointer;}
+
 /* ══ HISTORIQUE CONNEXIONS ══ */
 .conn-card{background:var(--surface);border:1px solid rgba(0,229,255,0.12);border-radius:14px;padding:0.85rem 1rem;margin-bottom:0.6rem;position:relative;overflow:hidden;animation:fadeUp 0.3s ease both;}
 .conn-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--cyan);}
@@ -1868,6 +1897,24 @@ if (document.readyState === 'loading') {
         <input type="file" id="pubPhotoInput" accept="image/*" multiple style="display:none" onchange="onPubPhotosSelected(this)">
         <button type="button" class="pub-photo-add-btn" id="pubPhotoAddBtn" onclick="document.getElementById('pubPhotoInput').click()">&#43; Ajouter des photos</button>
       </div>
+      <!-- VIDÉO COURTE (max 10s) -->
+      <div class="pub-photos-compose" id="pubVideoSection">
+        <div class="pub-photos-compose-label" style="color:var(--purple);">&#127916; Vidéo courte (max 10 sec)</div>
+        <div class="pub-video-warn" id="pubVideoWarn">
+          ⚠️ <strong>Vidéo trop longue !</strong> La limite est de <strong>10 secondes</strong>. Veuillez couper votre vidéo avant de l'uploader (utilisez l'éditeur vidéo de votre téléphone ou une app comme CapCut).
+        </div>
+        <div id="pubVideoPreviewWrap" style="display:none;" class="pub-video-preview-wrap">
+          <video id="pubVideoPreview" class="pub-video-preview" controls muted playsinline></video>
+          <button class="pub-video-remove-btn" onclick="removePubVideo()">&#10005;</button>
+          <div class="pub-video-info" id="pubVideoInfo"></div>
+        </div>
+        <div class="pub-video-compose-zone" id="pubVideoZone">
+          <input type="file" id="pubVideoInput" accept="video/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;" onchange="onPubVideoSelected(this)">
+          <div style="font-size:1.8rem;margin-bottom:0.3rem;">&#127916;</div>
+          <div style="font-size:0.8rem;font-weight:700;color:var(--purple);">Ajouter une vidéo courte</div>
+          <div style="font-size:0.68rem;color:var(--muted);margin-top:0.2rem;">MP4, MOV, WebM — 10 secondes max</div>
+        </div>
+      </div>
       <div class="field"><label>Établissement concerné (optionnel)</label>
         <select id="pubEtabSelect"><option value="">— Aucun —</option></select>
       </div>
@@ -1932,6 +1979,9 @@ if (document.readyState === 'loading') {
         <a href="#" onclick="openLegalModal('cgu');return false;" data-i18n="footer_cgu">CGU</a>
         <a href="#" onclick="switchSection('contacts',document.querySelectorAll('.nav-item')[3]);window.scrollTo(0,0);return false;">Contact</a>
       </div>
+    </div>
+    <div style="text-align:center;margin-top:0.8rem;font-size:0.58rem;color:rgba(176,136,192,0.45);letter-spacing:0.03em;line-height:1.6;">
+      créé par kozangue essono patrick bertin — libreville, gabon · 13 avril 2026
     </div>
   </div>
 </footer>
@@ -3791,98 +3841,62 @@ function buildCard(e,delay,compact,rank){
     }
   }
 
-  // SLOT GAUCHE → 5 photos éphémères 10h (visible par tous, ajout/suppr admin ou établissement)
-  var slotPhotos=loadSlotPhotos(e.id);
+  // GALERIE PERMANENTE — 2 photos côte à côte choisies dans la galerie (max 10)
+  // Visible par le propriétaire du compte, les visiteurs et l'admin — permanentes
+  var galeriePhotos = loadGalerie(e.id);
+  var gPhoto1 = galeriePhotos[0] || null;
+  var gPhoto2 = galeriePhotos[1] || null;
+
   photosHtml+="<div class=\"media-slot\">";
-  if(slotPhotos.length>0){
-    photosHtml+="<div style=\"position:relative;height:90px;overflow:hidden;background:#000;\">";
-    // Affiche la 1ère photo en thumbnail, avec indicateur de compte
-    photosHtml+="<img src=\""+slotPhotos[0].url+"\" style=\"width:100%;height:100%;object-fit:cover;display:block;cursor:pointer;\" onclick=\"openSlotLightbox("+e.id+",0)\">";
-    photosHtml+="<span style=\"position:absolute;bottom:3px;left:4px;font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.9);background:rgba(0,0,0,0.6);padding:0.12rem 0.35rem;border-radius:4px;z-index:2;\">&#128248; "+slotPhotos.length+"/"+MAX_SLOT+"</span>";
-    photosHtml+="<span style=\"position:absolute;bottom:3px;right:4px;font-size:0.56rem;color:rgba(255,255,255,0.7);background:rgba(0,0,0,0.5);padding:0.1rem 0.3rem;border-radius:4px;z-index:2;\">"+getTimeLeft(slotPhotos[0].ts)+"</span>";
+  if(gPhoto1){
+    photosHtml+="<div class=\"photo-wrap\" onclick=\"openGalerie("+e.id+")\" style=\"cursor:pointer;\">";
+    photosHtml+="<img src=\""+gPhoto1.url+"\" alt=\"Photo 1\" style=\"width:100%;height:90px;object-fit:cover;\">";
+    photosHtml+="<span class=\"photo-label\">&#128247; 1/"+galeriePhotos.length+"</span>";
     photosHtml+="</div>";
   } else {
-    photosHtml+="<div class=\"no-photo\" style=\"height:90px;\">";
+    photosHtml+="<div class=\"no-photo\" style=\"height:90px;\" onclick=\""+(canEditPhotos(e)?"openGalerie("+e.id+")":"")+"\" style=\"cursor:"+(canEditPhotos(e)?"pointer":"default")+";\">";
     if(canEditPhotos(e)){
-      photosHtml+="<span style=\"font-size:1.4rem;\">&#128248;</span><small style=\"color:var(--muted);font-size:0.6rem;\">Photos ce soir</small>";
+      photosHtml+="<span style=\"font-size:1.4rem;\">&#128247;</span><small style=\"color:var(--muted);font-size:0.6rem;\">Ajouter photo</small>";
     } else {
-      photosHtml+="<span>&#128248;</span><small>Photos ce soir</small>";
+      photosHtml+="<span>&#128247;</span><small>Photo 1</small>";
     }
     photosHtml+="</div>";
   }
   if(canEditPhotos(e)){
     photosHtml+="<div class=\"media-action-bar\">";
-    if(slotPhotos.length<MAX_SLOT){
-      // label natif → ouvre directement le sélecteur de fichier sur Android (même pattern que galerie)
-      photosHtml+="<label for=\"__fileSlotPhoto\" class=\"mab-btn mab-upload\" style=\"flex:2;text-align:center;cursor:pointer;\" onclick=\"window.__slotUploadEid="+e.id+"\">&#43; Photo</label>";
-    }
-    if(slotPhotos.length>0){
-      photosHtml+="<button class=\"mab-btn mab-del\" onclick=\"openSlotLightbox("+e.id+",0)\">&#128269; Voir</button>";
-    }
+    photosHtml+="<button class=\"mab-btn mab-upload\" style=\"width:100%;\" onclick=\"openGalerie("+e.id+")\">&#128247; Galerie ("+galeriePhotos.length+"/"+MAX_GALERIE+")</button>";
     photosHtml+="</div>";
   }
   photosHtml+="</div>";
 
-  // SLOT DROIT → Photo extérieur permanente (visible par tous)
-  if(e.photo_exterieur){
-    photosHtml+="<div class=\"media-slot\">";
-    photosHtml+="<div class=\"photo-wrap\" onclick=\"openLightbox(this.querySelector('img').src)\">";
-    photosHtml+="<img src=\""+e.photo_exterieur+"\" alt=\"Ext\">";
-    photosHtml+="<span class=\"photo-label\">&#127758; Ext&eacute;rieur</span>";
-    if(canEditPhotos(e)){
-      photosHtml+="<button onclick=\"event.stopPropagation();triggerPermPhotoUpload("+e.id+",'exterieur')\" style=\"position:absolute;top:4px;right:4px;z-index:5;background:rgba(0,229,255,0.85);border:none;border-radius:6px;color:#000;font-size:0.62rem;font-weight:700;padding:0.2rem 0.4rem;cursor:pointer;\">&#9998;</button>";
-    }
-    photosHtml+="</div>";
-    if(canEditPhotos(e)){
-      photosHtml+="<div class=\"media-action-bar\">";
-      photosHtml+="<button class=\"mab-btn mab-upload\" onclick=\"triggerPermPhotoUpload("+e.id+",'exterieur')\">&#128247; Changer</button>";
-      photosHtml+="<button class=\"mab-btn mab-del\" onclick=\"deletePermPhoto("+e.id+",'exterieur')\">&#128465; Suppr.</button>";
-      photosHtml+="</div>";
-    }
+  photosHtml+="<div class=\"media-slot\">";
+  if(gPhoto2){
+    photosHtml+="<div class=\"photo-wrap\" onclick=\"openGalerie("+e.id+")\" style=\"cursor:pointer;\">";
+    photosHtml+="<img src=\""+gPhoto2.url+"\" alt=\"Photo 2\" style=\"width:100%;height:90px;object-fit:cover;\">";
+    photosHtml+="<span class=\"photo-label\">&#128247; 2/"+galeriePhotos.length+"</span>";
     photosHtml+="</div>";
   } else {
-    photosHtml+="<div class=\"media-slot\">";
-    // Fallback: Google Places photo ou placeholder categorie
-    var fallbackExt = getGooglePhotoUrl(e, 'exterieur');
-    if (fallbackExt) {
-      photosHtml+="<div class=\"photo-wrap\" onclick=\"openLightbox('"+fallbackExt+"')\"><img src=\""+fallbackExt+"\" alt=\"Ext\" style=\"width:100%;height:90px;object-fit:cover;\"><span class=\"photo-label\">&#127758; Google</span></div>";
+    photosHtml+="<div class=\"no-photo\" style=\"height:90px;\">";
+    if(galeriePhotos.length===1 && canEditPhotos(e)){
+      photosHtml+="<span style=\"font-size:1.4rem;\">&#43;</span><small style=\"color:var(--muted);font-size:0.6rem;\">2e photo</small>";
     } else {
-      photosHtml+="<div class=\"no-photo\" style=\"height:90px;\">";
-      if(canEditPhotos(e)){
-        photosHtml+="<span style=\"font-size:1.4rem;\">&#127758;</span><small style=\"color:var(--muted);font-size:0.6rem;\">Photo ext&eacute;rieur</small>";
-      } else {
-        photosHtml+="<span>&#127758;</span><small>Ext&eacute;rieur</small>";
-      }
-      photosHtml+="</div>";
-    }
-    if(canEditPhotos(e)){
-      photosHtml+="<div class=\"media-action-bar\">";
-      photosHtml+="<button class=\"mab-btn mab-upload\" style=\"width:100%;\" onclick=\"triggerPermPhotoUpload("+e.id+",'exterieur')\">&#127758; Ajouter</button>";
-      photosHtml+="</div>";
+      photosHtml+="<span>&#128247;</span><small>Photo 2</small>";
     }
     photosHtml+="</div>";
   }
-  photosHtml+="</div>"; // ferme card-photos
+  if(canEditPhotos(e)){
+    photosHtml+="<div class=\"media-action-bar\">";
+    photosHtml+="<button class=\"mab-btn mab-del\" onclick=\"openGalerie("+e.id+")\">&#128269; Voir tout</button>";
+    photosHtml+="</div>";
+  }
+  photosHtml+="</div>";
+
   // Ferme le wrapper bannière/bouton ajout si présent
   var _hasCover = e.photo_interieur || e.photo_exterieur;
   if(_hasCover || canEditPhotos(e)){ photosHtml+="</div>"; }
 
-  // Photos soiree ephemeres
-  var sp=soireePhotos[e.id]||[];
+  // Pas de photos soirée éphémères — toutes les photos sont permanentes (galerie)
   var soireeHtml="";
-  if(!compact&&(sp.length>0||isAdmin)){
-    soireeHtml="<div class=\"soiree-photos\">";
-    soireeHtml+="<div class=\"soiree-header\"><span class=\"soiree-title-txt\">&#128248; Ce soir</span>";
-    if(sp.length>0)soireeHtml+="<span class=\"soiree-timer\">"+getTimeLeft(sp[0].ts)+"</span>";
-    soireeHtml+="</div><div class=\"soiree-grid\">";
-    sp.forEach(function(p){
-      soireeHtml+="<img class=\"soiree-img\" src=\""+p.url+"\" alt=\"s\" onclick=\"openLightbox(this.src)\">";
-    });
-    if(isAdmin){
-      soireeHtml+="<button class=\"add-soiree-btn\" data-soiree-id=\""+e.id+"\">+</button>";
-    }
-    soireeHtml+="</div></div>";
-  }
 
   // Maps - utilise maps_url, ou génère depuis lat/lng, ou recherche par nom+quartier
   var mapsUrl=e.maps_url||(e.latitude&&e.longitude?"https://maps.google.com/?q="+e.latitude+","+e.longitude:"https://maps.google.com/?q="+encodeURIComponent((e.nom||"")+" "+(e.quartier||"")+" Libreville Gabon"));
@@ -3918,23 +3932,14 @@ function buildCard(e,delay,compact,rank){
     ep+="<button class=\"opt-btn "+(e.paiement==="Actif"?"sel-pay":"")+"\" data-id=\""+e.id+"\" data-field=\"paiement\" data-val=\"Actif\">Actif</button>";
     ep+="<button class=\"opt-btn "+(e.paiement==="En attente"?"sel-paywait":"")+"\" data-id=\""+e.id+"\" data-field=\"paiement\" data-val=\"En attente\">En attente</button>";
     ep+="</div></div>";
-    ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#128248; Photos ce soir (10h &bull; max "+MAX_SLOT+")</div>";
-    var slotNow=loadSlotPhotos(e.id);
+    var gNow=loadGalerie(e.id);
+    ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#128247; Galerie photos permanentes ("+gNow.length+"/"+MAX_GALERIE+")</div>";
     ep+="<div style=\"display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;\">";
-    if(slotNow.length>0){
-      ep+="<span style=\"font-size:0.7rem;color:var(--green);padding:0.3rem 0;\">&#9679; "+slotNow.length+"/"+MAX_SLOT+" &bull; "+getTimeLeft(slotNow[0].ts)+"</span>";
-      ep+="<button onclick=\"openSlotLightbox("+e.id+",0)\" style=\"background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#128269; Voir / Suppr.</button>";
-    }
-    if(slotNow.length<MAX_SLOT){
-      ep+="<label for=\"__fileSlotPhoto\" class=\"mab-btn mab-upload\" style=\"padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;display:inline-block;\" onclick=\"window.__slotUploadEid="+e.id+"\">&#43; Ajouter photo</label>";
-    } else {
-      ep+="<span style=\"font-size:0.7rem;color:var(--amber);\">Maximum atteint</span>";
-    }
+    ep+="<button onclick=\"openGalerie("+e.id+")\" style=\"background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);font-size:0.72rem;font-weight:700;padding:0.45rem 0.7rem;border-radius:8px;cursor:pointer;\">&#128247; Gérer la galerie ("+gNow.length+"/"+MAX_GALERIE+")</button>";
     ep+="</div></div>";
-    ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">📸 Photos permanentes</div>";
+    ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">📸 Photo bannière</div>";
     ep+="<div style=\"display:flex;gap:0.4rem;flex-wrap:wrap;\">";
     ep+="<button onclick=\"openPhotoModal("+e.id+",'interieur')\" style=\"flex:1;background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);font-size:0.72rem;font-weight:700;padding:0.45rem 0.7rem;border-radius:8px;cursor:pointer;\">"+(e.photo_interieur?"✅":"➕")+" 🏠 Intérieur</button>";
-    ep+="<button onclick=\"openPhotoModal("+e.id+",'exterieur')\" style=\"flex:1;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.45rem 0.7rem;border-radius:8px;cursor:pointer;\">"+(e.photo_exterieur?"✅":"➕")+" 🌍 Extérieur</button>";
     ep+="</div></div>";
     ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#128205; Lien Maps</div>";
     ep+="<div style=\"display:flex;gap:0.4rem;align-items:center\">";
@@ -3949,18 +3954,10 @@ function buildCard(e,delay,compact,rank){
     // Etablissement connecté : peut supprimer son propre établissement (mais pas modifier le statut admin)
     ep="<div class=\"edit-panel show\" style=\"margin-top:0.6rem;\">";
     ep+="<div class=\"edit-title\">Gérer — "+e.nom+"</div>";
-    ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#128248; Photos ce soir (10h &bull; max "+MAX_SLOT+")</div>";
-    var slotNow2=loadSlotPhotos(e.id);
+    ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#128247; Galerie photos permanentes</div>";
+    var gNow2=loadGalerie(e.id);
     ep+="<div style=\"display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;\">";
-    if(slotNow2.length>0){
-      ep+="<span style=\"font-size:0.7rem;color:var(--green);padding:0.3rem 0;\">&#9679; "+slotNow2.length+"/"+MAX_SLOT+" &bull; "+getTimeLeft(slotNow2[0].ts)+"</span>";
-      ep+="<button onclick=\"openSlotLightbox("+e.id+",0)\" style=\"background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#128269; Voir / Suppr.</button>";
-    }
-    if(slotNow2.length<MAX_SLOT){
-      ep+="<label for=\"__fileSlotPhoto\" class=\"mab-btn mab-upload\" style=\"padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;display:inline-block;\" onclick=\"window.__slotUploadEid="+e.id+"\">&#43; Ajouter photo</label>";
-    } else {
-      ep+="<span style=\"font-size:0.7rem;color:var(--amber);\">Maximum atteint</span>";
-    }
+    ep+="<button onclick=\"openGalerie("+e.id+")\" style=\"background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);font-size:0.72rem;font-weight:700;padding:0.45rem 0.7rem;border-radius:8px;cursor:pointer;\">&#128247; Gérer ma galerie ("+gNow2.length+"/"+MAX_GALERIE+")</button>";
     ep+="</div></div>";
     ep+="<div class=\"edit-row\" style=\"margin-top:0.5rem;border-top:1px solid rgba(255,68,102,0.2);padding-top:0.7rem;\">";
     ep+="<button onclick=\"deleteEtablissement("+e.id+")\" style=\"width:100%;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,68,102,0.4);background:rgba(255,68,102,0.08);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;\">&#128465; Supprimer mon établissement</button>";
@@ -5596,10 +5593,6 @@ function saveGalerie(eid,photos){
 }
 
 function openGalerie(eid){
-  if(!isAdmin && !currentUserEmail){
-    document.getElementById("invitOverlay").classList.add("show");
-    return;
-  }
   galerieEtabId=eid;
   var etab=etablissements.find(function(x){return x.id===eid;})||{};
   document.getElementById("galerieNom").textContent="\uD83D\uDCF8 "+etab.nom;
@@ -5625,6 +5618,7 @@ function renderGalerieGrid(){
   var eid=galerieEtabId;
   var photos=loadGalerie(eid);
   var etab=etablissements.find(function(x){return x.id===eid;})||{};
+  // Seuls le propriétaire du compte (manager) et l'admin peuvent modifier la galerie
   var canEdit=isAdmin||canEditPhotos(etab);
   var grid=document.getElementById("galerieGrid");
   var addBar=document.getElementById("galerieAddBar");
@@ -8793,6 +8787,179 @@ window.doAssignEtab = doAssignEtab;
     if(lb && img){ img.src = url; lb.classList.add("show"); }
   };
 
+  // ══════════════════════════════════════════════════════
+  // ══  VIDÉOS COURTES — 10 secondes max               ══
+  // ══════════════════════════════════════════════════════
+
+  var _pubVideo = null; // { file, objectUrl, duration }
+  var MAX_VIDEO_DURATION = 10; // secondes
+
+  window.onPubVideoSelected = function(input){
+    var file = input.files[0];
+    input.value = "";
+    if(!file) return;
+    if(!file.type.startsWith("video/")){
+      showToast("Format non supporté. Choisissez une vidéo (MP4, MOV, WebM).");
+      return;
+    }
+    // Vérifier durée via élément <video> temporaire
+    var tmpUrl = URL.createObjectURL(file);
+    var tmpVid = document.createElement("video");
+    tmpVid.preload = "metadata";
+    tmpVid.onloadedmetadata = function(){
+      var dur = tmpVid.duration;
+      URL.revokeObjectURL(tmpUrl);
+      if(dur > MAX_VIDEO_DURATION){
+        // Afficher avertissement, ne pas accepter
+        var warn = document.getElementById("pubVideoWarn");
+        if(warn){
+          warn.classList.add("show");
+          warn.innerHTML = "⚠️ <strong>Vidéo trop longue ("+(Math.round(dur))+"s) !</strong> La limite est de <strong>"+MAX_VIDEO_DURATION+" secondes</strong>. Veuillez couper votre vidéo avant de l'uploader (utilisez l'éditeur vidéo de votre téléphone ou une app comme CapCut / InShot).";
+        }
+        showToast("❌ Vidéo trop longue — max 10 secondes");
+        return;
+      }
+      // Durée OK
+      var warn2 = document.getElementById("pubVideoWarn");
+      if(warn2) warn2.classList.remove("show");
+      _pubVideo = { file: file, objectUrl: URL.createObjectURL(file), duration: Math.round(dur*10)/10 };
+      _renderPubVideoPreview();
+    };
+    tmpVid.onerror = function(){
+      URL.revokeObjectURL(tmpUrl);
+      showToast("Impossible de lire cette vidéo. Essayez un autre format.");
+    };
+    tmpVid.src = tmpUrl;
+  };
+
+  function _renderPubVideoPreview(){
+    var zone = document.getElementById("pubVideoZone");
+    var previewWrap = document.getElementById("pubVideoPreviewWrap");
+    var preview = document.getElementById("pubVideoPreview");
+    var info = document.getElementById("pubVideoInfo");
+    if(_pubVideo){
+      if(zone) zone.style.display = "none";
+      if(previewWrap) previewWrap.style.display = "block";
+      if(preview){ preview.src = _pubVideo.objectUrl; preview.load(); }
+      if(info) info.textContent = "✅ "+_pubVideo.duration+"s — "+(Math.round(_pubVideo.file.size/1024))+"Ko";
+    } else {
+      if(zone) zone.style.display = "block";
+      if(previewWrap) previewWrap.style.display = "none";
+      if(preview){ preview.src = ""; }
+    }
+  }
+
+  window.removePubVideo = function(){
+    if(_pubVideo && _pubVideo.objectUrl) URL.revokeObjectURL(_pubVideo.objectUrl);
+    _pubVideo = null;
+    var warn = document.getElementById("pubVideoWarn");
+    if(warn) warn.classList.remove("show");
+    _renderPubVideoPreview();
+  };
+
+  async function uploadPubVideo(pubId){
+    if(!_pubVideo) return null;
+    if(!window.fbStorage || !window.fbRef || !window.fbUploadBytes || !window.fbGetDownloadURL){
+      // Fallback base64 si Firebase Storage absent
+      return new Promise(function(resolve){
+        var reader = new FileReader();
+        reader.onload = function(ev){ resolve(ev.target.result); };
+        reader.readAsDataURL(_pubVideo.file);
+      });
+    }
+    var path = "publications/"+pubId+"/video_"+Date.now()+".mp4";
+    var storRef = window.fbRef(window.fbStorage, path);
+    var snap = await window.fbUploadBytes(storRef, _pubVideo.file);
+    return await window.fbGetDownloadURL(snap.ref);
+  }
+
+  // ══ SUPPRESSION VIDÉO ADMIN avec notification ══
+  var _vidDelPubId = null;
+  var _vidDelReason = null;
+  var _vidDelPubUid = null;
+
+  var VID_DEL_REASON_LABELS = {
+    violence:      "Violence ou contenu dangereux",
+    sexual:        "Contenu sexuel ou suggestif",
+    harassment:    "Harcèlement ou intimidation",
+    spam:          "Spam ou publicité non autorisée",
+    misinformation:"Fausses informations",
+    copyright:     "Violation de droits d'auteur",
+    other:         "Violation des règles AMBI241"
+  };
+
+  window.openVidDelModal = function(pubId, pubUid){
+    if(!window.isAdmin){ showToast("Réservé aux admins"); return; }
+    _vidDelPubId = pubId;
+    _vidDelPubUid = pubUid || null;
+    _vidDelReason = null;
+    // Déselectionner toutes les raisons
+    document.querySelectorAll(".vid-del-reason").forEach(function(r){ r.classList.remove("selected"); });
+    document.getElementById("vidDelOverlay").classList.add("show");
+  };
+
+  window.closeVidDelModal = function(){
+    document.getElementById("vidDelOverlay").classList.remove("show");
+    _vidDelPubId = null; _vidDelReason = null; _vidDelPubUid = null;
+  };
+
+  window.selectVidDelReason = function(el, reason){
+    document.querySelectorAll(".vid-del-reason").forEach(function(r){ r.classList.remove("selected"); });
+    el.classList.add("selected");
+    _vidDelReason = reason;
+  };
+
+  window.confirmVidDelete = function(){
+    if(!_vidDelPubId){ showToast("Erreur : publication introuvable"); return; }
+    if(!_vidDelReason){ showToast("Choisissez une raison"); return; }
+    if(!window.db || !window.fbUpdateDoc || !window.fbDoc){ showToast("Firebase non disponible"); return; }
+
+    var reasonLabel = VID_DEL_REASON_LABELS[_vidDelReason] || "Violation des règles";
+    var pubId = _vidDelPubId;
+    var pubUid = _vidDelPubUid;
+
+    // Marquer la vidéo comme supprimée (pas de suppression totale de la publication)
+    window.fbUpdateDoc(window.fbDoc(window.db, "publications", pubId), {
+      video_url: null,
+      video_deleted: true,
+      video_deleted_reason: reasonLabel,
+      video_deleted_at: Date.now(),
+      video_deleted_by: window.currentUserPseudo || "Admin"
+    }).then(function(){
+      // Notification automatique à l'auteur via Firebase
+      if(pubUid && window.fbAddDoc && window.fbCollection){
+        window.fbAddDoc(window.fbCollection(window.db, "user_notifications"), {
+          targetUid: pubUid,
+          type: "video_removed",
+          icon: "🗑️",
+          title: "Votre vidéo a été retirée",
+          message: "Votre vidéo a été supprimée par l'administration AMBI241 pour la raison suivante : « "+reasonLabel+" ». Si vous pensez que c'est une erreur, contactez-nous via WhatsApp.",
+          reason: reasonLabel,
+          pubId: pubId,
+          ts: Date.now(),
+          read: false
+        }).catch(function(){});
+      }
+      // Notif push admin
+      try{ pushNotif({targetRole:"admin",key:"vid_deleted_"+pubId,icon:"🗑️",title:"Vidéo supprimée",msg:"Raison : "+reasonLabel,channel:"push",fromAdmin:true}); }catch(e2){}
+
+      showToast("✅ Vidéo supprimée — auteur notifié");
+      window.closeVidDelModal();
+
+      // Mise à jour locale immédiate
+      var cardEl = document.querySelector('[data-pubid="'+pubId+'"]');
+      if(cardEl){
+        var vw = cardEl.querySelector(".pub-video-wrap");
+        if(vw) vw.outerHTML = '<div class="pub-video-deleted"><span style="font-size:1.2rem;">🗑️</span><div><div style="font-weight:700;">Vidéo retirée</div><div style="font-size:0.7rem;margin-top:0.15rem;">Raison : '+escHtml(reasonLabel)+'</div></div></div>';
+      }
+      // Mise à jour dans _pubData
+      var pd = _pubData.find(function(p){ return p._id === pubId; });
+      if(pd){ pd.video_url = null; pd.video_deleted = true; pd.video_deleted_reason = reasonLabel; }
+    }).catch(function(err){
+      showToast("Erreur : "+err.message);
+    });
+  };
+
   // ── Gestion photos dans le modal compose ──
   window.onPubPhotosSelected = function(input){
     var files = Array.from(input.files || []);
@@ -8895,6 +9062,12 @@ window.doAssignEtab = doAssignEtab;
     document.getElementById("pubTextInput").value = "";
     _pubPhotos = [];
     _pubReplyTo = null;
+    // Reset vidéo
+    if(_pubVideo && _pubVideo.objectUrl) URL.revokeObjectURL(_pubVideo.objectUrl);
+    _pubVideo = null;
+    var warn = document.getElementById("pubVideoWarn");
+    if(warn) warn.classList.remove("show");
+    _renderPubVideoPreview();
     var replyBanner = document.getElementById("pubReplyBanner");
     if(replyBanner) replyBanner.style.display = "none";
     renderPubPhotoGrid();
@@ -8917,7 +9090,9 @@ window.doAssignEtab = doAssignEtab;
     var btn = document.getElementById("pubSubmitBtn");
     var msg = document.getElementById("pubMsg");
     btn.disabled = true;
-    btn.textContent = _pubPhotos.length ? "⬆ Upload photos..." : "⏳ Envoi...";
+    var hasVideo = !!_pubVideo;
+    var hasPhotos = _pubPhotos.length > 0;
+    btn.textContent = hasVideo ? "⏳ Envoi..." : (hasPhotos ? "⬆ Upload photos..." : "⏳ Envoi...");
     try {
       var data = {
         pseudo: window.currentUserPseudo || window.currentUserEmail || "Anonyme",
@@ -8931,18 +9106,28 @@ window.doAssignEtab = doAssignEtab;
         comments: 0,
         createdAt: window.fbServerTimestamp()
       };
-      // Réponse à une publication parente
       if(_pubReplyTo){
         data.replyToId = _pubReplyTo.pubId;
         data.replyToPseudo = _pubReplyTo.pseudo;
       }
       var docRef = await window.fbAddDoc(window.fbCollection(window.db, "publications"), data);
       // Upload photos si présentes
-      if(_pubPhotos.length){
+      if(hasPhotos){
         btn.textContent = "⬆ Photos "+1+"/"+_pubPhotos.length+"...";
         var photoUrls = await uploadPubPhotos(docRef.id);
         if(photoUrls.length){
           await window.fbUpdateDoc(window.fbDoc(window.db, "publications", docRef.id), { photos: photoUrls });
+        }
+      }
+      // Upload vidéo si présente
+      if(hasVideo){
+        btn.textContent = "⬆ Vidéo en cours...";
+        var videoUrl = await uploadPubVideo(docRef.id);
+        if(videoUrl){
+          await window.fbUpdateDoc(window.fbDoc(window.db, "publications", docRef.id), {
+            video_url: videoUrl,
+            video_duration: _pubVideo.duration
+          });
         }
       }
       btn.disabled = false;
@@ -9046,6 +9231,20 @@ window.doAssignEtab = doAssignEtab;
       photosHtml = '<div class="pub-photos"><div class="pub-photos-row '+countClass+'">'+imgs+'</div></div>';
     }
 
+    // Vidéo courte
+    var videoHtml = "";
+    if(p.video_deleted){
+      videoHtml = '<div class="pub-video-deleted"><span style="font-size:1.2rem;">🗑️</span><div><div style="font-weight:700;font-size:0.8rem;">Vidéo retirée par l\'administration</div><div style="font-size:0.68rem;margin-top:0.15rem;color:var(--red);">Raison : '+escHtml(p.video_deleted_reason||"Violation des règles")+'</div></div></div>';
+    } else if(p.video_url){
+      var durLabel = p.video_duration ? p.video_duration+"s" : "";
+      videoHtml = '<div class="pub-video-wrap">'
+        +'<video class="pub-video-player" controls playsinline preload="none" src="'+escHtml(p.video_url)+'"></video>'
+        +'<span class="pub-video-badge">&#127916; Vidéo</span>'
+        +(durLabel ? '<span class="pub-video-duration">'+durLabel+'</span>' : '')
+        +(window.isAdmin ? '<button onclick="event.stopPropagation();openVidDelModal(\''+p._id+'\',\''+escHtml(p.uid||"")+'\')" style="position:absolute;top:6px;right:8px;background:rgba(255,68,102,0.85);border:none;color:#fff;font-size:0.6rem;font-weight:800;padding:0.2rem 0.45rem;border-radius:6px;cursor:pointer;z-index:5;">🗑 Admin</button>' : '')
+        +'</div>';
+    }
+
     // Tag "En réponse à"
     var replyTag = "";
     if(p.replyToId && p.replyToPseudo){
@@ -9088,6 +9287,7 @@ window.doAssignEtab = doAssignEtab;
       +'<div class="pub-text">'+escHtml(p.texte||"")+'</div>'
       +'</div>'
       +photosHtml
+      +videoHtml
       +'<div class="pub-footer">'
       +'<button class="pub-action-btn" onclick="likePub(\''+p._id+'\',this)">&#10084;&#65039; <span>'+likes+'</span></button>'
       +'<button class="pub-action-btn" onclick="togglePubComments(\''+p._id+'\',this)">&#128172; <span>'+comments+'</span></button>'
@@ -9764,6 +9964,26 @@ window.doAssignEtab = doAssignEtab;
 
 })();
 </script>
+<!-- ══ MODAL SUPPRESSION VIDÉO ADMIN ══ -->
+<div class="vid-del-overlay" id="vidDelOverlay" onclick="if(event.target===this)closeVidDelModal()">
+  <div class="vid-del-modal">
+    <div style="font-size:1.6rem;text-align:center;margin-bottom:0.6rem;">🗑️</div>
+    <div class="vid-del-title">Supprimer cette vidéo</div>
+    <div class="vid-del-sub">Choisissez la raison. L'auteur recevra une notification automatique expliquant la suppression.</div>
+    <div class="vid-del-reasons" id="vidDelReasonsList">
+      <div class="vid-del-reason" onclick="selectVidDelReason(this,'violence')"><span class="vdr-icon">⚔️</span> Violence ou contenu dangereux</div>
+      <div class="vid-del-reason" onclick="selectVidDelReason(this,'sexual')"><span class="vdr-icon">🔞</span> Contenu sexuel ou suggestif</div>
+      <div class="vid-del-reason" onclick="selectVidDelReason(this,'harassment')"><span class="vdr-icon">😡</span> Harcèlement ou intimidation</div>
+      <div class="vid-del-reason" onclick="selectVidDelReason(this,'spam')"><span class="vdr-icon">🗑️</span> Spam ou publicité non autorisée</div>
+      <div class="vid-del-reason" onclick="selectVidDelReason(this,'misinformation')"><span class="vdr-icon">❌</span> Fausses informations</div>
+      <div class="vid-del-reason" onclick="selectVidDelReason(this,'copyright')"><span class="vdr-icon">©️</span> Violation de droits d'auteur</div>
+      <div class="vid-del-reason" onclick="selectVidDelReason(this,'other')"><span class="vdr-icon">💬</span> Autre violation des règles</div>
+    </div>
+    <button class="vid-del-confirm-btn" id="vidDelConfirmBtn" onclick="confirmVidDelete()">🗑 Supprimer et notifier</button>
+    <button class="vid-del-cancel-btn" onclick="closeVidDelModal()">Annuler</button>
+  </div>
+</div>
+
 <!-- ══ MODAL BLOCAGE UTILISATEUR ══ -->
 <div class="block-overlay" id="blockUserOverlay" onclick="if(event.target===this)closeBlockModal()">
   <div class="block-modal">
@@ -9902,7 +10122,7 @@ window.doAssignEtab = doAssignEtab;
           <div class="guide-role-title" style="color:var(--pink)">&#127979; Manager (Établissement)</div>
           <ul class="guide-role-list">
             <li>Mettre à jour les infos de son établissement</li>
-            <li>Ajouter des photos soirée éphémères</li>
+            <li>Gérer la galerie photos permanentes (max 10)</li>
             <li>Voir les avis et notes reçus</li>
             <li>Accéder à ses statistiques de consultation</li>
           </ul>
@@ -9929,10 +10149,17 @@ window.doAssignEtab = doAssignEtab;
           </div>
         </div>
         <div class="guide-tool-row">
+          <div class="guide-tool-icon">&#127916;</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Vidéos courtes</div>
+            <div class="guide-tool-desc">Publiez des vidéos de 10 secondes max dans les discussions. Vidéo trop longue ? Une alerte vous guide pour la couper avant upload. L'admin peut retirer toute vidéo en violation des règles et l'auteur est notifié automatiquement.</div>
+          </div>
+        </div>
+        <div class="guide-tool-row">
           <div class="guide-tool-icon">&#128247;</div>
           <div class="guide-tool-info">
-            <div class="guide-tool-name">Photos soirée</div>
-            <div class="guide-tool-desc">Photos éphémères (10h) uploadées par les établissements pour montrer l'ambiance du soir.</div>
+            <div class="guide-tool-name">Galerie photos</div>
+            <div class="guide-tool-desc">Photos permanentes (max 10) gérées par l'établissement ou l'admin. Visibles par tous les visiteurs. Modifiables uniquement par le manager ou l'admin.</div>
           </div>
         </div>
         <div class="guide-tool-row">
