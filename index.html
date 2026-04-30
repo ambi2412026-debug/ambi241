@@ -80,6 +80,10 @@ header{position:sticky;top:0;z-index:100;background:rgba(13,0,20,0.96);backdrop-
 .user-greeting.show{display:flex;}
 .logout-btn{background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);color:var(--red);font-size:0.58rem;font-weight:700;padding:0.2rem 0.35rem;border-radius:20px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;display:none;flex-shrink:0;white-space:nowrap;}
 .logout-btn.show{display:block;}
+/* ══ PWA NAV BUTTON ══ */
+.pwa-nav-btn{display:none;align-items:center;gap:0.25rem;background:linear-gradient(135deg,rgba(204,68,255,0.18),rgba(255,45,155,0.12));border:1px solid rgba(204,68,255,0.45);color:var(--purple);font-size:0.58rem;font-weight:800;padding:0.2rem 0.4rem;border-radius:20px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;white-space:nowrap;flex-shrink:0;}
+.pwa-nav-btn:active{transform:scale(0.92);}
+.pwa-nav-btn.show{display:flex;}
 
 /* OVERLAYS */
 .overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.9);backdrop-filter:blur(10px);align-items:center;justify-content:center;padding:1rem;}
@@ -1582,6 +1586,8 @@ if (document.readyState === 'loading') {
     </div>
     <button class="user-btn" id="userLoginBtn" onclick="document.getElementById('userOverlay').classList.add('show')">&#128100;</button>
     <button class="admin-btn" id="adminBtn" onclick="toggleAdmin()">&#128273;</button>
+    <!-- ★ BOUTON INSTALLER PWA ★ -->
+    <button class="pwa-nav-btn" id="pwaNavBtn" onclick="installPWA()" title="Installer l'application">&#128640; Installer</button>
     <!-- ★ BOUTON GUIDE ★ -->
     <button class="guide-btn" onclick="document.getElementById('guideOverlay').classList.add('show')" title="Guide d'utilisation">&#9432; <span class="guide-label">Guide</span></button>
   </div>
@@ -1606,6 +1612,27 @@ if (document.readyState === 'loading') {
   </div>
 </div>
 <div class="notif-toast" id="notifToast"></div>
+
+<!-- ══ BANNER INSTALL IOS ══ -->
+<div id="iosBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:rgba(13,0,20,0.97);border-top:1px solid rgba(204,68,255,0.4);padding:0.9rem 1rem;z-index:450;display:none;align-items:center;gap:0.7rem;box-shadow:0 -4px 24px rgba(204,68,255,0.2);">
+  <div style="font-size:1.6rem;flex-shrink:0;">&#128640;</div>
+  <div style="flex:1;">
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.85rem;color:var(--text);">Installer AMBI241</div>
+    <div style="font-size:0.7rem;color:var(--muted);margin-top:0.15rem;">Appuyez sur <strong style="color:var(--cyan);">&#128077; Partager</strong> puis <strong style="color:var(--cyan);">« Sur l'écran d'accueil »</strong></div>
+  </div>
+  <button onclick="document.getElementById('iosBanner').style.display='none';localStorage.setItem('iosBannerClosed','1')" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;padding:0.2rem 0.4rem;flex-shrink:0;">&#10005;</button>
+</div>
+
+<!-- ══ BANNER INSTALL ANDROID ══ -->
+<div id="androidBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:rgba(13,0,20,0.97);border-top:1px solid rgba(204,68,255,0.4);padding:0.9rem 1rem;z-index:450;align-items:center;gap:0.7rem;box-shadow:0 -4px 24px rgba(204,68,255,0.2);">
+  <div style="font-size:1.6rem;flex-shrink:0;">&#128640;</div>
+  <div style="flex:1;">
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.85rem;color:var(--text);">Installer AMBI241</div>
+    <div style="font-size:0.7rem;color:var(--muted);margin-top:0.15rem;">Ajoutez l'app sur votre écran d'accueil pour un accès rapide</div>
+  </div>
+  <button onclick="installPWA()" style="background:linear-gradient(135deg,var(--purple),var(--pink));border:none;color:#fff;font-size:0.72rem;font-weight:800;padding:0.4rem 0.8rem;border-radius:20px;cursor:pointer;font-family:'DM Sans',sans-serif;flex-shrink:0;">Installer</button>
+  <button onclick="document.getElementById('androidBanner').style.display='none';localStorage.setItem('androidBannerClosed','1')" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;padding:0.2rem 0.4rem;flex-shrink:0;">&#10005;</button>
+</div>
 
 <main>
   <!-- SEC: ACCUEIL -->
@@ -9505,33 +9532,76 @@ window.doAssignEtab = doAssignEtab;
 </div>
 
 <script>
-/* ══ PWA INSTALL ══ */
+/* ══ PWA INSTALL — SYSTÈME COMPLET ══ */
 var _pwaInstallPrompt = null;
+var _pwaIsIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+var _pwaIsAndroid = /android/i.test(navigator.userAgent);
+var _pwaIsStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+/* Afficher / masquer les boutons navbar et hero */
+function _pwaShowInstallBtns(show){
+  var navBtn = document.getElementById('pwaNavBtn');
+  var heroBtn = document.getElementById('installPwaBtn');
+  if(navBtn){ navBtn.classList.toggle('show', show); }
+  if(heroBtn){ heroBtn.style.display = show ? 'inline-flex' : 'none'; }
+}
+
+/* Gestion beforeinstallprompt (Chrome/Android/Edge) */
 window.addEventListener('beforeinstallprompt', function(e){
   e.preventDefault();
   _pwaInstallPrompt = e;
-  var btn = document.getElementById('installPwaBtn');
-  if(btn) btn.style.display = 'inline-flex';
+  _pwaShowInstallBtns(true);
+  /* Afficher banner Android si pas déjà fermé */
+  if(_pwaIsAndroid && !localStorage.getItem('androidBannerClosed') && !_pwaIsStandalone){
+    var banner = document.getElementById('androidBanner');
+    if(banner){ banner.style.display = 'flex'; }
+  }
 });
+
+/* Après installation réussie */
 window.addEventListener('appinstalled', function(){
   _pwaInstallPrompt = null;
-  var btn = document.getElementById('installPwaBtn');
-  if(btn) btn.style.display = 'none';
+  _pwaShowInstallBtns(false);
+  var ab = document.getElementById('androidBanner');
+  if(ab) ab.style.display = 'none';
   showToast('✅ Ambi241 installé avec succès !');
 });
+
+/* Fonction principale d'installation */
 function installPWA(){
   if(_pwaInstallPrompt){
     _pwaInstallPrompt.prompt();
     _pwaInstallPrompt.userChoice.then(function(r){
-      if(r.outcome==='accepted'){ showToast('&#128640; Installation en cours...'); }
+      if(r.outcome === 'accepted'){
+        showToast('🚀 Installation en cours...');
+      }
       _pwaInstallPrompt = null;
-      var btn = document.getElementById('installPwaBtn');
-      if(btn) btn.style.display = 'none';
+      _pwaShowInstallBtns(false);
+      var ab = document.getElementById('androidBanner');
+      if(ab) ab.style.display = 'none';
     });
+  } else if(_pwaIsIOS && !_pwaIsStandalone){
+    /* Sur iOS montrer le banner d'instructions */
+    var banner = document.getElementById('iosBanner');
+    if(banner){ banner.style.display = 'flex'; }
   } else {
     showToast('Ouvrez ce site dans votre navigateur pour installer l\'app');
   }
 }
+
+/* Init au chargement */
+(function(){
+  if(_pwaIsStandalone) return; /* Déjà installé, ne rien montrer */
+  /* iOS : montrer banner si pas déjà fermé */
+  if(_pwaIsIOS && !localStorage.getItem('iosBannerClosed')){
+    setTimeout(function(){
+      var banner = document.getElementById('iosBanner');
+      if(banner){ banner.style.display = 'flex'; }
+      /* Montrer aussi les boutons nav/hero sur iOS */
+      _pwaShowInstallBtns(true);
+    }, 3000);
+  }
+})();
 </script>
 
 <script>
@@ -9548,6 +9618,24 @@ function switchGuideTab(tab){
 document.addEventListener('keydown', function(e){
   if(e.key==='Escape') closeGuide();
 });
+</script>
+
+
+<script>
+function getStoredPhoto(key){
+  try{return localStorage.getItem(key)||"";}catch(e){return "";}
+}
+function setStoredPhoto(key,base64){
+  try{localStorage.setItem(key,base64);}catch(e){}
+}
+function getPhotoUrl(placeId,type){
+  const key=`photo_${type}_${placeId}`;
+  const stored=getStoredPhoto(key);
+  if(stored)return stored;
+  return type==="interieur"
+    ?"https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800"
+    :"https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800";
+}
 </script>
 
 </body>
