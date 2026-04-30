@@ -5684,44 +5684,57 @@ function onSlotPhotoSelected(inp){
 }
 
 function onPermPhotoSelected(inp){
-  if(!__permPhotoEid||!inp.files[0])return;
+  // Récupérer eid/type depuis window (définis par le label onclick) ou les vars locales
+  var eid  = __permPhotoEid  || window.__permPhotoEid  || __photoModalEid;
+  var type = __permPhotoType || window.__permPhotoType || __photoModalType || "exterieur";
+  if(!eid||!inp.files||!inp.files[0])return;
   var file = inp.files[0];
-  var etab = etablissements.find(function(x){return x.id===__permPhotoEid;})||{};
-  if(!canEditPhotos(etab)){showToast("Accès refusé");inp.value="";return;}
+  var etab = etablissements.find(function(x){return x.id===eid;})||{};
+  if(!canEditPhotos(etab) && !isAdmin){showToast("Accès refusé");inp.value="";return;}
+
+  // Synchro des vars locales pour la suite
+  __permPhotoEid  = eid;
+  __permPhotoType = type;
 
   showToast("Upload en cours... ⏳");
 
   // Essayer Firebase Storage en priorité
   if(window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL){
-    var docId = etab._docId || ("etab_"+String(__permPhotoEid).padStart(3,"0"));
-    var path = "etablissements/"+docId+"/"+__permPhotoType+"_"+Date.now()+".jpg";
+    var docId = etab._docId || ("etab_"+String(eid).padStart(3,"0"));
+    var path = "etablissements/"+docId+"/"+type+"_"+Date.now()+".jpg";
     var storageRef = window.fbRef(window.fbStorage, path);
     window.fbUploadBytes(storageRef, file).then(function(){
       return window.fbGetDownloadURL(storageRef);
     }).then(function(url){
-      var field = __permPhotoType==="interieur"?"photo_interieur":"photo_exterieur";
+      var field = type==="interieur"?"photo_interieur":"photo_exterieur";
       var obj={}; obj[field]=url;
-      updateField(__permPhotoEid, obj);
+      updateField(eid, obj);
       inp.value="";
+      renderAll(); renderHome();
+      closePhotoModal();
       showToast("✅ Photo uploadée !");
     }).catch(function(err){
       // Fallback base64 si Storage échoue
       showToast("Storage indisponible, compression locale...");
       compressImage(file, function(dataUrl){
-        var field=__permPhotoType==="interieur"?"photo_interieur":"photo_exterieur";
+        var field=type==="interieur"?"photo_interieur":"photo_exterieur";
         var obj={}; obj[field]=dataUrl;
-        updateField(__permPhotoEid, obj);
+        updateField(eid, obj);
         inp.value="";
+        renderAll(); renderHome();
+        closePhotoModal();
         showToast("✅ Photo enregistrée !");
       });
     });
   } else {
     // Fallback base64
     compressImage(file, function(dataUrl){
-      var field=__permPhotoType==="interieur"?"photo_interieur":"photo_exterieur";
+      var field=type==="interieur"?"photo_interieur":"photo_exterieur";
       var obj={}; obj[field]=dataUrl;
-      updateField(__permPhotoEid, obj);
+      updateField(eid, obj);
       inp.value="";
+      renderAll(); renderHome();
+      closePhotoModal();
       showToast("✅ Photo enregistrée !");
     });
   }
@@ -5734,8 +5747,11 @@ var __photoModalType = null;
 function openPhotoModal(eid, type){
   var etab = etablissements.find(function(x){return x.id===eid;})||{};
   if(!canEditPhotos(etab) && !isAdmin){showToast("Accès refusé");return;}
-  __photoModalEid = eid;
+  __photoModalEid  = eid;
   __photoModalType = type;
+  // Exposer aussi sur window pour que le label natif puisse les lire
+  window.__permPhotoEid  = eid;
+  window.__permPhotoType = type;
   var modal = document.getElementById("photoModalOverlay");
   var title = document.getElementById("photoModalTitle");
   var urlInp = document.getElementById("photoModalUrl");
@@ -8448,7 +8464,8 @@ window.doAssignEtab = doAssignEtab;
     <div style="background:rgba(255,45,155,0.05);border:1px solid rgba(255,45,155,0.2);border-radius:14px;padding:1rem;margin-bottom:0.8rem;">
       <div style="font-size:0.72rem;font-weight:800;color:var(--pink);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.6rem;">📱 Option 2 — Uploader depuis votre appareil</div>
       <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.7rem;line-height:1.5;">Photo stockée sur Firebase Storage — stable et permanente.</div>
-      <button onclick="triggerPhotoModalUpload()" style="width:100%;padding:0.65rem;border-radius:10px;border:none;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;">📤 Choisir une photo</button>
+      <!-- label natif → ouvre directement la galerie sur Android/iOS, fiable comme les slots -->
+      <label for="__filePermPhoto" onclick="window.__permPhotoEid=__photoModalEid;window.__permPhotoType=__photoModalType;" style="display:block;width:100%;padding:0.65rem;border-radius:10px;border:none;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;text-align:center;box-sizing:border-box;">📤 Choisir une photo</label>
     </div>
 
     <!-- Supprimer -->
