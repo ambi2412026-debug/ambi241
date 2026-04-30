@@ -2472,14 +2472,14 @@ function loadSlotPhotos(eid){
 // Les 8 entrées hardcodées sont conservées comme base historique,
 // les établissements manquants sont ajoutés automatiquement.
 var _paiementsBase=[
-  {id:"PAY-001",nom:"Lounge Bar",mode:"Airtel Money",montant:5000,date:"2025-01-15",statut:"Confirme"},
-  {id:"PAY-002",nom:"Miami Club",mode:"Moov Money",montant:5000,date:"2025-01-16",statut:"Confirme"},
-  {id:"PAY-003",nom:"Urban Rooftop",mode:"Airtel Money",montant:5000,date:"2025-01-17",statut:"Confirme"},
-  {id:"PAY-004",nom:"Azor Discotheque",mode:"Moov Money",montant:5000,date:"2025-01-18",statut:"Confirme"},
-  {id:"PAY-005",nom:"Jazz Cafe",mode:"Airtel Money",montant:5000,date:"2025-01-19",statut:"Confirme"},
-  {id:"PAY-006",nom:"Le Nid Bar",mode:"Moov Money",montant:5000,date:"2025-01-20",statut:"En attente"},
-  {id:"PAY-007",nom:"Savana Resto",mode:"Airtel Money",montant:5000,date:"2025-01-21",statut:"Confirme"},
-  {id:"PAY-008",nom:"Sky Lounge",mode:"Moov Money",montant:5000,date:"2025-01-22",statut:"Confirme"}
+  {id:"PAY-001",nom:"Le Murmure Lounge",mode:"Airtel Money",montant:5000,date:"2025-01-15",statut:"Confirme"},
+  {id:"PAY-002",nom:"La Suite Lounge & Wine Bar",mode:"Moov Money",montant:5000,date:"2025-01-16",statut:"Confirme"},
+  {id:"PAY-003",nom:"Le Lantern Tapas Bar",mode:"Airtel Money",montant:5000,date:"2025-01-17",statut:"Confirme"},
+  {id:"PAY-004",nom:"Blu Bar Libreville",mode:"Moov Money",montant:5000,date:"2025-01-18",statut:"Confirme"},
+  {id:"PAY-005",nom:"Best Vibes Lounge",mode:"Airtel Money",montant:5000,date:"2025-01-19",statut:"Confirme"},
+  {id:"PAY-006",nom:"Lollipop Bar",mode:"Moov Money",montant:5000,date:"2025-01-20",statut:"En attente"},
+  {id:"PAY-007",nom:"Le Yoss Cocktail Bar",mode:"Airtel Money",montant:5000,date:"2025-01-21",statut:"Confirme"},
+  {id:"PAY-008",nom:"Tipsy Night Club",mode:"Moov Money",montant:5000,date:"2025-01-22",statut:"Confirme"}
 ];
 var _paiementsFirebase=[]; // chargés depuis Firebase
 var paiements=_paiementsBase.slice();
@@ -2691,43 +2691,91 @@ function computeRankScore(e){
   var pd = getPresenceData(e.id);
   var vd = getVoteData(e.id);
 
-  // Affluence : déjà 0-100
-  var sAff = Math.min(100, Math.max(0, e.affluence || 0));
+  // Affluence réelle (intègre déjà présences + votes dans l'affichage)
+  var sAff = Math.min(100, Math.max(0, computeRealAffluence(e, pd, vd)));
   // Note : 0-5 → 0-100
   var sNote = Math.min(100, Math.max(0, ((e.note || 0) / 5) * 100));
   // Avis : log scale (0 avis → 0, 1000+ → 100)
   var sAvis = Math.min(100, Math.round(Math.log10(Math.max(1, e.avis || 0) + 1) / Math.log10(1001) * 100));
-  // Présences : 0-20+ → 0-100 (cap 20)
+  // Présences actives (TTL 3h) : 0-20+ → 0-100
   var sPresences = Math.min(100, Math.round((pd.count / 20) * 100));
-  // Votes nets : ratio positif
+  // Votes nets : ratio positif (50 si aucun vote)
   var totalVotes = vd.pos + vd.neg;
   var sVotes = totalVotes > 0 ? Math.round((vd.pos / totalVotes) * 100) : 50;
 
-  var total = (w.affluence/100)*sAff + (w.note/100)*sNote + (w.avis/100)*sAvis + (w.presences/100)*sPresences + (w.votes/100)*sVotes;
+  // ── Bonus commentaires récents (dernier 24h) ──
+  var comments = commentsCache[e.id] || [];
+  var nowTs = Date.now();
+  var recentComments = comments.filter(function(c){ return (nowTs - (c.ts||0)) < 86400000; }).length;
+  var sComments = Math.min(100, recentComments * 10); // +10 pts par commentaire récent, max 100
+
+  // ── Bonus scoreActivite Firebase (réservations VIP, contacts cliqués) ──
+  var sActivite = Math.min(100, e.scoreActivite || 0);
+
+  // ── Calcul pondéré (poids configurables + bonus fixes) ──
+  var total = (w.affluence/100)*sAff
+            + (w.note/100)*sNote
+            + (w.avis/100)*sAvis
+            + (w.presences/100)*sPresences
+            + (w.votes/100)*sVotes;
+
   // Normaliser si poids total != 100
   var wSum = w.affluence + w.note + w.avis + w.presences + w.votes;
   if(wSum > 0) total = total / (wSum/100);
 
+  // Bonus commentaires récents (+5% max) et activité (+5% max) hors pondération
+  total = total * 0.9 + sComments * 0.05 + sActivite * 0.05;
+
   return {
-    score:     Math.round(total),
+    score:     Math.round(Math.min(100, total)),
     affluence: Math.round(sAff),
     note:      Math.round(sNote),
     avis:      Math.round(sAvis),
     presences: Math.round(sPresences),
-    votes:     Math.round(sVotes)
+    votes:     Math.round(sVotes),
+    comments:  recentComments,
+    activite:  Math.round(sActivite)
   };
 }
 
-/* Applique un statut dynamique basé sur l'affluence réelle (sans écraser les overrides admin) */
+/* Applique un statut dynamique basé sur l'affluence réelle + activité (sans écraser les overrides admin) */
 function applyDynamicStatus(e){
   if(e._adminOverride) return; // l'admin a fixé manuellement → respecter
   var pd = getPresenceData(e.id);
   var vd = getVoteData(e.id);
   var realAff = computeRealAffluence(e, pd, vd);
-  if(realAff >= 75) e.statut = "Ouvert - Bonde";
-  else if(realAff >= 40) e.statut = "Ouvert - Anime";
+  // Bonus activité récente : commentaires des 3 dernières heures
+  var comments = commentsCache[e.id] || [];
+  var recentCmt = comments.filter(function(c){ return (Date.now()-(c.ts||0)) < 10800000; }).length;
+  var activityBoost = Math.min(15, recentCmt * 3); // max +15 pts via commentaires récents
+  var effective = Math.min(100, realAff + activityBoost);
+  if(effective >= 75) e.statut = "Ouvert - Bonde";
+  else if(effective >= 40) e.statut = "Ouvert - Anime";
   else e.statut = "Ouvert - Calme";
 }
+
+/* Décroissance naturelle du scoreActivite (réduit de 1 pt par heure d'inactivité) */
+function decayActivityScores(){
+  var now = Date.now();
+  etablissements.forEach(function(e){
+    if(!e.scoreActivite || e.scoreActivite <= 0) return;
+    var lastAct = e.lastActivity || 0;
+    var hoursInactive = Math.floor((now - lastAct) / 3600000);
+    if(hoursInactive >= 2){
+      var decay = Math.min(e.scoreActivite, Math.floor(hoursInactive / 2));
+      if(decay > 0){
+        e.scoreActivite = Math.max(0, e.scoreActivite - decay);
+        if(e._docId && window.db && window.fbUpdateDoc && window.fbDoc){
+          window.fbUpdateDoc(window.fbDoc(window.db,"etablissements",e._docId),{
+            scoreActivite: e.scoreActivite
+          }).catch(function(){});
+        }
+      }
+    }
+  });
+}
+// Lancer la décroissance toutes les 30 minutes
+setTimeout(function(){ decayActivityScores(); setInterval(decayActivityScores, 1800000); }, 15000);
 
 // ── Tableau de bord classement admin ──────────────────────────
 function renderAdmClassement(){
@@ -2829,13 +2877,15 @@ function renderAdmClassement(){
     html += "<div style='height:100%;width:"+r.score+"%;background:linear-gradient(90deg,"+(r.score>=70?"var(--green)":r.score>=40?"var(--amber)":"var(--red)")+",transparent);border-radius:100px;transition:width 0.6s;'></div></div>";
 
     // Détail critères
-    html += "<div style='display:grid;grid-template-columns:repeat(5,1fr);gap:0.3rem;margin-bottom:0.5rem;'>";
+    html += "<div style='display:grid;grid-template-columns:repeat(7,1fr);gap:0.3rem;margin-bottom:0.5rem;'>";
     [
       {k:"affluence",l:"Afflux",c:"var(--red)"},
       {k:"note",l:"Note",c:"var(--amber)"},
       {k:"avis",l:"Avis",c:"var(--cyan)"},
       {k:"presences",l:"Prés.",c:"var(--green)"},
-      {k:"votes",l:"Votes",c:"var(--purple)"}
+      {k:"votes",l:"Votes",c:"var(--purple)"},
+      {k:"comments",l:"Cmts",c:"var(--pink)"},
+      {k:"activite",l:"Activ.",c:"var(--text)"}
     ].forEach(function(cr){
       html += "<div style='text-align:center;background:rgba(255,255,255,0.03);border-radius:8px;padding:0.3rem 0.1rem;'>";
       html += "<div style='font-size:0.72rem;font-weight:800;color:"+cr.c+";'>"+r[cr.k]+"</div>";
@@ -2867,14 +2917,14 @@ window.renderAdmClassement = renderAdmClassement;
 
 function getDefaults(){
   return [
-    {id:1,nom:"Lounge Bar",type:"Bar Lounge",quartier:"Centre-ville",ambiance:"Festif",statut:"Ouvert - Bonde",note:4.2,avis:38,contact:"+241 074 123 456",paiement:"Actif",affluence:85,maps_url:"https://maps.google.com/?q=Lounge+Bar+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:2,nom:"Miami Club",type:"Discotheque",quartier:"Louis",ambiance:"Tres Festif",statut:"Ouvert - Anime",note:4.5,avis:62,contact:"+241 066 789 012",paiement:"Actif",affluence:70,maps_url:"https://maps.google.com/?q=Miami+Club+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:3,nom:"Urban Rooftop",type:"Bar Rooftop",quartier:"Montagne Sainte",ambiance:"Chill",statut:"Ouvert - Calme",note:3.9,avis:21,contact:"+241 077 345 678",paiement:"Actif",affluence:30,maps_url:"https://maps.google.com/?q=Urban+Rooftop+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:4,nom:"Azor Discotheque",type:"Discotheque",quartier:"Batterie IV",ambiance:"Tres Festif",statut:"Ouvert - Bonde",note:4.7,avis:95,contact:"+241 062 901 234",paiement:"Actif",affluence:95,maps_url:"https://maps.google.com/?q=Azor+Discotheque+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:5,nom:"Jazz Cafe",type:"Cafe Restaurant",quartier:"Akebe",ambiance:"Chill",statut:"Ouvert - Anime",note:4.1,avis:17,contact:"+241 074 567 890",paiement:"Actif",affluence:45,maps_url:"https://maps.google.com/?q=Jazz+Cafe+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:6,nom:"Le Nid Bar",type:"Snack-Bar",quartier:"PK5",ambiance:"Festif",statut:"Ouvert - Calme",note:3.6,avis:8,contact:"+241 066 234 567",paiement:"En attente",affluence:20,maps_url:"https://maps.google.com/?q=Le+Nid+Bar+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:7,nom:"Savana Resto",type:"Restaurant",quartier:"Nombakele",ambiance:"Festif",statut:"Ouvert - Anime",note:4.3,avis:44,contact:"+241 077 890 123",paiement:"Actif",affluence:60,maps_url:"https://maps.google.com/?q=Savana+Resto+Libreville",photo_interieur:"",photo_exterieur:""},
-    {id:8,nom:"Sky Lounge",type:"Bar Rooftop",quartier:"Sotega",ambiance:"Tres Festif",statut:"Ouvert - Bonde",note:4.6,avis:79,contact:"+241 062 456 789",paiement:"Actif",affluence:90,maps_url:"https://maps.google.com/?q=Sky+Lounge+Libreville",photo_interieur:"",photo_exterieur:""},
+    {id:1,nom:"Le Murmure Lounge",type:"Bar Lounge",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.4,avis:89,contact:"+241 77 80 80 87",paiement:"Actif",affluence:62,lat:0.4118,lng:9.4310,place_id:"ChIJlQqVpg47fxARCJ1gq_IBYXQ",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJlQqVpg47fxARCJ1gq_IBYXQ",photo_interieur:"",photo_exterieur:"",description:"Bar Lounge, Piano Bar & Tapas. Montée de Louis. Karaoke le jeudi, concert Mbala chaque samedi dès 21h30. VIP lounges, sélection de whiskies, rhums et champagnes français."},
+    {id:2,nom:"La Suite Lounge & Wine Bar",type:"Bar Lounge",quartier:"Centre-ville",ambiance:"Chill",statut:"Ouvert - Calme",note:4.3,avis:54,contact:"+241 74 00 00 00",paiement:"Actif",affluence:55,lat:0.4355,lng:9.4290,place_id:"ChIJt9RrOCA7fxARSgf2b3RLHXM",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJt9RrOCA7fxARSgf2b3RLHXM",photo_interieur:"",photo_exterieur:"",description:"Lounge & Wine Bar au cœur de Libreville. Cadre chic et intimiste, sélection de vins et cocktails raffinés. Idéal pour les soirées entre amis ou en couple."},
+    {id:3,nom:"Le Lantern Tapas Bar",type:"Bar Restaurant",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Anime",note:4.5,avis:67,contact:"+241 66 00 00 00",paiement:"Actif",affluence:68,lat:0.4105,lng:9.4325,place_id:"ChIJk3hBbAA7fxARHSOmFvH8_cU",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJk3hBbAA7fxARHSOmFvH8_cU",photo_interieur:"",photo_exterieur:"",description:"Bar Tapas à l'ambiance unique. Cuisine locale et internationale servie en petites portions. Cocktails créatifs et atmosphère chaleureuse à Louis."},
+    {id:4,nom:"Blu Bar Libreville",type:"Bar",quartier:"Louis",ambiance:"Anime",statut:"Ouvert - Calme",note:4.2,avis:43,contact:"+241 77 00 00 00",paiement:"Actif",affluence:50,lat:0.4090,lng:9.4340,place_id:"ChIJN3rjJg47fxARsX9DP_OVaWI",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJN3rjJg47fxARsX9DP_OVaWI",photo_interieur:"",photo_exterieur:"",description:"Bar tendance du quartier Louis. Boissons fraîches, ambiance décontractée et clientèle variée. Idéal pour un after-work ou en soirée."},
+    {id:5,nom:"Best Vibes Lounge",type:"Bar Lounge",quartier:"Akanda",ambiance:"Tres Festif",statut:"Ouvert - Anime",note:4.1,avis:28,contact:"+241 66 00 00 00",paiement:"Actif",affluence:58,lat:0.5025,lng:9.3980,place_id:"ChIJeX2Mqc4lfxARjQ9YezEHKPo",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJeX2Mqc4lfxARjQ9YezEHKPo",photo_interieur:"",photo_exterieur:"",description:"Lounge festif à Akanda. Ambiance «best vibes» garantie, musique afro et internationale, cocktails. Lieu de rendez-vous des jeunes d'Akanda."},
+    {id:6,nom:"Lollipop Bar",type:"Bar",quartier:"Centre-ville",ambiance:"Festif",statut:"Ouvert - Calme",note:4.0,avis:36,contact:"+241 00 00 00 00",paiement:"Actif",affluence:42,lat:0.4370,lng:9.4350,place_id:"ChIJDZZVGh87fxART73FLK9YpWU",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJDZZVGh87fxART73FLK9YpWU",photo_interieur:"",photo_exterieur:"",description:"Bar coloré sur le Boulevard de l'Indépendance. Cocktails fruités, ambiance jeune et festive. Soirées à thème régulières."},
+    {id:7,nom:"Le Yoss Cocktail Bar",type:"Bar",quartier:"Louis",ambiance:"Chill",statut:"Ouvert - Calme",note:4.3,avis:51,contact:"+241 62 00 00 00",paiement:"Actif",affluence:48,lat:0.4130,lng:9.4305,place_id:"ChIJP3nqvQA7fxARJoWmOp3HBEE",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJP3nqvQA7fxARJoWmOp3HBEE",photo_interieur:"",photo_exterieur:"",description:"Cocktail bar haut de gamme à Louis. Mixologie créative, ambiance lounge, staff passionné. Référence des amateurs de cocktails à Libreville."},
+    {id:8,nom:"Tipsy Night Club",type:"Discotheque",quartier:"Centre-ville",ambiance:"Tres Festif",statut:"Ouvert - Bonde",note:4.0,avis:47,contact:"+241 74 00 00 00",paiement:"Actif",affluence:82,lat:0.4385,lng:9.4395,place_id:"ChIJdSBqHDk7fxARXn_z6GqHs9c",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJdSBqHDk7fxARXn_z6GqHs9c",photo_interieur:"",photo_exterieur:"",description:"Night Club en face du restaurant Calypso. Hookah, cocktails, dancefloor. Ambiance explosive les weekends. Clientèle jeune et branchée."},
     {id:9,nom:"Yoka_Lounge",type:"Discotheque",quartier:"Centre-ville",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:153,contact:"+241 77 46 11 46",paiement:"En attente",affluence:46,lat:0.4399067,lng:9.4178608,place_id:"ChIJdX05QME7fxAR2Pvl8RHwxhM",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJdX05QME7fxAR2Pvl8RHwxhM",photo_interieur:"",photo_exterieur:""},
     {id:10,nom:"No Stress",type:"Bar",quartier:"Louis",ambiance:"Anime",statut:"Ouvert - Calme",note:3.9,avis:695,contact:"+241 66 26 66 94",paiement:"En attente",affluence:49,lat:0.4062708,lng:9.4330562,place_id:"ChIJR8fPZg47fxARj_2tJJo_ZEI",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJR8fPZg47fxARj_2tJJo_ZEI",photo_interieur:"",photo_exterieur:""},
     {id:11,nom:"HYPE BAR LOUNGE",type:"Bar Lounge",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:343,contact:"+241 00 00 00 00",paiement:"En attente",affluence:49,lat:0.3970804,lng:9.4450048,place_id:"ChIJ5cGvApA7fxAR0ivmZjTaBps",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ5cGvApA7fxAR0ivmZjTaBps",photo_interieur:"",photo_exterieur:""},
@@ -3712,10 +3762,16 @@ function filterData(){
     return data;
   }
   data.sort(function(a,b){
-    if(currentSort==="affluence")return(b.affluence||0)-(a.affluence||0);
-    if(currentSort==="note")return(b.note||0)-(a.note||0);
-    if(currentSort==="quartier")return(a.quartier||"").localeCompare(b.quartier||"");
-    return 0;
+    if(currentSort==="affluence"){
+      // Affluence réelle = base admin + bonus présences + bonus votes
+      var pa=getPresenceData(a.id), va=getVoteData(a.id);
+      var pb=getPresenceData(b.id), vb=getVoteData(b.id);
+      return computeRealAffluence(b,pb,vb) - computeRealAffluence(a,pa,va);
+    }
+    if(currentSort==="note") return(b.note||0)-(a.note||0);
+    if(currentSort==="quartier") return(a.quartier||"").localeCompare(b.quartier||"");
+    // Tri par défaut : score d'activité composite (présences + votes + commentaires + note)
+    return computeRankScore(b).score - computeRankScore(a).score;
   });
   // ── Épingler l'établissement du membre propriétaire en tête ──
   data = _pinMyEtabFirst(data);
@@ -3787,6 +3843,14 @@ function logContactClick(etabId, etabNom, channel){
             channel:"push",
             fromAdmin:false
           });
+        }
+        // ── Boost scoreActivite (+6 pts par contact cliqué) ──
+        var etab = etablissements.find(function(x){ return String(x.id) === String(etabId); });
+        if(etab && etab._docId && window.fbUpdateDoc && window.fbDoc){
+          var ns = Math.min(100, (etab.scoreActivite||0) + 6);
+          window.fbUpdateDoc(window.fbDoc(window.db,"etablissements",etab._docId),{
+            scoreActivite: ns, lastActivity: Date.now()
+          }).then(function(){ etab.scoreActivite = ns; renderAll(); renderHome(); }).catch(function(){});
         }
       }).catch(function(){});
   }
@@ -3993,7 +4057,7 @@ function buildCard(e,delay,compact,rank){
     + "</div>"
     + "</div>"
     + "<div class=\"real-affluence-bar\"><div class=\"real-affluence-fill\" style=\"width:"+realAff+"%\"></div></div>"
-    + "<div class=\"real-affluence-label\"><span>Affluence réelle (présences + votes)</span><span class=\"ral-val\" style=\"color:"+(realAff>70?"var(--red)":realAff>40?"var(--amber)":"var(--green)")+"\">"+realAff+"%</span></div>";
+    + "<div class=\"real-affluence-label\"><span>Affluence réelle (présences + votes + activité)</span><span class=\"ral-val\" style=\"color:"+(realAff>70?"var(--red)":realAff>40?"var(--amber)":"var(--green)")+"\">"+realAff+"%</span></div>";
 
   var aff = e.affluence || 0;
   var pendingBadge = (e.paiement === "En attente") ? " <span class=\"badge-pending\">En attente</span>" : "";
@@ -4006,7 +4070,7 @@ function buildCard(e,delay,compact,rank){
     "<div class=\"card-top\">"+
     "<div class=\"card-row1\"><div>"+
     "<div class=\"card-num\">#"+String(rank!=null?rank:e.id).padStart(3,"0")+"</div>"+
-    "<div class=\"card-name\" onclick=\"openGalerie("+e.id+")\" style=\"cursor:pointer;display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap;\">"+e.nom+" <span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span>"+(e._distKm!=null?"<span class=\"dist-badge "+distClass(e._distKm)+"\">"+fmtDist(e._distKm)+"</span>":"")+"</div>"+
+    "<div class=\"card-name\" onclick=\"openGalerie("+e.id+")\" style=\"cursor:pointer;display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap;\">"+e.nom+" <span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span>"+(e._distKm!=null?"<span class=\"dist-badge "+distClass(e._distKm)+"\">"+fmtDist(e._distKm)+"</span>":"")+buildTrendingBadge(e)+"</div>"+
     "<span class=\"cat-badge "+ci.badge+"\">"+ci.icon+" "+ci.label+"</span>"+
     "<div style=\"font-size:0.7rem;color:var(--muted);margin-top:0.2rem\">&#128205; "+e.quartier+"</div>"+
     "</div><span class=\"status-pill "+sc+"\">"+e.statut+"</span></div>"+
@@ -4345,6 +4409,20 @@ function postComment(eid){
     if(btn){ btn.disabled=false; btn.textContent="▶ Envoyer"; }
     fetchComments(eid);
     showToast("Commentaire publié !");
+    // ── Mettre à jour scoreActivite + compteur avis dans Firebase ──
+    if(e && e._docId && window.fbUpdateDoc && window.fbDoc){
+      var newScore = Math.min(100, (e.scoreActivite||0) + 5); // +5 pts par commentaire
+      var newAvis  = (e.avis||0) + 1;
+      window.fbUpdateDoc(window.fbDoc(window.db,"etablissements",e._docId),{
+        scoreActivite: newScore,
+        avis: newAvis,
+        lastActivity: Date.now()
+      }).then(function(){
+        e.scoreActivite = newScore;
+        e.avis = newAvis;
+        renderAll(); renderHome();
+      }).catch(function(){});
+    }
   }).catch(function(err){
     if(btn){ btn.disabled=false; btn.textContent="▶ Envoyer"; }
     showToast("Erreur: "+err.message);
@@ -4593,7 +4671,17 @@ function registerPresence(eid){
   if(window.db && window.currentUserUID){
     var ref = window.fbDoc(window.db, "etablissements", String(eid), "presences", window.currentUserUID);
     window.fbSetDoc(ref, { uid: window.currentUserUID, pseudo: pseudo, ts: Date.now() }).catch(function(){});
+    // Mettre à jour scoreActivite (+4 pts par présence confirmée)
+    var etab = etablissements.find(function(x){ return x.id == eid; });
+    if(etab && etab._docId && window.fbUpdateDoc && window.fbDoc){
+      var ns = Math.min(100, (etab.scoreActivite||0) + 4);
+      window.fbUpdateDoc(window.fbDoc(window.db,"etablissements",etab._docId),{
+        scoreActivite: ns, lastActivity: Date.now()
+      }).then(function(){ etab.scoreActivite = ns; renderAll(); renderHome(); }).catch(function(){});
+    }
   }
+  // Re-trier la liste immédiatement (présence locale)
+  renderAll(); renderHome();
 }
 
 /* ── Supprimer une présence ── */
@@ -4647,6 +4735,15 @@ function castVote(eid, type){
   if(window.db && window.currentUserUID){
     var ref = window.fbDoc(window.db, "etablissements", String(eid), "votes", window.currentUserUID);
     window.fbSetDoc(ref, { uid: window.currentUserUID, vote: idx===-1?type:null, ts: Date.now() }).catch(function(){});
+    // Mettre à jour scoreActivite
+    var etab = etablissements.find(function(x){ return x.id == eid; });
+    if(etab && etab._docId && window.fbUpdateDoc && window.fbDoc){
+      var delta = (type==="pos" && idx===-1) ? 3 : (type==="neg" && idx===-1) ? -2 : 0;
+      var ns = Math.max(0, Math.min(100, (etab.scoreActivite||0) + delta));
+      window.fbUpdateDoc(window.fbDoc(window.db,"etablissements",etab._docId),{
+        scoreActivite: ns, lastActivity: Date.now()
+      }).then(function(){ etab.scoreActivite = ns; }).catch(function(){});
+    }
   }
   renderAll(); renderHome();
 }
@@ -4662,20 +4759,29 @@ function computeRealAffluence(e, presData, voteData){
   return result;
 }
 
-/* ── Classement en temps réel basé sur affluence réelle ── */
+/* ── Classement en temps réel basé sur score composite ── */
 function buildRankBadge(eid){
   if(!etablissements.length) return "";
-  // Calculer l'affluence réelle de tous les étabs
   var ranked = etablissements.map(function(e){
-    var pd = getPresenceData(e.id);
-    var vd = getVoteData(e.id);
-    return { id: e.id, score: computeRealAffluence(e, pd, vd) };
+    return { id: e.id, score: computeRankScore(e).score };
   }).sort(function(a,b){ return b.score - a.score; });
   var pos = ranked.findIndex(function(r){ return r.id === eid; }) + 1;
   if(pos===1) return "<span class=\"ranking-badge rank-1\">&#127881; #1</span>";
   if(pos===2) return "<span class=\"ranking-badge rank-2\">&#129352; #2</span>";
   if(pos===3) return "<span class=\"ranking-badge rank-3\">&#129353; #3</span>";
   return "<span class=\"ranking-badge rank-other\">#"+pos+"</span>";
+}
+
+/* ── Badge "en vogue" si l'étab a eu de l'activité récente ── */
+function buildTrendingBadge(e){
+  var pd = getPresenceData(e.id);
+  var comments = commentsCache[e.id] || [];
+  var recentCmt = comments.filter(function(c){ return (Date.now()-(c.ts||0)) < 3600000; }).length; // 1h
+  var vd = getVoteData(e.id);
+  // En vogue si : 2+ présences actives OU 3+ commentaires dans l'heure OU score activité > 60
+  var isTrending = pd.count >= 2 || recentCmt >= 3 || (e.scoreActivite||0) >= 60;
+  if(!isTrending) return "";
+  return "<span style='display:inline-flex;align-items:center;gap:0.2rem;font-size:0.58rem;font-weight:800;background:rgba(255,45,155,0.15);border:1px solid rgba(255,45,155,0.4);color:var(--pink);border-radius:6px;padding:0.1rem 0.38rem;margin-left:0.3rem;animation:pulse 1.5s infinite;'>🔥 En vogue</span>";
 }
 
 /* ── Modal présence ── */
