@@ -2444,7 +2444,7 @@ if (document.readyState === 'loading') {
 <!-- ══ FIREBASE SDK (module isolé) ══ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query, getDoc, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query, where, getDoc, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-storage.js";
 
@@ -2483,6 +2483,7 @@ window.fbOnSnapshot = onSnapshot;
 window.fbServerTimestamp = serverTimestamp;
 window.fbQuery      = query;
 window.fbOrderBy    = orderBy;
+window.fbWhere      = where;
 window.fbCreateUser = createUserWithEmailAndPassword;
 window.fbSignIn     = signInWithEmailAndPassword;
 window.fbSignOut    = signOut;
@@ -3205,9 +3206,9 @@ loadSoireePhotos();
 // ══════════════════════════════════════════════════════════════
 
 var _rankWeights = {
-  affluence: 40,   // %
-  note:       25,
-  avis:       15,
+  affluence: 30,   // % — total = 100
+  note:       30,
+  avis:       20,
   presences:  10,
   votes:      10
 };
@@ -3315,12 +3316,18 @@ function renderAdmClassement(){
   criteria.forEach(function(c){
     html += "<div style='display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;'>";
     html += "<span style='font-size:0.75rem;color:var(--text);width:80px;flex-shrink:0;'>"+c.label+"</span>";
-    html += "<input type='range' min='0' max='100' value='"+w[c.key]+"' step='5' style='flex:1;accent-color:"+c.color+";' oninput=\"_rankWeights['"+c.key+"']=parseInt(this.value);saveRankWeights();renderAdmClassement();\">";
+    html += "<input type='range' min='0' max='100' value='"+w[c.key]+"' step='5' style='flex:1;accent-color:"+c.color+";' oninput=\""
+      + "var newVal=parseInt(this.value);"
+      + "var others=Object.keys(_rankWeights).filter(function(k){return k!=='"+c.key+"';});"
+      + "var sumOthers=others.reduce(function(s,k){return s+_rankWeights[k];},0);"
+      + "if(newVal+sumOthers>100){newVal=Math.max(0,100-sumOthers);this.value=newVal;}"
+      + "_rankWeights['"+c.key+"']=newVal;"
+      + "saveRankWeights();renderAdmClassement();\">";
     html += "<span style='font-size:0.78rem;font-weight:800;color:"+c.color+";width:32px;text-align:right;'>"+w[c.key]+"%</span>";
     html += "</div>";
   });
   html += "<div style='display:flex;gap:0.5rem;margin-top:0.6rem;'>";
-  html += "<button onclick=\"_rankWeights={affluence:40,note:25,avis:15,presences:10,votes:10};saveRankWeights();renderAdmClassement();\" style='flex:1;padding:0.4rem;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.72rem;cursor:pointer;'>↺ Réinitialiser</button>";
+  html += "<button onclick=\"_rankWeights={affluence:30,note:30,avis:20,presences:10,votes:10};saveRankWeights();renderAdmClassement();\" style='flex:1;padding:0.4rem;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.72rem;cursor:pointer;'>↺ Réinitialiser (100%)</button>";
   html += "<button onclick='renderAdmClassement()' style='flex:1;padding:0.4rem;border-radius:8px;border:1px solid rgba(0,255,170,0.3);background:rgba(0,255,170,0.08);color:var(--green);font-family:Syne,sans-serif;font-weight:700;font-size:0.72rem;cursor:pointer;'>↻ Actualiser</button>";
   html += "</div></div>";
 
@@ -4719,12 +4726,20 @@ function buildCard(e,delay,compact,rank){
     + "<span data-live-presl=\""+e.id+"\">"+presData.count+" pers. sur place</span> &bull; Score réel: <strong style=\"color:var(--amber);margin-left:0.2rem;\">"+realAff+"%</strong></div>"
     + "</div>"
     + "<div class=\"vote-btns\">"
-    + "<button class=\"vote-btn vote-pos"+(myVote==="pos"?" voted":"")+"\" onclick=\"castVote("+e.id+",'pos')\">&#128077; <span id=\"vpos-"+e.id+"\">"+voteData.pos+"</span></button>"
-    + "<button class=\"vote-btn vote-neg"+(myVote==="neg"?" voted":"")+"\" onclick=\"castVote("+e.id+",'neg')\">&#128078; <span id=\"vneg-"+e.id+"\">"+voteData.neg+"</span></button>"
+    + "<button class=\"vote-btn vote-pos"+(myVote==="pos"?" voted":"")+"\" onclick=\"castVote("+e.id+",'pos');voterEtablissement("+e.id+",'pos')\">&#128077; <span id=\"vpos-"+e.id+"\">"+voteData.pos+"</span></button>"
+    + "<button class=\"vote-btn vote-neg"+(myVote==="neg"?" voted":"")+"\" onclick=\"castVote("+e.id+",'neg');voterEtablissement("+e.id+",'neg')\">&#128078; <span id=\"vneg-"+e.id+"\">"+voteData.neg+"</span></button>"
     + "</div>"
     + "</div>"
     + "<div class=\"real-affluence-bar\"><div class=\"real-affluence-fill\" style=\"width:"+realAff+"%\"></div></div>"
-    + "<div class=\"real-affluence-label\"><span>Affluence réelle (présences + votes)</span><span class=\"ral-val\" style=\"color:"+(realAff>70?"var(--red)":realAff>40?"var(--amber)":"var(--green)")+"\">"+realAff+"%</span></div>";
+    + "<div class=\"real-affluence-label\"><span>Affluence réelle (présences + votes)</span><span class=\"ral-val\" style=\"color:"+(realAff>70?"var(--red)":realAff>40?"var(--amber)":"var(--green)")+"\">"+realAff+"%</span></div>"
+    // ── Boutons signalement affluence communautaire ──
+    + "<div style=\"display:flex;gap:0.3rem;flex-wrap:wrap;margin-top:0.4rem;padding:0.4rem;background:rgba(255,255,255,0.02);border-radius:10px;border:1px solid rgba(255,255,255,0.05);\">"
+    + "<span style=\"font-size:0.62rem;color:var(--muted);width:100%;margin-bottom:0.2rem;\">📡 Signaler l'affluence maintenant :</span>"
+    + "<button onclick=\"signalerAffluence("+e.id+",'Calme')\" style=\"flex:1;padding:0.3rem 0.2rem;border-radius:7px;border:1px solid rgba(255,215,0,0.3);background:rgba(255,215,0,0.07);color:var(--amber);font-size:0.65rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;\">🟡 Calme</button>"
+    + "<button onclick=\"signalerAffluence("+e.id+",'Animé')\" style=\"flex:1;padding:0.3rem 0.2rem;border-radius:7px;border:1px solid rgba(0,255,170,0.3);background:rgba(0,255,170,0.07);color:var(--green);font-size:0.65rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;\">🟢 Animé</button>"
+    + "<button onclick=\"signalerAffluence("+e.id+",'Bondé')\" style=\"flex:1;padding:0.3rem 0.2rem;border-radius:7px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.07);color:var(--red);font-size:0.65rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;\">🔴 Bondé</button>"
+    + "<button onclick=\"signalerAffluence("+e.id+",'Fermé')\" style=\"flex:1;padding:0.3rem 0.2rem;border-radius:7px;border:1px solid rgba(180,180,180,0.2);background:rgba(255,255,255,0.03);color:var(--muted);font-size:0.65rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;\">⚫ Fermé</button>"
+    + "</div>";
 
   var aff = e.affluence || 0;
   var pendingBadge = (e.paiement === "En attente") ? " <span class=\"badge-pending\">En attente</span>" : "";
@@ -7037,6 +7052,110 @@ renderStats(); renderAll(); renderHome(); renderPayments();
 
 _startApp();
 updatePayVis();
+
+// ══════════════════════════════════════════════════════════════
+// ══ COLLECTE DE DONNÉES COMMUNAUTAIRES (Firebase)           ══
+// ══ Affluence signalée · Votes persistants · Check-in        ══
+// ══════════════════════════════════════════════════════════════
+
+/* ── Identifiant anonyme persistant par navigateur ────────── */
+function _getAnonId(){
+  var k = "ambi241_anon_id";
+  var id = localStorage.getItem(k);
+  if(!id){ id = (Date.now().toString(36) + Math.random().toString(36).slice(2)).slice(0,16); localStorage.setItem(k,id); }
+  return id;
+}
+
+/* ── Signaler l'affluence depuis la fiche établissement ─── */
+window.signalerAffluence = function(etabId, niveau){
+  // niveau : 'Calme' | 'Animé' | 'Bondé' | 'Fermé'
+  if(!window.db || !window.fbAddDoc || !window.fbCollection){ showToast("Connexion requise"); return; }
+  var uid = (window.currentUserUID || _getAnonId());
+  window.fbAddDoc(window.fbCollection(window.db, "affluence_signalements"), {
+    etablissement_id: String(etabId),
+    niveau: niveau,
+    signale_par: uid,
+    created_at: window.fbServerTimestamp ? window.fbServerTimestamp() : new Date().toISOString()
+  }).then(function(){
+    showToast("✅ Affluence signalée : " + niveau);
+    // Mise à jour locale immédiate pour UX fluide
+    var etab = etablissements.find(function(e){ return String(e.id) === String(etabId); });
+    if(etab){
+      var map = {"Calme":25, "Animé":60, "Bondé":90, "Fermé":0};
+      if(map[niveau] !== undefined) etab.affluence = map[niveau];
+      applyDynamicStatus(etab);
+      renderAll(); renderHome();
+    }
+  }).catch(function(err){ showToast("Erreur: " + err.message); });
+};
+
+/* ── Voter pour un établissement (persisté Firebase) ─────── */
+window.voterEtablissement = function(etabId, type){
+  // type: 'pos' | 'neg'
+  if(!window.db || !window.fbSetDoc || !window.fbDoc){ showToast("Firebase non disponible"); return; }
+  var uid = (window.currentUserUID || _getAnonId());
+  // 1 vote par user par établissement (UNIQUE via docId = etabId_uid)
+  var docId = String(etabId) + "_" + uid;
+  window.fbSetDoc(window.fbDoc(window.db, "votes_communautaires", docId), {
+    etablissement_id: String(etabId),
+    user_id: uid,
+    type: type,
+    created_at: window.fbServerTimestamp ? window.fbServerTimestamp() : new Date().toISOString()
+  }).then(function(){
+    showToast(type === "pos" ? "👍 Vote positif enregistré !" : "👎 Vote enregistré");
+  }).catch(function(err){ showToast("Erreur vote: " + err.message); });
+};
+
+/* ── Check-in / Présence (persisté Firebase) ─────────────── */
+window.checkInFirebase = function(etabId){
+  if(!window.db || !window.fbAddDoc || !window.fbCollection){ return; }
+  var uid = (window.currentUserUID || _getAnonId());
+  window.fbAddDoc(window.fbCollection(window.db, "presences"), {
+    etablissement_id: String(etabId),
+    user_id: uid,
+    pseudo: window.currentUserPseudo || "Visiteur",
+    created_at: window.fbServerTimestamp ? window.fbServerTimestamp() : new Date().toISOString()
+  }).catch(function(){}); // silencieux
+};
+
+/* ── Charger les stats communautaires depuis Firebase ─────── */
+window.loadStatsCommunautaires = function(etabId, callback){
+  if(!window.db || !window.fbGetDocs || !window.fbCollection || !window.fbQuery || !window.fbWhere){ return; }
+  var eid = String(etabId);
+  Promise.all([
+    // Votes
+    window.fbGetDocs(window.fbQuery(
+      window.fbCollection(window.db, "votes_communautaires"),
+      window.fbWhere("etablissement_id","==",eid)
+    )),
+    // Présences du jour
+    window.fbGetDocs(window.fbQuery(
+      window.fbCollection(window.db, "presences"),
+      window.fbWhere("etablissement_id","==",eid)
+    )),
+    // Dernier signalement affluence
+    window.fbGetDocs(window.fbQuery(
+      window.fbCollection(window.db, "affluence_signalements"),
+      window.fbWhere("etablissement_id","==",eid)
+    ))
+  ]).then(function(results){
+    var votesSnap = results[0], presSnap = results[1], affSnap = results[2];
+    var pos=0, neg=0;
+    votesSnap.forEach(function(d){ var v=d.data(); if(v.type==="pos")pos++; else neg++; });
+    var presCount = presSnap.size;
+    // Dernier signal affluence
+    var lastAff = null;
+    affSnap.forEach(function(d){ var v=d.data(); if(!lastAff || (v.created_at > lastAff.created_at)) lastAff=v; });
+    if(callback) callback({ votes:{pos:pos,neg:neg}, presences:presCount, dernierSignal:lastAff?lastAff.niveau:null });
+  }).catch(function(){});
+};
+
+/* ── Ajouter fbWhere si manquant (Firebase v9 modular) ────── */
+(function waitFbWhere(){
+  if(!window.fbWhere && window.firebase){
+    try{ window.fbWhere = firebase.firestore ? null : null; }catch(e){}
+  }
+})();
 
 
 // ── MODALES LÉGALES (CGU / Confidentialité) ──────────────────
@@ -9902,6 +10021,7 @@ window.doAssignEtab = doAssignEtab;
       <button class="guide-tab active" onclick="switchGuideTab('how')">Comment ça marche</button>
       <button class="guide-tab" onclick="switchGuideTab('roles')">Les rôles</button>
       <button class="guide-tab" onclick="switchGuideTab('tools')">Les outils</button>
+      <button class="guide-tab" onclick="switchGuideTab('lexique')" style="color:var(--amber);">📖 Lexique</button>
     </div>
     <div class="guide-body">
 
@@ -10038,6 +10158,203 @@ window.doAssignEtab = doAssignEtab;
         </div>
       </div>
 
+
+      <!-- ONGLET : LEXIQUE -->
+      <div class="guide-panel" id="guide-lexique">
+
+        <div style="font-size:0.72rem;color:var(--muted);margin-bottom:1.1rem;line-height:1.5;padding:0.7rem 0.9rem;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.18);border-radius:10px;">
+          📖 Tous les termes utilisés dans AMBI241, expliqués simplement pour que vous ne soyez jamais perdus.
+        </div>
+
+        <!-- ── TYPES D'ÉTABLISSEMENTS ── -->
+        <div style="font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--pink);margin-bottom:0.7rem;">🏠 Types d'établissements</div>
+
+        <div class="guide-tool-row" style="margin-bottom:0.65rem;align-items:flex-start;">
+          <div class="guide-tool-icon" style="font-size:1.3rem;margin-top:0.1rem;">🌆</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Rooftop <span style="font-size:0.6rem;color:var(--muted);font-weight:400;">(Bar / Rooftop)</span></div>
+            <div class="guide-tool-desc">Bar ou restaurant situé <strong style="color:var(--text);">sur le toit d'un bâtiment</strong>, offrant une vue panoramique sur la ville. Ambiance souvent trendy et aérée. Idéal en soirée pour prendre un verre avec vue sur Libreville.</div>
+          </div>
+        </div>
+
+        <div class="guide-tool-row" style="margin-bottom:0.65rem;align-items:flex-start;">
+          <div class="guide-tool-icon" style="font-size:1.3rem;margin-top:0.1rem;">🍸</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Bar Lounge</div>
+            <div class="guide-tool-desc">Bar à l'ambiance <strong style="color:var(--text);">feutrée et détendue</strong>, avec de la musique douce, des canapés confortables et une carte de cocktails élaborée. Moins festif qu'une discothèque, plus chic qu'un bar classique.</div>
+          </div>
+        </div>
+
+        <div class="guide-tool-row" style="margin-bottom:0.65rem;align-items:flex-start;">
+          <div class="guide-tool-icon" style="font-size:1.3rem;margin-top:0.1rem;">🎵</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Discothèque <span style="font-size:0.6rem;color:var(--muted);font-weight:400;">/ Disco</span></div>
+            <div class="guide-tool-desc">Club de nuit avec <strong style="color:var(--text);">DJ, piste de danse et lumières</strong>. L'endroit pour danser toute la nuit. Peut inclure des espaces VIP, bouteilles à table, et soirées thématiques.</div>
+          </div>
+        </div>
+
+        <div class="guide-tool-row" style="margin-bottom:0.65rem;align-items:flex-start;">
+          <div class="guide-tool-icon" style="font-size:1.3rem;margin-top:0.1rem;">🍽️</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Restaurant</div>
+            <div class="guide-tool-desc">Établissement proposant un <strong style="color:var(--text);">repas complet</strong> (entrée, plat, dessert) dans un cadre dédié. Peut être gastronomique, traditionnel gabonais, ou cuisine du monde.</div>
+          </div>
+        </div>
+
+        <div class="guide-tool-row" style="margin-bottom:0.65rem;align-items:flex-start;">
+          <div class="guide-tool-icon" style="font-size:1.3rem;margin-top:0.1rem;">🥐</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Patisserie Café</div>
+            <div class="guide-tool-desc">Lieu de <strong style="color:var(--text);">pause et de détente</strong> pour prendre un café, un jus, des viennoiseries ou un déjeuner léger. Ambiance calme et conviviale, souvent ouvert la journée.</div>
+          </div>
+        </div>
+
+        <div class="guide-tool-row" style="margin-bottom:0.65rem;align-items:flex-start;">
+          <div class="guide-tool-icon" style="font-size:1.3rem;margin-top:0.1rem;">🍔</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Snack-Bar</div>
+            <div class="guide-tool-desc">Petit restaurant <strong style="color:var(--text);">rapide et abordable</strong> proposant des plats simples : brochettes, sandwichs, grillades, boissons. Souvent ouvert tard le soir.</div>
+          </div>
+        </div>
+
+        <div class="guide-tool-row" style="margin-bottom:0.65rem;align-items:flex-start;">
+          <div class="guide-tool-icon" style="font-size:1.3rem;margin-top:0.1rem;">🏨</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Résidence Hôtelière</div>
+            <div class="guide-tool-desc">Hébergement entre l'hôtel et l'appartement : <strong style="color:var(--text);">chambres ou studios équipés</strong> (cuisine, salon) pour des séjours plus longs. Plus d'autonomie qu'un hôtel classique.</div>
+          </div>
+        </div>
+
+        <div class="guide-tool-row" style="margin-bottom:0.65rem;align-items:flex-start;">
+          <div class="guide-tool-icon" style="font-size:1.3rem;margin-top:0.1rem;">🌴</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Hôtel Balnéaire / Resort</div>
+            <div class="guide-tool-desc">Hôtel situé <strong style="color:var(--text);">en bord de mer ou de plage</strong>, avec piscine, plage privée et activités nautiques. Cadre vacances et détente, souvent en dehors du centre-ville.</div>
+          </div>
+        </div>
+
+        <!-- ── STATUTS D'AMBIANCE ── -->
+        <div style="font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--cyan);margin:1rem 0 0.7rem;">🔴 Statuts d'ambiance (en temps réel)</div>
+
+        <div class="guide-tool-row" style="margin-bottom:0.55rem;align-items:flex-start;">
+          <div style="font-size:1rem;margin-top:0.1rem;flex-shrink:0;width:28px;text-align:center;">🔴</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name" style="color:var(--red);">Bondé</div>
+            <div class="guide-tool-desc">L'établissement est <strong style="color:var(--text);">plein à craquer</strong>. Affluence très élevée (75%+). L'ambiance est à son maximum — attendez-vous à beaucoup de monde et une énergie intense.</div>
+          </div>
+        </div>
+
+        <div class="guide-tool-row" style="margin-bottom:0.55rem;align-items:flex-start;">
+          <div style="font-size:1rem;margin-top:0.1rem;flex-shrink:0;width:28px;text-align:center;">🟢</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name" style="color:var(--green);">Animé</div>
+            <div class="guide-tool-desc">Bonne fréquentation, <strong style="color:var(--text);">ambiance festive sans être étouffante</strong>. Le bon équilibre entre vie et confort. Idéal pour sortir entre amis.</div>
+          </div>
+        </div>
+
+        <div class="guide-tool-row" style="margin-bottom:0.55rem;align-items:flex-start;">
+          <div style="font-size:1rem;margin-top:0.1rem;flex-shrink:0;width:28px;text-align:center;">🟡</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name" style="color:var(--amber);">Calme</div>
+            <div class="guide-tool-desc">Peu de monde, <strong style="color:var(--text);">atmosphère tranquille</strong>. Parfait pour un dîner en tête-à-tête ou une soirée détendue. Service souvent plus rapide.</div>
+          </div>
+        </div>
+
+        <!-- ── TERMES TECHNIQUES ── -->
+        <div style="font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--purple);margin:1rem 0 0.7rem;">⚙️ Termes de l'application</div>
+
+        <div class="guide-tool-row" style="margin-bottom:0.55rem;align-items:flex-start;">
+          <div class="guide-tool-icon" style="font-size:1.1rem;margin-top:0.1rem;">🔥</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Affluence</div>
+            <div class="guide-tool-desc"><strong style="color:var(--text);">Taux de remplissage</strong> de l'établissement, exprimé en pourcentage (0% à 100%). Mis à jour manuellement par l'admin ou l'établissement en temps réel.</div>
+          </div>
+        </div>
+
+        <div class="guide-tool-row" style="margin-bottom:0.55rem;align-items:flex-start;">
+          <div class="guide-tool-icon" style="font-size:1.1rem;margin-top:0.1rem;">📸</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Photos éphémères (Slot ce soir)</div>
+            <div class="guide-tool-desc">Photos publiées par un établissement pour montrer l'ambiance <strong style="color:var(--text);">du soir en cours</strong>. Elles disparaissent automatiquement après 10 heures. Fraîcheur garantie !</div>
+          </div>
+        </div>
+
+        <div class="guide-tool-row" style="margin-bottom:0.55rem;align-items:flex-start;">
+          <div class="guide-tool-icon" style="font-size:1.1rem;margin-top:0.1rem;">👑</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">VIP / Réservation VIP</div>
+            <div class="guide-tool-desc">Demande de <strong style="color:var(--text);">place ou table prioritaire</strong> dans un établissement, faite directement depuis sa fiche. Réservée aux membres inscrits.</div>
+          </div>
+        </div>
+
+        <div class="guide-tool-row" style="margin-bottom:0.55rem;align-items:flex-start;">
+          <div class="guide-tool-icon" style="font-size:1.1rem;margin-top:0.1rem;">📲</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">PWA (Application mobile)</div>
+            <div class="guide-tool-desc"><em>Progressive Web App</em> : AMBI241 peut être <strong style="color:var(--text);">installée sur votre téléphone</strong> comme une vraie app, sans passer par un store. Accès rapide, icône sur l'écran d'accueil.</div>
+          </div>
+        </div>
+
+        <div class="guide-tool-row" style="margin-bottom:0.55rem;align-items:flex-start;">
+          <div class="guide-tool-icon" style="font-size:1.1rem;margin-top:0.1rem;">💳</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Airtel Money / Moov Money</div>
+            <div class="guide-tool-desc">Services de <strong style="color:var(--text);">paiement mobile au Gabon</strong>. Utilisés pour régler les abonnements des établissements sur AMBI241. Envoyez le montant par téléphone, partagez le reçu.</div>
+          </div>
+        </div>
+
+        <div class="guide-tool-row" style="margin-bottom:0.55rem;align-items:flex-start;">
+          <div class="guide-tool-icon" style="font-size:1.1rem;margin-top:0.1rem;">📅</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">Abonnement (Mensuel / Trimestriel / Annuel)</div>
+            <div class="guide-tool-desc">Formule payante pour les <strong style="color:var(--text);">propriétaires d'établissement</strong> afin d'être référencés et visibles sur AMBI241. Plus la durée est longue, plus le prix au mois est avantageux.</div>
+          </div>
+        </div>
+
+        <div class="guide-tool-row" style="margin-bottom:0.55rem;align-items:flex-start;">
+          <div class="guide-tool-icon" style="font-size:1.1rem;margin-top:0.1rem;">🌍</div>
+          <div class="guide-tool-info">
+            <div class="guide-tool-name">XAF (Franc CFA)</div>
+            <div class="guide-tool-desc">Monnaie officielle du Gabon et de plusieurs pays d'Afrique Centrale. <strong style="color:var(--text);">Tous les prix</strong> sur AMBI241 sont exprimés en XAF (Franc CFA BEAC).</div>
+          </div>
+        </div>
+
+        <!-- ── QUARTIERS ── -->
+        <div style="font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--green);margin:1rem 0 0.7rem;">📍 Quartiers de Libreville</div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.45rem;margin-bottom:0.5rem;">
+          <div style="background:rgba(0,255,170,0.06);border:1px solid rgba(0,255,170,0.15);border-radius:9px;padding:0.6rem 0.7rem;">
+            <div style="font-size:0.75rem;font-weight:700;color:var(--green);margin-bottom:0.15rem;">Louis</div>
+            <div style="font-size:0.65rem;color:var(--muted);line-height:1.4;">Quartier festif animé, plein de bars, restaurants et clubs. Cœur de la vie nocturne librévilloise.</div>
+          </div>
+          <div style="background:rgba(0,255,170,0.06);border:1px solid rgba(0,255,170,0.15);border-radius:9px;padding:0.6rem 0.7rem;">
+            <div style="font-size:0.75rem;font-weight:700;color:var(--green);margin-bottom:0.15rem;">Glass</div>
+            <div style="font-size:0.65rem;color:var(--muted);line-height:1.4;">Quartier commerçant et résidentiel avec quelques restaurants et snacks populaires.</div>
+          </div>
+          <div style="background:rgba(0,255,170,0.06);border:1px solid rgba(0,255,170,0.15);border-radius:9px;padding:0.6rem 0.7rem;">
+            <div style="font-size:0.75rem;font-weight:700;color:var(--green);margin-bottom:0.15rem;">Akanda</div>
+            <div style="font-size:0.65rem;color:var(--muted);line-height:1.4;">Au nord de Libreville. Cadre verdoyant, resorts et hôtels en bord de mer.</div>
+          </div>
+          <div style="background:rgba(0,255,170,0.06);border:1px solid rgba(0,255,170,0.15);border-radius:9px;padding:0.6rem 0.7rem;">
+            <div style="font-size:0.75rem;font-weight:700;color:var(--green);margin-bottom:0.15rem;">Centre-ville</div>
+            <div style="font-size:0.65rem;color:var(--muted);line-height:1.4;">Cœur administratif et commercial, hôtels d'affaires et restaurants internationaux.</div>
+          </div>
+          <div style="background:rgba(0,255,170,0.06);border:1px solid rgba(0,255,170,0.15);border-radius:9px;padding:0.6rem 0.7rem;">
+            <div style="font-size:0.75rem;font-weight:700;color:var(--green);margin-bottom:0.15rem;">Angondjé</div>
+            <div style="font-size:0.65rem;color:var(--muted);line-height:1.4;">Quartier résidentiel moderne au nord, avec centres commerciaux et hôtels contemporains.</div>
+          </div>
+          <div style="background:rgba(0,255,170,0.06);border:1px solid rgba(0,255,170,0.15);border-radius:9px;padding:0.6rem 0.7rem;">
+            <div style="font-size:0.75rem;font-weight:700;color:var(--green);margin-bottom:0.15rem;">Owendo</div>
+            <div style="font-size:0.65rem;color:var(--muted);line-height:1.4;">Zone industrielle et portuaire au sud, avec quelques établissements de restauration.</div>
+          </div>
+        </div>
+
+        <div style="text-align:center;font-size:0.68rem;color:var(--muted);margin-top:0.8rem;padding-top:0.8rem;border-top:1px solid rgba(255,255,255,0.06);">
+          Une question ? Contactez-nous via l'onglet <strong style="color:var(--cyan);">Contact</strong> 👇
+        </div>
+
+      </div>
+
     </div>
   </div>
 </div>
@@ -10145,7 +10462,7 @@ function closeGuide(){
 function switchGuideTab(tab){
   document.querySelectorAll('.guide-tab').forEach(function(t){t.classList.remove('active');});
   document.querySelectorAll('.guide-panel').forEach(function(p){p.classList.remove('active');});
-  var idx = {how:0, roles:1, tools:2}[tab];
+  var idx = {how:0, roles:1, tools:2, lexique:3}[tab];
   document.querySelectorAll('.guide-tab')[idx].classList.add('active');
   document.getElementById('guide-'+tab).classList.add('active');
 }
