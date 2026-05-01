@@ -2930,76 +2930,161 @@ function lsSetJSON(key,obj){ try{ lsSet(key,JSON.stringify(obj)); }catch(e){} }
 
 // ── GOOGLE PHOTO URL FALLBACK ──────────────────────────────────
 /* ══════════════════════════════════════════════════════════════
-   AUTO-FETCH PHOTOS GOOGLE PLACES — AMBI241
-   Récupère automatiquement la meilleure photo de chaque
-   établissement via Google Places API (New) grâce au place_id.
+   AUTO-FETCH PHOTOS GOOGLE — AMBI241
+   3 stratégies en cascade :
+   1. place_id connu  → Places API (New) /places/{id}?fields=photos
+   2. place_id absent → Text Search pour trouver le place_id, puis photos
+   3. Fallback final  → Street View Static API (lat/lng) toujours dispo
    Cache localStorage 7 jours. Re-render réactif à l'arrivée.
    ══════════════════════════════════════════════════════════════ */
 var GPLACES_API_KEY = "AIzaSyCx3hD28Lb9EtUrawHbTnM-6vmXdgO1ABw";
-var GPHOTO_CACHE_PREFIX = "ambi241_gphoto_";
-var GPHOTO_CACHE_TTL = 7 * 24 * 3600 * 1000;
+var GPHOTO_CACHE_PREFIX  = "ambi241_gphoto_";
+var GPLACEID_CACHE_PREFIX = "ambi241_gpid_";
+var GPHOTO_CACHE_TTL = 7 * 24 * 3600 * 1000; // 7 jours
 var _gphotoFetchQueue = [];
-var _gphotoFetchBusy = false;
+var _gphotoFetchBusy  = false;
 
-function _gphotoReadCache(placeId) {
+/* ── Cache localStorage générique ── */
+function _gcacheRead(key) {
   try {
-    var raw = localStorage.getItem(GPHOTO_CACHE_PREFIX + placeId);
+    var raw = localStorage.getItem(key);
     if (!raw) return null;
     var obj = JSON.parse(raw);
-    if (Date.now() - obj.ts > GPHOTO_CACHE_TTL) {
-      localStorage.removeItem(GPHOTO_CACHE_PREFIX + placeId);
-      return null;
-    }
-    return obj.urls || null;
-  } catch(err) { return null; }
+    if (Date.now() - obj.ts > GPHOTO_CACHE_TTL) { localStorage.removeItem(key); return null; }
+    return obj.val;
+  } catch(e) { return null; }
+}
+function _gcacheWrite(key, val) {
+  try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), val: val })); } catch(e) {}
 }
 
-function _gphotoWriteCache(placeId, urls) {
-  try {
-    localStorage.setItem(GPHOTO_CACHE_PREFIX + placeId, JSON.stringify({ ts: Date.now(), urls: urls }));
-  } catch(err) {}
-}
-
+/* ── Construire URL photo Places API (New) ── */
 function _gphotoMakeUrl(photoName) {
   return "https://places.googleapis.com/v1/" + photoName
-    + "/media?maxHeightPx=800&maxWidthPx=1200&key=" + GPLACES_API_KEY;
+    + "/media?maxHeightPx=800&maxWidthPx=1200&skipHttpRedirect=false&key=" + GPLACES_API_KEY;
 }
 
-function _gphotoFetchOne(e, callback) {
-  if (!e.place_id) { if(callback) callback(null); return; }
-  var cached = _gphotoReadCache(e.place_id);
-  if (cached !== null) {
-    e._gphoto_urls = cached;
-    if(callback) callback(cached.length > 0 ? cached[0] : null);
-    return;
-  }
-  var url = "https://places.googleapis.com/v1/places/" + e.place_id
+/* ── Street View Static — toujours disponible avec lat/lng ── */
+function _gStreetViewUrl(e) {
+  if (!e.lat || !e.lng) return null;
+  return "https://maps.googleapis.com/maps/api/streetview"
+    + "?size=800x450&location=" + e.lat + "," + e.lng
+    + "&fov=90&pitch=10&source=outdoor&key=" + GPLACES_API_KEY;
+}
+
+/* ── Stratégie 1 : fetch photos depuis un place_id connu ── */
+function _gphotoFetchByPlaceId(placeId, callback) {
+  var cacheKey = GPHOTO_CACHE_PREFIX + placeId;
+  var cached = _gcacheRead(cacheKey);
+  if (cached !== null) { callback(cached); return; }
+  var url = "https://places.googleapis.com/v1/places/" + placeId
     + "?fields=photos&languageCode=fr&key=" + GPLACES_API_KEY;
   fetch(url, { headers: { "X-Goog-FieldMask": "photos" } })
-    .then(function(r){ return r.json(); })
-    .then(function(data){
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
       var photos = (data && data.photos) ? data.photos : [];
-      if (photos.length === 0) {
-        _gphotoWriteCache(e.place_id, []);
-        e._gphoto_urls = [];
-        if(callback) callback(null);
-        return;
-      }
-      var sorted = photos.slice().sort(function(a,b){
+      if (photos.length === 0) { _gcacheWrite(cacheKey, []); callback([]); return; }
+      var sorted = photos.slice().sort(function(a, b) {
         return ((b.widthPx||0)*(b.heightPx||0)) - ((a.widthPx||0)*(a.heightPx||0));
       });
-      var urls = sorted.slice(0, 3).map(function(p){ return _gphotoMakeUrl(p.name); });
-      _gphotoWriteCache(e.place_id, urls);
-      e._gphoto_urls = urls;
-      if(callback) callback(urls[0]);
+      var urls = sorted.slice(0, 3).map(function(p) { return _gphotoMakeUrl(p.name); });
+      _gcacheWrite(cacheKey, urls);
+      callback(urls);
     })
-    .catch(function(err){
-      console.warn("AMBI241 gphoto:", e.nom, err.message);
-      e._gphoto_urls = [];
-      if(callback) callback(null);
+    .catch(function(err) {
+      console.warn("AMBI241 places fetch:", err.message);
+      callback([]);
     });
 }
 
+/* ── Stratégie 2 : Text Search → trouver le place_id, puis photos ── */
+function _gphotoFetchByTextSearch(e, callback) {
+  var pidCacheKey = GPLACEID_CACHE_PREFIX + e.id;
+  var cachedPid = _gcacheRead(pidCacheKey);
+  if (cachedPid === "") { callback([]); return; } // déjà testé, rien trouvé
+  if (cachedPid) {
+    // place_id trouvé en cache → fetch photos directement
+    e.place_id = cachedPid;
+    _gphotoFetchByPlaceId(cachedPid, callback);
+    return;
+  }
+  // Construire la requête Text Search (Places API New)
+  var query = encodeURIComponent((e.nom || "") + " Libreville Gabon");
+  var ll = (e.lat && e.lng) ? ("&locationBias=circle%3A500%40" + e.lat + "%2C" + e.lng) : "";
+  var url = "https://places.googleapis.com/v1/places:searchText"
+    + "?fields=places.id,places.photos"
+    + "&key=" + GPLACES_API_KEY;
+  fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-FieldMask": "places.id,places.photos"
+    },
+    body: JSON.stringify({
+      textQuery: decodeURIComponent(query),
+      languageCode: "fr",
+      maxResultCount: 1,
+      locationBias: (e.lat && e.lng) ? {
+        circle: { center: { latitude: e.lat, longitude: e.lng }, radius: 500 }
+      } : undefined
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var places = (data && data.places) ? data.places : [];
+    if (places.length === 0) {
+      _gcacheWrite(pidCacheKey, ""); // mémoriser "aucun résultat"
+      callback([]);
+      return;
+    }
+    var place = places[0];
+    var pid = place.id;
+    _gcacheWrite(pidCacheKey, pid);
+    e.place_id = pid; // enrichir l'objet pour les appels futurs
+    // Photos directement dans la réponse Text Search
+    var photos = place.photos || [];
+    if (photos.length > 0) {
+      var sorted = photos.slice().sort(function(a, b) {
+        return ((b.widthPx||0)*(b.heightPx||0)) - ((a.widthPx||0)*(a.heightPx||0));
+      });
+      var urls = sorted.slice(0, 3).map(function(p) { return _gphotoMakeUrl(p.name); });
+      _gcacheWrite(GPHOTO_CACHE_PREFIX + pid, urls);
+      callback(urls);
+    } else {
+      _gphotoFetchByPlaceId(pid, callback);
+    }
+  })
+  .catch(function(err) {
+    console.warn("AMBI241 text search:", e.nom, err.message);
+    callback([]);
+  });
+}
+
+/* ── Orchestrateur principal pour un établissement ── */
+function _gphotoFetchOne(e, callback) {
+  if (e.photo_exterieur || e.photo_interieur) { callback(null); return; }
+  if (e._gphoto_urls !== undefined) { callback(e._gphoto_urls.length > 0 ? e._gphoto_urls[0] : null); return; }
+
+  function applyUrls(urls) {
+    if (urls && urls.length > 0) {
+      e._gphoto_urls = urls;
+      callback(urls[0]);
+    } else {
+      // Stratégie 3 : Street View Static en dernier recours
+      var sv = _gStreetViewUrl(e);
+      e._gphoto_urls = sv ? [sv] : [];
+      callback(sv || null);
+    }
+  }
+
+  if (e.place_id) {
+    _gphotoFetchByPlaceId(e.place_id, applyUrls);
+  } else {
+    _gphotoFetchByTextSearch(e, applyUrls);
+  }
+}
+
+/* ── File d'attente throttlée (1 req / 200ms) ── */
 function _gphotoProcessQueue() {
   if (_gphotoFetchBusy || _gphotoFetchQueue.length === 0) return;
   _gphotoFetchBusy = true;
@@ -3007,28 +3092,54 @@ function _gphotoProcessQueue() {
   _gphotoFetchOne(item.e, function(url) {
     _gphotoFetchBusy = false;
     if (url) {
-      setTimeout(function(){
-        if(typeof renderAll === "function") renderAll();
-        if(typeof renderHome === "function") renderHome();
+      setTimeout(function() {
+        if (typeof renderAll  === "function") renderAll();
+        if (typeof renderHome === "function") renderHome();
       }, 0);
     }
-    if (_gphotoFetchQueue.length > 0) setTimeout(_gphotoProcessQueue, 180);
+    if (_gphotoFetchQueue.length > 0) setTimeout(_gphotoProcessQueue, 200);
   });
 }
 
 function _gphotoEnqueue(e) {
-  if (!e.place_id) return;
   if (e.photo_exterieur || e.photo_interieur) return;
   if (e._gphoto_urls !== undefined) return;
-  var cached = _gphotoReadCache(e.place_id);
-  if (cached !== null) { e._gphoto_urls = cached; return; }
-  var already = _gphotoFetchQueue.some(function(i){ return i.e.place_id === e.place_id; });
+  // Vérifier les caches avant de mettre en queue
+  var pid = e.place_id;
+  if (pid) {
+    var cached = _gcacheRead(GPHOTO_CACHE_PREFIX + pid);
+    if (cached !== null) {
+      e._gphoto_urls = cached;
+      if (cached.length === 0) {
+        var sv = _gStreetViewUrl(e);
+        if (sv) e._gphoto_urls = [sv];
+      }
+      return;
+    }
+  } else {
+    var cachedPid = _gcacheRead(GPLACEID_CACHE_PREFIX + e.id);
+    if (cachedPid === "") {
+      // Text search déjà échoué → Street View direct
+      var sv = _gStreetViewUrl(e);
+      e._gphoto_urls = sv ? [sv] : [];
+      return;
+    }
+    if (cachedPid) {
+      e.place_id = cachedPid;
+      var cached2 = _gcacheRead(GPHOTO_CACHE_PREFIX + cachedPid);
+      if (cached2 !== null) {
+        e._gphoto_urls = cached2.length > 0 ? cached2 : (function(){ var sv=_gStreetViewUrl(e); return sv?[sv]:[]; })();
+        return;
+      }
+    }
+  }
+  var already = _gphotoFetchQueue.some(function(i) { return i.e.id === e.id; });
   if (!already) _gphotoFetchQueue.push({ e: e });
 }
 
 function autoFetchAllGooglePhotos() {
   if (!etablissements || !etablissements.length) return;
-  etablissements.forEach(function(e){ _gphotoEnqueue(e); });
+  etablissements.forEach(function(e) { _gphotoEnqueue(e); });
   if (_gphotoFetchQueue.length > 0) _gphotoProcessQueue();
 }
 
@@ -3039,7 +3150,8 @@ function getGooglePhotoUrl(e, type) {
   if (type === 'exterieur' && e.photo_exterieur) return e.photo_exterieur;
   if (type === 'interieur' && e.photo_interieur) return e.photo_interieur;
   if (e._gphoto_urls && e._gphoto_urls.length > 0) return e._gphoto_urls[0];
-  if (e.place_id && e._gphoto_urls === undefined) _gphotoEnqueue(e);
+  // Déclencher le fetch si pas encore fait
+  if (e._gphoto_urls === undefined) _gphotoEnqueue(e);
   return null;
 }
 
