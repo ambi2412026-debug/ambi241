@@ -1218,6 +1218,28 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 .wa-admin-broadcast-btn{width:100%;padding:0.75rem;border-radius:12px;border:1px solid rgba(37,211,102,0.4);background:rgba(37,211,102,0.08);color:#25d366;font-family:'Syne',sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;margin-bottom:1rem;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:0.4rem;}
 .wa-admin-broadcast-btn:active{opacity:0.8;}
 
+/* ══ SUPER-ADMIN GUIDE ══ */
+.sa-sub-btn{padding:0.3rem 0.6rem;border-radius:7px;border:1px solid rgba(255,45,155,0.25);background:rgba(255,45,155,0.06);color:var(--muted);font-size:0.68rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;white-space:nowrap;}
+.sa-sub-btn.active{background:rgba(255,45,155,0.18);border-color:var(--pink);color:var(--pink);}
+.sa-sub-btn:active{opacity:0.7;}
+.sa-panel{display:none;}
+.sa-panel.active{display:block;}
+.sa-section-title{font-family:'Syne',sans-serif;font-size:0.88rem;font-weight:800;color:var(--text);margin-bottom:0.9rem;padding-bottom:0.5rem;border-bottom:1px solid rgba(255,45,155,0.2);}
+.sa-block-title{font-size:0.7rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--cyan);margin:1rem 0 0.5rem;}
+.sa-table{display:flex;flex-direction:column;gap:0;}
+.sa-row{display:flex;gap:0.7rem;align-items:flex-start;padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+.sa-row:last-child{border-bottom:none;}
+.sa-icon{font-size:1rem;flex-shrink:0;width:24px;text-align:center;margin-top:0.1rem;}
+.sa-step-num{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--red),var(--pink));color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:0.7rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:0.1rem;}
+.sa-info{flex:1;}
+.sa-task{font-size:0.78rem;font-weight:700;color:var(--text);margin-bottom:0.15rem;}
+.sa-how{font-size:0.7rem;color:var(--muted);line-height:1.45;}
+.sa-how code{background:rgba(0,229,255,0.08);color:var(--cyan);padding:0.05rem 0.3rem;border-radius:4px;font-size:0.65rem;}
+.sa-check-item{display:flex;align-items:flex-start;gap:0.7rem;padding:0.55rem 0.7rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:9px;cursor:pointer;font-size:0.75rem;color:var(--text);transition:all 0.2s;line-height:1.4;}
+.sa-check-item:active{opacity:0.7;}
+.sa-check-item.done{background:rgba(0,255,170,0.06);border-color:rgba(0,255,170,0.2);color:var(--muted);text-decoration:line-through;}
+.sa-check-box{font-size:1rem;flex-shrink:0;line-height:1.2;}
+
 /* ══ MODAL GUIDE ══ */
 .guide-btn{background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.25);color:var(--cyan);font-size:0.75rem;font-weight:700;padding:0.2rem 0.4rem;border-radius:20px;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:0.2rem;transition:all 0.2s;white-space:nowrap;flex-shrink:0;}
 .guide-btn:active{opacity:0.75;}
@@ -10981,6 +11003,7 @@ window.doAssignEtab = doAssignEtab;
       <button class="guide-tab" onclick="switchGuideTab('roles')">Les rôles</button>
       <button class="guide-tab" onclick="switchGuideTab('tools')">Les outils</button>
       <button class="guide-tab" onclick="switchGuideTab('lexique')" style="color:var(--amber);">📖 Lexique</button>
+      <button class="guide-tab" id="guide-tab-superadmin" onclick="switchGuideTab('superadmin')" style="color:var(--pink);">🏮 Super-Admin</button>
     </div>
     <div class="guide-body">
 
@@ -11314,6 +11337,212 @@ window.doAssignEtab = doAssignEtab;
 
       </div>
 
+      <!-- ══ ONGLET : SUPER-ADMIN ══ -->
+      <div class="guide-panel" id="guide-superadmin">
+
+        <div style="display:flex;align-items:center;gap:0.6rem;background:linear-gradient(135deg,rgba(255,45,155,0.12),rgba(204,68,255,0.08));border:1.5px solid rgba(255,45,155,0.35);border-radius:12px;padding:0.8rem 0.9rem;margin-bottom:1.2rem;">
+          <span style="font-size:1.4rem;flex-shrink:0;">🏮</span>
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.82rem;color:var(--pink);margin-bottom:0.2rem;">Guide Super-Admin Quotidien — CONFIDENTIEL</div>
+            <div style="font-size:0.7rem;color:var(--muted);line-height:1.5;">Suivez les routines dans l'ordre : <strong style="color:var(--text);">matin → journée → soir → hebdomadaire → mensuel.</strong></div>
+          </div>
+        </div>
+
+        <div id="saSubNav" style="display:flex;gap:0.3rem;flex-wrap:wrap;margin-bottom:1rem;">
+          <button class="sa-sub-btn active" onclick="switchSaPanel('matin')">🌅 Matin</button>
+          <button class="sa-sub-btn" onclick="switchSaPanel('users')">👥 Utilisateurs</button>
+          <button class="sa-sub-btn" onclick="switchSaPanel('contenu')">📝 Contenu</button>
+          <button class="sa-sub-btn" onclick="switchSaPanel('paiements')">💰 Paiements</button>
+          <button class="sa-sub-btn" onclick="switchSaPanel('securite')">🔐 Sécurité</button>
+          <button class="sa-sub-btn" onclick="switchSaPanel('hebdo')">📅 Hebdo</button>
+          <button class="sa-sub-btn" onclick="switchSaPanel('mensuel')">📆 Mensuel</button>
+          <button class="sa-sub-btn" onclick="switchSaPanel('urgences')">🚨 Urgences</button>
+          <button class="sa-sub-btn" onclick="switchSaPanel('checklist')">✅ Checklist</button>
+        </div>
+
+        <!-- MATIN -->
+        <div class="sa-panel active" id="sa-matin">
+          <div class="sa-section-title">🌅 Routine Matinale <span style="font-size:0.65rem;font-weight:400;color:var(--muted);">Avant 9h00 — ~10 à 15 min</span></div>
+          <div class="sa-block-title">1.1 État général de l'application</div>
+          <div class="sa-table">
+            <div class="sa-row"><div class="sa-icon">🌐</div><div class="sa-info"><div class="sa-task">Tester l'URL de production</div><div class="sa-how">Ouvrir <a href="https://ambi241.web.app" target="_blank" style="color:var(--cyan);">ambi241.web.app</a> — page doit charger en moins de 3 secondes.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">📱</div><div class="sa-info"><div class="sa-task">Tester sur mobile</div><div class="sa-how">Ouvrir l'app sur Android ou iOS — vérifier affichage et navigation.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">🔥</div><div class="sa-info"><div class="sa-task">Vérifier Firebase Hosting</div><div class="sa-how">Firebase Console → Hosting → statut doit être "Live" sans erreur.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">📡</div><div class="sa-info"><div class="sa-task">Vérifier le statut Firebase</div><div class="sa-how"><a href="https://status.firebase.google.com" target="_blank" style="color:var(--cyan);">status.firebase.google.com</a> — tous les services doivent être verts.</div></div></div>
+          </div>
+          <div class="sa-block-title">1.2 Établissements actifs</div>
+          <div class="sa-table">
+            <div class="sa-row"><div class="sa-icon">🏪</div><div class="sa-info"><div class="sa-task">Contrôler la liste des établissements</div><div class="sa-how">Firestore → collection <code>etablissements</code> → vérifier nom, statut, affluence.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">📸</div><div class="sa-info"><div class="sa-task">Vérifier les photos</div><div class="sa-how">Quelques établissements aléatoires → vérifier que les photos s'affichent correctement.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">⚡</div><div class="sa-info"><div class="sa-task">Vérifier les event_flash actifs</div><div class="sa-how">Firestore → <code>etablissements</code> → champ <code>event_flash</code> — supprimer les événements expirés.</div></div></div>
+          </div>
+          <div class="sa-block-title">1.3 Photos éphémères (soirée)</div>
+          <div class="sa-table">
+            <div class="sa-row"><div class="sa-icon">🖼️</div><div class="sa-info"><div class="sa-task">Vérifier les photos de soirée</div><div class="sa-how">Firestore → collection <code>soireePhotos</code> → passer en revue les nouvelles photos.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">🗑️</div><div class="sa-info"><div class="sa-task">Supprimer les photos inappropriées</div><div class="sa-how">Sélectionner le document → supprimer dans Firestore ou via l'interface admin.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">⏰</div><div class="sa-info"><div class="sa-task">Contrôler l'expiration (10h)</div><div class="sa-how">Les photos sont éphémères (10h). S'assurer que les anciennes sont bien supprimées.</div></div></div>
+          </div>
+        </div>
+
+        <!-- UTILISATEURS -->
+        <div class="sa-panel" id="sa-users">
+          <div class="sa-section-title">👥 Gestion des Utilisateurs <span style="font-size:0.65rem;font-weight:400;color:var(--muted);">Chaque jour — ~5 à 10 min</span></div>
+          <div class="sa-block-title">2.1 Nouveaux comptes</div>
+          <div class="sa-table">
+            <div class="sa-row"><div class="sa-icon">✅</div><div class="sa-info"><div class="sa-task">Voir les nouveaux inscrits</div><div class="sa-how">Firebase Console → Authentication → trier par date de création — repérer les nouveaux du jour.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">🔍</div><div class="sa-info"><div class="sa-task">Vérifier les comptes gérants</div><div class="sa-how">Firestore → <code>users</code> → vérifier que chaque gérant est lié à un établissement existant.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">🚫</div><div class="sa-info"><div class="sa-task">Désactiver les comptes suspects</div><div class="sa-how">Authentication → sélectionner l'utilisateur → "Disable account" si comportement suspect.</div></div></div>
+          </div>
+          <div class="sa-block-title">2.2 Admins secondaires</div>
+          <div class="sa-table">
+            <div class="sa-row"><div class="sa-icon">🛡️</div><div class="sa-info"><div class="sa-task">Promouvoir un nouvel admin</div><div class="sa-how">Firestore → <code>config</code> → <code>superadmin</code> → champ <code>list[]</code> → ajouter l'email.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">❌</div><div class="sa-info"><div class="sa-task">Révoquer un admin secondaire</div><div class="sa-how">Firestore → <code>config</code> → <code>superadmin</code> → champ <code>list[]</code> → supprimer l'email.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">🔓</div><div class="sa-info"><div class="sa-task">Débloquer un admin verrouillé</div><div class="sa-how">Firestore → <code>config</code> → <code>superadmin</code> → supprimer le champ <code>lockUntil</code> si présent.</div></div></div>
+          </div>
+          <div class="sa-block-title">2.3 Assistance</div>
+          <div class="sa-table">
+            <div class="sa-row"><div class="sa-icon">🔑</div><div class="sa-info"><div class="sa-task">Réinitialiser un mot de passe gérant</div><div class="sa-how">Authentication → trouver l'email → cliquer "Send password reset email".</div></div></div>
+            <div class="sa-row"><div class="sa-icon">🔄</div><div class="sa-info"><div class="sa-task">Recréer un compte supprimé</div><div class="sa-how">Si supprimé par erreur : recréer dans Authentication et renvoyer une invitation.</div></div></div>
+          </div>
+        </div>
+
+        <!-- CONTENU -->
+        <div class="sa-panel" id="sa-contenu">
+          <div class="sa-section-title">📝 Modération du Contenu <span style="font-size:0.65rem;font-weight:400;color:var(--muted);">Milieu de journée — ~5 à 15 min</span></div>
+          <div class="sa-block-title">3.1 Fil social</div>
+          <div class="sa-table">
+            <div class="sa-row"><div class="sa-icon">📰</div><div class="sa-info"><div class="sa-task">Lire les nouvelles publications</div><div class="sa-how">Firestore → <code>publications</code> → trier par date → passer en revue posts, annonces, commentaires.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">🗑️</div><div class="sa-info"><div class="sa-task">Supprimer les contenus inappropriés</div><div class="sa-how">Sélectionner le document → Delete document, ou via l'interface admin.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">⚠️</div><div class="sa-info"><div class="sa-task">Signaler les abus répétés</div><div class="sa-how">Si un utilisateur publie plusieurs contenus inappropriés → désactiver son compte dans Authentication.</div></div></div>
+          </div>
+          <div class="sa-block-title">3.2 Établissements</div>
+          <div class="sa-table">
+            <div class="sa-row"><div class="sa-icon">✏️</div><div class="sa-info"><div class="sa-task">Valider les modifications gérants</div><div class="sa-how">Vérifier que les infos modifiées (nom, horaires, photos) sont correctes et cohérentes.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">🎉</div><div class="sa-info"><div class="sa-task">Valider les event_flash</div><div class="sa-how">Vérifier que les événements flash sont valides, datés correctement et sans fautes.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">📊</div><div class="sa-info"><div class="sa-task">Vérifier l'affluence</div><div class="sa-how">Contrôler que les niveaux d'affluence correspondent à la réalité — corriger si nécessaire.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">🖼️</div><div class="sa-info"><div class="sa-task">Contrôler les photos établissements</div><div class="sa-how">Vérifier que chaque établissement dispose d'au moins une photo correcte.</div></div></div>
+          </div>
+        </div>
+
+        <!-- PAIEMENTS -->
+        <div class="sa-panel" id="sa-paiements">
+          <div class="sa-section-title">💰 Paiements &amp; Abonnements <span style="font-size:0.65rem;font-weight:400;color:var(--muted);">Chaque jour — ~5 min</span></div>
+          <div class="sa-table">
+            <div class="sa-row"><div class="sa-icon">💳</div><div class="sa-info"><div class="sa-task">Vérifier les nouveaux paiements</div><div class="sa-how">Firestore → <code>paiements</code> → trier par date → identifier les paiements des dernières 24h.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">⏳</div><div class="sa-info"><div class="sa-task">Contrôler les abonnements qui expirent</div><div class="sa-how">Repérer les établissements dont l'abonnement expire dans les 7 prochains jours.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">📧</div><div class="sa-info"><div class="sa-task">Relancer les impayés</div><div class="sa-how">Contacter directement les gérants dont le paiement est en retard via l'email de leur profil.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">✔️</div><div class="sa-info"><div class="sa-task">Valider un paiement manuel</div><div class="sa-how">Firestore → <code>paiements</code> → mettre à jour le champ <code>statut</code> à "validé" après réception.</div></div></div>
+          </div>
+        </div>
+
+        <!-- SECURITE -->
+        <div class="sa-panel" id="sa-securite">
+          <div class="sa-section-title">🔐 Sécurité &amp; Surveillance <span style="font-size:0.65rem;font-weight:400;color:var(--muted);">Chaque jour — ~5 min</span></div>
+          <div class="sa-block-title">5.1 Logs et sessions</div>
+          <div class="sa-table">
+            <div class="sa-row"><div class="sa-icon">📋</div><div class="sa-info"><div class="sa-task">Contrôler les logs de connexion</div><div class="sa-how">Firestore → <code>sessions</code> → repérer les connexions inhabituelles (heure, fréquence, pays).</div></div></div>
+            <div class="sa-row"><div class="sa-icon">🌍</div><div class="sa-info"><div class="sa-task">Vérifier les connexions étrangères</div><div class="sa-how">Firebase Console → Authentication → repérer des connexions depuis des pays non attendus.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">🔒</div><div class="sa-info"><div class="sa-task">Vérifier les tentatives de PIN</div><div class="sa-how">Firestore → logs — repérer des tentatives de PIN répétées (&gt; 3 essais).</div></div></div>
+          </div>
+          <div class="sa-block-title">5.2 Quotas API Google</div>
+          <div class="sa-table">
+            <div class="sa-row"><div class="sa-icon">📈</div><div class="sa-info"><div class="sa-task">Contrôler la consommation API</div><div class="sa-how">Google Cloud Console → APIs Dashboard → vérifier Places API, Text Search et Street View.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">⚠️</div><div class="sa-info"><div class="sa-task">Surveiller les alertes de quota</div><div class="sa-how">Si une API approche de son quota journalier → réduire les appels ou augmenter le budget.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">💸</div><div class="sa-info"><div class="sa-task">Vérifier la facturation Google</div><div class="sa-how">Google Cloud Console → Billing → s'assurer qu'aucune facturation anormale n'est en cours.</div></div></div>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:0.6rem;background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.3);border-radius:10px;padding:0.8rem 0.9rem;margin-top:1rem;">
+            <span style="font-size:1rem;flex-shrink:0;">🔐</span>
+            <div style="font-size:0.72rem;color:var(--muted);line-height:1.5;"><strong style="color:var(--red);">RAPPEL SÉCURITÉ :</strong> Ne jamais partager votre code PIN Super-Admin. En cas de doute, changer immédiatement le PIN via Firestore → <code>config</code> → <code>superadmin</code> → champ <code>pin_hash</code>.</div>
+          </div>
+        </div>
+
+        <!-- HEBDO -->
+        <div class="sa-panel" id="sa-hebdo">
+          <div class="sa-section-title">📅 Routine Hebdomadaire <span style="font-size:0.65rem;font-weight:400;color:var(--muted);">1 fois/semaine (lundi) — ~20 à 30 min</span></div>
+          <div class="sa-block-title">6.1 Maintenance Firestore</div>
+          <div class="sa-table">
+            <div class="sa-row"><div class="sa-icon">🧹</div><div class="sa-info"><div class="sa-task">Nettoyer les données orphelines</div><div class="sa-how">Repérer dans Firestore les documents liés à des comptes supprimés et les supprimer.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">🗂️</div><div class="sa-info"><div class="sa-task">Archiver les anciens paiements</div><div class="sa-how">Déplacer les paiements de plus de 3 mois dans une collection d'archives.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">📸</div><div class="sa-info"><div class="sa-task">Supprimer les photos expirées</div><div class="sa-how">Vérifier manuellement dans <code>soireePhotos</code> qu'aucune photo de plus de 10h n'est présente.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">🏪</div><div class="sa-info"><div class="sa-task">Nettoyer les établissements inactifs</div><div class="sa-how">Identifier les établissements sans activité depuis 30+ jours — contacter le gérant ou archiver.</div></div></div>
+          </div>
+          <div class="sa-block-title">6.2 Sauvegardes</div>
+          <div class="sa-table">
+            <div class="sa-row"><div class="sa-icon">💾</div><div class="sa-info"><div class="sa-task">Sauvegarder index.html</div><div class="sa-how">Copier la dernière version de <code>index.html</code> dans votre Google Drive privé (dossier AMBI241/Backups).</div></div></div>
+            <div class="sa-row"><div class="sa-icon">📤</div><div class="sa-info"><div class="sa-task">Exporter les données Firestore</div><div class="sa-how">Firebase Console → Firestore → Import/Export → exporter vers un bucket Cloud Storage.</div></div></div>
+          </div>
+          <div class="sa-block-title">6.3 Performances</div>
+          <div class="sa-table">
+            <div class="sa-row"><div class="sa-icon">⚡</div><div class="sa-info"><div class="sa-task">Tester la vitesse de l'app</div><div class="sa-how"><a href="https://pagespeed.web.dev" target="_blank" style="color:var(--cyan);">Google PageSpeed Insights</a> sur l'URL ambi241.web.app.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">📊</div><div class="sa-info"><div class="sa-task">Analyser les statistiques Firebase</div><div class="sa-how">Firebase Console → Analytics → consulter le nombre d'utilisateurs actifs et les sessions.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">🔍</div><div class="sa-info"><div class="sa-task">Vérifier les règles Firestore</div><div class="sa-how">Firebase Console → Firestore → Rules → s'assurer que les règles de sécurité sont appropriées.</div></div></div>
+          </div>
+        </div>
+
+        <!-- MENSUEL -->
+        <div class="sa-panel" id="sa-mensuel">
+          <div class="sa-section-title">📆 Routine Mensuelle <span style="font-size:0.65rem;font-weight:400;color:var(--muted);">Le 1er de chaque mois — ~30 à 45 min</span></div>
+          <div class="sa-table">
+            <div class="sa-row"><div class="sa-icon">🔑</div><div class="sa-info"><div class="sa-task">Changer le PIN administrateur</div><div class="sa-how">Générer un nouveau hash SHA-256 sur <a href="https://emn178.github.io" target="_blank" style="color:var(--cyan);">emn178.github.io</a> → Firestore → <code>config</code> → <code>superadmin</code> → <code>pin_hash</code>.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">👥</div><div class="sa-info"><div class="sa-task">Auditer la liste des admins</div><div class="sa-how">Firestore → <code>config</code> → <code>superadmin</code> → <code>list[]</code> → vérifier que tous les admins sont actifs et autorisés.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">🔐</div><div class="sa-info"><div class="sa-task">Vérifier la clé API Google</div><div class="sa-how">Google Cloud Console → Credentials → vérifier que la clé est restreinte au bon domaine (ambi241.web.app).</div></div></div>
+            <div class="sa-row"><div class="sa-icon">📊</div><div class="sa-info"><div class="sa-task">Bilan des paiements du mois</div><div class="sa-how">Firestore → <code>paiements</code> → totaliser les abonnements actifs, expirés et impayés du mois.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">📈</div><div class="sa-info"><div class="sa-task">Bilan des utilisateurs</div><div class="sa-how">Firebase Authentication → noter le total d'inscrits et comparer avec le mois précédent.</div></div></div>
+            <div class="sa-row"><div class="sa-icon">🧪</div><div class="sa-info"><div class="sa-task">Test complet de l'application</div><div class="sa-how">Parcourir toutes les fonctionnalités clés (carte, photos, événements, connexion gérant, admin).</div></div></div>
+            <div class="sa-row"><div class="sa-icon">🔒</div><div class="sa-info"><div class="sa-task">Vérifier la 2FA Google</div><div class="sa-how">S'assurer que la double authentification (2FA) est toujours active sur votre compte Google Firebase.</div></div></div>
+          </div>
+        </div>
+
+        <!-- URGENCES -->
+        <div class="sa-panel" id="sa-urgences">
+          <div class="sa-section-title">🚨 Gestion des Urgences <span style="font-size:0.65rem;font-weight:400;color:var(--muted);">Procédures critiques</span></div>
+          <div class="sa-block-title" style="color:var(--red);">8.1 Application inaccessible</div>
+          <div class="sa-table">
+            <div class="sa-row"><div class="sa-step-num">1</div><div class="sa-info"><div class="sa-task">Vérifier le statut Firebase</div><div class="sa-how"><a href="https://status.firebase.google.com" target="_blank" style="color:var(--cyan);">status.firebase.google.com</a> — si Firebase est en panne, attendre la résolution.</div></div></div>
+            <div class="sa-row"><div class="sa-step-num">2</div><div class="sa-info"><div class="sa-task">Vérifier Firebase Hosting</div><div class="sa-how">Firebase Console → Hosting → vérifier que le déploiement est actif et sans erreur.</div></div></div>
+            <div class="sa-row"><div class="sa-step-num">3</div><div class="sa-info"><div class="sa-task">Redéployer l'application</div><div class="sa-how">Depuis la sauvegarde Drive → <code>firebase deploy --only hosting</code> (ou drag &amp; drop sur Netlify).</div></div></div>
+            <div class="sa-row"><div class="sa-step-num">4</div><div class="sa-info"><div class="sa-task">Vérifier les règles Firestore</div><div class="sa-how">Une règle trop restrictive peut bloquer l'accès — vérifier et corriger si nécessaire.</div></div></div>
+          </div>
+          <div class="sa-block-title" style="color:var(--red);">8.2 Intrusion suspectée</div>
+          <div class="sa-table">
+            <div class="sa-row"><div class="sa-step-num">1</div><div class="sa-info"><div class="sa-task">Changer le PIN immédiatement</div><div class="sa-how">Générer nouveau hash SHA-256 → Firestore → <code>config</code> → <code>superadmin</code> → <code>pin_hash</code>.</div></div></div>
+            <div class="sa-row"><div class="sa-step-num">2</div><div class="sa-info"><div class="sa-task">Auditer les comptes admins</div><div class="sa-how">Firestore → <code>config</code> → <code>superadmin</code> → <code>list[]</code> → retirer tout admin non reconnu.</div></div></div>
+            <div class="sa-row"><div class="sa-step-num">3</div><div class="sa-info"><div class="sa-task">Vérifier les logs de session</div><div class="sa-how">Firestore → <code>sessions</code> → identifier les connexions suspectes et désactiver les comptes.</div></div></div>
+            <div class="sa-row"><div class="sa-step-num">4</div><div class="sa-info"><div class="sa-task">Révoquer et régénérer la clé API</div><div class="sa-how">Google Cloud Console → Credentials → supprimer l'ancienne clé, en créer une nouvelle, mettre à jour <code>index.html</code>.</div></div></div>
+          </div>
+          <div class="sa-block-title" style="color:var(--red);">8.3 Quota API dépassé</div>
+          <div class="sa-table">
+            <div class="sa-row"><div class="sa-step-num">1</div><div class="sa-info"><div class="sa-task">Identifier l'API concernée</div><div class="sa-how">Google Cloud Console → APIs Dashboard → repérer quelle API a dépassé son quota.</div></div></div>
+            <div class="sa-row"><div class="sa-step-num">2</div><div class="sa-info"><div class="sa-task">Augmenter le quota ou budget</div><div class="sa-how">Google Cloud Console → Billing → augmenter le budget ou demander une augmentation de quota.</div></div></div>
+            <div class="sa-row"><div class="sa-step-num">3</div><div class="sa-info"><div class="sa-task">Activer le cache renforcé</div><div class="sa-how">Le cache localStorage (7 jours) réduit naturellement les appels API — vérifier qu'il fonctionne.</div></div></div>
+          </div>
+        </div>
+
+        <!-- CHECKLIST -->
+        <div class="sa-panel" id="sa-checklist">
+          <div class="sa-section-title">✅ Checklist Rapide <span style="font-size:0.65rem;font-weight:400;color:var(--muted);">À cocher chaque matin</span></div>
+          <div id="saChecklist" style="display:flex;flex-direction:column;gap:0.45rem;">
+            <div class="sa-check-item" onclick="toggleSaCheck(this)"><span class="sa-check-box">☐</span><span>🌐 Tester l'URL <a href="https://ambi241.web.app" target="_blank" onclick="event.stopPropagation()" style="color:var(--cyan);">ambi241.web.app</a></span></div>
+            <div class="sa-check-item" onclick="toggleSaCheck(this)"><span class="sa-check-box">☐</span><span>📡 Vérifier le statut Firebase</span></div>
+            <div class="sa-check-item" onclick="toggleSaCheck(this)"><span class="sa-check-box">☐</span><span>🖼️ Modérer les photos éphémères (soireePhotos)</span></div>
+            <div class="sa-check-item" onclick="toggleSaCheck(this)"><span class="sa-check-box">☐</span><span>📰 Modérer les nouvelles publications</span></div>
+            <div class="sa-check-item" onclick="toggleSaCheck(this)"><span class="sa-check-box">☐</span><span>👥 Vérifier les nouveaux inscrits dans Authentication</span></div>
+            <div class="sa-check-item" onclick="toggleSaCheck(this)"><span class="sa-check-box">☐</span><span>💰 Contrôler les paiements du jour</span></div>
+            <div class="sa-check-item" onclick="toggleSaCheck(this)"><span class="sa-check-box">☐</span><span>⚡ Supprimer les event_flash expirés</span></div>
+            <div class="sa-check-item" onclick="toggleSaCheck(this)"><span class="sa-check-box">☐</span><span>📈 Vérifier la consommation API Google Cloud</span></div>
+            <div class="sa-check-item" onclick="toggleSaCheck(this)"><span class="sa-check-box">☐</span><span>🔒 Contrôler les logs de connexion (sessions)</span></div>
+          </div>
+          <div id="saCheckProgress" style="margin-top:1rem;padding:0.7rem 0.9rem;background:rgba(0,255,170,0.06);border:1px solid rgba(0,255,170,0.18);border-radius:10px;text-align:center;font-size:0.75rem;color:var(--green);font-weight:700;">0 / 9 tâches complétées</div>
+          <button onclick="resetSaChecklist()" style="width:100%;margin-top:0.6rem;padding:0.5rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--muted);font-size:0.7rem;cursor:pointer;font-family:'DM Sans',sans-serif;">🔄 Réinitialiser la checklist</button>
+          <div style="display:flex;align-items:flex-start;gap:0.6rem;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);border-radius:10px;padding:0.8rem 0.9rem;margin-top:1rem;">
+            <span style="font-size:1rem;flex-shrink:0;">⚠️</span>
+            <div style="font-size:0.7rem;color:var(--muted);line-height:1.5;"><strong style="color:var(--amber);">RAPPEL FINAL :</strong> Stocker ce document dans un Google Drive privé protégé par 2FA. Ne jamais envoyer par email non chiffré. En cas de perte d'accès Firebase : <a href="https://console.cloud.google.com/support" target="_blank" style="color:var(--cyan);">console.cloud.google.com/support</a>.</div>
+          </div>
+        </div>
+
+      </div>
+      <!-- ══ FIN ONGLET SUPER-ADMIN ══ -->
+
     </div>
   </div>
 </div>
@@ -11488,11 +11717,51 @@ function closeGuide(){
 function switchGuideTab(tab){
   document.querySelectorAll('.guide-tab').forEach(function(t){t.classList.remove('active');});
   document.querySelectorAll('.guide-panel').forEach(function(p){p.classList.remove('active');});
-  var idx = {how:0, roles:1, tools:2, lexique:3}[tab];
+  var idx = {how:0, roles:1, tools:2, lexique:3, superadmin:4}[tab];
   document.querySelectorAll('.guide-tab')[idx].classList.add('active');
   document.getElementById('guide-'+tab).classList.add('active');
 }
-document.addEventListener('keydown', function(e){
+function switchSaPanel(panel){
+  document.querySelectorAll('.sa-sub-btn').forEach(function(b){b.classList.remove('active');});
+  document.querySelectorAll('.sa-panel').forEach(function(p){p.classList.remove('active');});
+  var panelMap={matin:0,users:1,contenu:2,paiements:3,securite:4,hebdo:5,mensuel:6,urgences:7,checklist:8};
+  document.querySelectorAll('#saSubNav .sa-sub-btn')[panelMap[panel]].classList.add('active');
+  var el=document.getElementById('sa-'+panel);
+  if(el) el.classList.add('active');
+}
+function toggleSaCheck(item){
+  item.classList.toggle('done');
+  var box=item.querySelector('.sa-check-box');
+  box.textContent=item.classList.contains('done')?'☑':'☐';
+  updateSaProgress();
+}
+function updateSaProgress(){
+  var items=document.querySelectorAll('#saChecklist .sa-check-item');
+  var done=document.querySelectorAll('#saChecklist .sa-check-item.done').length;
+  var prog=document.getElementById('saCheckProgress');
+  if(prog) prog.textContent=done+' / '+items.length+' tâches complétées';
+}
+function resetSaChecklist(){
+  document.querySelectorAll('#saChecklist .sa-check-item').forEach(function(item){
+    item.classList.remove('done');
+    item.querySelector('.sa-check-box').textContent='☐';
+  });
+  updateSaProgress();
+}
+function syncSaGuideTab(){
+  var tab=document.getElementById('guide-tab-superadmin');
+  if(!tab) return;
+  tab.style.display=(typeof isSuperAdmin!=='undefined'&&isSuperAdmin)?'':'none';
+}
+(function(){
+  var attempts=0;
+  var timer=setInterval(function(){
+    syncSaGuideTab();
+    attempts++;
+    if(attempts>20) clearInterval(timer);
+  },500);
+})();
+document.addEventListener('keydown',function(e){
   if(e.key==='Escape') closeGuide();
 });
 </script>
