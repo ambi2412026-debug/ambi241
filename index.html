@@ -2929,9 +2929,117 @@ function lsGetJSON(key,def){ try{ var v=lsGet(key); return v?JSON.parse(v):(def!
 function lsSetJSON(key,obj){ try{ lsSet(key,JSON.stringify(obj)); }catch(e){} }
 
 // ── GOOGLE PHOTO URL FALLBACK ──────────────────────────────────
+/* ══════════════════════════════════════════════════════════════
+   AUTO-FETCH PHOTOS GOOGLE PLACES — AMBI241
+   Récupère automatiquement la meilleure photo de chaque
+   établissement via Google Places API (New) grâce au place_id.
+   Cache localStorage 7 jours. Re-render réactif à l'arrivée.
+   ══════════════════════════════════════════════════════════════ */
+var GPLACES_API_KEY = "AIzaSyCx3hD28Lb9EtUrawHbTnM-6vmXdgO1ABw";
+var GPHOTO_CACHE_PREFIX = "ambi241_gphoto_";
+var GPHOTO_CACHE_TTL = 7 * 24 * 3600 * 1000;
+var _gphotoFetchQueue = [];
+var _gphotoFetchBusy = false;
+
+function _gphotoReadCache(placeId) {
+  try {
+    var raw = localStorage.getItem(GPHOTO_CACHE_PREFIX + placeId);
+    if (!raw) return null;
+    var obj = JSON.parse(raw);
+    if (Date.now() - obj.ts > GPHOTO_CACHE_TTL) {
+      localStorage.removeItem(GPHOTO_CACHE_PREFIX + placeId);
+      return null;
+    }
+    return obj.urls || null;
+  } catch(err) { return null; }
+}
+
+function _gphotoWriteCache(placeId, urls) {
+  try {
+    localStorage.setItem(GPHOTO_CACHE_PREFIX + placeId, JSON.stringify({ ts: Date.now(), urls: urls }));
+  } catch(err) {}
+}
+
+function _gphotoMakeUrl(photoName) {
+  return "https://places.googleapis.com/v1/" + photoName
+    + "/media?maxHeightPx=800&maxWidthPx=1200&key=" + GPLACES_API_KEY;
+}
+
+function _gphotoFetchOne(e, callback) {
+  if (!e.place_id) { if(callback) callback(null); return; }
+  var cached = _gphotoReadCache(e.place_id);
+  if (cached !== null) {
+    e._gphoto_urls = cached;
+    if(callback) callback(cached.length > 0 ? cached[0] : null);
+    return;
+  }
+  var url = "https://places.googleapis.com/v1/places/" + e.place_id
+    + "?fields=photos&languageCode=fr&key=" + GPLACES_API_KEY;
+  fetch(url, { headers: { "X-Goog-FieldMask": "photos" } })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      var photos = (data && data.photos) ? data.photos : [];
+      if (photos.length === 0) {
+        _gphotoWriteCache(e.place_id, []);
+        e._gphoto_urls = [];
+        if(callback) callback(null);
+        return;
+      }
+      var sorted = photos.slice().sort(function(a,b){
+        return ((b.widthPx||0)*(b.heightPx||0)) - ((a.widthPx||0)*(a.heightPx||0));
+      });
+      var urls = sorted.slice(0, 3).map(function(p){ return _gphotoMakeUrl(p.name); });
+      _gphotoWriteCache(e.place_id, urls);
+      e._gphoto_urls = urls;
+      if(callback) callback(urls[0]);
+    })
+    .catch(function(err){
+      console.warn("AMBI241 gphoto:", e.nom, err.message);
+      e._gphoto_urls = [];
+      if(callback) callback(null);
+    });
+}
+
+function _gphotoProcessQueue() {
+  if (_gphotoFetchBusy || _gphotoFetchQueue.length === 0) return;
+  _gphotoFetchBusy = true;
+  var item = _gphotoFetchQueue.shift();
+  _gphotoFetchOne(item.e, function(url) {
+    _gphotoFetchBusy = false;
+    if (url) {
+      setTimeout(function(){
+        if(typeof renderAll === "function") renderAll();
+        if(typeof renderHome === "function") renderHome();
+      }, 0);
+    }
+    if (_gphotoFetchQueue.length > 0) setTimeout(_gphotoProcessQueue, 180);
+  });
+}
+
+function _gphotoEnqueue(e) {
+  if (!e.place_id) return;
+  if (e.photo_exterieur || e.photo_interieur) return;
+  if (e._gphoto_urls !== undefined) return;
+  var cached = _gphotoReadCache(e.place_id);
+  if (cached !== null) { e._gphoto_urls = cached; return; }
+  var already = _gphotoFetchQueue.some(function(i){ return i.e.place_id === e.place_id; });
+  if (!already) _gphotoFetchQueue.push({ e: e });
+}
+
+function autoFetchAllGooglePhotos() {
+  if (!etablissements || !etablissements.length) return;
+  etablissements.forEach(function(e){ _gphotoEnqueue(e); });
+  if (_gphotoFetchQueue.length > 0) _gphotoProcessQueue();
+}
+
+window.autoFetchAllGooglePhotos = autoFetchAllGooglePhotos;
+window._gphotoEnqueue = _gphotoEnqueue;
+
 function getGooglePhotoUrl(e, type) {
   if (type === 'exterieur' && e.photo_exterieur) return e.photo_exterieur;
   if (type === 'interieur' && e.photo_interieur) return e.photo_interieur;
+  if (e._gphoto_urls && e._gphoto_urls.length > 0) return e._gphoto_urls[0];
+  if (e.place_id && e._gphoto_urls === undefined) _gphotoEnqueue(e);
   return null;
 }
 
@@ -3688,6 +3796,8 @@ function loadData(){
     // Appliquer le statut dynamique basé sur l'affluence réelle
     etablissements.forEach(function(e){ applyDynamicStatus(e); });
     setSyncing(false);renderStats();renderAll();renderHome();renderPayments();updateSyncTime();if(typeof i18n!=="undefined")i18n.applyTranslations();
+    // Lancer le fetch automatique des photos Google Places pour tous les établissements sans photo
+    setTimeout(autoFetchAllGooglePhotos, 400);
     loadPaiementsFromFirebase();
     // S'abonner aux flux temps réel pour tous les établissements chargés
     if (typeof window._subscribeAllEtabs === "function") { window._subscribeAllEtabs(); }
@@ -3700,6 +3810,8 @@ function loadData(){
     // Appliquer le statut dynamique même en mode fallback
     etablissements.forEach(function(e){ applyDynamicStatus(e); });
     setSyncing(false);renderStats();renderAll();renderHome();renderPayments();updateSyncTime();if(typeof i18n!=="undefined")i18n.applyTranslations();
+    // Fetch photos Google Places même en mode fallback
+    setTimeout(autoFetchAllGooglePhotos, 600);
   });
 }
 
