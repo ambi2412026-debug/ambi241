@@ -3100,6 +3100,15 @@ function getGooglePhotoUrl(e, type) {
   return null;
 }
 
+function isGooglePlacesPhoto(url) {
+  if (!url) return false;
+  return url.indexOf("maps.googleapis.com/maps/api/place/photo") !== -1
+      || url.indexOf("lh3.googleusercontent.com") !== -1
+      || url.indexOf("lh4.googleusercontent.com") !== -1
+      || url.indexOf("lh5.googleusercontent.com") !== -1
+      || url.indexOf("lh6.googleusercontent.com") !== -1;
+}
+
 var VISIT_KEY="ambi241_visits";
 var isAdmin=false;
 var isSuperAdmin=false;  // Premier admin / propriétaire de l'app
@@ -5033,9 +5042,13 @@ function buildCard(e,delay,compact,rank){
 
   // ── Photo permanente plein-largeur avec barre d'actions ──
   var permType = e.photo_interieur ? "interieur" : "exterieur";
+  var permIsGoogle = !e.photo_interieur && !e.photo_exterieur && isGooglePlacesPhoto(permPhoto);
   if(permPhoto){
     photosHtml += "<div style='position:relative;width:100%;overflow:hidden;background:rgba(0,229,255,0.04);border-top:1px solid rgba(255,255,255,0.05);'>";
     photosHtml += "<img src='"+permPhoto+"' style='width:100%;height:180px;object-fit:cover;display:block;cursor:zoom-in;' onclick=\"openFullscreenPhoto('"+permPhoto.replace(/'/g,"\\'")+"',"+e.id+",'"+permType+"','"+((e.nom||"").replace(/'/g,"\\'"))+"')\">";
+    if(permIsGoogle){
+      photosHtml += "<span style='position:absolute;top:6px;left:6px;font-size:0.52rem;font-weight:800;color:#fff;background:rgba(66,133,244,0.82);border-radius:5px;padding:0.12rem 0.38rem;letter-spacing:0.04em;pointer-events:none;'>🗺 Google Maps</span>";
+    }
     // Barre d'actions (visible pour auteur ou admin)
     if(canEditPhotos(e)){
       photosHtml += "<div style='display:flex;align-items:center;gap:0.4rem;padding:0.4rem 0.55rem;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);border-top:1px solid rgba(255,255,255,0.06);'>";
@@ -6838,6 +6851,66 @@ function onPermPhotoSelected(inp){
 var __photoModalEid = null;
 var __photoModalType = null;
 
+function loadGooglePhotosInModal(etab){
+  var section = document.getElementById("photoModalGoogleSection");
+  if(!section) return;
+  if(!etab.place_id){ section.style.display="none"; return; }
+  section.style.display="block";
+  var grid = document.getElementById("photoModalGoogleGrid");
+  var status = document.getElementById("photoModalGoogleStatus");
+  if(grid) grid.innerHTML="";
+  if(status) status.textContent="⏳ Chargement des photos Google Maps…";
+
+  var urls = etab._gphoto_urls;
+  if(urls && urls.length>0){
+    _renderGooglePhotosInModal(urls);
+  } else {
+    // Lancer la récupération puis réessayer
+    if(etab.place_id && urls===undefined){
+      _gphotoEnqueue(etab);
+      var tries=0;
+      var poll=setInterval(function(){
+        tries++;
+        if(etab._gphoto_urls!==undefined){
+          clearInterval(poll);
+          if(etab._gphoto_urls.length>0){
+            _renderGooglePhotosInModal(etab._gphoto_urls);
+          } else {
+            if(status) status.textContent="Aucune photo Google disponible.";
+          }
+        } else if(tries>30){
+          clearInterval(poll);
+          if(status) status.textContent="Impossible de charger les photos Google.";
+        }
+      }, 300);
+    } else {
+      if(status) status.textContent="Aucune photo Google disponible.";
+    }
+  }
+}
+
+function _renderGooglePhotosInModal(urls){
+  var grid = document.getElementById("photoModalGoogleGrid");
+  var status = document.getElementById("photoModalGoogleStatus");
+  if(status) status.textContent="";
+  if(!grid) return;
+  grid.innerHTML="";
+  urls.forEach(function(url){
+    var img = document.createElement("img");
+    img.src = url;
+    img.style.cssText="width:100%;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent;transition:border-color 0.15s;";
+    img.title="Utiliser cette photo";
+    img.onclick=function(){
+      var inp=document.getElementById("photoModalUrl");
+      if(inp){ inp.value=url; previewPhotoUrl(); }
+      // Highlight selected
+      grid.querySelectorAll("img").forEach(function(i){ i.style.borderColor="transparent"; });
+      img.style.borderColor="var(--cyan)";
+    };
+    grid.appendChild(img);
+  });
+}
+
 function openPhotoModal(eid, type){
   var etab = etablissements.find(function(x){return x.id===eid;})||{};
   if(!canEditPhotos(etab) && !isAdmin){showToast("Accès refusé");return;}
@@ -6861,6 +6934,13 @@ function openPhotoModal(eid, type){
       preview.innerHTML = "<div style='height:80px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.8rem;background:rgba(255,255,255,0.03);border-radius:10px;border:1px dashed rgba(255,255,255,0.1);'>Aucune photo actuellement</div>";
     }
   }
+  // Reset + load Google Photos section
+  loadGooglePhotosInModal(etab);
+  // Sync tab buttons
+  var intBtn=document.getElementById("photoModalIntBtn");
+  var extBtn=document.getElementById("photoModalExtBtn");
+  if(intBtn){ intBtn.style.background=type==="interieur"?"var(--pink)":"rgba(255,255,255,0.04)"; intBtn.style.color=type==="interieur"?"#000":"var(--muted)"; }
+  if(extBtn){ extBtn.style.background=type==="exterieur"?"var(--pink)":"rgba(255,255,255,0.04)"; extBtn.style.color=type==="exterieur"?"#000":"var(--muted)"; }
   if(modal) modal.classList.add("show");
 }
 
@@ -7372,8 +7452,12 @@ function switchPhotoModalType(type){
   if(intBtn) intBtn.style.color = type==="interieur"?"#000":"var(--muted)";
   if(extBtn) extBtn.style.background = type==="exterieur"?"var(--pink)":"rgba(255,255,255,0.04)";
   if(extBtn) extBtn.style.color = type==="exterieur"?"#000":"var(--muted)";
+  // Reload Google photos section in case place_id is available
+  loadGooglePhotosInModal(etab);
 }
 window.switchPhotoModalType = switchPhotoModalType;
+window.loadGooglePhotosInModal = loadGooglePhotosInModal;
+window.isGooglePlacesPhoto    = isGooglePlacesPhoto;
 window.saveMapsUrl            = saveMapsUrl;
 window.previewUpload          = previewUpload;
 window.switchAdminTab         = switchAdminTab;
@@ -9890,6 +9974,14 @@ window.doAssignEtab = doAssignEtab;
       <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.7rem;line-height:1.5;">Photo stockée sur Firebase Storage — stable et permanente.</div>
       <!-- label natif → ouvre directement la galerie sur Android/iOS, fiable comme les slots -->
       <label for="__filePermPhoto" onclick="window.__permPhotoEid=__photoModalEid;window.__permPhotoType=__photoModalType;" style="display:block;width:100%;padding:0.65rem;border-radius:10px;border:none;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;text-align:center;box-sizing:border-box;">📤 Choisir une photo</label>
+    </div>
+
+    <!-- Option 3 : Photos Google Maps automatiques -->
+    <div id="photoModalGoogleSection" style="display:none;background:rgba(66,133,244,0.07);border:1px solid rgba(66,133,244,0.25);border-radius:14px;padding:1rem;margin-bottom:0.8rem;">
+      <div style="font-size:0.72rem;font-weight:800;color:#4285f4;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.5rem;">🗺 Option 3 — Photos Google Maps</div>
+      <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.7rem;line-height:1.5;">Cliquez sur une photo pour l'utiliser comme URL — puis sauvegardez.</div>
+      <div id="photoModalGoogleStatus" style="font-size:0.72rem;color:var(--muted);margin-bottom:0.5rem;"></div>
+      <div id="photoModalGoogleGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.4rem;"></div>
     </div>
 
     <!-- Supprimer -->
