@@ -2930,161 +2930,76 @@ function lsSetJSON(key,obj){ try{ lsSet(key,JSON.stringify(obj)); }catch(e){} }
 
 // ── GOOGLE PHOTO URL FALLBACK ──────────────────────────────────
 /* ══════════════════════════════════════════════════════════════
-   AUTO-FETCH PHOTOS GOOGLE — AMBI241
-   3 stratégies en cascade :
-   1. place_id connu  → Places API (New) /places/{id}?fields=photos
-   2. place_id absent → Text Search pour trouver le place_id, puis photos
-   3. Fallback final  → Street View Static API (lat/lng) toujours dispo
+   AUTO-FETCH PHOTOS GOOGLE PLACES — AMBI241
+   Récupère automatiquement la meilleure photo de chaque
+   établissement via Google Places API (New) grâce au place_id.
    Cache localStorage 7 jours. Re-render réactif à l'arrivée.
    ══════════════════════════════════════════════════════════════ */
 var GPLACES_API_KEY = "AIzaSyCx3hD28Lb9EtUrawHbTnM-6vmXdgO1ABw";
-var GPHOTO_CACHE_PREFIX  = "ambi241_gphoto_";
-var GPLACEID_CACHE_PREFIX = "ambi241_gpid_";
-var GPHOTO_CACHE_TTL = 7 * 24 * 3600 * 1000; // 7 jours
+var GPHOTO_CACHE_PREFIX = "ambi241_gphoto_";
+var GPHOTO_CACHE_TTL = 7 * 24 * 3600 * 1000;
 var _gphotoFetchQueue = [];
-var _gphotoFetchBusy  = false;
+var _gphotoFetchBusy = false;
 
-/* ── Cache localStorage générique ── */
-function _gcacheRead(key) {
+function _gphotoReadCache(placeId) {
   try {
-    var raw = localStorage.getItem(key);
+    var raw = localStorage.getItem(GPHOTO_CACHE_PREFIX + placeId);
     if (!raw) return null;
     var obj = JSON.parse(raw);
-    if (Date.now() - obj.ts > GPHOTO_CACHE_TTL) { localStorage.removeItem(key); return null; }
-    return obj.val;
-  } catch(e) { return null; }
-}
-function _gcacheWrite(key, val) {
-  try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), val: val })); } catch(e) {}
+    if (Date.now() - obj.ts > GPHOTO_CACHE_TTL) {
+      localStorage.removeItem(GPHOTO_CACHE_PREFIX + placeId);
+      return null;
+    }
+    return obj.urls || null;
+  } catch(err) { return null; }
 }
 
-/* ── Construire URL photo Places API (New) ── */
+function _gphotoWriteCache(placeId, urls) {
+  try {
+    localStorage.setItem(GPHOTO_CACHE_PREFIX + placeId, JSON.stringify({ ts: Date.now(), urls: urls }));
+  } catch(err) {}
+}
+
 function _gphotoMakeUrl(photoName) {
   return "https://places.googleapis.com/v1/" + photoName
-    + "/media?maxHeightPx=800&maxWidthPx=1200&skipHttpRedirect=false&key=" + GPLACES_API_KEY;
+    + "/media?maxHeightPx=800&maxWidthPx=1200&key=" + GPLACES_API_KEY;
 }
 
-/* ── Street View Static — toujours disponible avec lat/lng ── */
-function _gStreetViewUrl(e) {
-  if (!e.lat || !e.lng) return null;
-  return "https://maps.googleapis.com/maps/api/streetview"
-    + "?size=800x450&location=" + e.lat + "," + e.lng
-    + "&fov=90&pitch=10&source=outdoor&key=" + GPLACES_API_KEY;
-}
-
-/* ── Stratégie 1 : fetch photos depuis un place_id connu ── */
-function _gphotoFetchByPlaceId(placeId, callback) {
-  var cacheKey = GPHOTO_CACHE_PREFIX + placeId;
-  var cached = _gcacheRead(cacheKey);
-  if (cached !== null) { callback(cached); return; }
-  var url = "https://places.googleapis.com/v1/places/" + placeId
+function _gphotoFetchOne(e, callback) {
+  if (!e.place_id) { if(callback) callback(null); return; }
+  var cached = _gphotoReadCache(e.place_id);
+  if (cached !== null) {
+    e._gphoto_urls = cached;
+    if(callback) callback(cached.length > 0 ? cached[0] : null);
+    return;
+  }
+  var url = "https://places.googleapis.com/v1/places/" + e.place_id
     + "?fields=photos&languageCode=fr&key=" + GPLACES_API_KEY;
   fetch(url, { headers: { "X-Goog-FieldMask": "photos" } })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
+    .then(function(r){ return r.json(); })
+    .then(function(data){
       var photos = (data && data.photos) ? data.photos : [];
-      if (photos.length === 0) { _gcacheWrite(cacheKey, []); callback([]); return; }
-      var sorted = photos.slice().sort(function(a, b) {
+      if (photos.length === 0) {
+        _gphotoWriteCache(e.place_id, []);
+        e._gphoto_urls = [];
+        if(callback) callback(null);
+        return;
+      }
+      var sorted = photos.slice().sort(function(a,b){
         return ((b.widthPx||0)*(b.heightPx||0)) - ((a.widthPx||0)*(a.heightPx||0));
       });
-      var urls = sorted.slice(0, 3).map(function(p) { return _gphotoMakeUrl(p.name); });
-      _gcacheWrite(cacheKey, urls);
-      callback(urls);
+      var urls = sorted.slice(0, 3).map(function(p){ return _gphotoMakeUrl(p.name); });
+      _gphotoWriteCache(e.place_id, urls);
+      e._gphoto_urls = urls;
+      if(callback) callback(urls[0]);
     })
-    .catch(function(err) {
-      console.warn("AMBI241 places fetch:", err.message);
-      callback([]);
+    .catch(function(err){
+      console.warn("AMBI241 gphoto:", e.nom, err.message);
+      e._gphoto_urls = [];
+      if(callback) callback(null);
     });
 }
 
-/* ── Stratégie 2 : Text Search → trouver le place_id, puis photos ── */
-function _gphotoFetchByTextSearch(e, callback) {
-  var pidCacheKey = GPLACEID_CACHE_PREFIX + e.id;
-  var cachedPid = _gcacheRead(pidCacheKey);
-  if (cachedPid === "") { callback([]); return; } // déjà testé, rien trouvé
-  if (cachedPid) {
-    // place_id trouvé en cache → fetch photos directement
-    e.place_id = cachedPid;
-    _gphotoFetchByPlaceId(cachedPid, callback);
-    return;
-  }
-  // Construire la requête Text Search (Places API New)
-  var query = encodeURIComponent((e.nom || "") + " Libreville Gabon");
-  var ll = (e.lat && e.lng) ? ("&locationBias=circle%3A500%40" + e.lat + "%2C" + e.lng) : "";
-  var url = "https://places.googleapis.com/v1/places:searchText"
-    + "?fields=places.id,places.photos"
-    + "&key=" + GPLACES_API_KEY;
-  fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Goog-FieldMask": "places.id,places.photos"
-    },
-    body: JSON.stringify({
-      textQuery: decodeURIComponent(query),
-      languageCode: "fr",
-      maxResultCount: 1,
-      locationBias: (e.lat && e.lng) ? {
-        circle: { center: { latitude: e.lat, longitude: e.lng }, radius: 500 }
-      } : undefined
-    })
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    var places = (data && data.places) ? data.places : [];
-    if (places.length === 0) {
-      _gcacheWrite(pidCacheKey, ""); // mémoriser "aucun résultat"
-      callback([]);
-      return;
-    }
-    var place = places[0];
-    var pid = place.id;
-    _gcacheWrite(pidCacheKey, pid);
-    e.place_id = pid; // enrichir l'objet pour les appels futurs
-    // Photos directement dans la réponse Text Search
-    var photos = place.photos || [];
-    if (photos.length > 0) {
-      var sorted = photos.slice().sort(function(a, b) {
-        return ((b.widthPx||0)*(b.heightPx||0)) - ((a.widthPx||0)*(a.heightPx||0));
-      });
-      var urls = sorted.slice(0, 3).map(function(p) { return _gphotoMakeUrl(p.name); });
-      _gcacheWrite(GPHOTO_CACHE_PREFIX + pid, urls);
-      callback(urls);
-    } else {
-      _gphotoFetchByPlaceId(pid, callback);
-    }
-  })
-  .catch(function(err) {
-    console.warn("AMBI241 text search:", e.nom, err.message);
-    callback([]);
-  });
-}
-
-/* ── Orchestrateur principal pour un établissement ── */
-function _gphotoFetchOne(e, callback) {
-  if (e.photo_exterieur || e.photo_interieur) { callback(null); return; }
-  if (e._gphoto_urls !== undefined) { callback(e._gphoto_urls.length > 0 ? e._gphoto_urls[0] : null); return; }
-
-  function applyUrls(urls) {
-    if (urls && urls.length > 0) {
-      e._gphoto_urls = urls;
-      callback(urls[0]);
-    } else {
-      // Stratégie 3 : Street View Static en dernier recours
-      var sv = _gStreetViewUrl(e);
-      e._gphoto_urls = sv ? [sv] : [];
-      callback(sv || null);
-    }
-  }
-
-  if (e.place_id) {
-    _gphotoFetchByPlaceId(e.place_id, applyUrls);
-  } else {
-    _gphotoFetchByTextSearch(e, applyUrls);
-  }
-}
-
-/* ── File d'attente throttlée (1 req / 200ms) ── */
 function _gphotoProcessQueue() {
   if (_gphotoFetchBusy || _gphotoFetchQueue.length === 0) return;
   _gphotoFetchBusy = true;
@@ -3092,54 +3007,28 @@ function _gphotoProcessQueue() {
   _gphotoFetchOne(item.e, function(url) {
     _gphotoFetchBusy = false;
     if (url) {
-      setTimeout(function() {
-        if (typeof renderAll  === "function") renderAll();
-        if (typeof renderHome === "function") renderHome();
+      setTimeout(function(){
+        if(typeof renderAll === "function") renderAll();
+        if(typeof renderHome === "function") renderHome();
       }, 0);
     }
-    if (_gphotoFetchQueue.length > 0) setTimeout(_gphotoProcessQueue, 200);
+    if (_gphotoFetchQueue.length > 0) setTimeout(_gphotoProcessQueue, 180);
   });
 }
 
 function _gphotoEnqueue(e) {
+  if (!e.place_id) return;
   if (e.photo_exterieur || e.photo_interieur) return;
   if (e._gphoto_urls !== undefined) return;
-  // Vérifier les caches avant de mettre en queue
-  var pid = e.place_id;
-  if (pid) {
-    var cached = _gcacheRead(GPHOTO_CACHE_PREFIX + pid);
-    if (cached !== null) {
-      e._gphoto_urls = cached;
-      if (cached.length === 0) {
-        var sv = _gStreetViewUrl(e);
-        if (sv) e._gphoto_urls = [sv];
-      }
-      return;
-    }
-  } else {
-    var cachedPid = _gcacheRead(GPLACEID_CACHE_PREFIX + e.id);
-    if (cachedPid === "") {
-      // Text search déjà échoué → Street View direct
-      var sv = _gStreetViewUrl(e);
-      e._gphoto_urls = sv ? [sv] : [];
-      return;
-    }
-    if (cachedPid) {
-      e.place_id = cachedPid;
-      var cached2 = _gcacheRead(GPHOTO_CACHE_PREFIX + cachedPid);
-      if (cached2 !== null) {
-        e._gphoto_urls = cached2.length > 0 ? cached2 : (function(){ var sv=_gStreetViewUrl(e); return sv?[sv]:[]; })();
-        return;
-      }
-    }
-  }
-  var already = _gphotoFetchQueue.some(function(i) { return i.e.id === e.id; });
+  var cached = _gphotoReadCache(e.place_id);
+  if (cached !== null) { e._gphoto_urls = cached; return; }
+  var already = _gphotoFetchQueue.some(function(i){ return i.e.place_id === e.place_id; });
   if (!already) _gphotoFetchQueue.push({ e: e });
 }
 
 function autoFetchAllGooglePhotos() {
   if (!etablissements || !etablissements.length) return;
-  etablissements.forEach(function(e) { _gphotoEnqueue(e); });
+  etablissements.forEach(function(e){ _gphotoEnqueue(e); });
   if (_gphotoFetchQueue.length > 0) _gphotoProcessQueue();
 }
 
@@ -3150,8 +3039,7 @@ function getGooglePhotoUrl(e, type) {
   if (type === 'exterieur' && e.photo_exterieur) return e.photo_exterieur;
   if (type === 'interieur' && e.photo_interieur) return e.photo_interieur;
   if (e._gphoto_urls && e._gphoto_urls.length > 0) return e._gphoto_urls[0];
-  // Déclencher le fetch si pas encore fait
-  if (e._gphoto_urls === undefined) _gphotoEnqueue(e);
+  if (e.place_id && e._gphoto_urls === undefined) _gphotoEnqueue(e);
   return null;
 }
 
@@ -8492,7 +8380,7 @@ window.closeAdminDashboard=closeAdminDashboard;
 
 function switchAdmTab(tab){
   _currentAdmTab=tab;
-  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","guide"];
+  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement"];
   tabs.forEach(function(t){
     var btn=document.getElementById("admtab-"+t);
     var panel=document.getElementById("admpanel-"+t);
@@ -8519,319 +8407,8 @@ function switchAdmTab(tab){
   }
   else if(tab==="reservations") renderAdmReservations();
   else if(tab==="classement") renderAdmClassement();
-  else if(tab==="guide") renderAdmGuide();
 }
 window.switchAdmTab=switchAdmTab;
-
-// ── Guide Admin Quotidien ───────────────────────────────────────
-function renderAdmGuide(){
-  var el=document.getElementById("adminGuideContent");
-  if(!el) return;
-
-  var html="";
-
-  // ── Styles intégrés ──
-  html+=`<style>
-  .guide-section{margin-bottom:1.6rem;}
-  .guide-section-title{display:flex;align-items:center;gap:0.5rem;font-family:Syne,sans-serif;font-weight:800;font-size:0.95rem;color:var(--amber);padding-bottom:0.5rem;border-bottom:2px solid rgba(255,215,0,0.25);margin-bottom:0.8rem;}
-  .guide-subtitle{font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;color:var(--cyan);margin:0.9rem 0 0.45rem;}
-  .guide-table{width:100%;border-collapse:collapse;margin-bottom:0.5rem;}
-  .guide-table th{background:rgba(255,215,0,0.1);color:var(--amber);font-family:Syne,sans-serif;font-size:0.68rem;font-weight:700;padding:0.45rem 0.55rem;text-align:left;border:1px solid rgba(255,255,255,0.06);}
-  .guide-table td{font-size:0.72rem;color:var(--text);padding:0.4rem 0.55rem;border:1px solid rgba(255,255,255,0.05);vertical-align:top;line-height:1.4;}
-  .guide-table tr:nth-child(even) td{background:rgba(255,255,255,0.02);}
-  .guide-table tr:hover td{background:rgba(255,215,0,0.04);}
-  .guide-table td:first-child{font-size:1rem;text-align:center;width:2rem;}
-  .guide-table td:nth-child(2){font-weight:700;color:var(--text);width:32%;}
-  .guide-table td:nth-child(3){color:rgba(255,255,255,0.6);}
-  .guide-alert{display:flex;gap:0.6rem;align-items:flex-start;padding:0.75rem 0.9rem;border-radius:10px;margin:0.8rem 0;font-size:0.75rem;line-height:1.5;}
-  .guide-alert.orange{background:rgba(232,101,10,0.1);border:1px solid rgba(232,101,10,0.3);color:rgba(255,200,150,0.9);}
-  .guide-alert.red{background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.35);color:rgba(255,160,150,0.9);}
-  .guide-alert.green{background:rgba(10,122,58,0.1);border:1px solid rgba(10,122,58,0.35);color:rgba(100,220,150,0.9);}
-  .guide-freq-badge{display:inline-block;font-size:0.6rem;font-weight:700;font-family:Syne,sans-serif;padding:0.15rem 0.5rem;border-radius:20px;margin-left:0.5rem;vertical-align:middle;}
-  .freq-daily{background:rgba(255,215,0,0.15);color:var(--amber);}
-  .freq-week{background:rgba(0,229,255,0.12);color:var(--cyan);}
-  .freq-month{background:rgba(204,68,255,0.15);color:var(--purple);}
-  .guide-checklist{list-style:none;padding:0;margin:0;}
-  .guide-checklist li{display:flex;align-items:center;gap:0.6rem;padding:0.45rem 0.6rem;border-radius:8px;margin-bottom:0.3rem;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);font-size:0.75rem;color:var(--text);}
-  .guide-checklist li:nth-child(odd){background:rgba(255,255,255,0.03);}
-  .guide-check-box{width:18px;height:18px;border-radius:5px;border:2px solid rgba(255,215,0,0.4);flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:0.7rem;transition:all 0.15s;}
-  .guide-check-box.done{background:var(--amber);border-color:var(--amber);color:#000;}
-  </style>`;
-
-  // ── En-tête ──
-  html+=`<div style="background:linear-gradient(135deg,rgba(232,101,10,0.15),rgba(255,215,0,0.08));border:1px solid rgba(255,215,0,0.2);border-radius:14px;padding:1rem 1.2rem;margin-bottom:1.2rem;">
-    <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.05rem;color:var(--amber);margin-bottom:0.3rem;">🏮 Guide d'Administration Quotidienne</div>
-    <div style="font-size:0.75rem;color:rgba(255,255,255,0.6);line-height:1.5;">Toutes les tâches du Super-Admin pour maintenir AMBI241 fonctionnel, sécurisé et performant. Suivez les routines dans l'ordre&nbsp;: <strong style="color:var(--amber)">Matin → Journée → Sécurité → Hebdomadaire → Mensuel → Urgences.</strong></div>
-  </div>`;
-
-  // ══════════════════════════════════════════════════════════
-  // SECTION 1 — ROUTINE MATINALE
-  // ══════════════════════════════════════════════════════════
-  html+=`<div class="guide-section">
-    <div class="guide-section-title">🌅 Routine Matinale <span class="guide-freq-badge freq-daily">Chaque jour</span></div>
-    <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem;">À effectuer avant 9h00 — durée estimée : 10 à 15 min.</div>
-
-    <div class="guide-subtitle">1.1 Vérifier l'état général de l'application</div>
-    <table class="guide-table">
-      <tr><th></th><th>Tâche</th><th>Comment faire</th></tr>
-      <tr><td>🌐</td><td>Tester l'URL de production</td><td>Ouvrir <a href="https://ambi241.web.app" target="_blank" style="color:var(--cyan)">ambi241.web.app</a> — vérifier que la page charge en moins de 3 secondes.</td></tr>
-      <tr><td>📱</td><td>Tester sur mobile</td><td>Ouvrir l'app sur un smartphone — vérifier l'affichage et la navigation.</td></tr>
-      <tr><td>🔥</td><td>Vérifier Firebase Hosting</td><td><a href="https://console.firebase.google.com/project/ambi241/hosting" target="_blank" style="color:var(--cyan)">Firebase Console → Hosting</a> — statut doit être "Live" sans erreur.</td></tr>
-      <tr><td>📡</td><td>Vérifier le statut Firebase</td><td><a href="https://status.firebase.google.com" target="_blank" style="color:var(--cyan)">status.firebase.google.com</a> — tous les services doivent être verts.</td></tr>
-    </table>
-
-    <div class="guide-subtitle">1.2 Vérifier les établissements actifs</div>
-    <table class="guide-table">
-      <tr><th></th><th>Tâche</th><th>Comment faire</th></tr>
-      <tr><td>🏪</td><td>Contrôler la liste des établissements</td><td><a href="https://console.firebase.google.com/project/ambi241/firestore" target="_blank" style="color:var(--cyan)">Firestore → etablissements</a> — vérifier nom, statut, affluence.</td></tr>
-      <tr><td>📸</td><td>Vérifier les photos</td><td>Quelques établissements aléatoires → vérifier que les photos s'affichent correctement.</td></tr>
-      <tr><td>⚡</td><td>Supprimer les event_flash expirés</td><td>Firestore → etablissements → champ event_flash — supprimer les événements de la veille.</td></tr>
-    </table>
-
-    <div class="guide-subtitle">1.3 Modérer les photos éphémères</div>
-    <table class="guide-table">
-      <tr><th></th><th>Tâche</th><th>Comment faire</th></tr>
-      <tr><td>🖼️</td><td>Passer en revue les photos de soirée</td><td><a href="https://console.firebase.google.com/project/ambi241/firestore" target="_blank" style="color:var(--cyan)">Firestore → soireePhotos</a> — vérifier les nouvelles photos publiées.</td></tr>
-      <tr><td>🗑️</td><td>Supprimer les photos inappropriées</td><td>Sélectionner le document → Delete document dans Firestore.</td></tr>
-      <tr><td>⏰</td><td>Contrôler l'expiration (10h)</td><td>S'assurer que les photos de plus de 10h sont bien supprimées automatiquement.</td></tr>
-    </table>
-  </div>`;
-
-  // ══════════════════════════════════════════════════════════
-  // SECTION 2 — GESTION UTILISATEURS
-  // ══════════════════════════════════════════════════════════
-  html+=`<div class="guide-section">
-    <div class="guide-section-title">👥 Gestion des Utilisateurs <span class="guide-freq-badge freq-daily">Chaque jour</span></div>
-    <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem;">Durée estimée : 5 à 10 min.</div>
-
-    <div class="guide-subtitle">2.1 Surveiller les nouveaux comptes</div>
-    <table class="guide-table">
-      <tr><th></th><th>Tâche</th><th>Comment faire</th></tr>
-      <tr><td>✅</td><td>Voir les nouveaux inscrits</td><td><a href="https://console.firebase.google.com/project/ambi241/authentication/users" target="_blank" style="color:var(--cyan)">Firebase → Authentication</a> — trier par date de création.</td></tr>
-      <tr><td>🔍</td><td>Vérifier les comptes gérants</td><td>Firestore → users → chaque gérant doit être lié à un établissement existant.</td></tr>
-      <tr><td>🚫</td><td>Désactiver les comptes suspects</td><td>Authentication → sélectionner l'utilisateur → "Disable account".</td></tr>
-    </table>
-
-    <div class="guide-subtitle">2.2 Gérer les admins secondaires</div>
-    <table class="guide-table">
-      <tr><th></th><th>Tâche</th><th>Comment faire</th></tr>
-      <tr><td>🛡️</td><td>Promouvoir un nouvel admin</td><td>Firestore → config → superadmin → champ list[] → ajouter l'email. <strong>Super-Admin uniquement.</strong></td></tr>
-      <tr><td>❌</td><td>Révoquer un admin secondaire</td><td>Firestore → config → superadmin → champ list[] → supprimer l'email.</td></tr>
-    </table>
-
-    <div class="guide-subtitle">2.3 Traiter les demandes d'assistance</div>
-    <table class="guide-table">
-      <tr><th></th><th>Tâche</th><th>Comment faire</th></tr>
-      <tr><td>🔑</td><td>Réinitialiser un mot de passe gérant</td><td><a href="https://console.firebase.google.com/project/ambi241/authentication/users" target="_blank" style="color:var(--cyan)">Authentication</a> → trouver l'email → "Send password reset email".</td></tr>
-      <tr><td>🔄</td><td>Recréer un compte supprimé</td><td>Recréer dans Authentication et renvoyer une invitation au gérant.</td></tr>
-      <tr><td>🔓</td><td>Débloquer un admin verrouillé</td><td>Firestore → config → superadmin → supprimer le champ <code style="color:var(--pink)">lockUntil</code> si présent.</td></tr>
-    </table>
-  </div>`;
-
-  // ══════════════════════════════════════════════════════════
-  // SECTION 3 — MODÉRATION CONTENU
-  // ══════════════════════════════════════════════════════════
-  html+=`<div class="guide-section">
-    <div class="guide-section-title">📝 Modération du Contenu <span class="guide-freq-badge freq-daily">Chaque jour</span></div>
-    <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem;">En milieu de journée — durée estimée : 5 à 15 min.</div>
-
-    <div class="guide-subtitle">3.1 Modérer le fil social</div>
-    <table class="guide-table">
-      <tr><th></th><th>Tâche</th><th>Comment faire</th></tr>
-      <tr><td>📰</td><td>Lire les nouvelles publications</td><td><a href="https://console.firebase.google.com/project/ambi241/firestore" target="_blank" style="color:var(--cyan)">Firestore → publications</a> — trier par date, passer en revue posts et commentaires.</td></tr>
-      <tr><td>🗑️</td><td>Supprimer les contenus inappropriés</td><td>Sélectionner le document dans Firestore → Delete document.</td></tr>
-      <tr><td>⚠️</td><td>Signaler les abus répétés</td><td>Si un utilisateur abuse → désactiver son compte dans Authentication.</td></tr>
-    </table>
-
-    <div class="guide-subtitle">3.2 Gérer les établissements</div>
-    <table class="guide-table">
-      <tr><th></th><th>Tâche</th><th>Comment faire</th></tr>
-      <tr><td>✏️</td><td>Valider les modifications gérants</td><td>Vérifier que les informations modifiées (nom, horaires, photos) sont correctes.</td></tr>
-      <tr><td>🎉</td><td>Valider les event_flash</td><td>S'assurer que les événements flash sont valides, datés correctement et sans fautes.</td></tr>
-      <tr><td>📊</td><td>Vérifier l'affluence affichée</td><td>Contrôler que les niveaux d'affluence correspondent à la réalité — corriger si besoin.</td></tr>
-    </table>
-  </div>`;
-
-  // ══════════════════════════════════════════════════════════
-  // SECTION 4 — PAIEMENTS
-  // ══════════════════════════════════════════════════════════
-  html+=`<div class="guide-section">
-    <div class="guide-section-title">💰 Paiements & Abonnements <span class="guide-freq-badge freq-daily">Chaque jour</span></div>
-    <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem;">Durée estimée : 5 min.</div>
-    <table class="guide-table">
-      <tr><th></th><th>Tâche</th><th>Comment faire</th></tr>
-      <tr><td>💳</td><td>Vérifier les nouveaux paiements</td><td><a href="https://console.firebase.google.com/project/ambi241/firestore" target="_blank" style="color:var(--cyan)">Firestore → paiements</a> — trier par date, identifier les paiements des dernières 24h.</td></tr>
-      <tr><td>⏳</td><td>Contrôler les abonnements qui expirent</td><td>Repérer les établissements dont l'abonnement expire dans les 7 prochains jours.</td></tr>
-      <tr><td>📧</td><td>Relancer les impayés</td><td>Contacter directement les gérants en retard via l'email enregistré dans leur profil.</td></tr>
-      <tr><td>✔️</td><td>Valider un paiement manuel</td><td>Firestore → paiements → mettre à jour le champ <code style="color:var(--pink)">statut</code> à "validé".</td></tr>
-    </table>
-  </div>`;
-
-  // ══════════════════════════════════════════════════════════
-  // SECTION 5 — SÉCURITÉ
-  // ══════════════════════════════════════════════════════════
-  html+=`<div class="guide-section">
-    <div class="guide-section-title">🔐 Sécurité & Surveillance <span class="guide-freq-badge freq-daily">Chaque jour</span></div>
-    <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem;">Durée estimée : 5 min.</div>
-
-    <div class="guide-subtitle">5.1 Vérifier les logs et sessions</div>
-    <table class="guide-table">
-      <tr><th></th><th>Tâche</th><th>Comment faire</th></tr>
-      <tr><td>📋</td><td>Contrôler les logs de connexion</td><td><a href="https://console.firebase.google.com/project/ambi241/firestore" target="_blank" style="color:var(--cyan)">Firestore → sessions</a> — repérer les connexions inhabituelles (heure, fréquence).</td></tr>
-      <tr><td>🌍</td><td>Vérifier les connexions étrangères</td><td>Authentication → repérer des connexions depuis des pays non attendus.</td></tr>
-      <tr><td>🔒</td><td>Surveiller les tentatives de PIN</td><td>Vérifier les blocages après 3 essais via le champ <code style="color:var(--pink)">ambi241_pin_lockuntil</code>.</td></tr>
-    </table>
-
-    <div class="guide-subtitle">5.2 Vérifier les quotas API Google</div>
-    <table class="guide-table">
-      <tr><th></th><th>Tâche</th><th>Comment faire</th></tr>
-      <tr><td>📈</td><td>Contrôler la consommation API</td><td><a href="https://console.cloud.google.com/apis/dashboard" target="_blank" style="color:var(--cyan)">Google Cloud → APIs Dashboard</a> — Places API, Text Search, Street View.</td></tr>
-      <tr><td>⚠️</td><td>Surveiller les alertes de quota</td><td>Si une API approche de son quota → réduire les appels ou augmenter le budget.</td></tr>
-      <tr><td>💸</td><td>Vérifier la facturation Google</td><td><a href="https://console.cloud.google.com/billing" target="_blank" style="color:var(--cyan)">Cloud Console → Billing</a> — vérifier qu'aucune facturation anormale n'est en cours.</td></tr>
-    </table>
-
-    <div class="guide-alert red">🔐 <span><strong>RAPPEL SÉCURITÉ :</strong> Ne jamais partager le code PIN Super-Admin ni l'email propriétaire. En cas de doute sur une intrusion, changer immédiatement le PIN via Firestore → config → superadmin → champ <code>pin_hash</code>.</span></div>
-  </div>`;
-
-  // ══════════════════════════════════════════════════════════
-  // SECTION 6 — HEBDOMADAIRE
-  // ══════════════════════════════════════════════════════════
-  html+=`<div class="guide-section">
-    <div class="guide-section-title">📅 Routine Hebdomadaire <span class="guide-freq-badge freq-week">1×/semaine</span></div>
-    <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem;">Idéalement le lundi — durée estimée : 20 à 30 min.</div>
-
-    <div class="guide-subtitle">6.1 Maintenance Firestore</div>
-    <table class="guide-table">
-      <tr><th></th><th>Tâche</th><th>Comment faire</th></tr>
-      <tr><td>🧹</td><td>Nettoyer les données orphelines</td><td>Supprimer dans Firestore les documents liés à des comptes supprimés (users, paiements, photos).</td></tr>
-      <tr><td>🗂️</td><td>Archiver les anciens paiements</td><td>Déplacer les paiements de plus de 3 mois dans une collection d'archives.</td></tr>
-      <tr><td>📸</td><td>Vérifier les photos expirées</td><td>Confirmer dans soireePhotos qu'aucune photo de plus de 10h n'est encore présente.</td></tr>
-      <tr><td>🏪</td><td>Identifier les établissements inactifs</td><td>Établissements sans activité depuis 30+ jours → contacter le gérant ou archiver.</td></tr>
-    </table>
-
-    <div class="guide-subtitle">6.2 Sauvegardes</div>
-    <table class="guide-table">
-      <tr><th></th><th>Tâche</th><th>Comment faire</th></tr>
-      <tr><td>💾</td><td>Sauvegarder index.html</td><td>Copier la dernière version dans votre Google Drive privé (dossier AMBI241/Backups).</td></tr>
-      <tr><td>📤</td><td>Exporter les données Firestore</td><td>Firebase Console → Firestore → Import/Export → exporter vers un bucket Cloud Storage.</td></tr>
-    </table>
-
-    <div class="guide-subtitle">6.3 Performances</div>
-    <table class="guide-table">
-      <tr><th></th><th>Tâche</th><th>Comment faire</th></tr>
-      <tr><td>⚡</td><td>Tester la vitesse de l'app</td><td><a href="https://pagespeed.web.dev" target="_blank" style="color:var(--cyan)">pagespeed.web.dev</a> → saisir https://ambi241.web.app.</td></tr>
-      <tr><td>🔍</td><td>Vérifier les règles Firestore</td><td><a href="https://console.firebase.google.com/project/ambi241/firestore/rules" target="_blank" style="color:var(--cyan)">Firebase → Firestore → Rules</a> — s'assurer que les règles de sécurité sont appropriées.</td></tr>
-    </table>
-  </div>`;
-
-  // ══════════════════════════════════════════════════════════
-  // SECTION 7 — MENSUELLE
-  // ══════════════════════════════════════════════════════════
-  html+=`<div class="guide-section">
-    <div class="guide-section-title">📆 Routine Mensuelle <span class="guide-freq-badge freq-month">1×/mois</span></div>
-    <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem;">Le 1er de chaque mois — durée estimée : 30 à 45 min.</div>
-    <table class="guide-table">
-      <tr><th></th><th>Tâche</th><th>Comment faire</th></tr>
-      <tr><td>🔑</td><td>Changer le PIN administrateur</td><td>Générer nouveau hash SHA-256 sur <a href="https://emn178.github.io/online-tools/sha256.html" target="_blank" style="color:var(--cyan)">emn178.github.io</a> → Firestore → config → superadmin → pin_hash.</td></tr>
-      <tr><td>👥</td><td>Auditer la liste des admins</td><td>Firestore → config → superadmin → list[] → vérifier que tous les admins sont toujours autorisés.</td></tr>
-      <tr><td>🔐</td><td>Vérifier la clé API Google</td><td><a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--cyan)">Cloud Console → Credentials</a> — vérifier que la clé est restreinte au domaine ambi241.web.app.</td></tr>
-      <tr><td>📊</td><td>Bilan des paiements du mois</td><td>Firestore → paiements → totaliser abonnements actifs, expirés et impayés.</td></tr>
-      <tr><td>📈</td><td>Bilan des utilisateurs</td><td>Firebase Authentication → noter le nombre total d'inscrits et comparer avec le mois précédent.</td></tr>
-      <tr><td>🧪</td><td>Test complet de l'application</td><td>Parcourir toutes les fonctionnalités clés (carte, photos, événements, connexion gérant, admin).</td></tr>
-      <tr><td>🔒</td><td>Vérifier la 2FA Google</td><td>S'assurer que la double authentification est toujours active sur votre compte Google Firebase.</td></tr>
-    </table>
-  </div>`;
-
-  // ══════════════════════════════════════════════════════════
-  // SECTION 8 — URGENCES
-  // ══════════════════════════════════════════════════════════
-  html+=`<div class="guide-section">
-    <div class="guide-section-title">🚨 Gestion des Urgences</div>
-
-    <div class="guide-subtitle" style="color:rgba(255,100,100,0.85);">8.1 L'application est inaccessible</div>
-    <table class="guide-table">
-      <tr><th></th><th>Action</th><th>Détail</th></tr>
-      <tr><td>1️⃣</td><td>Vérifier le statut Firebase</td><td><a href="https://status.firebase.google.com" target="_blank" style="color:var(--cyan)">status.firebase.google.com</a> — si Firebase est en panne, attendre la résolution.</td></tr>
-      <tr><td>2️⃣</td><td>Vérifier Firebase Hosting</td><td><a href="https://console.firebase.google.com/project/ambi241/hosting" target="_blank" style="color:var(--cyan)">Firebase → Hosting</a> — vérifier que le déploiement est actif.</td></tr>
-      <tr><td>3️⃣</td><td>Redéployer l'application</td><td>Depuis la sauvegarde Drive → <code style="color:var(--pink)">firebase deploy --only hosting</code> ou drag & drop sur Netlify.</td></tr>
-      <tr><td>4️⃣</td><td>Vérifier les règles Firestore</td><td>Une règle trop restrictive peut bloquer l'accès aux données — vérifier et corriger.</td></tr>
-    </table>
-
-    <div class="guide-subtitle" style="color:rgba(255,100,100,0.85);">8.2 Intrusion / problème de sécurité</div>
-    <table class="guide-table">
-      <tr><th></th><th>Action</th><th>Détail</th></tr>
-      <tr><td>1️⃣</td><td>Changer le PIN immédiatement</td><td>Générer nouveau hash SHA-256 → Firestore → config → superadmin → pin_hash.</td></tr>
-      <tr><td>2️⃣</td><td>Auditer les comptes admins</td><td>Firestore → config → superadmin → list[] → retirer tout admin non reconnu.</td></tr>
-      <tr><td>3️⃣</td><td>Identifier les connexions suspectes</td><td>Firestore → sessions → désactiver les comptes concernés dans Authentication.</td></tr>
-      <tr><td>4️⃣</td><td>Révoquer et régénérer la clé API</td><td><a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--cyan)">Cloud Console → Credentials</a> → supprimer l'ancienne clé, en créer une nouvelle, mettre à jour index.html.</td></tr>
-    </table>
-
-    <div class="guide-subtitle" style="color:rgba(255,200,0,0.85);">8.3 Quota API Google dépassé</div>
-    <table class="guide-table">
-      <tr><th></th><th>Action</th><th>Détail</th></tr>
-      <tr><td>1️⃣</td><td>Identifier l'API concernée</td><td><a href="https://console.cloud.google.com/apis/dashboard" target="_blank" style="color:var(--cyan)">Cloud Console → APIs Dashboard</a> — repérer quelle API a dépassé son quota.</td></tr>
-      <tr><td>2️⃣</td><td>Augmenter le quota ou budget</td><td><a href="https://console.cloud.google.com/billing" target="_blank" style="color:var(--cyan)">Cloud Console → Billing</a> → augmenter le budget ou demander un quota supplémentaire.</td></tr>
-      <tr><td>3️⃣</td><td>Activer le cache renforcé</td><td>Le cache localStorage (7 jours) réduit les appels API — vérifier qu'il fonctionne correctement.</td></tr>
-    </table>
-  </div>`;
-
-  // ══════════════════════════════════════════════════════════
-  // SECTION 9 — CHECKLIST INTERACTIVE
-  // ══════════════════════════════════════════════════════════
-  var checks=[
-    {id:"c1",emoji:"🌐",text:"Tester l'URL https://ambi241.web.app"},
-    {id:"c2",emoji:"📡",text:"Vérifier le statut Firebase"},
-    {id:"c3",emoji:"🖼️",text:"Modérer les photos éphémères (soireePhotos)"},
-    {id:"c4",emoji:"📰",text:"Modérer les nouvelles publications"},
-    {id:"c5",emoji:"👥",text:"Vérifier les nouveaux inscrits dans Authentication"},
-    {id:"c6",emoji:"💰",text:"Contrôler les paiements du jour"},
-    {id:"c7",emoji:"⚡",text:"Supprimer les event_flash expirés"},
-    {id:"c8",emoji:"📈",text:"Vérifier la consommation API Google Cloud"},
-    {id:"c9",emoji:"🔒",text:"Contrôler les logs de connexion (sessions)"},
-  ];
-
-  html+=`<div class="guide-section">
-    <div class="guide-section-title">✅ Checklist Quotidienne Interactive</div>
-    <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.8rem;">Cochez chaque tâche au fur et à mesure. La checklist se remet à zéro à chaque ouverture.</div>
-    <ul class="guide-checklist" id="guideCheckList">`;
-
-  checks.forEach(function(c){
-    html+=`<li id="li-${c.id}">
-      <div class="guide-check-box" id="box-${c.id}" onclick="toggleGuideCheck('${c.id}')"></div>
-      <span>${c.emoji}&nbsp;&nbsp;${c.text}</span>
-    </li>`;
-  });
-
-  html+=`</ul>
-    <button onclick="resetGuideChecks()" style="margin-top:0.6rem;padding:0.4rem 0.9rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.72rem;cursor:pointer;">↺ Réinitialiser la checklist</button>
-  </div>`;
-
-  // ── Alerte finale ──
-  html+=`<div class="guide-alert orange">⚠️ <span><strong>RAPPEL :</strong> Ce guide et le Carnet de Bord Admin doivent être stockés dans un Google Drive privé protégé par 2FA. Ne jamais envoyer par email non chiffré. En cas de perte d'accès Firebase, contacter le support Google Cloud via <a href="https://console.cloud.google.com/support" target="_blank" style="color:var(--amber)">console.cloud.google.com/support</a>.</span></div>`;
-
-  el.innerHTML=html;
-}
-window.renderAdmGuide=renderAdmGuide;
-
-function toggleGuideCheck(id){
-  var box=document.getElementById("box-"+id);
-  var li=document.getElementById("li-"+id);
-  if(!box) return;
-  var done=box.classList.toggle("done");
-  box.textContent=done?"✓":"";
-  if(li) li.style.opacity=done?"0.45":"1";
-}
-window.toggleGuideCheck=toggleGuideCheck;
-
-function resetGuideChecks(){
-  ["c1","c2","c3","c4","c5","c6","c7","c8","c9"].forEach(function(id){
-    var box=document.getElementById("box-"+id);
-    var li=document.getElementById("li-"+id);
-    if(box){box.classList.remove("done");box.textContent="";}
-    if(li) li.style.opacity="1";
-  });
-}
-window.resetGuideChecks=resetGuideChecks;
 
 // ── Vue d'ensemble ─────────────────────────────────────────────
 function renderAdmOverview(){
@@ -10053,7 +9630,6 @@ window.doAssignEtab = doAssignEtab;
       <button class="adm-tab" id="admtab-settings" onclick="switchAdmTab('settings')">&#9881; Paramètres</button>
       <button class="adm-tab" id="admtab-reservations" onclick="switchAdmTab('reservations')">&#11088; Réserv. VIP</button>
       <button class="adm-tab" id="admtab-classement" onclick="switchAdmTab('classement')">&#127942; Classement</button>
-      <button class="adm-tab" id="admtab-guide" onclick="switchAdmTab('guide')">&#128218; Guide Admin</button>
     </div>
 
     <div style="padding:1rem;">
@@ -10143,10 +9719,7 @@ window.doAssignEtab = doAssignEtab;
         <div id="adminClassementContent">Chargement...</div>
       </div>
 
-      <!-- ── Guide Admin Quotidien ── -->
-      <div id="admpanel-guide" style="display:none;">
-        <div id="adminGuideContent"></div>
-      </div>
+    </div>
   </div>
 </div>
 
