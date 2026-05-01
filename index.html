@@ -1933,6 +1933,9 @@ if (document.readyState === 'loading') {
     </div>
     <!-- FORM -->
     <form id="etablForm" onsubmit="submitEtablissement(event)">
+      <!-- Honeypot anti-bot : invisible pour les humains, rempli automatiquement par les bots -->
+      <input type="text" id="_hp_website" name="_hp_website" tabindex="-1" autocomplete="off"
+        style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;">
       <div style="font-size:0.68rem;color:var(--amber);font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.8rem;">&#127968; Informations</div>
       <div class="field"><label>Nom de l etablissement <span class="req">*</span></label><input type="text" name="nom_etablissement" placeholder="Ex: Miami Club" required maxlength="60"></div>
       <div class="field-row">
@@ -3902,6 +3905,14 @@ function goToTypeFilter(type){
 // PIN
 var pinBuf="";
 function pinPress(k){
+  // ── ANTI-BRUTE FORCE PIN ──
+  var pinLockUntil = parseInt(lsGet("ambi241_pin_lockuntil")||"0");
+  if(pinLockUntil > Date.now()){
+    var remMin = Math.ceil((pinLockUntil-Date.now())/60000);
+    showToast("🔒 Accès bloqué — réessayez dans "+remMin+" min");
+    return;
+  }
+
   if(k==="clear"){pinBuf="";updateDots();return;}
   if(k==="del"){pinBuf=pinBuf.slice(0,-1);updateDots();return;}
   if(pinBuf.length>=4)return;
@@ -3909,6 +3920,9 @@ function pinPress(k){
   if(pinBuf.length===4){
     hashPin(pinBuf).then(function(h){
       if(h===loadPinHash()){
+        // ── Succès : réinitialiser le compteur ──
+        lsSet("ambi241_pin_attempts","0");
+        lsSet("ambi241_pin_lockuntil","0");
         document.getElementById("pinOverlay").classList.remove("show");
         isAdmin=true;
         // isSuperAdmin sera mis à jour par loadAdminConfig() après résolution Firebase
@@ -3924,8 +3938,23 @@ function pinPress(k){
         showToast("Mode Admin activé");
         loadAdminConfig(); // charger config superadmin + liste admins secondaires
       } else {
-        document.getElementById("pinError").style.display="block";
-        setTimeout(function(){pinBuf="";updateDots();document.getElementById("pinError").style.display="none";},1200);
+        // ── Échec : incrémenter compteur ──
+        var attempts = parseInt(lsGet("ambi241_pin_attempts")||"0") + 1;
+        lsSet("ambi241_pin_attempts", String(attempts));
+        if(attempts >= 5){
+          // Bloquer 30 minutes
+          var lockUntil = Date.now() + (30*60*1000);
+          lsSet("ambi241_pin_lockuntil", String(lockUntil));
+          lsSet("ambi241_pin_attempts","0");
+          document.getElementById("pinError").style.display="block";
+          document.getElementById("pinError").textContent="🚫 Trop de tentatives — accès bloqué 30 min";
+          setTimeout(function(){pinBuf="";updateDots();document.getElementById("pinError").style.display="none";document.getElementById("pinError").textContent="";},3000);
+        } else {
+          var remaining = 5 - attempts;
+          document.getElementById("pinError").style.display="block";
+          document.getElementById("pinError").textContent="❌ PIN incorrect — "+remaining+" tentative"+(remaining>1?"s":"")+" restante"+(remaining>1?"s":"");
+          setTimeout(function(){pinBuf="";updateDots();document.getElementById("pinError").style.display="none";document.getElementById("pinError").textContent="";},1500);
+        }
       }
     });
   }
@@ -5346,13 +5375,44 @@ function refreshCommentsUI(eid){
   if(countEl) countEl.textContent = count > 0 ? count+" commentaire"+(count>1?"s":"") : "Commenter";
 }
 
-/* Poster un nouveau commentaire */
+/* Poster un nouveau commentaire (version sécurisée) */
+/* Anti-spam : 1 commentaire/minute + validation longueur + détection liens */
+var _COMMENT_COOLDOWN_MS = 60 * 1000; // 1 min entre commentaires
+
+function _validateCommentText(text){
+  if(!text || text.trim().length < 2) return "Commentaire trop court (min 2 caractères)";
+  if(text.length > 500) return "Commentaire trop long (max 500 caractères)";
+  // Détection liens (permettrait spam externe)
+  if(/(https?:\/\/|www\.)[^\s]{10,}/i.test(text)) return "Les liens ne sont pas autorisés dans les commentaires";
+  // Détection répétition excessive de caractères (ex: aaaaaaaaaa)
+  if(/(.)\1{9,}/.test(text)) return "Commentaire invalide (caractères répétés)";
+  return null;
+}
+
+function _canPostComment(){
+  var key = "ambi241_lastcomment";
+  var last = parseInt(lsGet(key)||"0");
+  var now = Date.now();
+  if(last && (now-last) < _COMMENT_COOLDOWN_MS){
+    var sec = Math.ceil((_COMMENT_COOLDOWN_MS-(now-last))/1000);
+    showToast("⏳ Attendez "+sec+"s avant de commenter à nouveau");
+    return false;
+  }
+  lsSet(key, String(now));
+  return true;
+}
+
 function postComment(eid){
   var ta  = document.getElementById("ctxt-"+eid);
   if(!ta) return;
   var text = ta.value.trim();
   if(!text){ ta.focus(); return; }
   if(!window.currentUserUID && !window.currentUserEmail){ showToast("Connectez-vous pour commenter"); return; }
+
+  // ── Validation anti-spam ──
+  var commentErr = _validateCommentText(text);
+  if(commentErr){ showToast("⚠️ "+commentErr); ta.focus(); return; }
+  if(!_canPostComment()) return;
 
   var btn = ta.parentElement.querySelector(".comment-send-btn");
   if(btn){ btn.disabled = true; btn.textContent = "Envoi..."; }
@@ -5615,20 +5675,33 @@ function isUserPresent(eid){
   return data.list.some(function(p){ return p.uid === uid; });
 }
 
-/* ── Enregistrer une présence ── */
+/* ── Enregistrer une présence (version sécurisée) ── */
+/* Anti-abus : 1 présence par établissement toutes les 3h par appareil */
+var _PRESENCE_LIMIT_MS = 3 * 3600 * 1000;
+function _canRegisterPresence(eid){
+  var key = "ambi241_lastpres_"+eid;
+  var last = parseInt(lsGet(key)||"0");
+  var now = Date.now();
+  if(last && (now-last) < _PRESENCE_LIMIT_MS){
+    var h = Math.ceil((_PRESENCE_LIMIT_MS-(now-last))/3600000);
+    showToast("📌 Présence déjà enregistrée (expire dans ~"+h+"h)");
+    return false;
+  }
+  lsSet(key, String(now));
+  return true;
+}
 function registerPresence(eid){
-  var uid  = window.currentUserUID || window.currentUserEmail || ("anon_"+Date.now());
+  if(!_canRegisterPresence(eid)) return; // ← Bloque le double enregistrement
+  var uid  = _getSecureVoterId(); // Réutilise le même fingerprint stable
   var pseudo = window.currentUserPseudo || "Visiteur";
   var all  = getAllPresence();
   var list = (all[eid]||[]).filter(function(p){
-    return (Date.now()-p.ts) < PRESENCE_TTL && p.uid !== uid;
+    return (Date.now()-p.ts) < _PRESENCE_LIMIT_MS && p.uid !== uid;
   });
   list.push({ uid: uid, pseudo: pseudo, ts: Date.now() });
   all[eid] = list;
   saveAllPresence(all);
-  // Mémoriser aussi en session pour les anonymes
   sessionStorage.setItem("ambi241_anon_presence_"+eid, String(Date.now()));
-  // Sauvegarder dans Firebase (pour tous, pas seulement si connecté)
   var fbUid = window.currentUserUID || uid;
   if(window.db && window.fbDoc && window.fbSetDoc){
     var ref = window.fbDoc(window.db, "etablissements", String(eid), "presences", fbUid);
@@ -5664,14 +5737,45 @@ function getMyVote(eid){
   return null;
 }
 
-/* ── Voter ── */
-function castVote(eid, type){
-  // Créer un identifiant anonyme persistant si pas connecté
-  var uid = window.currentUserUID || window.currentUserEmail;
-  if(!uid){
-    uid = sessionStorage.getItem("ambi241_voter_id");
-    if(!uid){ uid = "anon_"+Math.random().toString(36).substr(2,8); sessionStorage.setItem("ambi241_voter_id", uid); }
+/* ══ SÉCURITÉ — Fingerprint semi-permanent anti-fraude ══════════
+   Remplace sessionStorage (effaçable) par un ID persistant
+   combinant localStorage + caractéristiques du navigateur.
+   Un utilisateur ne peut pas voter 2× sur le même appareil. */
+function _getSecureVoterId(){
+  if(window.currentUserUID) return "fb_"+window.currentUserUID;
+  var stored = lsGet("ambi241_fp_v2");
+  if(stored) return stored;
+  var nav = navigator;
+  var raw = [nav.language||"",nav.platform||"",screen.width+"x"+screen.height,
+             nav.hardwareConcurrency||"",
+             (Intl&&Intl.DateTimeFormat?Intl.DateTimeFormat().resolvedOptions().timeZone:"")].join("|");
+  var hash = raw.split("").reduce(function(h,c){return((h<<5)-h)+c.charCodeAt(0)|0;},0);
+  var fp = "fp2_"+Math.abs(hash).toString(16)+"_"+Math.random().toString(36).substr(2,6);
+  lsSet("ambi241_fp_v2", fp);
+  return fp;
+}
+
+/* Cooldown votes : 10 min par établissement par appareil */
+var _VOTE_COOLDOWN_MS = 10 * 60 * 1000;
+function _checkVoteCooldown(eid){
+  var key = "ambi241_vcd_"+eid;
+  var last = parseInt(lsGet(key)||"0");
+  var now = Date.now();
+  if(last && (now-last) < _VOTE_COOLDOWN_MS){
+    var rem = Math.ceil((_VOTE_COOLDOWN_MS-(now-last))/60000);
+    showToast("⏳ Vote déjà enregistré — réessayez dans "+rem+" min");
+    return false;
   }
+  return true;
+}
+
+/* ── Voter (version sécurisée) ── */
+function castVote(eid, type){
+  // Vérification cooldown (10 min entre votes)
+  if(!_checkVoteCooldown(eid)) return;
+  lsSet("ambi241_vcd_"+eid, String(Date.now())); // Enregistrer timestamp
+
+  var uid = _getSecureVoterId(); // Fingerprint stable (survit rechargements)
   var all  = getAllVotes();
   var v    = all[eid] ? { pos: all[eid].pos.slice(), neg: all[eid].neg.slice() } : { pos:[], neg:[] };
   var other = type==="pos" ? "neg" : "pos";
@@ -5683,11 +5787,11 @@ function castVote(eid, type){
   else        { v[type].splice(idx,1); showToast("Vote retiré"); }
   all[eid] = v;
   saveAllVotes(all);
-  // Sauvegarder Firebase (pour tous, anonymes inclus)
+  // Sauvegarder Firebase — le fingerprint est utilisé comme docId (1 vote/appareil)
   var fbUid = window.currentUserUID || uid;
   if(window.db && window.fbDoc && window.fbSetDoc){
     var ref = window.fbDoc(window.db, "etablissements", String(eid), "votes", fbUid);
-    window.fbSetDoc(ref, { uid: fbUid, vote: idx===-1?type:null, ts: Date.now() }).catch(function(){});
+    window.fbSetDoc(ref, { uid: fbUid, vote: idx===-1?type:null, ts: Date.now(), fp: uid }).catch(function(){});
   }
   renderAll(); renderHome();
 }
@@ -7003,6 +7107,29 @@ function deleteGaleriePhoto(index){
 }
 // ─────────────────────────────────────────────────────────────────
 
+// ══ SÉCURITÉ — Nettoyage automatique des cooldowns expirés ════
+// Évite que localStorage grossisse indéfiniment avec des clés de protection
+(function _cleanSecurityKeys(){
+  try{
+    var now = Date.now();
+    var toDelete = [];
+    for(var i=0; i<localStorage.length; i++){
+      var k = localStorage.key(i);
+      if(!k) continue;
+      // Clés de cooldown sécurité (vote, signalement, présence, demande)
+      if(k.indexOf("ambi241_vcd_")===0 ||
+         k.indexOf("ambi241_scd_")===0 ||
+         k.indexOf("ambi241_lastpres_")===0){
+        var v = parseInt(localStorage.getItem(k)||"0");
+        if(v && (now-v) > 24*3600*1000) toDelete.push(k); // > 24h → purger
+      }
+    }
+    toDelete.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+  }catch(e){}
+})();
+
+// ══ FIN PROTECTIONS SÉCURITÉ ════════════════════════════════════
+
 setInterval(function(){if(!isAdmin)loadData();},60000);
 
 // ── Expose toutes les fonctions appelées depuis le HTML ──────
@@ -7264,6 +7391,10 @@ function submitEtablissement(event){
   var btn  = document.getElementById("etablSubmitBtn");
   var msg  = document.getElementById("etablMsg");
 
+  // ── HONEYPOT ANTI-BOT ──
+  var hpot = document.getElementById("_hp_website");
+  if(hpot && hpot.value){ return; } // Bot détecté → ignorer silencieusement
+
   // Récupérer les valeurs
   var nom       = (form.querySelector("[name=nom_etablissement]").value||"").trim();
   var type      = (form.querySelector("[name=type]").value||"").trim();
@@ -7284,19 +7415,43 @@ function submitEtablissement(event){
   var lng       = document.getElementById("lngInput").value;
   var mapsUrl   = document.getElementById("mapsUrlInput").value;
 
-  // Validation
-  if(!nom||!type||!quartier||!gerant||!tel){
-    msg.style.display="block"; msg.style.color="var(--red)";
-    msg.textContent="Veuillez remplir tous les champs obligatoires."; return;
+  // ── VALIDATION ANTI-FRAUDE RENFORCÉE ──
+  var validErrors = [];
+  // Nom : min 3 caractères, pas que des chiffres
+  if(!nom || nom.length < 3) validErrors.push("Nom de l'établissement trop court (min 3 car.)");
+  if(/^\d+$/.test(nom)) validErrors.push("Nom invalide (ne peut pas être uniquement des chiffres)");
+  // Téléphone Gabon : 8 à 12 chiffres
+  var telClean = tel.replace(/[\s\-\.\+]/g,"");
+  if(!telClean || telClean.length < 8 || telClean.length > 12 || !/^\d+$/.test(telClean))
+    validErrors.push("Numéro de téléphone invalide (format gabonais attendu)");
+  // Transaction : min 4 caractères
+  if(!transaction || transaction.length < 4) validErrors.push("Code de transaction invalide (min 4 car.)");
+  // Quartier obligatoire
+  if(!quartier || quartier.length < 2) validErrors.push("Quartier requis");
+  // Type obligatoire
+  if(!type) validErrors.push("Type d'établissement requis");
+  // Gérant obligatoire
+  if(!gerant || gerant.length < 2) validErrors.push("Nom du gérant requis");
+  // Mode paiement obligatoire
+  if(!modePay) validErrors.push("Mode de paiement requis");
+  // Consentement
+  if(!consent) validErrors.push("Vous devez certifier l'exactitude des informations");
+  // Anti-flood : 1 demande toutes les 2h par appareil
+  var lastDemande = parseInt(lsGet("ambi241_last_demande")||"0");
+  var FLOOD_CD = 2 * 3600 * 1000;
+  if(lastDemande && (Date.now()-lastDemande) < FLOOD_CD){
+    var hLeft = Math.ceil((FLOOD_CD-(Date.now()-lastDemande))/3600000);
+    validErrors.push("Demande déjà envoyée — réessayez dans ~"+hLeft+"h");
   }
-  if(!modePay||!transaction){
+
+  if(validErrors.length > 0){
     msg.style.display="block"; msg.style.color="var(--red)";
-    msg.textContent="Veuillez renseigner le mode de paiement et le numéro de transaction."; return;
+    msg.innerHTML = "⚠️ "+validErrors.join("<br>⚠️ ");
+    return;
   }
-  if(!consent){
-    msg.style.display="block"; msg.style.color="var(--red)";
-    msg.textContent="Vous devez certifier l'exactitude des informations."; return;
-  }
+
+  // Enregistrer timestamp anti-flood
+  lsSet("ambi241_last_demande", String(Date.now()));
 
   btn.disabled=true; btn.textContent="Envoi en cours...";
 
@@ -7511,9 +7666,28 @@ function _getAnonId(){
   return id;
 }
 
-/* ── Signaler l'affluence depuis la fiche établissement ─── */
+/* ── Signaler l'affluence depuis la fiche établissement (version sécurisée) ─── */
+/* Anti-spam : connexion requise + cooldown 5 min par établissement */
+var _SIGNAL_COOLDOWN_MS = 5 * 60 * 1000;
 window.signalerAffluence = function(etabId, niveau){
   // niveau : 'Calme' | 'Animé' | 'Bondé' | 'Fermé'
+  // ── Vérification connexion ──
+  if(!window.currentUserUID){
+    showToast("🔒 Connectez-vous pour signaler l'affluence");
+    if(typeof openUserModal === "function") openUserModal();
+    return;
+  }
+  // ── Rate-limit 5 min ──
+  var rlKey = "ambi241_scd_"+etabId;
+  var lastSig = parseInt(lsGet(rlKey)||"0");
+  var nowSig = Date.now();
+  if(lastSig && (nowSig-lastSig) < _SIGNAL_COOLDOWN_MS){
+    var remSig = Math.ceil((_SIGNAL_COOLDOWN_MS-(nowSig-lastSig))/60000);
+    showToast("⏳ Signalement récent — réessayez dans "+remSig+" min");
+    return;
+  }
+  lsSet(rlKey, String(nowSig));
+  // ── Envoi Firebase ──
   if(!window.db || !window.fbAddDoc || !window.fbCollection){ showToast("Connexion requise"); return; }
   var uid = (window.currentUserUID || _getAnonId());
   window.fbAddDoc(window.fbCollection(window.db, "affluence_signalements"), {
