@@ -4,7 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="AMBI241 - Trouvez l'ambiance des bars et restaurants de Libreville en temps réel">
+<meta name="theme-color" content="#0d0014">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AMBI241">
 <title>AMBI241 - Ambiance Libreville en Direct</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 <style>
@@ -10431,26 +10438,44 @@ function installPWA(){
       var ab = document.getElementById('androidBanner');
       if(ab) ab.style.display = 'none';
     });
-  } else if(_pwaIsIOS && !_pwaIsStandalone){
-    /* Sur iOS montrer le banner d'instructions */
+  } else if(_pwaIsStandalone){
+    showToast('✅ AMBI241 est déjà installé !');
+  } else if(_pwaIsIOS){
     var banner = document.getElementById('iosBanner');
     if(banner){ banner.style.display = 'flex'; }
+  } else if(_pwaIsAndroid){
+    /* Android sans prompt : guide manuel */
+    var banner = document.getElementById('androidBanner');
+    if(banner){ banner.style.display = 'flex'; }
+    else {
+      showToast('Appuyez sur ⋮ puis "Ajouter à l\'écran d\'accueil"');
+    }
   } else {
-    showToast('Ouvrez ce site dans votre navigateur pour installer l\'app');
+    /* Desktop ou autre */
+    showToast('Dans votre navigateur : Menu → "Installer AMBI241"');
   }
 }
 
 /* Init au chargement */
 (function(){
   if(_pwaIsStandalone) return; /* Déjà installé, ne rien montrer */
+  /* Toujours afficher le bouton d'installation */
+  _pwaShowInstallBtns(true);
   /* iOS : montrer banner si pas déjà fermé */
   if(_pwaIsIOS && !localStorage.getItem('iosBannerClosed')){
     setTimeout(function(){
       var banner = document.getElementById('iosBanner');
       if(banner){ banner.style.display = 'flex'; }
-      /* Montrer aussi les boutons nav/hero sur iOS */
-      _pwaShowInstallBtns(true);
     }, 3000);
+  }
+  /* Android sans prompt : montrer banner après 5s */
+  if(_pwaIsAndroid && !localStorage.getItem('androidBannerClosed')){
+    setTimeout(function(){
+      if(!_pwaInstallPrompt){
+        var banner = document.getElementById('androidBanner');
+        if(banner){ banner.style.display = 'flex'; }
+      }
+    }, 5000);
   }
 })();
 </script>
