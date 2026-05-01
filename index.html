@@ -1005,6 +1005,34 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 .pub-empty span{font-size:2.5rem;display:block;margin-bottom:0.6rem;}
 .pub-load-more{display:block;width:100%;padding:0.65rem;border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--muted);font-family:'DM Sans',sans-serif;font-size:0.8rem;font-weight:600;cursor:pointer;text-align:center;margin-top:0.5rem;transition:all 0.2s;}
 .pub-load-more:hover{border-color:rgba(255,45,155,0.3);color:var(--pink);}
+/* ══ NAV DISCUSSIONS BADGE ACTIF ══ */
+.nav-item .nav-disc-badge{display:none;position:absolute;top:4px;right:calc(50% - 18px);width:8px;height:8px;background:var(--pink);border-radius:50%;border:2px solid var(--bg);box-shadow:0 0 6px rgba(255,45,155,0.8);animation:pulsePink 1.8s infinite;}
+@keyframes pulsePink{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.4);opacity:0.6}}
+.nav-item[data-section="publications"]{position:relative;}
+.nav-item[data-section="publications"].has-new .nav-disc-badge{display:block;}
+/* ══ VIDEO PUBLICATION ══ */
+.pub-video-compose{margin-bottom:0.85rem;}
+.pub-video-compose-label{font-size:0.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.45rem;display:flex;align-items:center;gap:0.4rem;}
+.pub-video-compose-label .pvcl-badge{font-size:0.6rem;background:rgba(0,229,255,0.12);color:var(--cyan);border:1px solid rgba(0,229,255,0.3);padding:0.08rem 0.38rem;border-radius:20px;font-weight:700;text-transform:uppercase;}
+.pub-video-add-btn{display:flex;align-items:center;justify-content:center;gap:0.35rem;width:100%;padding:0.5rem 0.7rem;border-radius:8px;border:1.5px dashed rgba(0,229,255,0.4);background:rgba(0,229,255,0.05);color:var(--cyan);font-size:0.75rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;}
+.pub-video-add-btn:hover{background:rgba(0,229,255,0.1);}
+.pub-video-add-btn:disabled{opacity:0.4;cursor:not-allowed;}
+.pub-video-preview-wrap{position:relative;border-radius:10px;overflow:hidden;background:#000;aspect-ratio:9/16;max-height:200px;margin-bottom:0.4rem;}
+.pub-video-preview-wrap video{width:100%;height:100%;object-fit:cover;display:block;}
+.pub-video-del{position:absolute;top:6px;right:6px;background:rgba(255,68,102,0.9);border:none;color:#fff;width:24px;height:24px;border-radius:50%;font-size:0.7rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.pub-video-duration{position:absolute;bottom:6px;left:6px;background:rgba(0,0,0,0.7);color:#fff;font-size:0.65rem;font-weight:700;padding:0.12rem 0.45rem;border-radius:20px;}
+.pub-video-duration.over{color:var(--red);}
+.pub-video-err{font-size:0.72rem;color:var(--red);margin-top:0.25rem;display:none;}
+/* video dans la pub-card publiée */
+.pub-video-player{width:100%;max-height:280px;object-fit:cover;border-radius:0;display:block;background:#000;}
+/* Limite journalière */
+.pub-daily-info{display:flex;align-items:center;justify-content:space-between;background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.18);border-radius:10px;padding:0.55rem 0.75rem;margin-bottom:0.8rem;font-size:0.72rem;}
+.pub-daily-info .pdi-label{color:var(--muted);}
+.pub-daily-info .pdi-count{font-weight:800;color:var(--cyan);}
+.pub-daily-info .pdi-count.warning{color:var(--amber);}
+.pub-daily-info .pdi-count.maxed{color:var(--red);}
+.pub-daily-limit-banner{background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.35);border-radius:12px;padding:0.75rem 1rem;margin-bottom:0.85rem;text-align:center;font-size:0.8rem;color:var(--red);font-weight:700;display:none;}
+.pub-daily-limit-banner.show{display:block;}
 /* ══ PHOTOS PUBLICATION ══ */
 .pub-photos-compose{margin-bottom:0.85rem;}
 .pub-photos-compose-label{font-size:0.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.45rem;}
@@ -2320,6 +2348,24 @@ if (document.readyState === 'loading') {
         <input type="file" id="pubPhotoInput" accept="image/*" multiple style="display:none" onchange="onPubPhotosSelected(this)">
         <button type="button" class="pub-photo-add-btn" id="pubPhotoAddBtn" onclick="document.getElementById('pubPhotoInput').click()">&#43; Ajouter des photos</button>
       </div>
+      <!-- VIDEO (max 10s, 1 seule) -->
+      <div class="pub-video-compose">
+        <div class="pub-video-compose-label">&#127916; Petite vidéo <span class="pvcl-badge">max 10 sec</span></div>
+        <div id="pubVideoPreviewWrap" class="pub-video-preview-wrap" style="display:none;">
+          <video id="pubVideoPreview" playsinline muted controls></video>
+          <span class="pub-video-duration" id="pubVideoDuration">0s</span>
+          <button class="pub-video-del" onclick="removePubVideo()">&#10005;</button>
+        </div>
+        <div class="pub-video-err" id="pubVideoErr"></div>
+        <input type="file" id="pubVideoInput" accept="video/*" style="display:none" onchange="onPubVideoSelected(this)">
+        <button type="button" class="pub-video-add-btn" id="pubVideoAddBtn" onclick="document.getElementById('pubVideoInput').click()">&#127916; Ajouter une vidéo courte</button>
+      </div>
+      <!-- Compteur publications du jour -->
+      <div class="pub-daily-info" id="pubDailyInfo">
+        <span class="pdi-label">Publications aujourd'hui</span>
+        <span class="pdi-count" id="pubDailyCount">0 / 5</span>
+      </div>
+      <div class="pub-daily-limit-banner" id="pubDailyLimitBanner">🚫 Limite atteinte — 5 publications max par jour. Revenez demain !</div>
       <div class="field"><label>Établissement concerné (optionnel)</label>
         <select id="pubEtabSelect"><option value="">— Aucun —</option></select>
       </div>
@@ -2440,7 +2486,7 @@ if (document.readyState === 'loading') {
 <nav class="bottom-nav">
   <button class="nav-item active" onclick="switchSection('accueil',this)"><span class="nav-icon">&#127968;</span>Accueil</button>
   <button class="nav-item" onclick="switchSection('etablissements',this)"><span class="nav-icon">&#128269;</span>Lieux</button>
-  <button class="nav-item" onclick="switchSection('publications',this)"><span class="nav-icon">&#128172;</span>Discussions</button>
+  <button class="nav-item" data-section="publications" onclick="switchSection('publications',this)"><span class="nav-disc-badge"></span><span class="nav-icon">&#128247;&#127916;</span>Discussions</button>
   <button class="nav-item" onclick="switchSection('paiements',this)"><span class="nav-icon">&#128179;</span>Tarifs</button>
   <button class="nav-item" onclick="switchSection('contacts',this)"><span class="nav-icon">&#128241;</span>Contact</button>
   <button class="nav-item" id="adminNavBtn" onclick="openAdminDashboard(this)" style="display:none;"><span class="nav-icon">&#9881;&#65039;</span>Admin</button>
@@ -6138,6 +6184,8 @@ function goHome(){switchSection("accueil",document.querySelector(".nav-item"));}
 function switchSection(name,btn){
   SECS.forEach(function(s){document.getElementById("sec-"+s).classList.toggle("section-hidden",s!==name);});
   if(btn){document.querySelectorAll(".nav-item").forEach(function(b){b.classList.remove("active");});btn.classList.add("active");}
+  // Effacer le badge Discussions quand on arrive sur la section
+  if(name === "publications" && window.markDiscBadge){ window.markDiscBadge(false); }
   // Fermer la carte si on quitte l'onglet etablissements
   if(name!=="etablissements" && window.closeAmbiMap) window.closeAmbiMap();
   // Afficher le footer uniquement sur la page contacts
@@ -9440,6 +9488,7 @@ window.doAssignEtab = doAssignEtab;
   var _pubPage = 10;
   // Photos en attente d'upload (max 5)
   var _pubPhotos = []; // [{file, dataUrl}]
+  var _pubVideo  = null; // {file, dataUrl, duration}
 
   // ── Initialiser Publications quand la section devient active ──
   var _pubInited = false;
@@ -9479,8 +9528,15 @@ window.doAssignEtab = doAssignEtab;
       window.fbOrderBy("createdAt", "desc")
     );
     _pubUnsub = window.fbOnSnapshot(q, function(snap){
+      var prevCount = _pubData.length;
       _pubData = [];
       snap.forEach(function(d){ _pubData.push(Object.assign({_id: d.id}, d.data())); });
+      // Activer badge si nouvelle pub et section pas active
+      if(_pubInited && _pubData.length > prevCount){
+        var activeSec = document.querySelector(".nav-item.active");
+        var isOnDisc = activeSec && activeSec.dataset && activeSec.dataset.section === "publications";
+        if(!isOnDisc) markDiscBadge(true);
+      }
       renderPubs();
     }, function(){ renderPubs(); });
   }
@@ -9532,6 +9588,16 @@ window.doAssignEtab = doAssignEtab;
       photosHtml = '<div class="pub-photos"><div class="pub-photos-row '+countClass+'">'+imgs+'</div></div>';
     }
 
+    // ── Vidéo ──
+    var videoHtml = "";
+    if(p.video){
+      var vdur = p.videoDuration ? ' <span style="font-size:0.65rem;color:var(--muted);">'+p.videoDuration+'s</span>' : "";
+      videoHtml = '<div class="pub-photos" style="padding-bottom:0.4rem;">'
+        +'<video class="pub-video-player" src="'+escHtml(p.video)+'" controls playsinline preload="metadata"></video>'
+        +'<div style="padding:0.25rem 0.75rem 0;font-size:0.7rem;color:var(--cyan);font-weight:700;">&#127916; Vidéo'+vdur+'</div>'
+        +'</div>';
+    }
+
     // ── Section commentaires (masquée par défaut) ──
     var commentsSection = buildCommentsSection(p._id, comments);
 
@@ -9546,6 +9612,7 @@ window.doAssignEtab = doAssignEtab;
       +'<div class="pub-text">'+escHtml(p.texte||"")+'</div>'
       +'</div>'
       +photosHtml
+      +videoHtml
       +'<div class="pub-footer">'
       +'<button class="pub-action-btn" onclick="likePub(\''+p._id+'\',this)">&#10084;&#65039; <span>'+likes+'</span></button>'
       +'<button class="pub-action-btn" onclick="togglePubComments(\''+p._id+'\',this)">&#128172; <span>'+comments+'</span></button>'
@@ -9733,6 +9800,191 @@ window.doAssignEtab = doAssignEtab;
     renderPubPhotoGrid();
   };
 
+  // ── Gestion vidéo dans le modal compose ──
+  window.onPubVideoSelected = function(input){
+    var file = input.files && input.files[0];
+    input.value = "";
+    if(!file) return;
+    if(!file.type.startsWith("video/")){ showVideoErr("Format non supporté (vidéo uniquement)."); return; }
+
+    var objUrl = URL.createObjectURL(file);
+    var tmpVid = document.createElement("video");
+    tmpVid.preload = "metadata";
+    tmpVid.muted = true;
+    tmpVid.playsInline = true;
+
+    tmpVid.onloadedmetadata = function(){
+      var realDur = tmpVid.duration;
+      var targetDur = Math.min(realDur, 10);
+
+      if(realDur <= 10){
+        // Vidéo OK, utiliser directement
+        URL.revokeObjectURL(objUrl);
+        var reader = new FileReader();
+        reader.onload = function(e){
+          _pubVideo = { file: file, dataUrl: e.target.result, duration: Math.round(realDur) };
+          renderPubVideoPreview();
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+
+      // Vidéo trop longue → découpage automatique à 10s via MediaRecorder
+      showVideoInfo("✂️ Vidéo trop longue — découpage automatique à 10s en cours...");
+
+      var canvas = document.createElement("canvas");
+      tmpVid.onloadeddata = function(){
+        canvas.width  = tmpVid.videoWidth  || 640;
+        canvas.height = tmpVid.videoHeight || 360;
+        var ctx = canvas.getContext("2d");
+
+        var mimeType = "video/webm;codecs=vp8";
+        if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = "video/webm";
+        if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = "";
+
+        var stream = canvas.captureStream(30);
+        // Ajouter l'audio si disponible
+        try{
+          var audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+          var src = audioCtx.createMediaElementSource(tmpVid);
+          var dest = audioCtx.createMediaStreamDestination();
+          src.connect(dest);
+          dest.stream.getAudioTracks().forEach(function(t){ stream.addTrack(t); });
+        }catch(e){}
+
+        var recorder = new MediaRecorder(stream, mimeType ? {mimeType: mimeType} : {});
+        var chunks = [];
+        recorder.ondataavailable = function(e){ if(e.data && e.data.size>0) chunks.push(e.data); };
+        recorder.onstop = function(){
+          URL.revokeObjectURL(objUrl);
+          var blob = new Blob(chunks, {type: mimeType||"video/webm"});
+          var trimmedFile = new File([blob], "video_trim.webm", {type: blob.type});
+          var reader = new FileReader();
+          reader.onload = function(e){
+            _pubVideo = { file: trimmedFile, dataUrl: e.target.result, duration: 10, trimmed: true };
+            renderPubVideoPreview();
+            showVideoInfo("✅ Vidéo découpée à 10s avec succès !");
+            setTimeout(function(){ hideVideoInfo(); }, 2500);
+          };
+          reader.readAsDataURL(blob);
+        };
+
+        // Dessiner chaque frame sur le canvas
+        var stopped = false;
+        function drawFrame(){
+          if(stopped) return;
+          ctx.drawImage(tmpVid, 0, 0, canvas.width, canvas.height);
+          requestAnimationFrame(drawFrame);
+        }
+
+        tmpVid.currentTime = 0;
+        tmpVid.onplay = function(){
+          drawFrame();
+          recorder.start();
+          setTimeout(function(){
+            stopped = true;
+            tmpVid.pause();
+            recorder.stop();
+          }, 10000);
+        };
+        tmpVid.play().catch(function(){
+          // fallback si autoplay bloqué
+          showVideoErr("Impossible de découper automatiquement. Choisissez une vidéo ≤ 10s.");
+          URL.revokeObjectURL(objUrl);
+        });
+      };
+      tmpVid.src = objUrl;
+      tmpVid.load();
+    };
+
+    tmpVid.onerror = function(){ URL.revokeObjectURL(objUrl); showVideoErr("Impossible de lire ce fichier vidéo."); };
+    tmpVid.src = objUrl;
+  };
+
+  function showVideoInfo(msg){
+    var el = document.getElementById("pubVideoErr");
+    if(el){ el.textContent = msg; el.style.display = "block"; el.style.color = "var(--cyan)"; }
+  }
+  function hideVideoInfo(){
+    var el = document.getElementById("pubVideoErr");
+    if(el){ el.style.display = "none"; }
+  }
+
+  function showVideoErr(msg){
+    var el = document.getElementById("pubVideoErr");
+    if(el){ el.textContent = msg; el.style.display = "block"; el.style.color = "var(--red)"; }
+  }
+
+  function renderPubVideoPreview(){
+    var wrap = document.getElementById("pubVideoPreviewWrap");
+    var vid  = document.getElementById("pubVideoPreview");
+    var dur  = document.getElementById("pubVideoDuration");
+    var addBtn = document.getElementById("pubVideoAddBtn");
+    var errEl  = document.getElementById("pubVideoErr");
+    if(!_pubVideo){ 
+      if(wrap) wrap.style.display = "none";
+      if(addBtn) addBtn.style.display = "flex";
+      if(errEl) errEl.style.display = "none";
+      return;
+    }
+    if(errEl) errEl.style.display = "none";
+    if(vid){ vid.src = _pubVideo.dataUrl; }
+    if(dur){
+      dur.textContent = (_pubVideo.trimmed ? "✂️ " : "") + _pubVideo.duration + "s";
+      dur.className = "pub-video-duration";
+      dur.title = _pubVideo.trimmed ? "Vidéo découpée automatiquement à 10s" : "";
+    }
+    if(wrap) wrap.style.display = "block";
+    if(addBtn) addBtn.style.display = "none";
+  }
+
+  window.removePubVideo = function(){
+    _pubVideo = null;
+    renderPubVideoPreview();
+    var addBtn = document.getElementById("pubVideoAddBtn");
+    if(addBtn) addBtn.style.display = "flex";
+  };
+
+  async function uploadPubVideo(pubId){
+    if(!_pubVideo) return null;
+    var path = "publications/"+pubId+"/video_"+Date.now()+".mp4";
+    var storRef = window.fbRef(window.fbStorage, path);
+    var snap = await window.fbUploadBytes(storRef, _pubVideo.file);
+    return await window.fbGetDownloadURL(snap.ref);
+  }
+
+  // ── Compteur publications du jour (localStorage) ──
+  function getPubDayKey(uid){ return "pubday_"+uid+"_"+new Date().toISOString().slice(0,10); }
+
+  function getTodayPubCount(uid){
+    try{ return parseInt(localStorage.getItem(getPubDayKey(uid))||"0"); }catch(e){ return 0; }
+  }
+
+  function incTodayPubCount(uid){
+    try{ localStorage.setItem(getPubDayKey(uid), getTodayPubCount(uid)+1); }catch(e){}
+  }
+
+  function updateDailyInfoUI(){
+    var uid = window.currentUserUID;
+    if(!uid) return;
+    var count = getTodayPubCount(uid);
+    var countEl = document.getElementById("pubDailyCount");
+    var banner  = document.getElementById("pubDailyLimitBanner");
+    var submitBtn = document.getElementById("pubSubmitBtn");
+    if(countEl){
+      countEl.textContent = count+" / 5";
+      countEl.className = "pdi-count" + (count>=5 ? " maxed" : count>=4 ? " warning" : "");
+    }
+    if(banner){ banner.classList.toggle("show", count >= 5); }
+    if(submitBtn){ submitBtn.disabled = count >= 5; }
+  }
+
+  // ── Marquer le badge actif sur le bouton Discussions ──
+  window.markDiscBadge = function(hasNew){
+    var btn = document.querySelector(".nav-item[data-section='publications']");
+    if(btn) btn.classList.toggle("has-new", !!hasNew);
+  };
+
   async function uploadPubPhotos(pubId){
     if(!_pubPhotos.length) return [];
     var urls = [];
@@ -9774,9 +10026,17 @@ window.doAssignEtab = doAssignEtab;
       document.getElementById("userOverlay").classList.add("show");
       return;
     }
+    var count = getTodayPubCount(window.currentUserUID);
+    if(count >= 5){
+      showToast("🚫 Limite de 5 publications/jour atteinte !");
+      return;
+    }
     populateEtabSelect();
     _pubPhotos = [];
+    _pubVideo  = null;
     renderPubPhotoGrid();
+    renderPubVideoPreview();
+    updateDailyInfoUI();
     document.getElementById("pubComposeOverlay").classList.add("show");
   };
 
@@ -9785,13 +10045,18 @@ window.doAssignEtab = doAssignEtab;
     document.getElementById("pubTitleInput").value = "";
     document.getElementById("pubTextInput").value = "";
     _pubPhotos = [];
+    _pubVideo  = null;
     renderPubPhotoGrid();
+    renderPubVideoPreview();
     var msg = document.getElementById("pubMsg");
     if(msg){ msg.style.display="none"; }
   };
 
   window.submitPub = async function(){
     if(!window.currentUserUID){ showToast("Connexion requise"); return; }
+    // Vérifier limite journalière
+    var todayCount = getTodayPubCount(window.currentUserUID);
+    if(todayCount >= 5){ showToast("🚫 Limite de 5 publications/jour atteinte !"); return; }
     var titre = document.getElementById("pubTitleInput").value.trim();
     var texte = document.getElementById("pubTextInput").value.trim();
     var etab  = document.getElementById("pubEtabSelect").value;
@@ -9799,7 +10064,8 @@ window.doAssignEtab = doAssignEtab;
     var btn = document.getElementById("pubSubmitBtn");
     var msg = document.getElementById("pubMsg");
     btn.disabled = true;
-    btn.textContent = _pubPhotos.length ? "⬆ Upload photos..." : "⏳ Envoi...";
+    var hasMedia = _pubPhotos.length || _pubVideo;
+    btn.textContent = hasMedia ? "⬆ Upload médias..." : "⏳ Envoi...";
     try {
       var data = {
         pseudo: window.currentUserPseudo || window.currentUserEmail || "Anonyme",
@@ -9814,14 +10080,24 @@ window.doAssignEtab = doAssignEtab;
         createdAt: window.fbServerTimestamp()
       };
       var docRef = await window.fbAddDoc(window.fbCollection(window.db, "publications"), data);
+      var updates = {};
       // Upload photos si présentes
       if(_pubPhotos.length){
         btn.textContent = "⬆ Photos "+1+"/"+_pubPhotos.length+"...";
         var photoUrls = await uploadPubPhotos(docRef.id);
-        if(photoUrls.length){
-          await window.fbUpdateDoc(window.fbDoc(window.db, "publications", docRef.id), { photos: photoUrls });
-        }
+        if(photoUrls.length){ updates.photos = photoUrls; }
       }
+      // Upload vidéo si présente
+      if(_pubVideo){
+        btn.textContent = "⬆ Vidéo...";
+        var videoUrl = await uploadPubVideo(docRef.id);
+        if(videoUrl){ updates.video = videoUrl; updates.videoDuration = _pubVideo.duration; }
+      }
+      if(Object.keys(updates).length){
+        await window.fbUpdateDoc(window.fbDoc(window.db, "publications", docRef.id), updates);
+      }
+      // Incrémenter compteur journalier
+      incTodayPubCount(window.currentUserUID);
       btn.disabled = false;
       btn.textContent = "🚀 Publier";
       window.closePubCompose();
