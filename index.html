@@ -11056,6 +11056,55 @@ window.doAssignEtab = doAssignEtab;
 </div>
 
 <script>
+/* ══ MISE À JOUR SILENCIEUSE AUTOMATIQUE ══ */
+(function(){
+  if(!('serviceWorker' in navigator)) return;
+
+  /* Bloqué sur claudeusercontent / localhost (preview uniquement) */
+  var _host = location.hostname;
+  if(_host === 'localhost' || _host === '127.0.0.1' || _host.indexOf('claudeusercontent') !== -1) return;
+
+  /* Chemin relatif : fonctionne que le site soit à la racine ou dans un sous-dossier GitHub Pages */
+  var _swPath = location.pathname.replace(/\/[^/]*$/, '/') + 'sw.js';
+
+  navigator.serviceWorker.register(_swPath).then(function(reg){
+
+    reg.update();
+    setInterval(function(){ reg.update(); }, 5 * 60 * 1000);
+
+    function onNewSW(worker){
+      if(!worker) return;
+      if(worker.state === 'installed'){
+        worker.postMessage({ type: 'SKIP_WAITING' });
+      } else {
+        worker.addEventListener('statechange', function(){
+          if(worker.state === 'installed'){
+            worker.postMessage({ type: 'SKIP_WAITING' });
+          }
+        });
+      }
+    }
+
+    if(reg.waiting){ onNewSW(reg.waiting); }
+
+    reg.addEventListener('updatefound', function(){
+      onNewSW(reg.installing);
+    });
+
+    /* Anti-boucle : ignore la première prise de contrôle (démarrage normal) */
+    var _swRefreshPending = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function(){
+      if(_swRefreshPending) return;
+      if(!sessionStorage.getItem('_swReady')){
+        sessionStorage.setItem('_swReady', '1');
+        return;
+      }
+      _swRefreshPending = true;
+      setTimeout(function(){ window.location.reload(); }, 400);
+    });
+
+  }).catch(function(){ /* silencieux */ });
+})();
 /* ══ PWA INSTALL — SYSTÈME COMPLET ══ */
 var _pwaInstallPrompt = null;
 var _pwaIsIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
