@@ -3380,14 +3380,14 @@ function renderAdmClassement(){
     // Détail critères
     html += "<div style='display:grid;grid-template-columns:repeat(5,1fr);gap:0.3rem;margin-bottom:0.5rem;'>";
     [
-      {k:"affluence",l:"Afflux",c:"var(--red)"},
-      {k:"note",l:"Note",c:"var(--amber)"},
-      {k:"avis",l:"Avis",c:"var(--cyan)"},
-      {k:"presences",l:"Prés.",c:"var(--green)"},
-      {k:"votes",l:"Votes",c:"var(--purple)"}
+      {k:"affluence",l:"Afflux",c:"var(--red)",   raw: Math.round(e.affluence||0),         unit:"%"},
+      {k:"note",     l:"Note",  c:"var(--amber)",  raw: (e.note||0).toFixed(1),             unit:"/5"},
+      {k:"avis",     l:"Avis",  c:"var(--cyan)",   raw: e.avis||0,                          unit:""},
+      {k:"presences",l:"Prés.", c:"var(--green)",  raw: (getPresenceData(e.id)||{count:0}).count, unit:""},
+      {k:"votes",    l:"Votes", c:"var(--purple)",  raw: (function(){ var vd=getVoteData(e.id)||{pos:0,neg:0}; return vd.pos+"/"+( vd.pos+vd.neg); })(), unit:""}
     ].forEach(function(cr){
       html += "<div style='text-align:center;background:rgba(255,255,255,0.03);border-radius:8px;padding:0.3rem 0.1rem;'>";
-      html += "<div style='font-size:0.72rem;font-weight:800;color:"+cr.c+";'>"+r[cr.k]+"</div>";
+      html += "<div style='font-size:0.72rem;font-weight:800;color:"+cr.c+";'>"+cr.raw+"<span style='font-size:0.5rem;opacity:0.7;'>"+cr.unit+"</span></div>";
       html += "<div style='font-size:0.55rem;color:var(--muted);'>"+cr.l+"</div>";
       html += "</div>";
     });
