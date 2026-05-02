@@ -3095,10 +3095,235 @@ window._gphotoEnqueue = _gphotoEnqueue;
 function getGooglePhotoUrl(e, type) {
   if (type === 'exterieur' && e.photo_exterieur) return e.photo_exterieur;
   if (type === 'interieur' && e.photo_interieur) return e.photo_interieur;
+  // ── Photo de profil approuvée (priorité absolue) ──
+  if (e._photo_profile_approved) return e._photo_profile_approved;
   if (e._gphoto_urls && e._gphoto_urls.length > 0) return e._gphoto_urls[0];
   if (e.place_id && e._gphoto_urls === undefined) _gphotoEnqueue(e);
   return null;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   ══ SYSTÈME PHOTO DE PROFIL — MODÉRATION RESPONSABLE/ADMIN  ══
+   ══ Google propose → responsable/admin approuve             ══
+   ══════════════════════════════════════════════════════════════ */
+
+// Cache mémoire { eid: { url, status, source, approvedBy, ts } }
+var _photoProfileCache = {};
+
+// Charger la photo de profil approuvée depuis Firebase
+function loadPhotoProfile(eid, callback) {
+  if (!window.db) { if(callback) callback(null); return; }
+  var eidStr = String(eid);
+  if (_photoProfileCache[eidStr] !== undefined) {
+    if(callback) callback(_photoProfileCache[eidStr]);
+    return;
+  }
+  window.fbGetDocs(
+    window.fbQuery(
+      window.fbCollection(window.db, "etablissements", eidStr, "photo_profile"),
+      window.fbWhere("status", "==", "approved"),
+      window.fbOrderBy("ts", "desc"),
+      window.fbLimit(1)
+    )
+  ).then(function(snap){
+    if (snap.empty) {
+      _photoProfileCache[eidStr] = null;
+      if(callback) callback(null);
+    } else {
+      var d = snap.docs[0].data();
+      _photoProfileCache[eidStr] = d;
+      // Injecter dans l'objet établissement
+      var etab = etablissements.find(function(x){ return String(x.id) === eidStr; });
+      if (etab) etab._photo_profile_approved = d.url;
+      if(callback) callback(d);
+    }
+  }).catch(function(){ _photoProfileCache[eidStr] = null; if(callback) callback(null); });
+}
+
+// Charger toutes les photos profils au démarrage
+function loadAllPhotoProfiles() {
+  if (!window.db || !etablissements) return;
+  etablissements.forEach(function(e){ loadPhotoProfile(e.id, null); });
+}
+window.loadAllPhotoProfiles = loadAllPhotoProfiles;
+
+// Proposer la meilleure photo Google comme photo de profil (en attente de modération)
+function proposeGooglePhotoProfile(eid) {
+  if (!window.db) { showToast("Firebase requis"); return; }
+  var eidStr = String(eid);
+  var etab = etablissements.find(function(x){ return String(x.id) === eidStr; });
+  if (!etab) { showToast("Établissement introuvable"); return; }
+  if (!etab.place_id) { showToast("Pas de place_id pour cet établissement"); return; }
+
+  _gphotoFetchOne(etab, function(url){
+    if (!url) { showToast("Aucune photo Google trouvée"); return; }
+    var allUrls = etab._gphoto_urls || (url ? [url] : []);
+    // Afficher les photos Google disponibles pour choisir
+    openPhotoModerationModal(eid, allUrls);
+  });
+}
+window.proposeGooglePhotoProfile = proposeGooglePhotoProfile;
+
+// Sauvegarder la photo de profil choisie (status: pending → admin/responsable valide)
+function savePhotoProfile(eid, url, source) {
+  if (!window.db) return;
+  var eidStr = String(eid);
+  var userEmail = currentUserEmail || "inconnu";
+  var data = {
+    url: url,
+    status: (isAdmin || isResponsable(eid)) ? "approved" : "pending",
+    source: source || "google",
+    proposedBy: userEmail,
+    approvedBy: (isAdmin || isResponsable(eid)) ? userEmail : null,
+    ts: Date.now()
+  };
+  window.fbAddDoc(window.fbCollection(window.db, "etablissements", eidStr, "photo_profile"), data)
+    .then(function(){
+      _photoProfileCache[eidStr] = undefined; // Invalider cache
+      if (data.status === "approved") {
+        var etab = etablissements.find(function(x){ return String(x.id) === eidStr; });
+        if (etab) etab._photo_profile_approved = url;
+        showToast("✅ Photo de profil approuvée et active !");
+      } else {
+        showToast("📤 Photo soumise pour modération");
+      }
+      if(typeof renderAll === "function") setTimeout(renderAll, 200);
+    })
+    .catch(function(e){ showToast("Erreur sauvegarde: " + e.message); });
+}
+window.savePhotoProfile = savePhotoProfile;
+
+// Approuver une photo en attente (admin ou responsable)
+function approvePhotoProfile(eid, docId, url) {
+  if (!window.db) return;
+  var eidStr = String(eid);
+  window.fbUpdateDoc(window.fbDoc(window.db, "etablissements", eidStr, "photo_profile", docId), {
+    status: "approved",
+    approvedBy: currentUserEmail || "admin",
+    approvedAt: Date.now()
+  }).then(function(){
+    _photoProfileCache[eidStr] = undefined;
+    var etab = etablissements.find(function(x){ return String(x.id) === eidStr; });
+    if (etab) etab._photo_profile_approved = url;
+    showToast("✅ Photo approuvée comme photo de profil !");
+    renderAdmModeration();
+    if(typeof renderAll === "function") setTimeout(renderAll, 300);
+  }).catch(function(e){ showToast("Erreur: " + e.message); });
+}
+window.approvePhotoProfile = approvePhotoProfile;
+
+// Rejeter une photo
+function rejectPhotoProfile(eid, docId) {
+  if (!window.db) return;
+  var eidStr = String(eid);
+  window.fbUpdateDoc(window.fbDoc(window.db, "etablissements", eidStr, "photo_profile", docId), {
+    status: "rejected",
+    rejectedBy: currentUserEmail || "admin",
+    rejectedAt: Date.now()
+  }).then(function(){
+    showToast("❌ Photo rejetée");
+    renderAdmModeration();
+  }).catch(function(e){ showToast("Erreur: " + e.message); });
+}
+window.rejectPhotoProfile = rejectPhotoProfile;
+
+// Vérifier si l'utilisateur est responsable de l'établissement
+function isResponsable(eid) {
+  if (!currentUserEmail) return false;
+  var etab = etablissements.find(function(x){ return String(x.id) === String(eid); });
+  if (!etab) return false;
+  return etab.responsable_email && etab.responsable_email === currentUserEmail;
+}
+window.isResponsable = isResponsable;
+
+/* ── Modal de sélection/modération de photo de profil ── */
+function openPhotoModerationModal(eid, googleUrls) {
+  var existing = document.getElementById("__photoModerationModal");
+  if (existing) existing.remove();
+
+  var etab = etablissements.find(function(x){ return String(x.id) === String(eid); }) || {};
+  var currentApproved = etab._photo_profile_approved || null;
+  var urls = googleUrls || (etab._gphoto_urls || []);
+
+  var html = "<div id='__photoModerationModal' style='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.88);display:flex;align-items:flex-end;justify-content:center;padding:1rem;'>";
+  html += "<div style='background:var(--surface);border:1px solid rgba(255,45,155,0.3);border-radius:20px 20px 16px 16px;width:100%;max-width:460px;max-height:88vh;overflow-y:auto;padding:1.2rem;'>";
+
+  // Header
+  html += "<div style='display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem;'>";
+  html += "<span style='font-size:1.3rem;'>🖼️</span>";
+  html += "<div style='flex:1;'><div style='font-family:Syne,sans-serif;font-weight:800;color:var(--pink);font-size:0.92rem;'>Photo de Profil</div>";
+  html += "<div style='font-size:0.68rem;color:var(--muted);'>" + escHtml(etab.nom || "") + " — Choisir la meilleure photo</div></div>";
+  html += "<button onclick=\"document.getElementById('__photoModerationModal').remove()\" style='background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--muted);border-radius:8px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.8rem;'>✕</button>";
+  html += "</div>";
+
+  // Photo actuelle approuvée
+  if (currentApproved) {
+    html += "<div style='margin-bottom:1rem;'>";
+    html += "<div style='font-size:0.65rem;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem;'>✅ Photo active actuellement</div>";
+    html += "<div style='position:relative;border-radius:12px;overflow:hidden;border:2px solid rgba(0,255,170,0.5);'>";
+    html += "<img src='" + currentApproved + "' style='width:100%;height:140px;object-fit:cover;display:block;'>";
+    html += "<span style='position:absolute;top:6px;right:6px;background:rgba(0,255,170,0.9);color:#000;font-size:0.55rem;font-weight:800;padding:0.15rem 0.4rem;border-radius:6px;'>PROFIL ACTIF</span>";
+    html += "</div></div>";
+  }
+
+  // Photos Google disponibles
+  if (urls.length > 0) {
+    html += "<div style='font-size:0.65rem;font-weight:800;color:var(--cyan);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>🗺️ Photos Google Maps disponibles</div>";
+    html += "<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:1rem;'>";
+    urls.forEach(function(url, i) {
+      var isCurrent = (url === currentApproved);
+      html += "<div onclick=\"selectGooglePhotoProfile(" + eid + ",'" + url.replace(/'/g,"\\'") + "',this)\" style='position:relative;border-radius:10px;overflow:hidden;border:2px solid " + (isCurrent ? "rgba(0,255,170,0.6)" : "rgba(255,255,255,0.1)") + ";cursor:pointer;transition:border-color 0.2s;'>";
+      html += "<img src='" + url + "' style='width:100%;height:90px;object-fit:cover;display:block;'>";
+      if (i === 0) html += "<span style='position:absolute;top:4px;left:4px;background:rgba(255,45,155,0.9);color:#fff;font-size:0.5rem;font-weight:800;padding:0.1rem 0.3rem;border-radius:4px;'>⭐ MEILLEURE</span>";
+      if (isCurrent) html += "<span style='position:absolute;bottom:4px;right:4px;background:rgba(0,255,170,0.9);color:#000;font-size:0.5rem;font-weight:800;padding:0.1rem 0.3rem;border-radius:4px;'>✓ ACTIVE</span>";
+      html += "</div>";
+    });
+    html += "</div>";
+  } else {
+    html += "<div style='text-align:center;padding:1.5rem;color:var(--muted);font-size:0.78rem;'>⏳ Chargement des photos Google en cours...</div>";
+  }
+
+  // Bouton valider la sélection
+  html += "<div id='_ppm_selected_preview' style='display:none;margin-bottom:0.8rem;'>";
+  html += "<div style='font-size:0.65rem;font-weight:800;color:var(--amber);text-transform:uppercase;margin-bottom:0.4rem;'>📌 Sélectionnée</div>";
+  html += "<img id='_ppm_selected_img' src='' style='width:100%;height:110px;object-fit:cover;border-radius:10px;border:2px solid rgba(255,215,0,0.5);'>";
+  html += "</div>";
+
+  html += "<button id='_ppm_confirm_btn' onclick=\"confirmPhotoProfileSelection(" + eid + ")\" style='display:none;width:100%;padding:0.75rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;'>✅ Approuver cette photo comme profil</button>";
+
+  html += "</div></div>";
+
+  document.body.insertAdjacentHTML("beforeend", html);
+}
+window.openPhotoModerationModal = openPhotoModerationModal;
+
+// Sélection d'une photo dans la grille
+window._ppm_selected_url = null;
+function selectGooglePhotoProfile(eid, url, el) {
+  window._ppm_selected_url = url;
+  window._ppm_selected_eid = eid;
+  // Highlight sélection
+  var grid = el.parentElement;
+  Array.from(grid.children).forEach(function(c){ c.style.borderColor = "rgba(255,255,255,0.1)"; });
+  el.style.borderColor = "rgba(255,215,0,0.8)";
+  // Afficher preview
+  var preview = document.getElementById("_ppm_selected_preview");
+  var img = document.getElementById("_ppm_selected_img");
+  var btn = document.getElementById("_ppm_confirm_btn");
+  if (preview) preview.style.display = "block";
+  if (img) img.src = url;
+  if (btn) btn.style.display = "block";
+}
+window.selectGooglePhotoProfile = selectGooglePhotoProfile;
+
+function confirmPhotoProfileSelection(eid) {
+  var url = window._ppm_selected_url;
+  if (!url) { showToast("Sélectionnez une photo d'abord"); return; }
+  savePhotoProfile(eid, url, "google");
+  var modal = document.getElementById("__photoModerationModal");
+  if (modal) modal.remove();
+}
+window.confirmPhotoProfileSelection = confirmPhotoProfileSelection;
 
 function isGooglePlacesPhoto(url) {
   if (!url) return false;
@@ -3747,72 +3972,72 @@ window.renderAdmClassement = renderAdmClassement;
 function getDefaults(){
   return [
     // Établissements réels vérifiés via Google Places (place_id + coordonnées GPS)
-    {id:9,nom:"Yoka_Lounge",type:"Discotheque",quartier:"Centre-ville",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:153,contact:"+241 77 46 11 46",paiement:"En attente",affluence:46,lat:0.4399067,lng:9.4178608,place_id:"ChIJdX05QME7fxAR2Pvl8RHwxhM",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJdX05QME7fxAR2Pvl8RHwxhM",photo_interieur:"",photo_exterieur:""},
-    {id:10,nom:"No Stress",type:"Bar",quartier:"Louis",ambiance:"Anime",statut:"Ouvert - Calme",note:3.9,avis:695,contact:"+241 66 26 66 94",paiement:"En attente",affluence:49,lat:0.4062708,lng:9.4330562,place_id:"ChIJR8fPZg47fxARj_2tJJo_ZEI",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJR8fPZg47fxARj_2tJJo_ZEI",photo_interieur:"",photo_exterieur:""},
-    {id:11,nom:"HYPE BAR LOUNGE",type:"Bar Lounge",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:343,contact:"",paiement:"En attente",affluence:49,lat:0.3970804,lng:9.4450048,place_id:"ChIJ5cGvApA7fxAR0ivmZjTaBps",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ5cGvApA7fxAR0ivmZjTaBps",photo_interieur:"",photo_exterieur:""},
-    {id:12,nom:"IBIZA NIGHTCLUB",type:"Discotheque",quartier:"Awendje",ambiance:"Anime",statut:"Ouvert - Calme",note:3.5,avis:59,contact:"+241 66 06 08 94",paiement:"En attente",affluence:21,lat:0.4304241,lng:9.4741436,place_id:"ChIJbe9wK8Q9fxARn7pfCKr8u_4",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJbe9wK8Q9fxARn7pfCKr8u_4",photo_interieur:"",photo_exterieur:""},
-    {id:13,nom:"Insomnia",type:"Discotheque",quartier:"Louis",ambiance:"Anime",statut:"Ouvert - Calme",note:3.5,avis:21,contact:"+241 66 29 89 41",paiement:"En attente",affluence:20,lat:0.4097084,lng:9.4317941,place_id:"ChIJw01_DQs7fxARkcOP8RNoPbk",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJw01_DQs7fxARkcOP8RNoPbk",photo_interieur:"",photo_exterieur:""},
-    {id:14,nom:"The Spot",type:"Bar",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.2,avis:67,contact:"+241 66 49 31 88",paiement:"En attente",affluence:49,lat:0.41765,lng:9.46948,place_id:"ChIJTWOdc549fxAR3cja4Xt39BM",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJTWOdc549fxAR3cja4Xt39BM",photo_interieur:"",photo_exterieur:""},
-    {id:15,nom:"LIroko",type:"Bar Lounge",quartier:"Glass",ambiance:"Anime",statut:"Ouvert - Calme",note:3.8,avis:340,contact:"+241 74 51 84 57",paiement:"En attente",affluence:37,lat:0.3693162,lng:9.4570184,place_id:"ChIJIYbaaJ8_fxARpezZORim6j8",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJIYbaaJ8_fxARpezZORim6j8",photo_interieur:"",photo_exterieur:""},
-    {id:16,nom:"Le Stone",type:"Bar Lounge",quartier:"Akanda",ambiance:"Festif",statut:"Ouvert - Calme",note:4.2,avis:48,contact:"+241 66 12 39 56",paiement:"En attente",affluence:48,lat:0.5093725,lng:9.4057482,place_id:"ChIJEZY8nIElfxAR_N7fhQ91vd0",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJEZY8nIElfxAR_N7fhQ91vd0",photo_interieur:"",photo_exterieur:""},
-    {id:17,nom:"The Black Moon",type:"Discotheque",quartier:"Akanda",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:40,contact:"+241 74 01 57 57",paiement:"En attente",affluence:43,lat:0.504208,lng:9.392055,place_id:"ChIJX6CeljklfxARsIUQ8oAAhJY",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJX6CeljklfxARsIUQ8oAAhJY",photo_interieur:"",photo_exterieur:""},
-    {id:18,nom:"New Sunset Lounge Bar",type:"Discotheque",quartier:"Louis",ambiance:"Anime",statut:"Ouvert - Calme",note:3.9,avis:65,contact:"",paiement:"En attente",affluence:37,lat:0.4073798,lng:9.4318995,place_id:"ChIJM4PQrzk7fxARdEpzXhhKc2w",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJM4PQrzk7fxARdEpzXhhKc2w",photo_interieur:"",photo_exterieur:""},
-    {id:19,nom:"Chez Dede",type:"Restaurant",quartier:"Centre-ville",ambiance:"Tres Festif",statut:"Ouvert - Anime",note:4.6,avis:96,contact:"+241 62 12 58 00",paiement:"En attente",affluence:64,lat:0.4430902,lng:9.4240407,place_id:"ChIJ59RZctElfxAROG3gBalmhP0",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ59RZctElfxAROG3gBalmhP0",photo_interieur:"",photo_exterieur:""},
-    {id:20,nom:"La Voile Rouge",type:"Restaurant",quartier:"Louis",ambiance:"Anime",statut:"Ouvert - Calme",note:3.9,avis:802,contact:"+241 11 44 87 92",paiement:"En attente",affluence:52,lat:0.4257589,lng:9.4212315,place_id:"ChIJpYXkniI7fxARDtu78sQ_za4",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJpYXkniI7fxARDtu78sQ_za4",photo_interieur:"",photo_exterieur:""},
-    {id:21,nom:"LOdika",type:"Restaurant",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.0,avis:338,contact:"+241 11 73 69 20",paiement:"En attente",affluence:46,lat:0.4127673,lng:9.4327373,place_id:"ChIJd3pt8go7fxARWFx8G63ZfnM",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJd3pt8go7fxARWFx8G63ZfnM",photo_interieur:"",photo_exterieur:""},
-    {id:22,nom:"BANTU Restaurant Bar Pizzeria",type:"Bar Lounge",quartier:"Glass",ambiance:"Anime",statut:"Ouvert - Calme",note:3.9,avis:942,contact:"+241 74 14 49 49",paiement:"En attente",affluence:54,lat:0.3724932,lng:9.4582871,place_id:"ChIJNxAD-1E9fxARNsWfk-8ynNo",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJNxAD-1E9fxARNsWfk-8ynNo",photo_interieur:"",photo_exterieur:""},
-    {id:23,nom:"Eat Vite Bord de Mer",type:"Restaurant",quartier:"Centre-ville",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:355,contact:"+241 60 11 00 12",paiement:"En attente",affluence:50,lat:0.4339904,lng:9.4179514,place_id:"ChIJkQLXZJg7fxARYnTfMjmtHcU",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJkQLXZJg7fxARYnTfMjmtHcU",photo_interieur:"",photo_exterieur:""},
-    {id:24,nom:"La Braise",type:"Bar Restaurant",quartier:"Louis",ambiance:"Anime",statut:"Ouvert - Calme",note:3.9,avis:60,contact:"+241 74 73 83 42",paiement:"En attente",affluence:37,lat:0.4036185,lng:9.4317285,place_id:"ChIJb0XI6MU7fxARG9sJgPJ9wuk",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJb0XI6MU7fxARG9sJgPJ9wuk",photo_interieur:"",photo_exterieur:""},
-    {id:25,nom:"Roma Restaurant & Hotel",type:"Bar Restaurant",quartier:"Louis",ambiance:"Tres Festif",statut:"Ouvert - Anime",note:4.3,avis:403,contact:"+241 74 44 98 64",paiement:"En attente",affluence:59,lat:0.4104582,lng:9.4307524,place_id:"ChIJ7ejDdqA7fxARFpD3K1c7dEY",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ7ejDdqA7fxARFpD3K1c7dEY",photo_interieur:"",photo_exterieur:""},
-    {id:26,nom:"Lamaia Lounge Bar & Restaurant",type:"Bar Lounge",quartier:"Louis",ambiance:"Tres Festif",statut:"Ouvert - Anime",note:4.3,avis:506,contact:"+241 65 05 03 03",paiement:"En attente",affluence:61,lat:0.4126282,lng:9.432139,place_id:"ChIJF2DZGas7fxARZ5wgrpMJQFg",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJF2DZGas7fxARZ5wgrpMJQFg",photo_interieur:"",photo_exterieur:""},
-    {id:27,nom:"AKWABA Lounge",type:"Bar Lounge",quartier:"Glass",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:86,contact:"+241 65 10 31 31",paiement:"En attente",affluence:44,lat:0.3777398,lng:9.4560024,place_id:"ChIJeVSBAXw7fxARJUTlrxTB2fM",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJeVSBAXw7fxARJUTlrxTB2fM",photo_interieur:"",photo_exterieur:""},
-    {id:28,nom:"Abuja Snack Bar",type:"Snack-Bar",quartier:"Awendje",ambiance:"Festif",statut:"Ouvert - Calme",note:4.0,avis:17,contact:"+241 77 38 77 50",paiement:"En attente",affluence:40,lat:0.3868435,lng:9.4734055,place_id:"ChIJB2Dc0lM9fxARTMGqHQJTAr4",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJB2Dc0lM9fxARTMGqHQJTAr4",photo_interieur:"",photo_exterieur:""},
-    {id:29,nom:"The Weakers Snack-Bar",type:"Snack-Bar",quartier:"Awendje",ambiance:"Tres Festif",statut:"Ouvert - Anime",note:4.8,avis:6,contact:"+241 62 58 87 39",paiement:"En attente",affluence:72,lat:0.3829818,lng:9.4800079,place_id:"ChIJ_3i8fas9fxAR085VB48knXQ",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ_3i8fas9fxAR085VB48knXQ",photo_interieur:"",photo_exterieur:""},
-    {id:30,nom:"LE 241 Snack Bar Cafe",type:"Snack-Bar",quartier:"Awendje",ambiance:"Chill",statut:"Ouvert - Anime",note:4.5,avis:4,contact:"+241 77 92 18 18",paiement:"En attente",affluence:60,lat:0.4047835,lng:9.4986943,place_id:"ChIJcc5ixSg9fxARTNgmF0_VvJQ",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJcc5ixSg9fxARTNgmF0_VvJQ",photo_interieur:"",photo_exterieur:""},
-    {id:31,nom:"Snack Bar NUL BAR AILLEURS",type:"Snack-Bar",quartier:"Awendje",ambiance:"Tres Festif",statut:"Ouvert - Calme",note:4.3,avis:14,contact:"+241 62 42 76 07",paiement:"En attente",affluence:51,lat:0.4118336,lng:9.470781,place_id:"ChIJmcsR1nA_fxAR3MQ2ChEuPy4",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJmcsR1nA_fxAR3MQ2ChEuPy4",photo_interieur:"",photo_exterieur:""},
-    {id:32,nom:"LE CORNER LBV",type:"Bar Lounge",quartier:"Akanda",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:32,contact:"+241 76 24 57 51",paiement:"En attente",affluence:43,lat:0.5030663,lng:9.4047995,place_id:"ChIJry0cxOglfxARSdnlgH4fyXk",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJry0cxOglfxARSdnlgH4fyXk",photo_interieur:"",photo_exterieur:""},
-    {id:33,nom:"Entre Nous Restaurant & Bar",type:"Bar",quartier:"Centre-ville",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:139,contact:"+241 66 99 21 98",paiement:"En attente",affluence:45,lat:0.4409874,lng:9.4434806,place_id:"ChIJN_z4U1Y7fxARTpu3F2bzwPU",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJN_z4U1Y7fxARTpu3F2bzwPU",photo_interieur:"",photo_exterieur:""},
-    {id:34,nom:"Bineva Snack-Bar",type:"Snack-Bar",quartier:"Nzeng-Ayong",ambiance:"Tres Festif",statut:"Ouvert - Anime",note:5.0,avis:1,contact:"+241 66 10 90 46",paiement:"En attente",affluence:80,lat:0.4153086,lng:9.4815077,place_id:"ChIJ514xOuw9fxARKE9_zP4megk",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ514xOuw9fxARKE9_zP4megk",photo_interieur:"",photo_exterieur:""},
-    {id:35,nom:"VIP Night Club",type:"Discotheque",quartier:"Louis",ambiance:"Anime",statut:"Ouvert - Calme",note:3.8,avis:204,contact:"+241 77 89 24 62",paiement:"En attente",affluence:35,lat:0.4091286,lng:9.4328372,place_id:"ChIJW8uY4go7fxAR8SIYtQ4mx1M",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJW8uY4go7fxAR8SIYtQ4mx1M",photo_interieur:"",photo_exterieur:""},
-    {id:36,nom:"Cotton Club",type:"Discotheque",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:73,contact:"",paiement:"En attente",affluence:44,lat:0.4120434,lng:9.4285665,place_id:"ChIJD3ZXHQw7fxARxNdszKkhkek",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJD3ZXHQw7fxARxNdszKkhkek",photo_interieur:"",photo_exterieur:""},
-    {id:37,nom:"Boomerang Night Club",type:"Discotheque",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.1,avis:23,contact:"+241 62 28 19 19",paiement:"En attente",affluence:43,lat:0.4073107,lng:9.4345255,place_id:"ChIJA16SUHU7fxARc1L4R_yR9a0",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJA16SUHU7fxARc1L4R_yR9a0",photo_interieur:"",photo_exterieur:""},
-    {id:38,nom:"La Noche Discotheque",type:"Discotheque",quartier:"Centre-ville",ambiance:"Anime",statut:"Ouvert - Calme",note:3.9,avis:8,contact:"",paiement:"En attente",affluence:36,lat:0.4386529,lng:9.4402257,place_id:"ChIJUylRSDk7fxAR1e4BG88skSg",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJUylRSDk7fxAR1e4BG88skSg",photo_interieur:"",photo_exterieur:""},
-    {id:39,nom:"THE LIGHTS",type:"Discotheque",quartier:"Akanda",ambiance:"Tres Festif",statut:"Ouvert - Calme",note:4.3,avis:23,contact:"+241 66 13 09 75",paiement:"En attente",affluence:51,lat:0.5110594,lng:9.4061635,place_id:"ChIJqdY9hQ09fxAR3Pd6kAHiAa8",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJqdY9hQ09fxAR3Pd6kAHiAa8",photo_interieur:"",photo_exterieur:""},
-    {id:40,nom:"CEYO NIGHTCLUB",type:"Discotheque",quartier:"Nzeng-Ayong",ambiance:"Anime",statut:"Ouvert - Calme",note:3.8,avis:38,contact:"",paiement:"En attente",affluence:31,lat:0.4333249,lng:9.4841343,place_id:"ChIJ5-vIs9I9fxAR4A79RMNnJoQ",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ5-vIs9I9fxAR4A79RMNnJoQ",photo_interieur:"",photo_exterieur:""},
-    {id:41,nom:"Le Phoenix Night Club",type:"Discotheque",quartier:"Nzeng-Ayong",ambiance:"Festif",statut:"Ouvert - Calme",note:4.2,avis:10,contact:"",paiement:"En attente",affluence:48,lat:0.4274256,lng:9.4774206,place_id:"ChIJe75Tmr88fxARevbrLUcTvzc",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJe75Tmr88fxARevbrLUcTvzc",photo_interieur:"",photo_exterieur:""},
-    {id:42,nom:"LOxy Snack Bar Et Nightclub",type:"Discotheque",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.2,avis:19,contact:"",paiement:"En attente",affluence:48,lat:0.3976322,lng:9.4410695,place_id:"ChIJL2WJsrg7fxARA9LHKr8EPNs",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJL2WJsrg7fxARA9LHKr8EPNs",photo_interieur:"",photo_exterieur:""},
-    {id:43,nom:"Sunset Bar Terrasse",type:"Bar Terrasse",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Calme",note:4.0,avis:2,contact:"+241 74 25 19 80",paiement:"En attente",affluence:40,lat:0.4072794,lng:9.4345055,place_id:"ChIJnYM_TwA7fxARl3xJ9aYT-vs",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJnYM_TwA7fxARl3xJ9aYT-vs",photo_interieur:"",photo_exterieur:""},
-    {id:44,nom:"RoofTop LBV",type:"Bar Terrasse",quartier:"Akanda",ambiance:"Tres Festif",statut:"Ouvert - Anime",note:4.6,avis:5,contact:"+241 66 05 06 07",paiement:"En attente",affluence:63,lat:0.4980418,lng:9.392425,place_id:"ChIJvyxcu_wlfxARvNyqCRU2g9A",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJvyxcu_wlfxARvNyqCRU2g9A",photo_interieur:"",photo_exterieur:""},
-    {id:45,nom:"Bar Terrasse Libreville",type:"Bar Terrasse",quartier:"Centre-ville",ambiance:"Tres Festif",statut:"Ouvert - Anime",note:4.7,avis:3,contact:"+241 77 61 68 59",paiement:"En attente",affluence:68,lat:0.4362396,lng:9.4280635,place_id:"ChIJLQ9rzIk7fxARfED3YnR-n0M",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJLQ9rzIk7fxARfED3YnR-n0M",photo_interieur:"",photo_exterieur:""},
-    {id:46,nom:"Paul Gabon Glass",type:"Patisserie Cafe",quartier:"Glass",ambiance:"Chill",statut:"Ouvert - Calme",note:4.1,avis:82,contact:"+241 11 44 99 99",paiement:"En attente",affluence:44,lat:0.3763756,lng:9.4547395,place_id:"ChIJpVoZYVM7fxAR-0J1lKYqENs",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJpVoZYVM7fxAR-0J1lKYqENs",photo_interieur:"",photo_exterieur:""},
-    {id:47,nom:"Paul Libreville Centre",type:"Patisserie Cafe",quartier:"Louis",ambiance:"Chill",statut:"Ouvert - Anime",note:4.0,avis:1298,contact:"+241 11 44 29 02",paiement:"En attente",affluence:60,lat:0.4231599,lng:9.4283105,place_id:"ChIJFzkUgBY7fxARgITPQoroGxs",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJFzkUgBY7fxARgITPQoroGxs",photo_interieur:"",photo_exterieur:""},
-    {id:48,nom:"La Citronnelle",type:"Patisserie Cafe",quartier:"Akanda",ambiance:"Chill",statut:"Ouvert - Calme",note:3.8,avis:38,contact:"+241 66 10 32 30",paiement:"En attente",affluence:31,lat:0.4586431,lng:9.4081189,place_id:"ChIJn1nkZ7QlfxARPvqOlxCu5z4",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJn1nkZ7QlfxARPvqOlxCu5z4",photo_interieur:"",photo_exterieur:""},
-    {id:49,nom:"Patisserie La Regina",type:"Patisserie Cafe",quartier:"Louis",ambiance:"Chill",statut:"Ouvert - Calme",note:3.7,avis:577,contact:"+241 74 44 12 12",paiement:"En attente",affluence:39,lat:0.4065169,lng:9.4323933,place_id:"ChIJP-aGQdw7fxARnDpdxzuX_YU",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJP-aGQdw7fxARnDpdxzuX_YU",photo_interieur:"",photo_exterieur:""},
-    {id:50,nom:"MAISON M GABON",type:"Patisserie Cafe",quartier:"Glass",ambiance:"Chill",statut:"Ouvert - Calme",note:3.9,avis:207,contact:"+241 60 17 11 11",paiement:"En attente",affluence:40,lat:0.3718245,lng:9.4614964,place_id:"ChIJLW5kY4s9fxARPDquzK-fMv0",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJLW5kY4s9fxARPDquzK-fMv0",photo_interieur:"",photo_exterieur:""},
-    {id:51,nom:"La Foret Noire Owendo",type:"Patisserie Cafe",quartier:"Glass",ambiance:"Chill",statut:"Ouvert - Calme",note:3.8,avis:468,contact:"+241 66 77 97 47",paiement:"En attente",affluence:40,lat:0.3311202,lng:9.4870622,place_id:"ChIJpfugDh0_fxARU9lZtYUZXBc",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJpfugDh0_fxARU9lZtYUZXBc",photo_interieur:"",photo_exterieur:""},
-    {id:52,nom:"CACAO Patisserie Restaurant",type:"Patisserie Cafe",quartier:"Akanda",ambiance:"Chill",statut:"Ouvert - Calme",note:4.1,avis:75,contact:"+241 60 20 33 33",paiement:"En attente",affluence:44,lat:0.4916073,lng:9.397478,place_id:"ChIJz3T9_colfxARu98C4UxBI44",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJz3T9_colfxARu98C4UxBI44",photo_interieur:"",photo_exterieur:""},
-    {id:53,nom:"Glass Restaurant",type:"Restaurant",quartier:"Glass",ambiance:"Anime",statut:"Ouvert - Calme",note:3.9,avis:259,contact:"+241 77 17 68 63",paiement:"En attente",affluence:41,lat:0.3735488,lng:9.4568002,place_id:"ChIJi3cE6M89fxARgpT9h_Cb3Q8",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJi3cE6M89fxARgpT9h_Cb3Q8",photo_interieur:"",photo_exterieur:""},
+    {id:9,nom:"Yoka_Lounge",type:"Discotheque",quartier:"Centre-ville",ambiance:"Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 77 46 11 46",paiement:"En attente",affluence:0,lat:0.4399067,lng:9.4178608,place_id:"ChIJdX05QME7fxAR2Pvl8RHwxhM",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJdX05QME7fxAR2Pvl8RHwxhM",photo_interieur:"",photo_exterieur:""},
+    {id:10,nom:"No Stress",type:"Bar",quartier:"Louis",ambiance:"Anime",statut:"Statut inconnu",note:0,avis:0,contact:"+241 66 26 66 94",paiement:"En attente",affluence:0,lat:0.4062708,lng:9.4330562,place_id:"ChIJR8fPZg47fxARj_2tJJo_ZEI",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJR8fPZg47fxARj_2tJJo_ZEI",photo_interieur:"",photo_exterieur:""},
+    {id:11,nom:"HYPE BAR LOUNGE",type:"Bar Lounge",quartier:"Louis",ambiance:"Festif",statut:"Statut inconnu",note:0,avis:0,contact:"",paiement:"En attente",affluence:0,lat:0.3970804,lng:9.4450048,place_id:"ChIJ5cGvApA7fxAR0ivmZjTaBps",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ5cGvApA7fxAR0ivmZjTaBps",photo_interieur:"",photo_exterieur:""},
+    {id:12,nom:"IBIZA NIGHTCLUB",type:"Discotheque",quartier:"Awendje",ambiance:"Anime",statut:"Statut inconnu",note:0,avis:0,contact:"+241 66 06 08 94",paiement:"En attente",affluence:0,lat:0.4304241,lng:9.4741436,place_id:"ChIJbe9wK8Q9fxARn7pfCKr8u_4",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJbe9wK8Q9fxARn7pfCKr8u_4",photo_interieur:"",photo_exterieur:""},
+    {id:13,nom:"Insomnia",type:"Discotheque",quartier:"Louis",ambiance:"Anime",statut:"Statut inconnu",note:0,avis:0,contact:"+241 66 29 89 41",paiement:"En attente",affluence:0,lat:0.4097084,lng:9.4317941,place_id:"ChIJw01_DQs7fxARkcOP8RNoPbk",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJw01_DQs7fxARkcOP8RNoPbk",photo_interieur:"",photo_exterieur:""},
+    {id:14,nom:"The Spot",type:"Bar",quartier:"Louis",ambiance:"Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 66 49 31 88",paiement:"En attente",affluence:0,lat:0.41765,lng:9.46948,place_id:"ChIJTWOdc549fxAR3cja4Xt39BM",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJTWOdc549fxAR3cja4Xt39BM",photo_interieur:"",photo_exterieur:""},
+    {id:15,nom:"LIroko",type:"Bar Lounge",quartier:"Glass",ambiance:"Anime",statut:"Statut inconnu",note:0,avis:0,contact:"+241 74 51 84 57",paiement:"En attente",affluence:0,lat:0.3693162,lng:9.4570184,place_id:"ChIJIYbaaJ8_fxARpezZORim6j8",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJIYbaaJ8_fxARpezZORim6j8",photo_interieur:"",photo_exterieur:""},
+    {id:16,nom:"Le Stone",type:"Bar Lounge",quartier:"Akanda",ambiance:"Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 66 12 39 56",paiement:"En attente",affluence:0,lat:0.5093725,lng:9.4057482,place_id:"ChIJEZY8nIElfxAR_N7fhQ91vd0",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJEZY8nIElfxAR_N7fhQ91vd0",photo_interieur:"",photo_exterieur:""},
+    {id:17,nom:"The Black Moon",type:"Discotheque",quartier:"Akanda",ambiance:"Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 74 01 57 57",paiement:"En attente",affluence:0,lat:0.504208,lng:9.392055,place_id:"ChIJX6CeljklfxARsIUQ8oAAhJY",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJX6CeljklfxARsIUQ8oAAhJY",photo_interieur:"",photo_exterieur:""},
+    {id:18,nom:"New Sunset Lounge Bar",type:"Discotheque",quartier:"Louis",ambiance:"Anime",statut:"Statut inconnu",note:0,avis:0,contact:"",paiement:"En attente",affluence:0,lat:0.4073798,lng:9.4318995,place_id:"ChIJM4PQrzk7fxARdEpzXhhKc2w",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJM4PQrzk7fxARdEpzXhhKc2w",photo_interieur:"",photo_exterieur:""},
+    {id:19,nom:"Chez Dede",type:"Restaurant",quartier:"Centre-ville",ambiance:"Tres Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 62 12 58 00",paiement:"En attente",affluence:0,lat:0.4430902,lng:9.4240407,place_id:"ChIJ59RZctElfxAROG3gBalmhP0",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ59RZctElfxAROG3gBalmhP0",photo_interieur:"",photo_exterieur:""},
+    {id:20,nom:"La Voile Rouge",type:"Restaurant",quartier:"Louis",ambiance:"Anime",statut:"Statut inconnu",note:0,avis:0,contact:"+241 11 44 87 92",paiement:"En attente",affluence:0,lat:0.4257589,lng:9.4212315,place_id:"ChIJpYXkniI7fxARDtu78sQ_za4",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJpYXkniI7fxARDtu78sQ_za4",photo_interieur:"",photo_exterieur:""},
+    {id:21,nom:"LOdika",type:"Restaurant",quartier:"Louis",ambiance:"Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 11 73 69 20",paiement:"En attente",affluence:0,lat:0.4127673,lng:9.4327373,place_id:"ChIJd3pt8go7fxARWFx8G63ZfnM",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJd3pt8go7fxARWFx8G63ZfnM",photo_interieur:"",photo_exterieur:""},
+    {id:22,nom:"BANTU Restaurant Bar Pizzeria",type:"Bar Lounge",quartier:"Glass",ambiance:"Anime",statut:"Statut inconnu",note:0,avis:0,contact:"+241 74 14 49 49",paiement:"En attente",affluence:0,lat:0.3724932,lng:9.4582871,place_id:"ChIJNxAD-1E9fxARNsWfk-8ynNo",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJNxAD-1E9fxARNsWfk-8ynNo",photo_interieur:"",photo_exterieur:""},
+    {id:23,nom:"Eat Vite Bord de Mer",type:"Restaurant",quartier:"Centre-ville",ambiance:"Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 60 11 00 12",paiement:"En attente",affluence:0,lat:0.4339904,lng:9.4179514,place_id:"ChIJkQLXZJg7fxARYnTfMjmtHcU",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJkQLXZJg7fxARYnTfMjmtHcU",photo_interieur:"",photo_exterieur:""},
+    {id:24,nom:"La Braise",type:"Bar Restaurant",quartier:"Louis",ambiance:"Anime",statut:"Statut inconnu",note:0,avis:0,contact:"+241 74 73 83 42",paiement:"En attente",affluence:0,lat:0.4036185,lng:9.4317285,place_id:"ChIJb0XI6MU7fxARG9sJgPJ9wuk",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJb0XI6MU7fxARG9sJgPJ9wuk",photo_interieur:"",photo_exterieur:""},
+    {id:25,nom:"Roma Restaurant & Hotel",type:"Bar Restaurant",quartier:"Louis",ambiance:"Tres Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 74 44 98 64",paiement:"En attente",affluence:0,lat:0.4104582,lng:9.4307524,place_id:"ChIJ7ejDdqA7fxARFpD3K1c7dEY",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ7ejDdqA7fxARFpD3K1c7dEY",photo_interieur:"",photo_exterieur:""},
+    {id:26,nom:"Lamaia Lounge Bar & Restaurant",type:"Bar Lounge",quartier:"Louis",ambiance:"Tres Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 65 05 03 03",paiement:"En attente",affluence:0,lat:0.4126282,lng:9.432139,place_id:"ChIJF2DZGas7fxARZ5wgrpMJQFg",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJF2DZGas7fxARZ5wgrpMJQFg",photo_interieur:"",photo_exterieur:""},
+    {id:27,nom:"AKWABA Lounge",type:"Bar Lounge",quartier:"Glass",ambiance:"Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 65 10 31 31",paiement:"En attente",affluence:0,lat:0.3777398,lng:9.4560024,place_id:"ChIJeVSBAXw7fxARJUTlrxTB2fM",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJeVSBAXw7fxARJUTlrxTB2fM",photo_interieur:"",photo_exterieur:""},
+    {id:28,nom:"Abuja Snack Bar",type:"Snack-Bar",quartier:"Awendje",ambiance:"Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 77 38 77 50",paiement:"En attente",affluence:0,lat:0.3868435,lng:9.4734055,place_id:"ChIJB2Dc0lM9fxARTMGqHQJTAr4",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJB2Dc0lM9fxARTMGqHQJTAr4",photo_interieur:"",photo_exterieur:""},
+    {id:29,nom:"The Weakers Snack-Bar",type:"Snack-Bar",quartier:"Awendje",ambiance:"Tres Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 62 58 87 39",paiement:"En attente",affluence:0,lat:0.3829818,lng:9.4800079,place_id:"ChIJ_3i8fas9fxAR085VB48knXQ",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ_3i8fas9fxAR085VB48knXQ",photo_interieur:"",photo_exterieur:""},
+    {id:30,nom:"LE 241 Snack Bar Cafe",type:"Snack-Bar",quartier:"Awendje",ambiance:"Chill",statut:"Statut inconnu",note:0,avis:0,contact:"+241 77 92 18 18",paiement:"En attente",affluence:0,lat:0.4047835,lng:9.4986943,place_id:"ChIJcc5ixSg9fxARTNgmF0_VvJQ",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJcc5ixSg9fxARTNgmF0_VvJQ",photo_interieur:"",photo_exterieur:""},
+    {id:31,nom:"Snack Bar NUL BAR AILLEURS",type:"Snack-Bar",quartier:"Awendje",ambiance:"Tres Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 62 42 76 07",paiement:"En attente",affluence:0,lat:0.4118336,lng:9.470781,place_id:"ChIJmcsR1nA_fxAR3MQ2ChEuPy4",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJmcsR1nA_fxAR3MQ2ChEuPy4",photo_interieur:"",photo_exterieur:""},
+    {id:32,nom:"LE CORNER LBV",type:"Bar Lounge",quartier:"Akanda",ambiance:"Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 76 24 57 51",paiement:"En attente",affluence:0,lat:0.5030663,lng:9.4047995,place_id:"ChIJry0cxOglfxARSdnlgH4fyXk",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJry0cxOglfxARSdnlgH4fyXk",photo_interieur:"",photo_exterieur:""},
+    {id:33,nom:"Entre Nous Restaurant & Bar",type:"Bar",quartier:"Centre-ville",ambiance:"Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 66 99 21 98",paiement:"En attente",affluence:0,lat:0.4409874,lng:9.4434806,place_id:"ChIJN_z4U1Y7fxARTpu3F2bzwPU",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJN_z4U1Y7fxARTpu3F2bzwPU",photo_interieur:"",photo_exterieur:""},
+    {id:34,nom:"Bineva Snack-Bar",type:"Snack-Bar",quartier:"Nzeng-Ayong",ambiance:"Tres Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 66 10 90 46",paiement:"En attente",affluence:0,lat:0.4153086,lng:9.4815077,place_id:"ChIJ514xOuw9fxARKE9_zP4megk",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ514xOuw9fxARKE9_zP4megk",photo_interieur:"",photo_exterieur:""},
+    {id:35,nom:"VIP Night Club",type:"Discotheque",quartier:"Louis",ambiance:"Anime",statut:"Statut inconnu",note:0,avis:0,contact:"+241 77 89 24 62",paiement:"En attente",affluence:0,lat:0.4091286,lng:9.4328372,place_id:"ChIJW8uY4go7fxAR8SIYtQ4mx1M",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJW8uY4go7fxAR8SIYtQ4mx1M",photo_interieur:"",photo_exterieur:""},
+    {id:36,nom:"Cotton Club",type:"Discotheque",quartier:"Louis",ambiance:"Festif",statut:"Statut inconnu",note:0,avis:0,contact:"",paiement:"En attente",affluence:0,lat:0.4120434,lng:9.4285665,place_id:"ChIJD3ZXHQw7fxARxNdszKkhkek",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJD3ZXHQw7fxARxNdszKkhkek",photo_interieur:"",photo_exterieur:""},
+    {id:37,nom:"Boomerang Night Club",type:"Discotheque",quartier:"Louis",ambiance:"Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 62 28 19 19",paiement:"En attente",affluence:0,lat:0.4073107,lng:9.4345255,place_id:"ChIJA16SUHU7fxARc1L4R_yR9a0",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJA16SUHU7fxARc1L4R_yR9a0",photo_interieur:"",photo_exterieur:""},
+    {id:38,nom:"La Noche Discotheque",type:"Discotheque",quartier:"Centre-ville",ambiance:"Anime",statut:"Statut inconnu",note:0,avis:0,contact:"",paiement:"En attente",affluence:0,lat:0.4386529,lng:9.4402257,place_id:"ChIJUylRSDk7fxAR1e4BG88skSg",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJUylRSDk7fxAR1e4BG88skSg",photo_interieur:"",photo_exterieur:""},
+    {id:39,nom:"THE LIGHTS",type:"Discotheque",quartier:"Akanda",ambiance:"Tres Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 66 13 09 75",paiement:"En attente",affluence:0,lat:0.5110594,lng:9.4061635,place_id:"ChIJqdY9hQ09fxAR3Pd6kAHiAa8",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJqdY9hQ09fxAR3Pd6kAHiAa8",photo_interieur:"",photo_exterieur:""},
+    {id:40,nom:"CEYO NIGHTCLUB",type:"Discotheque",quartier:"Nzeng-Ayong",ambiance:"Anime",statut:"Statut inconnu",note:0,avis:0,contact:"",paiement:"En attente",affluence:0,lat:0.4333249,lng:9.4841343,place_id:"ChIJ5-vIs9I9fxAR4A79RMNnJoQ",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ5-vIs9I9fxAR4A79RMNnJoQ",photo_interieur:"",photo_exterieur:""},
+    {id:41,nom:"Le Phoenix Night Club",type:"Discotheque",quartier:"Nzeng-Ayong",ambiance:"Festif",statut:"Statut inconnu",note:0,avis:0,contact:"",paiement:"En attente",affluence:0,lat:0.4274256,lng:9.4774206,place_id:"ChIJe75Tmr88fxARevbrLUcTvzc",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJe75Tmr88fxARevbrLUcTvzc",photo_interieur:"",photo_exterieur:""},
+    {id:42,nom:"LOxy Snack Bar Et Nightclub",type:"Discotheque",quartier:"Louis",ambiance:"Festif",statut:"Statut inconnu",note:0,avis:0,contact:"",paiement:"En attente",affluence:0,lat:0.3976322,lng:9.4410695,place_id:"ChIJL2WJsrg7fxARA9LHKr8EPNs",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJL2WJsrg7fxARA9LHKr8EPNs",photo_interieur:"",photo_exterieur:""},
+    {id:43,nom:"Sunset Bar Terrasse",type:"Bar Terrasse",quartier:"Louis",ambiance:"Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 74 25 19 80",paiement:"En attente",affluence:0,lat:0.4072794,lng:9.4345055,place_id:"ChIJnYM_TwA7fxARl3xJ9aYT-vs",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJnYM_TwA7fxARl3xJ9aYT-vs",photo_interieur:"",photo_exterieur:""},
+    {id:44,nom:"RoofTop LBV",type:"Bar Terrasse",quartier:"Akanda",ambiance:"Tres Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 66 05 06 07",paiement:"En attente",affluence:0,lat:0.4980418,lng:9.392425,place_id:"ChIJvyxcu_wlfxARvNyqCRU2g9A",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJvyxcu_wlfxARvNyqCRU2g9A",photo_interieur:"",photo_exterieur:""},
+    {id:45,nom:"Bar Terrasse Libreville",type:"Bar Terrasse",quartier:"Centre-ville",ambiance:"Tres Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 77 61 68 59",paiement:"En attente",affluence:0,lat:0.4362396,lng:9.4280635,place_id:"ChIJLQ9rzIk7fxARfED3YnR-n0M",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJLQ9rzIk7fxARfED3YnR-n0M",photo_interieur:"",photo_exterieur:""},
+    {id:46,nom:"Paul Gabon Glass",type:"Patisserie Cafe",quartier:"Glass",ambiance:"Chill",statut:"Statut inconnu",note:0,avis:0,contact:"+241 11 44 99 99",paiement:"En attente",affluence:0,lat:0.3763756,lng:9.4547395,place_id:"ChIJpVoZYVM7fxAR-0J1lKYqENs",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJpVoZYVM7fxAR-0J1lKYqENs",photo_interieur:"",photo_exterieur:""},
+    {id:47,nom:"Paul Libreville Centre",type:"Patisserie Cafe",quartier:"Louis",ambiance:"Chill",statut:"Statut inconnu",note:0,avis:0,contact:"+241 11 44 29 02",paiement:"En attente",affluence:0,lat:0.4231599,lng:9.4283105,place_id:"ChIJFzkUgBY7fxARgITPQoroGxs",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJFzkUgBY7fxARgITPQoroGxs",photo_interieur:"",photo_exterieur:""},
+    {id:48,nom:"La Citronnelle",type:"Patisserie Cafe",quartier:"Akanda",ambiance:"Chill",statut:"Statut inconnu",note:0,avis:0,contact:"+241 66 10 32 30",paiement:"En attente",affluence:0,lat:0.4586431,lng:9.4081189,place_id:"ChIJn1nkZ7QlfxARPvqOlxCu5z4",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJn1nkZ7QlfxARPvqOlxCu5z4",photo_interieur:"",photo_exterieur:""},
+    {id:49,nom:"Patisserie La Regina",type:"Patisserie Cafe",quartier:"Louis",ambiance:"Chill",statut:"Statut inconnu",note:0,avis:0,contact:"+241 74 44 12 12",paiement:"En attente",affluence:0,lat:0.4065169,lng:9.4323933,place_id:"ChIJP-aGQdw7fxARnDpdxzuX_YU",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJP-aGQdw7fxARnDpdxzuX_YU",photo_interieur:"",photo_exterieur:""},
+    {id:50,nom:"MAISON M GABON",type:"Patisserie Cafe",quartier:"Glass",ambiance:"Chill",statut:"Statut inconnu",note:0,avis:0,contact:"+241 60 17 11 11",paiement:"En attente",affluence:0,lat:0.3718245,lng:9.4614964,place_id:"ChIJLW5kY4s9fxARPDquzK-fMv0",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJLW5kY4s9fxARPDquzK-fMv0",photo_interieur:"",photo_exterieur:""},
+    {id:51,nom:"La Foret Noire Owendo",type:"Patisserie Cafe",quartier:"Glass",ambiance:"Chill",statut:"Statut inconnu",note:0,avis:0,contact:"+241 66 77 97 47",paiement:"En attente",affluence:0,lat:0.3311202,lng:9.4870622,place_id:"ChIJpfugDh0_fxARU9lZtYUZXBc",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJpfugDh0_fxARU9lZtYUZXBc",photo_interieur:"",photo_exterieur:""},
+    {id:52,nom:"CACAO Patisserie Restaurant",type:"Patisserie Cafe",quartier:"Akanda",ambiance:"Chill",statut:"Statut inconnu",note:0,avis:0,contact:"+241 60 20 33 33",paiement:"En attente",affluence:0,lat:0.4916073,lng:9.397478,place_id:"ChIJz3T9_colfxARu98C4UxBI44",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJz3T9_colfxARu98C4UxBI44",photo_interieur:"",photo_exterieur:""},
+    {id:53,nom:"Glass Restaurant",type:"Restaurant",quartier:"Glass",ambiance:"Anime",statut:"Statut inconnu",note:0,avis:0,contact:"+241 77 17 68 63",paiement:"En attente",affluence:0,lat:0.3735488,lng:9.4568002,place_id:"ChIJi3cE6M89fxARgpT9h_Cb3Q8",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJi3cE6M89fxARgpT9h_Cb3Q8",photo_interieur:"",photo_exterieur:""},
     /* ════ HÔTELS / MOTELS ════ */
-    {id:101,nom:"Radisson Blu Okoumé Palace",type:"Hôtel 5 étoiles",quartier:"Centre-ville",ambiance:"Luxe",statut:"Ouvert - Anime",note:4.5,avis:701,contact:"+241 011 44 80 00",paiement:"Actif",affluence:72,lat:0.3913,lng:9.4536,maps_url:"https://www.google.com/maps/search/Radisson+Blu+Okoume+Palace+Libreville",description:"Hôtel 5 étoiles situé au 5 Boulevard de Nice. 306 chambres avec vue océan, 2 piscines extérieures, restaurant Olatano, bar Wai, restaurant indien Amaya. Navette aéroport gratuite. Salle de conférence 450 personnes.",photo_interieur:"",photo_exterieur:""},
-    {id:102,nom:"Park Inn by Radisson Libreville",type:"Hôtel 4 étoiles",quartier:"Centre-ville",ambiance:"Moderne",statut:"Ouvert - Anime",note:4.2,avis:312,contact:"+241 011 79 00 00",paiement:"Actif",affluence:65,lat:0.3940,lng:9.4530,maps_url:"https://www.google.com/maps/search/Park+Inn+Radisson+Libreville",description:"Hôtel 4 étoiles au 5 Boulevard de Nice BP 2254. 140 chambres, vue mer, piscine, restaurant. À 2 km de l'aéroport Léon M'ba. Idéal pour les voyageurs d'affaires.",photo_interieur:"",photo_exterieur:""},
-    {id:103,nom:"Hôtel Re-Ndama",type:"Hôtel 4 étoiles",quartier:"Centre-ville",ambiance:"Classique",statut:"Ouvert - Anime",note:4.0,avis:188,contact:"+241 011 76 50 00",paiement:"Actif",affluence:60,lat:0.3920,lng:9.4520,maps_url:"https://www.google.com/maps/search/Hotel+Re-Ndama+Libreville",description:"Hôtel 4 étoiles situé sur le Boulevard de l'Indépendance. 256 chambres. Hôtel 6 étages en bord d'Atlantique. Restaurant panoramique, bar, piscine.",photo_interieur:"",photo_exterieur:""},
-    {id:104,nom:"Onomo Hotel Libreville",type:"Hôtel 4 étoiles",quartier:"Angondje",ambiance:"Moderne",statut:"Ouvert - Calme",note:4.1,avis:245,contact:"+241 011 70 10 00",paiement:"Actif",affluence:55,lat:0.4810,lng:9.4300,maps_url:"https://www.google.com/maps/search/Onomo+Hotel+Libreville",description:"Hôtel 4 étoiles au Quartier des Ambassades, Route d'Angondjé. 120 chambres, design contemporain, piscine, restaurant, salle de sport. BP 23791.",photo_interieur:"",photo_exterieur:""},
-    {id:105,nom:"Hôtel Hibiscus Louis",type:"Hôtel 3 étoiles",quartier:"Louis",ambiance:"Gabonais",statut:"Ouvert - Anime",note:4.3,avis:156,contact:"+241 077 12 34 56",paiement:"Actif",affluence:68,lat:0.4140,lng:9.4320,maps_url:"https://www.google.com/maps/search/Hotel+Hibiscus+Louis+Libreville",description:"Hôtel 3 étoiles avec ambiance locale gabonaise authentique. Vue sur la mer, piscine, restaurant. Très apprécié des habitués pour son charme et son atmosphère locale.",photo_interieur:"",photo_exterieur:""},
-    {id:106,nom:"Roma Hôtel & Restaurant",type:"Hôtel 3 étoiles",quartier:"Louis",ambiance:"Festif",statut:"Ouvert - Anime",note:4.3,avis:403,contact:"+241 074 44 98 64",paiement:"Actif",affluence:59,lat:0.4104582,lng:9.4307524,maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ7ejDdqA7fxARFpD3K1c7dEY",description:"Hôtel 4 étoiles avec restaurant, bar et jardin. Idéalement situé à Louis. Restaurant gastronomique, bar animé, terrasse. Très proche des meilleures boîtes de nuit.",photo_interieur:"",photo_exterieur:""},
-    {id:107,nom:"Hôtel Le Cristal",type:"Hôtel 3 étoiles",quartier:"Centre-ville",ambiance:"Classique",statut:"Ouvert - Calme",note:4.0,avis:142,contact:"+241 077 23 45 67",paiement:"Actif",affluence:50,lat:0.4330,lng:9.4420,maps_url:"https://www.google.com/maps/search/Hotel+Le+Cristal+Libreville",description:"Hôtel 3 étoiles bien situé en centre-ville. Chambres climatisées, WiFi gratuit, restaurant. Apprécié par les familles et voyageurs d'affaires.",photo_interieur:"",photo_exterieur:""},
-    {id:108,nom:"Hôtel Leet Dorian",type:"Hôtel 2 étoiles",quartier:"Centre-ville",ambiance:"Budget",statut:"Ouvert - Calme",note:3.8,avis:98,contact:"+241 077 89 01 23",paiement:"Actif",affluence:40,lat:0.4310,lng:9.4410,maps_url:"https://www.google.com/maps/search/Hotel+Leet+Dorian+Libreville",description:"Hôtel économique en plein centre-ville. Chambres propres, WiFi, accueil 24h/24. Option idéale pour les petits budgets. Proche des commerces et transports.",photo_interieur:"",photo_exterieur:""},
-    {id:109,nom:"MINA Hotel Libreville",type:"Hôtel 3 étoiles",quartier:"Centre-ville",ambiance:"Moderne",statut:"Ouvert - Anime",note:4.1,avis:87,contact:"+241 066 34 56 78",paiement:"Actif",affluence:58,lat:0.3960,lng:9.4460,maps_url:"https://www.google.com/maps/search/MINA+Hotel+Libreville",description:"Hôtel moderne en plein cœur de Libreville. Accepte les animaux de compagnie. WiFi haut débit, restaurant, parking privé. Design contemporain.",photo_interieur:"",photo_exterieur:""},
-    {id:110,nom:"Hôtel Impérial",type:"Hôtel 3 étoiles",quartier:"Centre-ville",ambiance:"Classique",statut:"Ouvert - Calme",note:3.9,avis:74,contact:"+241 077 45 67 89",paiement:"Actif",affluence:45,lat:0.3950,lng:9.4480,maps_url:"https://www.google.com/maps/search/Hotel+Imperial+Libreville",description:"Hôtel 3 étoiles avec bar, parking privé gratuit. À 1,3 miles de la Statue nationale de l'Abolition de l'Esclavage. Service courtois et confortable.",photo_interieur:"",photo_exterieur:""},
-    {id:111,nom:"Hôtel La Sablière",type:"Hôtel 3 étoiles",quartier:"Centre-ville",ambiance:"Charme",statut:"Ouvert - Calme",note:4.2,avis:63,contact:"+241 077 56 78 90",paiement:"Actif",affluence:52,lat:0.3965,lng:9.4470,maps_url:"https://www.google.com/maps/search/Hotel+La+Sabliere+Libreville",description:"Au cœur de Libreville, tenu par Jean-François, propriétaire poète et passionné. Atmosphère unique et personnalisée. Très bonne cuisine. Adresse insolite.",photo_interieur:"",photo_exterieur:""},
-    {id:112,nom:"Nomad Suites Residence",type:"Résidence hôtelière",quartier:"Centre-ville",ambiance:"Moderne",statut:"Ouvert - Calme",note:4.0,avis:55,contact:"+241 066 67 89 01",paiement:"Actif",affluence:42,lat:0.3930,lng:9.4500,maps_url:"https://www.google.com/maps/search/Nomad+Suites+Libreville",description:"Résidence hôtelière moderne proche de l'aéroport. Appartements équipés, WiFi, parking. Idéal pour les séjours longue durée ou professionnels.",photo_interieur:"",photo_exterieur:""},
-    {id:113,nom:"Résidence Hôtelière du Phare",type:"Résidence hôtelière",quartier:"Centre-ville",ambiance:"Classique",statut:"Ouvert - Calme",note:3.9,avis:41,contact:"+241 077 78 90 12",paiement:"Actif",affluence:38,lat:0.3945,lng:9.4490,maps_url:"https://www.google.com/maps/search/Residence+Hoteliere+Phare+Libreville",description:"Résidence hôtelière bien équipée près de l'aéroport. Appartements climatisés, WiFi gratuit, parking sécurisé. Navette disponible sur demande.",photo_interieur:"",photo_exterieur:""},
-    {id:114,nom:"Hotel Tropicana Libreville",type:"Hôtel 2 étoiles",quartier:"Centre-ville",ambiance:"Tropical",statut:"Ouvert - Calme",note:3.7,avis:32,contact:"+241 066 89 01 23",paiement:"Actif",affluence:35,lat:0.3935,lng:9.4510,maps_url:"https://www.google.com/maps/search/Hotel+Tropicana+Libreville",description:"Hôtel abordable proche de l'aéroport. Chambres climatisées, restauration légère, parking. Accueil chaleureux. Option économique appréciée.",photo_interieur:"",photo_exterieur:""},
-    {id:115,nom:"La Baie des Tortues Luth",type:"Hôtel Balnéaire",quartier:"Akanda",ambiance:"Nature",statut:"Ouvert - Calme",note:4.4,avis:128,contact:"+241 077 90 12 34",paiement:"Actif",affluence:55,lat:0.5060,lng:9.3980,maps_url:"https://www.google.com/maps/search/Baie+des+Tortues+Luth+Libreville",description:"Hôtel balnéaire 2,5 étoiles face à l'Atlantique. Piscine extérieure, plage privée, restaurant-bar. Observation des tortues marines. Séjours nature et famille.",photo_interieur:"",photo_exterieur:""},
-    {id:116,nom:"La Maringa El Magnifico",type:"Hôtel Resort",quartier:"Akanda",ambiance:"Luxe",statut:"Ouvert - Anime",note:4.2,avis:89,contact:"+241 077 01 23 45",paiement:"Actif",affluence:62,lat:0.5050,lng:9.3990,maps_url:"https://www.google.com/maps/search/La+Maringa+El+Magnifico+Libreville",description:"Resort hôtelier avec jardin, plage privée, salon commun, restaurant et boîte de nuit. WiFi gratuit. Cadre exceptionnel au bord de l'océan.",photo_interieur:"",photo_exterieur:""},
-    {id:117,nom:"Namaste Hôtel & Restaurant",type:"Hôtel 3 étoiles",quartier:"Centre-ville",ambiance:"Familial",statut:"Ouvert - Anime",note:4.5,avis:116,contact:"+241 066 12 34 56",paiement:"Actif",affluence:68,lat:0.4050,lng:9.4440,maps_url:"https://www.google.com/maps/search/Namaste+Hotel+Libreville",description:"Hôtel familial avec jardin, terrasse, restaurant et parking privé. 18 min à pied de la Statue de l'Abolition. Ambiance chaleureuse, cuisine variée.",photo_interieur:"",photo_exterieur:""},
-    {id:118,nom:"Résidence Kaliste",type:"Résidence hôtelière",quartier:"Louis",ambiance:"Calme",statut:"Ouvert - Calme",note:3.9,avis:44,contact:"+241 077 23 45 67",paiement:"Actif",affluence:36,lat:0.4140,lng:9.4330,maps_url:"https://www.google.com/maps/search/Residence+Kaliste+Libreville",description:"Résidence 5 min à pied de la marina Michel Marine. Appartements spacieux, WiFi, parking. Idéal pour séjour d'affaires ou longue durée.",photo_interieur:"",photo_exterieur:""},
-    {id:119,nom:"Hotel Le Meridien Libreville",type:"Hôtel 5 étoiles",quartier:"Centre-ville",ambiance:"Luxe",statut:"Ouvert - Anime",note:4.3,avis:327,contact:"+241 011 72 00 00",paiement:"Actif",affluence:70,lat:0.3920,lng:9.4525,maps_url:"https://www.google.com/maps/search/Le+Meridien+Libreville",description:"Grand hôtel 5 étoiles face à l'Atlantique avec vue panoramique. Piscine, restaurants, salle de sport, spa. Référence du luxe à Libreville depuis des décennies.",photo_interieur:"",photo_exterieur:""},
-    {id:120,nom:"Hôtel Résidence Océane",type:"Résidence hôtelière",quartier:"Centre-ville",ambiance:"Calme",statut:"Ouvert - Calme",note:4.0,avis:38,contact:"+241 066 34 56 78",paiement:"Actif",affluence:40,lat:0.3955,lng:9.4475,maps_url:"https://www.google.com/maps/search/Residence+Oceane+Libreville",description:"Résidence hôtelière de qualité en centre-ville. Appartements équipés (cuisine, salon, WiFi), parking privé. Service 24h/24. À quelques minutes de la marina.",photo_interieur:"",photo_exterieur:""}
+    {id:101,nom:"Radisson Blu Okoumé Palace",type:"Hôtel 5 étoiles",quartier:"Centre-ville",ambiance:"Luxe",statut:"Statut inconnu",note:0,avis:0,contact:"+241 011 44 80 00",paiement:"Actif",affluence:0,lat:0.3913,lng:9.4536,maps_url:"https://www.google.com/maps/search/Radisson+Blu+Okoume+Palace+Libreville",description:"Hôtel 5 étoiles situé au 5 Boulevard de Nice. 306 chambres avec vue océan, 2 piscines extérieures, restaurant Olatano, bar Wai, restaurant indien Amaya. Navette aéroport gratuite. Salle de conférence 450 personnes.",photo_interieur:"",photo_exterieur:""},
+    {id:102,nom:"Park Inn by Radisson Libreville",type:"Hôtel 4 étoiles",quartier:"Centre-ville",ambiance:"Moderne",statut:"Statut inconnu",note:0,avis:0,contact:"+241 011 79 00 00",paiement:"Actif",affluence:0,lat:0.3940,lng:9.4530,maps_url:"https://www.google.com/maps/search/Park+Inn+Radisson+Libreville",description:"Hôtel 4 étoiles au 5 Boulevard de Nice BP 2254. 140 chambres, vue mer, piscine, restaurant. À 2 km de l'aéroport Léon M'ba. Idéal pour les voyageurs d'affaires.",photo_interieur:"",photo_exterieur:""},
+    {id:103,nom:"Hôtel Re-Ndama",type:"Hôtel 4 étoiles",quartier:"Centre-ville",ambiance:"Classique",statut:"Statut inconnu",note:0,avis:0,contact:"+241 011 76 50 00",paiement:"Actif",affluence:0,lat:0.3920,lng:9.4520,maps_url:"https://www.google.com/maps/search/Hotel+Re-Ndama+Libreville",description:"Hôtel 4 étoiles situé sur le Boulevard de l'Indépendance. 256 chambres. Hôtel 6 étages en bord d'Atlantique. Restaurant panoramique, bar, piscine.",photo_interieur:"",photo_exterieur:""},
+    {id:104,nom:"Onomo Hotel Libreville",type:"Hôtel 4 étoiles",quartier:"Angondje",ambiance:"Moderne",statut:"Statut inconnu",note:0,avis:0,contact:"+241 011 70 10 00",paiement:"Actif",affluence:0,lat:0.4810,lng:9.4300,maps_url:"https://www.google.com/maps/search/Onomo+Hotel+Libreville",description:"Hôtel 4 étoiles au Quartier des Ambassades, Route d'Angondjé. 120 chambres, design contemporain, piscine, restaurant, salle de sport. BP 23791.",photo_interieur:"",photo_exterieur:""},
+    {id:105,nom:"Hôtel Hibiscus Louis",type:"Hôtel 3 étoiles",quartier:"Louis",ambiance:"Gabonais",statut:"Statut inconnu",note:0,avis:0,contact:"+241 077 12 34 56",paiement:"Actif",affluence:0,lat:0.4140,lng:9.4320,maps_url:"https://www.google.com/maps/search/Hotel+Hibiscus+Louis+Libreville",description:"Hôtel 3 étoiles avec ambiance locale gabonaise authentique. Vue sur la mer, piscine, restaurant. Très apprécié des habitués pour son charme et son atmosphère locale.",photo_interieur:"",photo_exterieur:""},
+    {id:106,nom:"Roma Hôtel & Restaurant",type:"Hôtel 3 étoiles",quartier:"Louis",ambiance:"Festif",statut:"Statut inconnu",note:0,avis:0,contact:"+241 074 44 98 64",paiement:"Actif",affluence:0,lat:0.4104582,lng:9.4307524,maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ7ejDdqA7fxARFpD3K1c7dEY",description:"Hôtel 4 étoiles avec restaurant, bar et jardin. Idéalement situé à Louis. Restaurant gastronomique, bar animé, terrasse. Très proche des meilleures boîtes de nuit.",photo_interieur:"",photo_exterieur:""},
+    {id:107,nom:"Hôtel Le Cristal",type:"Hôtel 3 étoiles",quartier:"Centre-ville",ambiance:"Classique",statut:"Statut inconnu",note:0,avis:0,contact:"+241 077 23 45 67",paiement:"Actif",affluence:0,lat:0.4330,lng:9.4420,maps_url:"https://www.google.com/maps/search/Hotel+Le+Cristal+Libreville",description:"Hôtel 3 étoiles bien situé en centre-ville. Chambres climatisées, WiFi gratuit, restaurant. Apprécié par les familles et voyageurs d'affaires.",photo_interieur:"",photo_exterieur:""},
+    {id:108,nom:"Hôtel Leet Dorian",type:"Hôtel 2 étoiles",quartier:"Centre-ville",ambiance:"Budget",statut:"Statut inconnu",note:0,avis:0,contact:"+241 077 89 01 23",paiement:"Actif",affluence:0,lat:0.4310,lng:9.4410,maps_url:"https://www.google.com/maps/search/Hotel+Leet+Dorian+Libreville",description:"Hôtel économique en plein centre-ville. Chambres propres, WiFi, accueil 24h/24. Option idéale pour les petits budgets. Proche des commerces et transports.",photo_interieur:"",photo_exterieur:""},
+    {id:109,nom:"MINA Hotel Libreville",type:"Hôtel 3 étoiles",quartier:"Centre-ville",ambiance:"Moderne",statut:"Statut inconnu",note:0,avis:0,contact:"+241 066 34 56 78",paiement:"Actif",affluence:0,lat:0.3960,lng:9.4460,maps_url:"https://www.google.com/maps/search/MINA+Hotel+Libreville",description:"Hôtel moderne en plein cœur de Libreville. Accepte les animaux de compagnie. WiFi haut débit, restaurant, parking privé. Design contemporain.",photo_interieur:"",photo_exterieur:""},
+    {id:110,nom:"Hôtel Impérial",type:"Hôtel 3 étoiles",quartier:"Centre-ville",ambiance:"Classique",statut:"Statut inconnu",note:0,avis:0,contact:"+241 077 45 67 89",paiement:"Actif",affluence:0,lat:0.3950,lng:9.4480,maps_url:"https://www.google.com/maps/search/Hotel+Imperial+Libreville",description:"Hôtel 3 étoiles avec bar, parking privé gratuit. À 1,3 miles de la Statue nationale de l'Abolition de l'Esclavage. Service courtois et confortable.",photo_interieur:"",photo_exterieur:""},
+    {id:111,nom:"Hôtel La Sablière",type:"Hôtel 3 étoiles",quartier:"Centre-ville",ambiance:"Charme",statut:"Statut inconnu",note:0,avis:0,contact:"+241 077 56 78 90",paiement:"Actif",affluence:0,lat:0.3965,lng:9.4470,maps_url:"https://www.google.com/maps/search/Hotel+La+Sabliere+Libreville",description:"Au cœur de Libreville, tenu par Jean-François, propriétaire poète et passionné. Atmosphère unique et personnalisée. Très bonne cuisine. Adresse insolite.",photo_interieur:"",photo_exterieur:""},
+    {id:112,nom:"Nomad Suites Residence",type:"Résidence hôtelière",quartier:"Centre-ville",ambiance:"Moderne",statut:"Statut inconnu",note:0,avis:0,contact:"+241 066 67 89 01",paiement:"Actif",affluence:0,lat:0.3930,lng:9.4500,maps_url:"https://www.google.com/maps/search/Nomad+Suites+Libreville",description:"Résidence hôtelière moderne proche de l'aéroport. Appartements équipés, WiFi, parking. Idéal pour les séjours longue durée ou professionnels.",photo_interieur:"",photo_exterieur:""},
+    {id:113,nom:"Résidence Hôtelière du Phare",type:"Résidence hôtelière",quartier:"Centre-ville",ambiance:"Classique",statut:"Statut inconnu",note:0,avis:0,contact:"+241 077 78 90 12",paiement:"Actif",affluence:0,lat:0.3945,lng:9.4490,maps_url:"https://www.google.com/maps/search/Residence+Hoteliere+Phare+Libreville",description:"Résidence hôtelière bien équipée près de l'aéroport. Appartements climatisés, WiFi gratuit, parking sécurisé. Navette disponible sur demande.",photo_interieur:"",photo_exterieur:""},
+    {id:114,nom:"Hotel Tropicana Libreville",type:"Hôtel 2 étoiles",quartier:"Centre-ville",ambiance:"Tropical",statut:"Statut inconnu",note:0,avis:0,contact:"+241 066 89 01 23",paiement:"Actif",affluence:0,lat:0.3935,lng:9.4510,maps_url:"https://www.google.com/maps/search/Hotel+Tropicana+Libreville",description:"Hôtel abordable proche de l'aéroport. Chambres climatisées, restauration légère, parking. Accueil chaleureux. Option économique appréciée.",photo_interieur:"",photo_exterieur:""},
+    {id:115,nom:"La Baie des Tortues Luth",type:"Hôtel Balnéaire",quartier:"Akanda",ambiance:"Nature",statut:"Statut inconnu",note:0,avis:0,contact:"+241 077 90 12 34",paiement:"Actif",affluence:0,lat:0.5060,lng:9.3980,maps_url:"https://www.google.com/maps/search/Baie+des+Tortues+Luth+Libreville",description:"Hôtel balnéaire 2,5 étoiles face à l'Atlantique. Piscine extérieure, plage privée, restaurant-bar. Observation des tortues marines. Séjours nature et famille.",photo_interieur:"",photo_exterieur:""},
+    {id:116,nom:"La Maringa El Magnifico",type:"Hôtel Resort",quartier:"Akanda",ambiance:"Luxe",statut:"Statut inconnu",note:0,avis:0,contact:"+241 077 01 23 45",paiement:"Actif",affluence:0,lat:0.5050,lng:9.3990,maps_url:"https://www.google.com/maps/search/La+Maringa+El+Magnifico+Libreville",description:"Resort hôtelier avec jardin, plage privée, salon commun, restaurant et boîte de nuit. WiFi gratuit. Cadre exceptionnel au bord de l'océan.",photo_interieur:"",photo_exterieur:""},
+    {id:117,nom:"Namaste Hôtel & Restaurant",type:"Hôtel 3 étoiles",quartier:"Centre-ville",ambiance:"Familial",statut:"Statut inconnu",note:0,avis:0,contact:"+241 066 12 34 56",paiement:"Actif",affluence:0,lat:0.4050,lng:9.4440,maps_url:"https://www.google.com/maps/search/Namaste+Hotel+Libreville",description:"Hôtel familial avec jardin, terrasse, restaurant et parking privé. 18 min à pied de la Statue de l'Abolition. Ambiance chaleureuse, cuisine variée.",photo_interieur:"",photo_exterieur:""},
+    {id:118,nom:"Résidence Kaliste",type:"Résidence hôtelière",quartier:"Louis",ambiance:"Calme",statut:"Statut inconnu",note:0,avis:0,contact:"+241 077 23 45 67",paiement:"Actif",affluence:0,lat:0.4140,lng:9.4330,maps_url:"https://www.google.com/maps/search/Residence+Kaliste+Libreville",description:"Résidence 5 min à pied de la marina Michel Marine. Appartements spacieux, WiFi, parking. Idéal pour séjour d'affaires ou longue durée.",photo_interieur:"",photo_exterieur:""},
+    {id:119,nom:"Hotel Le Meridien Libreville",type:"Hôtel 5 étoiles",quartier:"Centre-ville",ambiance:"Luxe",statut:"Statut inconnu",note:0,avis:0,contact:"+241 011 72 00 00",paiement:"Actif",affluence:0,lat:0.3920,lng:9.4525,maps_url:"https://www.google.com/maps/search/Le+Meridien+Libreville",description:"Grand hôtel 5 étoiles face à l'Atlantique avec vue panoramique. Piscine, restaurants, salle de sport, spa. Référence du luxe à Libreville depuis des décennies.",photo_interieur:"",photo_exterieur:""},
+    {id:120,nom:"Hôtel Résidence Océane",type:"Résidence hôtelière",quartier:"Centre-ville",ambiance:"Calme",statut:"Statut inconnu",note:0,avis:0,contact:"+241 066 34 56 78",paiement:"Actif",affluence:0,lat:0.3955,lng:9.4475,maps_url:"https://www.google.com/maps/search/Residence+Oceane+Libreville",description:"Résidence hôtelière de qualité en centre-ville. Appartements équipés (cuisine, salon, WiFi), parking privé. Service 24h/24. À quelques minutes de la marina.",photo_interieur:"",photo_exterieur:""}
   ];
 }
 
@@ -3864,6 +4089,8 @@ function loadData(){
     setSyncing(false);renderStats();renderAll();renderHome();renderPayments();updateSyncTime();if(typeof i18n!=="undefined")i18n.applyTranslations();
     // Lancer le fetch automatique des photos Google Places pour tous les établissements sans photo
     setTimeout(autoFetchAllGooglePhotos, 400);
+    // Charger les photos de profil approuvées depuis Firebase
+    setTimeout(loadAllPhotoProfiles, 800);
     loadPaiementsFromFirebase();
     // S'abonner aux flux temps réel pour tous les établissements chargés
     if (typeof window._subscribeAllEtabs === "function") { window._subscribeAllEtabs(); }
@@ -5010,57 +5237,84 @@ function buildCard(e,delay,compact,rank){
     }
   }
 
-  // ── PHOTOS : colonne gauche slot éphémère + photo permanente plein-largeur ──
-  // Gauche : photos éphémères ce soir (slot)
-  // Bas : photo permanente plein-largeur avec barre d'actions
+  // ── PHOTOS ──
   var slotPhotos=loadSlotPhotos(e.id);
-  var permPhoto = e.photo_interieur || e.photo_exterieur || getGooglePhotoUrl(e,'exterieur') || "";
+  // ── Photo de profil : approuvée > Google auto (visible par TOUS) ──
+  var permPhoto = e._photo_profile_approved || e.photo_interieur || e.photo_exterieur || getGooglePhotoUrl(e,'exterieur') || "";
+  var isProfileApproved = !!e._photo_profile_approved;
+  var isGoogleAuto = !isProfileApproved && !!permPhoto && !e.photo_interieur && !e.photo_exterieur;
+  var canManage = isAdmin || isResponsable(e.id);
 
-  // Grille supérieure : slot photo à gauche (plein-largeur désormais)
   var photosHtml = "<div style='width:100%;'>";
 
-  // ── Slot éphémère ce soir (plein-largeur) ──
+  // ── 1. PHOTO DE PRÉSENTATION — visible par TOUS ──────────────
+  if (permPhoto) {
+    photosHtml += "<div style='position:relative;overflow:hidden;'>";
+    photosHtml += "<img src='"+permPhoto+"' style='width:100%;height:160px;object-fit:cover;display:block;cursor:zoom-in;' onclick=\"openFullscreenPhoto('"+permPhoto.replace(/'/g,"\\'")+"',"+e.id+",'profile','"+((e.nom||"").replace(/'/g,"\\'"))+"')\">";
+    // Badge source (tout le monde voit)
+    if (isProfileApproved) {
+      photosHtml += "<span style='position:absolute;top:6px;left:6px;font-size:0.5rem;font-weight:800;color:#fff;background:rgba(0,255,170,0.85);border-radius:5px;padding:0.1rem 0.35rem;letter-spacing:0.04em;pointer-events:none;'>✅ Photo officielle</span>";
+    } else if (isGoogleAuto) {
+      photosHtml += "<span style='position:absolute;top:6px;left:6px;font-size:0.5rem;font-weight:800;color:#fff;background:rgba(66,133,244,0.85);border-radius:5px;padding:0.1rem 0.35rem;letter-spacing:0.04em;pointer-events:none;'>🗺 Google Maps</span>";
+    }
+    // Bouton gestion photo — UNIQUEMENT responsable/admin
+    if (canManage) {
+      photosHtml += "<button onclick=\"event.stopPropagation();proposeGooglePhotoProfile("+e.id+")\" style='position:absolute;top:6px;right:6px;font-size:0.55rem;font-weight:800;background:rgba(255,45,155,0.85);border:none;color:#fff;border-radius:6px;padding:0.2rem 0.45rem;cursor:pointer;z-index:5;'>🖼️ Modifier</button>";
+    }
+    photosHtml += "</div>";
+  } else {
+    // Pas de photo du tout
+    photosHtml += "<div style='width:100%;height:70px;display:flex;align-items:center;justify-content:center;gap:0.6rem;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.04);'>";
+    photosHtml += "<span style='font-size:1.4rem;opacity:0.25;'>🏠</span>";
+    photosHtml += "<span style='font-size:0.58rem;color:var(--muted);'>Aucune photo de présentation</span>";
+    // Bouton ajouter — UNIQUEMENT responsable/admin
+    if (canManage) {
+      photosHtml += "<button onclick=\"proposeGooglePhotoProfile("+e.id+")\" style='font-size:0.6rem;font-weight:700;color:var(--cyan);cursor:pointer;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);padding:0.2rem 0.5rem;border-radius:6px;'>🗺️ Importer Google</button>";
+    }
+    photosHtml += "</div>";
+  }
+
+  // ── 2. GALERIE "CE SOIR" — visible par TOUS, gérée par responsable/admin ──
   photosHtml += "<div style='position:relative;height:120px;overflow:hidden;background:rgba(255,45,155,0.06);cursor:pointer;'>";
   if(slotPhotos.length>0){
     photosHtml += "<img src='"+slotPhotos[0].url+"' style='width:100%;height:100%;object-fit:cover;display:block;' onclick='openSlotLightbox("+e.id+",0)'>";
     photosHtml += "<span style='position:absolute;bottom:4px;left:4px;font-size:0.52rem;font-weight:700;color:#fff;background:rgba(0,0,0,0.6);padding:0.1rem 0.3rem;border-radius:4px;'>📸 "+slotPhotos.length+"/"+MAX_SLOT+"</span>";
     photosHtml += "<span style='position:absolute;bottom:4px;right:4px;font-size:0.5rem;color:rgba(255,255,255,0.8);background:rgba(0,0,0,0.5);padding:0.08rem 0.28rem;border-radius:4px;'>"+getTimeLeft(slotPhotos[0].ts)+"</span>";
+    // Bouton ajout/suppression — UNIQUEMENT responsable/admin
+    if(canManage && slotPhotos.length<MAX_SLOT){
+      photosHtml += "<label for='__fileSlotPhoto' style='position:absolute;top:4px;right:4px;font-size:0.55rem;font-weight:700;color:#fff;background:rgba(255,45,155,0.75);border-radius:5px;padding:0.15rem 0.4rem;cursor:pointer;z-index:5;' onclick='window.__slotUploadEid="+e.id+"'>+ Ajouter</label>";
+    }
   } else {
     photosHtml += "<div style='height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.25rem;'>";
     photosHtml += "<span style='font-size:1.5rem;opacity:0.5;'>📸</span>";
-    photosHtml += "<span style='font-size:0.55rem;color:var(--muted);'>Photos ce soir</span>";
-    if(canEditPhotos(e)){
+    photosHtml += "<span style='font-size:0.55rem;color:var(--muted);'>Galerie ce soir</span>";
+    // Bouton ajouter — UNIQUEMENT responsable/admin
+    if(canManage){
       photosHtml += "<label for='__fileSlotPhoto' style='font-size:0.6rem;font-weight:700;color:var(--pink);cursor:pointer;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.3);padding:0.2rem 0.5rem;border-radius:6px;margin-top:0.2rem;' onclick='window.__slotUploadEid="+e.id+"'>+ Ajouter</label>";
     }
     photosHtml += "</div>";
-  }
-  // Bouton ajout discret si canEdit et qu'il y a déjà des photos
-  if(canEditPhotos(e) && slotPhotos.length>0 && slotPhotos.length<MAX_SLOT){
-    photosHtml += "<label for='__fileSlotPhoto' style='position:absolute;top:4px;right:4px;font-size:0.55rem;font-weight:700;color:#fff;background:rgba(255,45,155,0.75);border-radius:5px;padding:0.15rem 0.4rem;cursor:pointer;z-index:5;' onclick='window.__slotUploadEid="+e.id+"'>+</label>";
   }
   photosHtml += "</div>";
 
   photosHtml += "</div>"; // ferme wrapper
 
-  // Photos soiree - become the main/permanent photo display
+  // Photos soiree - photo principale permanente jusqu'au prochain upload
   var sp=soireePhotos[e.id]||[];
   var soireeHtml="";
-  // Show main photo fullscreen if there are soiree photos
   if(sp.length>0){
-    // Display the latest soiree photo as main photo
     soireeHtml="<div style='position:relative;width:100%;overflow:hidden;background:rgba(255,45,155,0.04);border-top:1px solid rgba(255,255,255,0.05);'>";
     soireeHtml+="<img src='"+sp[0].url+"' style='width:100%;height:180px;object-fit:cover;display:block;cursor:zoom-in;' onclick=\"openFullscreenPhoto('"+sp[0].url.replace(/'/g,"\\'")+"',"+e.id+",'soiree','"+((e.nom||"").replace(/'/g,"\\'"))+"')\">";
-    // Action bar
     soireeHtml+="<div style='display:flex;align-items:center;gap:0.4rem;padding:0.4rem 0.55rem;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);border-top:1px solid rgba(255,255,255,0.06);'>";
     soireeHtml+="<span style='font-size:0.6rem;color:var(--muted);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>🔥 Ce soir &bull; "+getTimeLeft(sp[0].ts)+"</span>";
     soireeHtml+="<a href='"+sp[0].url+"' download style='display:flex;align-items:center;gap:0.25rem;padding:0.28rem 0.55rem;border-radius:100px;font-size:0.65rem;font-weight:700;font-family:DM Sans,sans-serif;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.35);color:var(--pink);text-decoration:none;'>⬇ Télécharger</a>";
-    if(isAdmin){
+    // Bouton ajouter galerie — UNIQUEMENT responsable/admin
+    if(canManage){
       soireeHtml+="<button class=\"add-soiree-btn\" data-soiree-id=\""+e.id+"\" style='display:flex;align-items:center;gap:0.25rem;padding:0.28rem 0.55rem;border-radius:100px;font-size:0.65rem;font-weight:700;font-family:DM Sans,sans-serif;background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.35);color:var(--cyan);cursor:pointer;'>➕ Ajouter</button>";
     }
     soireeHtml+="</div>";
     soireeHtml+="</div>";
-  } else if(!compact&&isAdmin){
-    // Show placeholder only for admin if no soiree photos
+  } else if(!compact&&canManage){
+    // Placeholder galerie vide — visible seulement si responsable/admin
     soireeHtml="<div style='width:100%;height:56px;display:flex;align-items:center;justify-content:center;gap:0.5rem;background:rgba(255,45,155,0.03);border-top:1px solid rgba(255,255,255,0.04);'>";
     soireeHtml+="<span style='font-size:1.1rem;opacity:0.4;'>🔥</span>";
     soireeHtml+="<span style='font-size:0.55rem;color:var(--muted);'>Pas de photos ce soir</span>";
@@ -8977,6 +9231,18 @@ function renderAdmModeration(){
   html+="<button onclick=\"var r=parseInt(prompt('Nouvelle affluence globale (0-100) ?','50'));if(!isNaN(r)){etablissements.forEach(function(e){updateField(e.id,{affluence:r});});showToast('Affluence mise à jour !');}\" class='adm-action-btn' style='background:rgba(0,255,170,0.06);border-color:rgba(0,255,170,0.25);color:var(--green);'>&#128202; Ajuster affluence</button>";
   html+="</div></div>";
 
+  // ── SECTION MODÉRATION PHOTOS DE PROFIL ──────────────────────
+  html += "<div style='font-family:Syne,sans-serif;font-weight:800;color:var(--pink);font-size:0.82rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.7rem;'>🖼️ Photos de Profil — Modération</div>";
+  html += "<div style='background:rgba(255,45,155,0.04);border:1px solid rgba(255,45,155,0.2);border-radius:12px;padding:0.9rem;margin-bottom:1rem;'>";
+  html += "<div style='font-size:0.72rem;color:var(--muted);margin-bottom:0.7rem;line-height:1.5;'>Google propose automatiquement la meilleure photo de chaque établissement. Le responsable ou l'admin doit approuver avant affichage.</div>";
+
+  if (!window.db) {
+    html += "<div style='text-align:center;padding:1rem;color:var(--muted);font-size:0.78rem;'>🔌 Firebase requis</div>";
+  } else {
+    html += "<div id='_photo_mod_queue'>⏳ Chargement des photos en attente...</div>";
+  }
+  html += "</div>";
+
   // Commentaires récents (depuis le cache local)
   html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--pink);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>💬 Commentaires récents</div>";
   var allComments=[];
@@ -9002,6 +9268,62 @@ function renderAdmModeration(){
   });
 
   document.getElementById("adminModerationContent").innerHTML=html;
+
+  // Charger la file de modération photos depuis Firebase
+  if (window.db) {
+    _loadPhotoModerationQueue();
+  }
+}
+
+// Charger toutes les photos en attente depuis Firebase
+function _loadPhotoModerationQueue() {
+  var container = document.getElementById("_photo_mod_queue");
+  if (!container) return;
+
+  // Chercher dans chaque établissement les photos pending
+  var promises = etablissements.slice(0, 50).map(function(e) {
+    return window.fbGetDocs(
+      window.fbQuery(
+        window.fbCollection(window.db, "etablissements", String(e.id), "photo_profile"),
+        window.fbWhere("status", "==", "pending"),
+        window.fbOrderBy("ts", "desc")
+      )
+    ).then(function(snap) {
+      var results = [];
+      snap.forEach(function(d) { results.push(Object.assign({ _docId: d.id, _eid: e.id, _nom: e.nom }, d.data())); });
+      return results;
+    }).catch(function(){ return []; });
+  });
+
+  Promise.all(promises).then(function(arrays) {
+    var pending = [].concat.apply([], arrays);
+    pending.sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
+
+    if (pending.length === 0) {
+      container.innerHTML = "<div style='text-align:center;padding:1rem;color:var(--green);font-size:0.78rem;'>✅ Aucune photo en attente de modération</div>";
+      return;
+    }
+
+    var html = "<div style='font-size:0.7rem;color:var(--amber);font-weight:700;margin-bottom:0.6rem;'>⏳ " + pending.length + " photo(s) en attente</div>";
+    pending.forEach(function(p) {
+      html += "<div style='background:rgba(255,215,0,0.04);border:1px solid rgba(255,215,0,0.2);border-radius:10px;padding:0.7rem;margin-bottom:0.6rem;'>";
+      html += "<div style='display:flex;gap:0.7rem;align-items:flex-start;'>";
+      html += "<img src='" + escHtml(p.url||"") + "' style='width:80px;height:60px;object-fit:cover;border-radius:8px;flex-shrink:0;border:1px solid rgba(255,255,255,0.1);'>";
+      html += "<div style='flex:1;min-width:0;'>";
+      html += "<div style='font-size:0.75rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>🏠 " + escHtml(p._nom||"") + "</div>";
+      html += "<div style='font-size:0.62rem;color:var(--muted);margin-top:0.1rem;'>📤 Par: " + escHtml(p.proposedBy||"?") + "</div>";
+      html += "<div style='font-size:0.62rem;color:var(--muted);'>🕐 " + timeAgo(p.ts) + "</div>";
+      html += "<div style='font-size:0.6rem;color:var(--cyan);margin-top:0.1rem;'>Source: " + escHtml(p.source||"google") + "</div>";
+      html += "</div></div>";
+      html += "<div style='display:flex;gap:0.5rem;margin-top:0.6rem;'>";
+      html += "<button onclick=\"approvePhotoProfile(" + p._eid + ",'" + p._docId + "','" + (p.url||"").replace(/'/g,"\\'") + "')\" style='flex:1;padding:0.45rem;border-radius:8px;border:none;background:rgba(0,255,170,0.15);border:1px solid rgba(0,255,170,0.4);color:var(--green);font-size:0.72rem;font-weight:700;cursor:pointer;'>✅ Approuver</button>";
+      html += "<button onclick=\"rejectPhotoProfile(" + p._eid + ",'" + p._docId + "')\" style='flex:1;padding:0.45rem;border-radius:8px;border:none;background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);color:var(--red);font-size:0.72rem;font-weight:700;cursor:pointer;'>❌ Rejeter</button>";
+      html += "<button onclick=\"openPhotoModerationModal(" + p._eid + ",['" + (p.url||"").replace(/'/g,"\\'") + "'])\" style='padding:0.45rem 0.6rem;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--muted);font-size:0.72rem;cursor:pointer;'>👁</button>";
+      html += "</div></div>";
+    });
+
+    container.innerHTML = html;
+  });
 }
 
 // ── Historique des connexions (Admin) ──────────────────────────
