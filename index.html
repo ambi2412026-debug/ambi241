@@ -6658,7 +6658,7 @@ function renderAll(){
     } else {
       emptyMsg = "<div style=\"text-align:center;padding:3rem;color:var(--muted)\">Aucun etablissement visible</div>";
     }
-    document.getElementById("mainList").innerHTML=archivedHtml+emptyMsg;
+    document.getElementById("mainList").innerHTML=emptyMsg+archivedHtml;
     return;
   }
   // ── GPS banner dans la liste ──
@@ -6674,9 +6674,9 @@ function renderAll(){
       +"</div>";
   }
 
-  var html=archivedHtml+gpsBannerHtml;
+  // Actifs en PREMIER — archivés tout en BAS
+  var html=gpsBannerHtml;
   if(currentView==="liste"){
-    html+=archivedHtml?"":"";
     html+="<div class=\"cards-list\">";
     data.forEach(function(e,i){html+=buildCard(e,i*0.04,false,i+1);});
     html+="</div>";
@@ -6684,7 +6684,6 @@ function renderAll(){
     var groups={};
     data.forEach(function(e){var c=getCategory(e.type);if(!groups[c])groups[c]=[];groups[c].push(e);});
     var catHtml="";
-    // Compteur global pour numérotation continue entre catégories
     var globalRank=0;
     CATEGORIES.forEach(function(cat){
       if(groups[cat.key]&&groups[cat.key].length>0){
@@ -6695,7 +6694,6 @@ function renderAll(){
         catHtml+="</div></div>";
       }
     });
-    // Fallback: si aucune catégorie reconnue, afficher en liste
     if(!catHtml){
       catHtml+="<div class=\"cards-list\">";
       data.forEach(function(e,i){catHtml+=buildCard(e,i*0.04,false,i+1);});
@@ -6703,6 +6701,8 @@ function renderAll(){
     }
     html+=catHtml;
   }
+  // Archivés tout en bas (admin uniquement)
+  html+=archivedHtml;
   // Vue carte : mettre à jour les marqueurs si la carte est visible
   if(currentView==="carte"){
     var mc=document.getElementById("mapContainer");
