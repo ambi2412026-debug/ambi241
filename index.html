@@ -10092,37 +10092,64 @@ window.executeSuperReset = function(){
     wipeCollection(collectionsToWipe[idx], function(){ idx++; nextCollection(); });
   }
 
+  // Efface une sous-collection complète d'un établissement
+  function wipeSubCol(docId, subCol){
+    return window.fbGetDocs(window.fbCollection(window.db, "etablissements", docId, subCol))
+      .then(function(snap){
+        if(!snap.size) return Promise.resolve();
+        var dels = snap.docs.map(function(d){
+          return window.fbDeleteDoc(window.fbDoc(window.db, "etablissements", docId, subCol, d.id));
+        });
+        return Promise.all(dels);
+      })
+      .catch(function(err){ errors.push("etab/"+docId+"/"+subCol+": "+err.message); });
+  }
+
   function resetEtablissementsDynamic(){
-    setStatus("⏳ Réinitialisation des établissements...");
-    var promises = [];
-    etablissements.forEach(function(e){
-      if(!e._docId && !e.id) return;
-      var docId = e._docId || String(e.id);
-      var updateData = {
-        affluence: 50,
-        statut: "Ferme",
-        ambiance: "Chill",
-        event_flash: {}
-      };
-      // Supprimer aussi les ratings (sous-collection) via query
-      promises.push(
-        window.fbUpdateDoc(window.fbDoc(window.db, "etablissements", docId), updateData)
+    setStatus("⏳ Lecture de tous les établissements Firebase...");
+
+    // Lire TOUS les docs Firebase (pas seulement ceux en mémoire locale)
+    window.fbGetDocs(window.fbCollection(window.db, "etablissements")).then(function(snap){
+      var promises = [];
+      var total = snap.size;
+      var done = 0;
+
+      snap.forEach(function(docSnap){
+        var docId = docSnap.id;
+        var updateData = {
+          affluence: 50,
+          statut: "Ferme",
+          ambiance: "Chill",
+          event_flash: {},
+          note: 0,
+          avis: 0
+        };
+
+        var p = window.fbUpdateDoc(window.fbDoc(window.db, "etablissements", docId), updateData)
           .then(function(){
-            // Ratings sous-collection
-            return window.fbGetDocs(window.fbCollection(window.db, "etablissements", docId, "ratings"));
+            // Effacer les 3 sous-collections dynamiques
+            return Promise.all([
+              wipeSubCol(docId, "ratings"),
+              wipeSubCol(docId, "presences"),
+              wipeSubCol(docId, "votes")
+            ]);
           })
-          .then(function(rSnap){
-            var rdels = rSnap.docs.map(function(rd){
-              return window.fbDeleteDoc(window.fbDoc(window.db, "etablissements", docId, "ratings", rd.id));
-            });
-            return Promise.all(rdels);
+          .then(function(){
+            done++;
+            setStatus("⏳ " + done + "/" + total + " établissements traités...");
           })
-          .catch(function(err){ errors.push("etab "+docId+": "+err.message); })
-      );
-    });
-    Promise.all(promises).then(function(){
+          .catch(function(err){ errors.push("etab "+docId+": "+err.message); });
+
+        promises.push(p);
+      });
+
+      if(!promises.length){ finalizeReset(); return; }
+      Promise.all(promises).then(finalizeReset).catch(finalizeReset);
+
+    }).catch(function(err){
+      errors.push("Lecture Firebase: "+err.message);
       finalizeReset();
-    }).catch(function(){ finalizeReset(); });
+    });
   }
 
   function finalizeReset(){
