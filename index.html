@@ -3237,91 +3237,308 @@ function isResponsable(eid) {
 window.isResponsable = isResponsable;
 
 /* ── Modal de sélection/modération de photo de profil ── */
+/* ══ PHOTOS UNSPLASH PAR CATÉGORIE ══ */
+var UNSPLASH_CAT_PHOTOS = {
+  "Bar": [
+    "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800&q=80",
+    "https://images.unsplash.com/photo-1555658636-6e4a36218be7?w=800&q=80",
+    "https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=800&q=80",
+    "https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=800&q=80",
+    "https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=800&q=80",
+    "https://images.unsplash.com/photo-1543007630-9710e4a00a20?w=800&q=80"
+  ],
+  "Discotheque": [
+    "https://images.unsplash.com/photo-1571266028243-d220c6a7c1ad?w=800&q=80",
+    "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&q=80",
+    "https://images.unsplash.com/photo-1598387993441-a364f854cef4?w=800&q=80",
+    "https://images.unsplash.com/photo-1540039155733-5bb30b4f2d59?w=800&q=80",
+    "https://images.unsplash.com/photo-1574391884720-bbc3740c59d1?w=800&q=80",
+    "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80"
+  ],
+  "Restaurant": [
+    "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&q=80",
+    "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80",
+    "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800&q=80",
+    "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&q=80",
+    "https://images.unsplash.com/photo-1550966871-3ed3cfd3d9a4?w=800&q=80",
+    "https://images.unsplash.com/photo-1578474846511-04ba529f0b88?w=800&q=80"
+  ],
+  "Snack": [
+    "https://images.unsplash.com/photo-1571091718767-18b5b1457add?w=800&q=80",
+    "https://images.unsplash.com/photo-1565299507177-b0ac66763828?w=800&q=80",
+    "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&q=80",
+    "https://images.unsplash.com/photo-1606755962773-d324e0a13086?w=800&q=80"
+  ],
+  "Hotel": [
+    "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80",
+    "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=800&q=80",
+    "https://images.unsplash.com/photo-1445019980597-93fa8acb246c?w=800&q=80",
+    "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=800&q=80"
+  ],
+  "Bar Terrasse": [
+    "https://images.unsplash.com/photo-1559329007-40df8a9345d8?w=800&q=80",
+    "https://images.unsplash.com/photo-1600891964599-f61ba0e24092?w=800&q=80",
+    "https://images.unsplash.com/photo-1533777857889-4be7c70b33f7?w=800&q=80",
+    "https://images.unsplash.com/photo-1590846406792-0adc7f938f1d?w=800&q=80"
+  ]
+};
+
+function getUnsplashForEtab(e) {
+  var cat = getCategory(e.type || "");
+  var arr = UNSPLASH_CAT_PHOTOS[cat] || UNSPLASH_CAT_PHOTOS["Bar"];
+  // Choisir une photo cohérente basée sur l'id de l'établissement
+  return arr[((e.id || 0) - 1) % arr.length];
+}
+
 function openPhotoModerationModal(eid, googleUrls) {
   var existing = document.getElementById("__photoModerationModal");
   if (existing) existing.remove();
 
   var etab = etablissements.find(function(x){ return String(x.id) === String(eid); }) || {};
   var currentApproved = etab._photo_profile_approved || null;
-  var urls = googleUrls || (etab._gphoto_urls || []);
+  var googleUrls2 = googleUrls || (etab._gphoto_urls || []);
+  var cat = getCategory(etab.type || "");
+  var unsplashList = UNSPLASH_CAT_PHOTOS[cat] || UNSPLASH_CAT_PHOTOS["Bar"];
 
-  var html = "<div id='__photoModerationModal' style='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.88);display:flex;align-items:flex-end;justify-content:center;padding:1rem;'>";
-  html += "<div style='background:var(--surface);border:1px solid rgba(255,45,155,0.3);border-radius:20px 20px 16px 16px;width:100%;max-width:460px;max-height:88vh;overflow-y:auto;padding:1.2rem;'>";
+  var html = "<div id='__photoModerationModal' style='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.92);display:flex;align-items:flex-end;justify-content:center;padding:0.75rem;'>";
+  html += "<div style='background:var(--surface);border:1px solid rgba(255,45,155,0.35);border-radius:22px 22px 16px 16px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto;padding:1.2rem 1.1rem;position:relative;'>";
+
+  // Barre déco top
+  html += "<div style='position:absolute;top:0;left:0;right:0;height:4px;border-radius:22px 22px 0 0;background:linear-gradient(90deg,var(--pink),var(--purple),var(--cyan));'></div>";
 
   // Header
-  html += "<div style='display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem;'>";
-  html += "<span style='font-size:1.3rem;'>🖼️</span>";
-  html += "<div style='flex:1;'><div style='font-family:Syne,sans-serif;font-weight:800;color:var(--pink);font-size:0.92rem;'>Photo de Profil</div>";
-  html += "<div style='font-size:0.68rem;color:var(--muted);'>" + escHtml(etab.nom || "") + " — Choisir la meilleure photo</div></div>";
-  html += "<button onclick=\"document.getElementById('__photoModerationModal').remove()\" style='background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--muted);border-radius:8px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.8rem;'>✕</button>";
+  html += "<div style='display:flex;align-items:center;gap:0.7rem;margin-bottom:1.1rem;margin-top:0.5rem;'>";
+  html += "<div style='width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,rgba(255,45,155,0.2),rgba(204,68,255,0.2));border:1px solid rgba(255,45,155,0.4);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;'>🖼️</div>";
+  html += "<div style='flex:1;min-width:0;'><div style='font-family:Syne,sans-serif;font-weight:800;color:var(--pink);font-size:0.95rem;'>Photo de présentation</div>";
+  html += "<div style='font-size:0.68rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>" + escHtml(etab.nom || "") + "</div></div>";
+  html += "<button onclick=\"document.getElementById('__photoModerationModal').remove()\" style='background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);color:var(--muted);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:0.9rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;'>✕</button>";
   html += "</div>";
 
-  // Photo actuelle approuvée
+  // ── Photo active actuelle ──
   if (currentApproved) {
-    html += "<div style='margin-bottom:1rem;'>";
-    html += "<div style='font-size:0.65rem;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem;'>✅ Photo active actuellement</div>";
+    html += "<div style='margin-bottom:1.1rem;'>";
+    html += "<div style='font-size:0.6rem;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.45rem;display:flex;align-items:center;gap:0.3rem;'>✅ Photo active</div>";
     html += "<div style='position:relative;border-radius:12px;overflow:hidden;border:2px solid rgba(0,255,170,0.5);'>";
-    html += "<img src='" + currentApproved + "' style='width:100%;height:140px;object-fit:cover;display:block;'>";
-    html += "<span style='position:absolute;top:6px;right:6px;background:rgba(0,255,170,0.9);color:#000;font-size:0.55rem;font-weight:800;padding:0.15rem 0.4rem;border-radius:6px;'>PROFIL ACTIF</span>";
+    html += "<img src='" + currentApproved + "' style='width:100%;height:130px;object-fit:cover;display:block;'>";
+    html += "<span style='position:absolute;top:6px;right:6px;background:rgba(0,255,170,0.92);color:#000;font-size:0.5rem;font-weight:800;padding:0.12rem 0.4rem;border-radius:5px;'>✓ PROFIL ACTIF</span>";
+    html += "<button onclick=\"clearPhotoProfile("+eid+")\" style='position:absolute;bottom:6px;right:6px;background:rgba(255,68,102,0.85);border:none;color:#fff;font-size:0.55rem;font-weight:800;padding:0.15rem 0.45rem;border-radius:6px;cursor:pointer;'>🗑 Retirer</button>";
     html += "</div></div>";
   }
 
-  // Photos Google disponibles
-  if (urls.length > 0) {
-    html += "<div style='font-size:0.65rem;font-weight:800;color:var(--cyan);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;'>🗺️ Photos Google Maps disponibles</div>";
-    html += "<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:1rem;'>";
-    urls.forEach(function(url, i) {
-      var isCurrent = (url === currentApproved);
-      html += "<div onclick=\"selectGooglePhotoProfile(" + eid + ",'" + url.replace(/'/g,"\\'") + "',this)\" style='position:relative;border-radius:10px;overflow:hidden;border:2px solid " + (isCurrent ? "rgba(0,255,170,0.6)" : "rgba(255,255,255,0.1)") + ";cursor:pointer;transition:border-color 0.2s;'>";
-      html += "<img src='" + url + "' style='width:100%;height:90px;object-fit:cover;display:block;'>";
-      if (i === 0) html += "<span style='position:absolute;top:4px;left:4px;background:rgba(255,45,155,0.9);color:#fff;font-size:0.5rem;font-weight:800;padding:0.1rem 0.3rem;border-radius:4px;'>⭐ MEILLEURE</span>";
-      if (isCurrent) html += "<span style='position:absolute;bottom:4px;right:4px;background:rgba(0,255,170,0.9);color:#000;font-size:0.5rem;font-weight:800;padding:0.1rem 0.3rem;border-radius:4px;'>✓ ACTIVE</span>";
-      html += "</div>";
-    });
-    html += "</div>";
-  } else {
-    html += "<div style='text-align:center;padding:1.5rem;color:var(--muted);font-size:0.78rem;'>⏳ Chargement des photos Google en cours...</div>";
+  // ── Onglets sources ──
+  html += "<div style='display:flex;gap:0.3rem;background:rgba(255,255,255,0.04);border-radius:12px;padding:0.2rem;margin-bottom:1rem;'>";
+  html += "<button id='_ppm_tab_gallery' onclick=\"_ppmSwitchTab('gallery')\" style='flex:1;padding:0.45rem 0.2rem;border-radius:9px;border:none;background:var(--pink);color:#000;font-size:0.68rem;font-weight:800;cursor:pointer;font-family:DM Sans,sans-serif;transition:all 0.2s;'>📱 Galerie</button>";
+  html += "<button id='_ppm_tab_url' onclick=\"_ppmSwitchTab('url')\" style='flex:1;padding:0.45rem 0.2rem;border-radius:9px;border:none;background:transparent;color:var(--muted);font-size:0.68rem;font-weight:800;cursor:pointer;font-family:DM Sans,sans-serif;transition:all 0.2s;'>🔗 URL</button>";
+  html += "<button id='_ppm_tab_unsplash' onclick=\"_ppmSwitchTab('unsplash')\" style='flex:1;padding:0.45rem 0.2rem;border-radius:9px;border:none;background:transparent;color:var(--muted);font-size:0.68rem;font-weight:800;cursor:pointer;font-family:DM Sans,sans-serif;transition:all 0.2s;'>✨ Auto</button>";
+  if (googleUrls2.length > 0) {
+    html += "<button id='_ppm_tab_google' onclick=\"_ppmSwitchTab('google')\" style='flex:1;padding:0.45rem 0.2rem;border-radius:9px;border:none;background:transparent;color:var(--muted);font-size:0.68rem;font-weight:800;cursor:pointer;font-family:DM Sans,sans-serif;transition:all 0.2s;'>🗺 Google</button>";
   }
-
-  // Bouton valider la sélection
-  html += "<div id='_ppm_selected_preview' style='display:none;margin-bottom:0.8rem;'>";
-  html += "<div style='font-size:0.65rem;font-weight:800;color:var(--amber);text-transform:uppercase;margin-bottom:0.4rem;'>📌 Sélectionnée</div>";
-  html += "<img id='_ppm_selected_img' src='' style='width:100%;height:110px;object-fit:cover;border-radius:10px;border:2px solid rgba(255,215,0,0.5);'>";
   html += "</div>";
 
-  html += "<button id='_ppm_confirm_btn' onclick=\"confirmPhotoProfileSelection(" + eid + ")\" style='display:none;width:100%;padding:0.75rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;'>✅ Approuver cette photo comme profil</button>";
+  // ── Panneau GALERIE ──
+  html += "<div id='_ppm_panel_gallery' style='display:block;'>";
+  html += "<div style='border:2px dashed rgba(255,45,155,0.4);border-radius:14px;padding:1.5rem 1rem;text-align:center;background:rgba(255,45,155,0.04);position:relative;cursor:pointer;' onclick=\"document.getElementById('_ppm_file_input').click()\">";
+  html += "<div style='font-size:2.5rem;margin-bottom:0.5rem;'>📱</div>";
+  html += "<div style='font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;color:var(--pink);margin-bottom:0.2rem;'>Choisir depuis la galerie</div>";
+  html += "<div style='font-size:0.7rem;color:var(--muted);'>JPG, PNG, WEBP — Toutes sources acceptées</div>";
+  html += "<div style='margin-top:0.8rem;display:inline-flex;align-items:center;gap:0.4rem;padding:0.4rem 1rem;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;border-radius:20px;font-size:0.75rem;font-weight:800;'>📂 Ouvrir la galerie</div>";
+  html += "</div>";
+  html += "<input type='file' id='_ppm_file_input' accept='image/*' style='display:none;position:absolute;' onchange='_ppmFileSelected(this," + eid + ")'>";
+  html += "<div id='_ppm_gallery_preview' style='display:none;margin-top:0.9rem;border-radius:12px;overflow:hidden;border:2px solid rgba(255,215,0,0.5);position:relative;'>";
+  html += "<img id='_ppm_gallery_img' src='' style='width:100%;height:160px;object-fit:cover;display:block;'>";
+  html += "<span style='position:absolute;top:6px;left:6px;background:rgba(255,215,0,0.9);color:#000;font-size:0.5rem;font-weight:800;padding:0.12rem 0.4rem;border-radius:5px;'>📸 PHOTO CHOISIE</span>";
+  html += "</div>";
+  html += "</div>";
 
+  // ── Panneau URL ──
+  html += "<div id='_ppm_panel_url' style='display:none;'>";
+  html += "<div style='font-size:0.65rem;color:var(--muted);margin-bottom:0.6rem;line-height:1.5;'>Collez le lien d'une photo depuis Google Maps, Facebook, Instagram ou n'importe quel site web.</div>";
+  html += "<input type='url' id='_ppm_url_input' placeholder='https://...' style='width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(0,229,255,0.3);border-radius:10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.85rem;padding:0.65rem 0.9rem;outline:none;margin-bottom:0.7rem;box-sizing:border-box;' oninput=\"_ppmUrlPreview(this.value," + eid + ")\">";
+  html += "<div id='_ppm_url_preview' style='display:none;border-radius:12px;overflow:hidden;border:2px solid rgba(0,229,255,0.4);position:relative;'>";
+  html += "<img id='_ppm_url_img' src='' style='width:100%;height:150px;object-fit:cover;display:block;' onerror=\"document.getElementById('_ppm_url_preview').style.display='none';document.getElementById('_ppm_url_err').style.display='block';\">";
+  html += "<span style='position:absolute;top:6px;left:6px;background:rgba(0,229,255,0.9);color:#000;font-size:0.5rem;font-weight:800;padding:0.12rem 0.4rem;border-radius:5px;'>🔗 APERÇU</span>";
+  html += "</div>";
+  html += "<div id='_ppm_url_err' style='display:none;color:var(--red);font-size:0.72rem;text-align:center;padding:0.5rem;'>❌ Impossible de charger cette image</div>";
+  html += "</div>";
+
+  // ── Panneau UNSPLASH AUTO ──
+  html += "<div id='_ppm_panel_unsplash' style='display:none;'>";
+  html += "<div style='font-size:0.62rem;color:var(--muted);margin-bottom:0.7rem;'>Photos professionnelles sélectionnées pour <strong style='color:var(--text);'>" + cat + "</strong> — cliquez pour choisir :</div>";
+  html += "<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.4rem;'>";
+  unsplashList.forEach(function(url, i) {
+    html += "<div onclick=\"_ppmSelectUrl(" + eid + ",'" + url + "',this,'unsplash')\" style='position:relative;border-radius:8px;overflow:hidden;border:2px solid rgba(255,255,255,0.08);cursor:pointer;aspect-ratio:1;transition:border-color 0.15s;'>";
+    html += "<img src='" + url + "' style='width:100%;height:100%;object-fit:cover;display:block;' loading='lazy'>";
+    if (i === 0) html += "<span style='position:absolute;top:3px;left:3px;background:rgba(255,45,155,0.9);color:#fff;font-size:0.45rem;font-weight:800;padding:0.08rem 0.25rem;border-radius:3px;'>⭐</span>";
+    html += "</div>";
+  });
   html += "</div></div>";
 
+  // ── Panneau GOOGLE ──
+  if (googleUrls2.length > 0) {
+    html += "<div id='_ppm_panel_google' style='display:none;'>";
+    html += "<div style='font-size:0.62rem;color:var(--muted);margin-bottom:0.7rem;'>Photos récupérées automatiquement depuis Google Maps :</div>";
+    html += "<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;'>";
+    googleUrls2.forEach(function(url, i) {
+      var isCurrent = (url === currentApproved);
+      html += "<div onclick=\"_ppmSelectUrl(" + eid + ",'" + url.replace(/'/g,"\\'") + "',this,'google')\" style='position:relative;border-radius:10px;overflow:hidden;border:2px solid " + (isCurrent ? "rgba(0,255,170,0.6)" : "rgba(255,255,255,0.1)") + ";cursor:pointer;'>";
+      html += "<img src='" + url + "' style='width:100%;height:90px;object-fit:cover;display:block;'>";
+      if (i === 0) html += "<span style='position:absolute;top:4px;left:4px;background:rgba(255,45,155,0.9);color:#fff;font-size:0.45rem;font-weight:800;padding:0.08rem 0.28rem;border-radius:3px;'>⭐</span>";
+      if (isCurrent) html += "<span style='position:absolute;bottom:4px;right:4px;background:rgba(0,255,170,0.9);color:#000;font-size:0.45rem;font-weight:800;padding:0.08rem 0.28rem;border-radius:3px;'>✓ ACTIVE</span>";
+      html += "</div>";
+    });
+    html += "</div></div>";
+  }
+
+  // ── Preview finale ──
+  html += "<div id='_ppm_final_preview' style='display:none;margin-top:1rem;'>";
+  html += "<div style='display:flex;align-items:center;gap:0.4rem;margin-bottom:0.45rem;'>";
+  html += "<div style='font-size:0.6rem;font-weight:800;color:var(--amber);text-transform:uppercase;letter-spacing:0.08em;'>📌 Photo sélectionnée</div>";
+  html += "<div id='_ppm_source_badge' style='font-size:0.52rem;font-weight:700;padding:0.1rem 0.35rem;border-radius:4px;background:rgba(255,215,0,0.15);color:var(--amber);'></div>";
+  html += "</div>";
+  html += "<div style='border-radius:12px;overflow:hidden;border:2px solid rgba(255,215,0,0.5);'>";
+  html += "<img id='_ppm_final_img' src='' style='width:100%;height:150px;object-fit:cover;display:block;'>";
+  html += "</div></div>";
+
+  // ── Bouton confirmer ──
+  html += "<button id='_ppm_confirm_btn' onclick=\"confirmPhotoProfileSelection(" + eid + ")\" style='display:none;width:100%;padding:0.8rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;margin-top:0.8rem;box-shadow:0 4px 20px rgba(255,45,155,0.35);'>✅ Appliquer comme photo officielle</button>";
+
+  html += "</div></div>";
   document.body.insertAdjacentHTML("beforeend", html);
+
+  // Injecter les handlers dans le DOM après insertion
+  var fileInput = document.getElementById("_ppm_file_input");
+  if (fileInput) {
+    fileInput.addEventListener("change", function(){ _ppmFileSelected(this, eid); });
+  }
 }
 window.openPhotoModerationModal = openPhotoModerationModal;
 
-// Sélection d'une photo dans la grille
+// ── Switcher d'onglets ──
+window._ppmSwitchTab = function(tab) {
+  var panels = ["gallery","url","unsplash","google"];
+  panels.forEach(function(p){
+    var panel = document.getElementById("_ppm_panel_" + p);
+    var btn   = document.getElementById("_ppm_tab_" + p);
+    if (panel) panel.style.display = (p === tab) ? "block" : "none";
+    if (btn) {
+      btn.style.background = (p === tab) ? "var(--pink)" : "transparent";
+      btn.style.color      = (p === tab) ? "#000" : "var(--muted)";
+    }
+  });
+};
+
+// ── Sélection depuis galerie (file input) ──
+window._ppmFileSelected = function(input, eid) {
+  var file = input && input.files && input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var dataUrl = ev.target.result;
+    // Afficher preview
+    var preview = document.getElementById("_ppm_gallery_preview");
+    var img     = document.getElementById("_ppm_gallery_img");
+    if (preview) preview.style.display = "block";
+    if (img)     img.src = dataUrl;
+    // Définir comme sélectionnée
+    window._ppm_selected_url  = dataUrl;
+    window._ppm_selected_eid  = eid;
+    window._ppm_selected_src  = "gallery";
+    _ppmShowFinal(dataUrl, "📱 Galerie");
+  };
+  reader.readAsDataURL(file);
+};
+
+// ── Preview URL en temps réel ──
+window._ppmUrlPreview = function(url, eid) {
+  if (!url || url.length < 10) return;
+  var preview = document.getElementById("_ppm_url_preview");
+  var img     = document.getElementById("_ppm_url_img");
+  var err     = document.getElementById("_ppm_url_err");
+  if (!preview || !img) return;
+  if (err) err.style.display = "none";
+  img.src = url;
+  img.onload = function() {
+    preview.style.display = "block";
+    window._ppm_selected_url = url;
+    window._ppm_selected_eid = eid;
+    window._ppm_selected_src = "url";
+    _ppmShowFinal(url, "🔗 URL");
+  };
+};
+
+// ── Sélection depuis grille (Unsplash ou Google) ──
+window._ppmSelectUrl = function(eid, url, el, src) {
+  // Highlight
+  var grid = el.parentElement;
+  Array.from(grid.children).forEach(function(c){ c.style.borderColor = "rgba(255,255,255,0.08)"; });
+  el.style.borderColor = "rgba(255,215,0,0.8)";
+  window._ppm_selected_url = url;
+  window._ppm_selected_eid = eid;
+  window._ppm_selected_src = src;
+  var label = src === "google" ? "🗺 Google" : "✨ Auto";
+  _ppmShowFinal(url, label);
+};
+
+// ── Afficher la preview finale + bouton confirmer ──
+function _ppmShowFinal(url, label) {
+  var fp  = document.getElementById("_ppm_final_preview");
+  var fi  = document.getElementById("_ppm_final_img");
+  var fb  = document.getElementById("_ppm_confirm_btn");
+  var sb  = document.getElementById("_ppm_source_badge");
+  if (fp) fp.style.display = "block";
+  if (fi) fi.src = url;
+  if (sb) sb.textContent = label;
+  if (fb) fb.style.display = "block";
+  // Scroll vers le bas du modal
+  var modal = document.getElementById("__photoModerationModal");
+  if (modal) {
+    var inner = modal.querySelector("div");
+    if (inner) setTimeout(function(){ inner.scrollTop = inner.scrollHeight; }, 100);
+  }
+}
+
+// ── Retirer la photo de profil ──
+window.clearPhotoProfile = function(eid) {
+  var etab = etablissements.find(function(x){ return String(x.id) === String(eid); });
+  if (!etab) return;
+  etab._photo_profile_approved = null;
+  var eidStr = String(eid);
+  _photoProfileCache[eidStr] = null;
+  if (window.db && window.fbGetDocs && window.fbCollection && window.fbUpdateDoc && window.fbDoc) {
+    window.fbGetDocs(window.fbCollection(window.db,"etablissements",eidStr,"photo_profile"))
+      .then(function(snap){
+        snap.docs.forEach(function(d){
+          window.fbUpdateDoc(window.fbDoc(window.db,"etablissements",eidStr,"photo_profile",d.id),{status:"removed"}).catch(function(){});
+        });
+      }).catch(function(){});
+  }
+  var modal = document.getElementById("__photoModerationModal");
+  if (modal) modal.remove();
+  renderAll(); renderHome();
+  showToast("🗑 Photo retirée");
+};
+
+// Sélection d'une photo dans la grille (compatibilité ancienne API)
 window._ppm_selected_url = null;
 function selectGooglePhotoProfile(eid, url, el) {
   window._ppm_selected_url = url;
   window._ppm_selected_eid = eid;
-  // Highlight sélection
+  window._ppm_selected_src = "google";
   var grid = el.parentElement;
   Array.from(grid.children).forEach(function(c){ c.style.borderColor = "rgba(255,255,255,0.1)"; });
   el.style.borderColor = "rgba(255,215,0,0.8)";
-  // Afficher preview
-  var preview = document.getElementById("_ppm_selected_preview");
-  var img = document.getElementById("_ppm_selected_img");
-  var btn = document.getElementById("_ppm_confirm_btn");
-  if (preview) preview.style.display = "block";
-  if (img) img.src = url;
-  if (btn) btn.style.display = "block";
+  _ppmShowFinal(url, "🗺 Google");
 }
 window.selectGooglePhotoProfile = selectGooglePhotoProfile;
 
 function confirmPhotoProfileSelection(eid) {
   var url = window._ppm_selected_url;
+  var src = window._ppm_selected_src || "manual";
   if (!url) { showToast("Sélectionnez une photo d'abord"); return; }
-  savePhotoProfile(eid, url, "google");
+  savePhotoProfile(eid, url, src);
   var modal = document.getElementById("__photoModerationModal");
   if (modal) modal.remove();
+  showToast("✅ Photo appliquée !");
 }
 window.confirmPhotoProfileSelection = confirmPhotoProfileSelection;
 
@@ -3570,7 +3787,7 @@ var MAX_SLOT=5;
 function loadSlotPhotos(eid){
   var stored=lsGetJSON("ambi241_slot_photos", {});
   var now=Date.now();
-  return (stored[eid]||[]).filter(function(p){return(now-p.ts)<36000000;});
+  return (stored[eid]||[]);
 }
 // ── PAIEMENTS : chargés depuis Firebase, pas de base hardcodée fictive ──
 var _paiementsBase=[];  // sera alimenté exclusivement par Firebase + établissements réels
@@ -3732,8 +3949,8 @@ function loadSoireePhotos(){
   var now=Date.now();
   var cleaned={};
   Object.keys(stored).forEach(function(id){
-    var p=stored[id].filter(function(x){return(now-x.ts)<36000000;});
-    if(p.length>0)cleaned[id]=p;
+    var p=stored[id];
+    if(p&&p.length>0)cleaned[id]=p;
   });
   lsSetJSON("ambi241_soiree", cleaned);
   soireePhotos=cleaned;
@@ -3746,11 +3963,7 @@ function saveSoireePhoto(eid,dataUrl){
   soireePhotos=stored;
 }
 function getTimeLeft(ts){
-  var left=36000000-(Date.now()-ts);
-  if(left<=0)return"Expiree";
-  var h=Math.floor(left/3600000);
-  var m=Math.floor((left%3600000)/60000);
-  return h+"h"+String(m).padStart(2,"0");
+  return "Permanent";
 }
 loadSoireePhotos();
 
@@ -5241,35 +5454,37 @@ function buildCard(e,delay,compact,rank){
   var slotPhotos=loadSlotPhotos(e.id);
   // ── Photo de profil : approuvée > Google auto (visible par TOUS) ──
   var permPhoto = e._photo_profile_approved || e.photo_interieur || e.photo_exterieur || getGooglePhotoUrl(e,'exterieur') || "";
+  var unsplashFallback = getUnsplashForEtab(e);
+  var displayPhoto = permPhoto || unsplashFallback;
   var isProfileApproved = !!e._photo_profile_approved;
   var isGoogleAuto = !isProfileApproved && !!permPhoto && !e.photo_interieur && !e.photo_exterieur;
+  var isUnsplashFallback = !permPhoto && !!unsplashFallback;
   var canManage = isAdmin || isResponsable(e.id);
 
   var photosHtml = "<div style='width:100%;'>";
 
   // ── 1. PHOTO DE PRÉSENTATION — visible par TOUS ──────────────
-  if (permPhoto) {
+  if (displayPhoto) {
     photosHtml += "<div style='position:relative;overflow:hidden;'>";
-    photosHtml += "<img src='"+permPhoto+"' style='width:100%;height:160px;object-fit:cover;display:block;cursor:zoom-in;' onclick=\"openFullscreenPhoto('"+permPhoto.replace(/'/g,"\\'")+"',"+e.id+",'profile','"+((e.nom||"").replace(/'/g,"\\'"))+"')\">";
-    // Badge source (tout le monde voit)
+    photosHtml += "<img src='"+displayPhoto+"' style='width:100%;height:160px;object-fit:cover;display:block;cursor:zoom-in;' onclick=\"openFullscreenPhoto('"+displayPhoto.replace(/'/g,"\\'")+"',"+e.id+",'profile','"+((e.nom||"").replace(/'/g,"\\'"))+"')\">";
     if (isProfileApproved) {
       photosHtml += "<span style='position:absolute;top:6px;left:6px;font-size:0.5rem;font-weight:800;color:#fff;background:rgba(0,255,170,0.85);border-radius:5px;padding:0.1rem 0.35rem;letter-spacing:0.04em;pointer-events:none;'>✅ Photo officielle</span>";
     } else if (isGoogleAuto) {
       photosHtml += "<span style='position:absolute;top:6px;left:6px;font-size:0.5rem;font-weight:800;color:#fff;background:rgba(66,133,244,0.85);border-radius:5px;padding:0.1rem 0.35rem;letter-spacing:0.04em;pointer-events:none;'>🗺 Google Maps</span>";
+    } else if (isUnsplashFallback) {
+      photosHtml += "<span style='position:absolute;top:6px;left:6px;font-size:0.5rem;font-weight:800;color:#fff;background:rgba(180,100,255,0.85);border-radius:5px;padding:0.1rem 0.35rem;letter-spacing:0.04em;pointer-events:none;'>✨ Photo type</span>";
     }
-    // Bouton gestion photo — UNIQUEMENT responsable/admin
     if (canManage) {
-      photosHtml += "<button onclick=\"event.stopPropagation();proposeGooglePhotoProfile("+e.id+")\" style='position:absolute;top:6px;right:6px;font-size:0.55rem;font-weight:800;background:rgba(255,45,155,0.85);border:none;color:#fff;border-radius:6px;padding:0.2rem 0.45rem;cursor:pointer;z-index:5;'>🖼️ Modifier</button>";
+      photosHtml += "<button onclick=\"event.stopPropagation();proposeGooglePhotoProfile("+e.id+")\" style='position:absolute;top:6px;right:6px;font-size:0.55rem;font-weight:800;background:rgba(255,45,155,0.88);border:none;color:#fff;border-radius:8px;padding:0.22rem 0.55rem;cursor:pointer;z-index:5;box-shadow:0 2px 8px rgba(255,45,155,0.4);'>📷 Photo</button>";
     }
     photosHtml += "</div>";
   } else {
-    // Pas de photo du tout
-    photosHtml += "<div style='width:100%;height:70px;display:flex;align-items:center;justify-content:center;gap:0.6rem;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.04);'>";
-    photosHtml += "<span style='font-size:1.4rem;opacity:0.25;'>🏠</span>";
-    photosHtml += "<span style='font-size:0.58rem;color:var(--muted);'>Aucune photo de présentation</span>";
-    // Bouton ajouter — UNIQUEMENT responsable/admin
+    photosHtml += "<div style='width:100%;height:90px;display:flex;align-items:center;justify-content:center;gap:0.6rem;background:linear-gradient(135deg,rgba(255,45,155,0.06),rgba(204,68,255,0.04));border-bottom:1px solid rgba(255,255,255,0.04);'>";
+    photosHtml += "<span style='font-size:1.8rem;opacity:0.3;'>🏠</span>";
     if (canManage) {
-      photosHtml += "<button onclick=\"proposeGooglePhotoProfile("+e.id+")\" style='font-size:0.6rem;font-weight:700;color:var(--cyan);cursor:pointer;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);padding:0.2rem 0.5rem;border-radius:6px;'>🗺️ Importer Google</button>";
+      photosHtml += "<button onclick=\"proposeGooglePhotoProfile("+e.id+")\" style='font-size:0.62rem;font-weight:700;color:#fff;cursor:pointer;background:linear-gradient(135deg,var(--pink),var(--purple));border:none;padding:0.3rem 0.7rem;border-radius:8px;'>📷 Ajouter photo</button>";
+    } else {
+      photosHtml += "<span style='font-size:0.58rem;color:var(--muted);'>Aucune photo</span>";
     }
     photosHtml += "</div>";
   }
@@ -5356,7 +5571,7 @@ function buildCard(e,delay,compact,rank){
     ep+="<button class=\"opt-btn "+(e.paiement==="Actif"?"sel-pay":"")+"\" data-id=\""+e.id+"\" data-field=\"paiement\" data-val=\"Actif\">Actif</button>";
     ep+="<button class=\"opt-btn "+(e.paiement==="En attente"?"sel-paywait":"")+"\" data-id=\""+e.id+"\" data-field=\"paiement\" data-val=\"En attente\">En attente</button>";
     ep+="</div></div>";
-    ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#128248; Photos ce soir (10h &bull; max "+MAX_SLOT+")</div>";
+    ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#128248; Photos (max "+MAX_SLOT+")</div>";
     var slotNow=loadSlotPhotos(e.id);
     ep+="<div style=\"display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;\">";
     if(slotNow.length>0){
@@ -5400,7 +5615,7 @@ function buildCard(e,delay,compact,rank){
     // Etablissement connecté : peut supprimer son propre établissement (mais pas modifier le statut admin)
     ep="<div class=\"edit-panel show\" style=\"margin-top:0.6rem;\">";
     ep+="<div class=\"edit-title\">Gérer — "+e.nom+"</div>";
-    ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#128248; Photos ce soir (10h &bull; max "+MAX_SLOT+")</div>";
+    ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#128248; Photos (max "+MAX_SLOT+")</div>";
     var slotNow2=loadSlotPhotos(e.id);
     ep+="<div style=\"display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;\">";
     if(slotNow2.length>0){
@@ -7251,7 +7466,7 @@ function openPhotoUpload(eid){
 function saveSlotPhoto(eid,dataUrl){
   var stored=lsGetJSON("ambi241_slot_photos", {});
   var now=Date.now();
-  var arr=(stored[eid]||[]).filter(function(p){return(now-p.ts)<36000000;});
+  var arr=(stored[eid]||[]);
   if(arr.length>=MAX_SLOT){showToast("Maximum "+MAX_SLOT+" photos atteint");return;}
   arr.push({url:dataUrl,ts:now});
   stored[eid]=arr;
@@ -7261,8 +7476,7 @@ function saveSlotPhoto(eid,dataUrl){
 
 function deleteSlotPhoto(eid,idx){
   var stored=lsGetJSON("ambi241_slot_photos", {});
-  var now=Date.now();
-  var arr=(stored[eid]||[]).filter(function(p){return(now-p.ts)<36000000;});
+  var arr=(stored[eid]||[]);
   arr.splice(idx,1);
   stored[eid]=arr;
   lsSetJSON("ambi241_slot_photos", stored);
@@ -12241,8 +12455,8 @@ function getPhotoUrl(placeId,type){
   function burst(cx, cy, count){
     for(var i=0;i<count;i++){
       var angle = (Math.PI*2/count)*i + (Math.random()-0.5)*0.3;
-      var speed = 1.5 + Math.random()*3.0;
-      var size  = 2 + Math.random()*3.5;
+      var speed = 2.5 + Math.random()*5.5;
+      var size  = 3 + Math.random()*6;
       var color = GOLDS[Math.floor(Math.random()*GOLDS.length)];
       particles.push({
         x:cx, y:cy,
@@ -12250,22 +12464,28 @@ function getPhotoUrl(placeId,type){
         vy: Math.sin(angle)*speed,
         size: size,
         color: color,
-        alpha: 0.8,
+        alpha: 1,
         rot: Math.random()*Math.PI*2,
         rotV: (Math.random()-0.5)*0.25,
-        gravity: 0.07 + Math.random()*0.05,
-        life: 0.8,
-        decay: 0.040 + Math.random()*0.030
+        gravity: 0.06 + Math.random()*0.04,
+        life: 1,
+        decay: 0.022 + Math.random()*0.022
       });
     }
   }
 
-  /* ── Séquence de salves (réduite : 3 salves, timing court) ── */
+  /* ── Séquence de salves ── */
   var W = canvas.width, H = canvas.height;
   var salves = [
-    { t:30,  cx:W*0.5,  cy:H*0.38, n:18 },
-    { t:100, cx:W*0.28, cy:H*0.45, n:14 },
-    { t:100, cx:W*0.72, cy:H*0.42, n:14 },
+    { t:40,  cx:W*0.5,  cy:H*0.38, n:38 },
+    { t:120, cx:W*0.25, cy:H*0.45, n:28 },
+    { t:120, cx:W*0.75, cy:H*0.42, n:28 },
+    { t:200, cx:W*0.15, cy:H*0.55, n:22 },
+    { t:200, cx:W*0.85, cy:H*0.50, n:22 },
+    { t:280, cx:W*0.5,  cy:H*0.30, n:34 },
+    { t:360, cx:W*0.35, cy:H*0.60, n:20 },
+    { t:360, cx:W*0.65, cy:H*0.58, n:20 },
+    { t:420, cx:W*0.5,  cy:H*0.42, n:42 },
   ];
 
   var start = null;
