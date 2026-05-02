@@ -237,6 +237,25 @@ header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0
 /* Renewal warning banner */
 .renewal-banner{background:rgba(255,45,155,0.09);border:1.5px solid rgba(255,45,155,0.4);border-radius:13px;padding:0.85rem 1rem;margin-bottom:0.8rem;animation:pulse-border 2s infinite;}
 @keyframes pulse-border{0%,100%{border-color:rgba(255,45,155,0.4)}50%{border-color:rgba(255,45,155,0.9)}}
+/* ══ CARTE D'IDENTITE ══ */
+.cni-section-title{font-size:0.68rem;color:var(--cyan);font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.6rem;display:flex;align-items:center;gap:0.4rem;}
+.cni-validity-row{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.9rem;}
+.cni-status-badge{display:inline-flex;align-items:center;gap:0.35rem;font-size:0.7rem;font-weight:800;padding:0.3rem 0.7rem;border-radius:8px;margin-top:0.5rem;}
+.cni-valid{background:rgba(0,255,170,0.12);color:var(--green);border:1px solid rgba(0,255,170,0.35);}
+.cni-invalid{background:rgba(255,68,102,0.12);color:var(--red);border:1px solid rgba(255,68,102,0.35);}
+.cni-warning{background:rgba(255,215,0,0.12);color:var(--amber);border:1px solid rgba(255,215,0,0.35);}
+.cni-block{background:rgba(0,229,255,0.04);border:1.5px solid rgba(0,229,255,0.2);border-radius:14px;padding:1rem;margin-bottom:1rem;}
+.cni-id-preview{display:none;margin-top:0.7rem;}
+.cni-id-preview img{width:100%;max-height:140px;object-fit:cover;border-radius:10px;border:1.5px solid rgba(0,229,255,0.3);}
+.cni-admin-card{background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.25);border-radius:12px;padding:0.75rem;margin-top:0.6rem;}
+.cni-admin-img{width:100%;height:110px;object-fit:cover;border-radius:8px;cursor:pointer;border:1.5px solid rgba(0,229,255,0.3);transition:opacity 0.2s;}
+.cni-admin-img:active{opacity:0.8;}
+.cni-admin-reject-btn{background:rgba(255,68,102,0.15);border:1px solid rgba(255,68,102,0.4);color:var(--red);font-size:0.68rem;font-weight:800;padding:0.3rem 0.6rem;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;}
+.cni-admin-reject-btn:active{opacity:0.7;}
+.cni-admin-validate-btn{background:rgba(0,255,170,0.12);border:1px solid rgba(0,255,170,0.35);color:var(--green);font-size:0.68rem;font-weight:800;padding:0.3rem 0.6rem;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;}
+.cni-admin-validate-btn:active{opacity:0.7;}
+.cni-refused-banner{background:rgba(255,68,102,0.1);border:1.5px solid rgba(255,68,102,0.4);border-radius:10px;padding:0.65rem 0.8rem;font-size:0.75rem;color:var(--red);font-weight:700;display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;}
+
 /* LIGHTBOX */
 .lightbox{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.95);align-items:center;justify-content:center;}
 .lightbox.show{display:flex;}
@@ -2043,6 +2062,11 @@ if (document.readyState === 'loading') {
       </div>
       <!-- PAIEMENT -->
       <div style="font-size:0.68rem;color:var(--amber);font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.6rem;">&#128179; Preuve de paiement</div>
+      <div style="background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.2);border-radius:10px;padding:0.6rem 0.8rem;margin-bottom:0.7rem;">
+        <div style="font-size:0.62rem;color:var(--cyan);font-weight:800;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.2rem;">&#127970; Responsable</div>
+        <div style="font-size:0.82rem;font-weight:700;color:var(--text);">KOZANGUE ESSONO PATRICK BERTIN</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Président Fondateur — PC-INFORMATIQUE &amp; Créateur d'AMBI241</div>
+      </div>
       <div class="field"><label>Mode de paiement <span class="req">*</span></label>
         <select name="mode_paiement" required>
           <option value="">Choisir...</option>
@@ -2059,7 +2083,33 @@ if (document.readyState === 'loading') {
           <div class="upload-preview" id="prev2"><img id="prevImg2" src="" alt=""><div class="upload-name" id="name2"></div></div>
         </div>
       </div>
-      <div class="consent-box"><input type="checkbox" id="etablConsent" required><div class="consent-text">Je certifie que les informations sont <strong>exactes</strong> et accepte les conditions d AMBI241. Activation apres <strong>validation du paiement</strong>.</div></div>
+      <!-- CARTE D'IDENTITE -->
+      <div class="cni-block" id="cniBlock">
+        <div class="cni-section-title">&#128100; Piece d identite (obligatoire)</div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.8rem;line-height:1.5;">Votre carte doit etre en cours de validite. Toute carte expiree entraine un <strong style="color:var(--red);">refus automatique</strong> de l inscription.</div>
+        <div class="field"><label>Numero de la carte d identite <span class="req">*</span></label><input type="text" id="cniNumero" name="cni_numero" placeholder="Ex: A12345678" required maxlength="20" oninput="validateCNI()"></div>
+        <div class="cni-validity-row">
+          <div class="field">
+            <label>Annee d etablissement <span class="req">*</span></label>
+            <input type="number" id="cniAnneeEtab" name="cni_annee_etab" placeholder="Ex: 2019" min="1950" max="2030" required oninput="validateCNI()">
+          </div>
+          <div class="field">
+            <label>Annee d expiration <span class="req">*</span></label>
+            <input type="number" id="cniAnneeExp" name="cni_annee_exp" placeholder="Ex: 2029" min="2020" max="2050" required oninput="validateCNI()">
+          </div>
+        </div>
+        <div id="cniStatusBadge" style="margin-bottom:0.7rem;min-height:28px;"></div>
+        <div class="field">
+          <label>Photo de la carte d identite <span class="req">*</span></label>
+          <div class="upload-zone" id="cniUploadZone">
+            <input type="file" id="cniPhotoInput" name="cni_photo" accept="image/*" onchange="previewCNIPhoto(this)">
+            <div class="upload-icon">&#128100;</div>
+            <div class="upload-text">Appuyez pour prendre / importer la photo de votre CNI</div>
+            <div class="cni-id-preview" id="cniPreview"><img id="cniPreviewImg" src="" alt="CNI"></div>
+          </div>
+        </div>
+      </div>
+      <div class="consent-box"><input type="checkbox" id="etablConsent" required><div class="consent-text">Je certifie que les informations sont <strong>exactes</strong>, que ma carte d identite est <strong>valide</strong> et accepte les conditions d AMBI241. Activation apres <strong>validation du paiement et de la CNI</strong>.</div></div>
       <button type="button" class="modal-btn" id="etablSubmitBtn" onclick="submitEtablissement(event)">&#128640; Envoyer ma demande</button>
       <div id="etablMsg" style="font-size:0.78rem;text-align:center;margin-top:0.5rem;display:none;"></div>
     </form>
@@ -2576,6 +2626,10 @@ if (document.readyState === 'loading') {
         <a href="#" onclick="document.getElementById('userOverlay').classList.add('show');return false;">Mon compte</a>
         <br>
         <h4 style="margin-top:0.5rem;" data-i18n="footer_legal_title">&#128275; Mentions legales</h4>
+        <p><strong style="color:var(--cyan);">Président Fondateur</strong></p>
+        <p style="color:var(--text);font-weight:600;">KOZANGUE ESSONO PATRICK BERTIN</p>
+        <p style="color:var(--muted);font-size:0.7rem;">Fondateur de PC-INFORMATIQUE &amp; Créateur d'AMBI241</p>
+        <br>
         <p>Inscription : 5 000 XAF/mois</p>
         <p>Données personnelles protégées</p>
         <p>Contenu vérifié par l'équipe AMBI241</p>
@@ -5177,6 +5231,38 @@ function previewUpload(input,previewId,nameId){
   reader.readAsDataURL(file);
 }
 
+/* ══ CNI — Validation & Preview ══ */
+var _cniPhotoBase64 = null;
+
+function validateCNI(){
+  var anneeEtab = parseInt(document.getElementById("cniAnneeEtab").value)||0;
+  var anneeExp  = parseInt(document.getElementById("cniAnneeExp").value)||0;
+  var badge = document.getElementById("cniStatusBadge");
+  var currentYear = new Date().getFullYear();
+  if(!anneeEtab || !anneeExp){ badge.innerHTML=""; return true; }
+  if(anneeExp < anneeEtab){ badge.innerHTML='<span class="cni-status-badge cni-invalid">&#10060; Annee expiration invalide (< etablissement)</span>'; return false; }
+  if(anneeExp < currentYear){ badge.innerHTML='<span class="cni-status-badge cni-invalid">&#10060; CARTE EXPIREE — Inscription refusee automatiquement</span>'; return false; }
+  if(anneeExp === currentYear){ badge.innerHTML='<span class="cni-status-badge cni-warning">&#9888;&#65039; Carte expire cette annee — verifiez la date exacte</span>'; return true; }
+  badge.innerHTML='<span class="cni-status-badge cni-valid">&#10003; Carte valide jusqu en '+anneeExp+'</span>';
+  return true;
+}
+
+function previewCNIPhoto(input){
+  var file = input.files[0]; if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    _cniPhotoBase64 = ev.target.result;
+    document.getElementById("cniPreviewImg").src = ev.target.result;
+    document.getElementById("cniPreview").style.display = "block";
+  };
+  reader.readAsDataURL(file);
+}
+
+function isCNIExpired(){
+  var anneeExp = parseInt((document.getElementById("cniAnneeExp")||{}).value)||0;
+  return anneeExp > 0 && anneeExp < new Date().getFullYear();
+}
+
 document.getElementById("etablForm").addEventListener("submit",function(e){
   e.preventDefault();
   var btn=document.getElementById("etablSubmitBtn");
@@ -5185,6 +5271,33 @@ document.getElementById("etablForm").addEventListener("submit",function(e){
     msg.style.display="block";msg.style.color="var(--red)";
     msg.textContent="Vous devez accepter les conditions.";return;
   }
+  // ── CNI Validation ──
+  var cniNum = (document.getElementById("cniNumero")||{}).value||"";
+  var cniExp = parseInt((document.getElementById("cniAnneeExp")||{}).value)||0;
+  var cniEtab = parseInt((document.getElementById("cniAnneeEtab")||{}).value)||0;
+  if(!cniNum.trim()){
+    msg.style.display="block";msg.style.color="var(--red)";
+    msg.textContent="Veuillez saisir le numero de votre carte d identite.";return;
+  }
+  if(!cniEtab||!cniExp){
+    msg.style.display="block";msg.style.color="var(--red)";
+    msg.textContent="Veuillez renseigner les annees d etablissement et d expiration de votre CNI.";return;
+  }
+  if(isCNIExpired()){
+    msg.style.display="block";msg.style.color="var(--red)";
+    msg.innerHTML="<strong>&#10060; Inscription refusee automatiquement</strong><br>Votre carte d identite est expiree ("+cniExp+"). Veuillez la renouveler.";
+    // Notifier Firebase du refus
+    if(window.fbAddDoc&&window.fbCollection&&window.db){
+      window.fbAddDoc(window.fbCollection(window.db,"cni_rejets"),{
+        raison:"CNI expiree",cni_numero:cniNum,cni_exp:cniExp,date:new Date().toISOString()
+      }).catch(function(){});
+    }
+    return;
+  }
+  if(!_cniPhotoBase64){
+    msg.style.display="block";msg.style.color="var(--red)";
+    msg.textContent="Veuillez prendre/importer une photo de votre carte d identite.";return;
+  }
   btn.disabled=true;btn.textContent="Envoi en cours...";
   var fd=new FormData(this);
   fetch(this.action,{method:"POST",body:fd,headers:{Accept:"application/json"}})
@@ -5192,7 +5305,7 @@ document.getElementById("etablForm").addEventListener("submit",function(e){
     if(r.ok){
       document.getElementById("etablForm").style.display="none";
       msg.style.display="block";msg.style.color="var(--green)";
-      msg.innerHTML="<div style=\"text-align:center;padding:1rem\"><div style=\"font-size:2.5rem\">&#127881;</div><div style=\"font-family:Syne,sans-serif;font-weight:800;font-size:1rem;margin-top:0.5rem\">Demande envoyee !</div><div style=\"font-size:0.8rem;color:var(--muted);margin-top:0.3rem\">Nous verifierons votre paiement et vous contacterons sous 24h.</div></div>";
+      msg.innerHTML="<div style=\"text-align:center;padding:1rem\"><div style=\"font-size:2.5rem\">&#127881;</div><div style=\"font-family:Syne,sans-serif;font-weight:800;font-size:1rem;margin-top:0.5rem\">Demande envoyee !</div><div style=\"font-size:0.8rem;color:var(--muted);margin-top:0.3rem\">Nous verifierons votre paiement et votre CNI et vous contacterons sous 24h.</div></div>";
     } else {
       btn.disabled=false;btn.textContent="Envoyer ma demande";
       msg.style.display="block";msg.style.color="var(--red)";msg.textContent="Erreur. Reessayez.";
@@ -6771,6 +6884,33 @@ function toggleConfirme(index){
 window.toggleConfirme=toggleConfirme;
 window.renderPayments=renderPayments;
 
+/* ══ CNI — Validation par Super Admin ══ */
+function adminValidateCNI(payId, isValid){
+  var action = isValid ? "valide" : "refuse";
+  var label  = isValid ? "valider" : "refuser";
+  if(!confirm("Voulez-vous " + label + " la CNI de cet etablissement ?")){return;}
+  // Chercher l'etablissement correspondant
+  var etab = etablissements.find(function(e){
+    return e.id === payId || (e.nom && payId && e.nom.toLowerCase().trim() === payId.toLowerCase().trim());
+  });
+  var updates = { cni_status: action, cni_validated_by: "superadmin", cni_validated_at: new Date().toISOString() };
+  // Mise à jour Firebase si disponible
+  if(etab && window.fbDoc && window.fbUpdateDoc && window.db){
+    window.fbUpdateDoc(window.fbDoc(window.db, "etablissements", String(etab.id)), updates)
+      .then(function(){
+        showToast(isValid ? "CNI validee !" : "CNI refusee !");
+        renderPayments();
+      })
+      .catch(function(){ showToast("Erreur mise a jour CNI"); });
+  } else {
+    // Fallback local
+    if(etab){ Object.assign(etab, updates); }
+    showToast(isValid ? "CNI validee (local)!" : "CNI refusee (local)!");
+    renderPayments();
+  }
+}
+window.adminValidateCNI = adminValidateCNI;
+
 // ══════════════════════════════════════════════════════════════
 // ══ SYSTÈME GPS — PRÈS DE CHEZ VOUS                         ══
 // ══════════════════════════════════════════════════════════════
@@ -7134,7 +7274,38 @@ function renderPayments(){
       var sc2=p.statut==="Confirme"?"color:var(--green)":"color:var(--amber)";
       html+="<span class=\"pchip\" style=\"pointer-events:none;"+sc2+"\">"+p.statut+"</span>";
     }
-    html+="</div></div>";
+    html+="</div>";
+    // ── BLOC CNI ADMIN ──
+    if(isAdmin){
+      var cniNum = p.cni_numero || (p.raw && p.raw.cni_numero) || "";
+      var cniExp = p.cni_annee_exp || (p.raw && p.raw.cni_annee_exp) || "";
+      var cniEtab = p.cni_annee_etab || (p.raw && p.raw.cni_annee_etab) || "";
+      var cniPhoto = p.cni_photo || (p.raw && p.raw.cni_photo) || "";
+      var cniStatus = p.cni_status || (p.raw && p.raw.cni_status) || "pending";
+      var currentYear = new Date().getFullYear();
+      var isExpired = cniExp && parseInt(cniExp) < currentYear;
+      if(cniNum || cniPhoto){
+        html += "<div class=\"cni-admin-card\">";
+        html += "<div style=\"font-size:0.62rem;color:var(--cyan);font-weight:800;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.5rem;\">&#128100; Piece d identite</div>";
+        if(cniNum) html += "<div style=\"font-size:0.78rem;font-weight:700;color:var(--text);margin-bottom:0.2rem;\">N° <span style=\"color:var(--cyan);\">" + cniNum + "</span></div>";
+        if(cniEtab && cniExp) html += "<div style=\"font-size:0.68rem;color:var(--muted);margin-bottom:0.5rem;\">Etablie en " + cniEtab + " · Expire en " + cniExp + (isExpired?" <span style=\'color:var(--red);font-weight:700;\'>(EXPIREE)</span>":"") + "</div>";
+        if(cniPhoto) html += "<img class=\"cni-admin-img\" src=\"" + cniPhoto + "\" alt=\"CNI\" onclick=\"openLightbox('" + cniPhoto + "')\"/>";
+        // Badge statut CNI
+        if(cniStatus==="valide") html += "<div style=\"margin-top:0.5rem;\"><span class=\"cni-status-badge cni-valid\">&#10003; CNI Validee par admin</span></div>";
+        else if(cniStatus==="refuse") html += "<div style=\"margin-top:0.5rem;\"><span class=\"cni-status-badge cni-invalid\">&#10060; CNI Refusee par admin</span></div>";
+        else if(isExpired) html += "<div style=\"margin-top:0.5rem;\"><span class=\"cni-status-badge cni-invalid\">&#10060; Expiree — refus automatique</span></div>";
+        else html += "<div style=\"margin-top:0.5rem;\"><span class=\"cni-status-badge cni-warning\">&#9203; En attente de validation</span></div>";
+        // Boutons admin
+        html += "<div style=\"display:flex;gap:0.4rem;margin-top:0.6rem;flex-wrap:wrap;\">";
+        html += "<button class=\"cni-admin-validate-btn\" onclick=\"adminValidateCNI('" + p.id + "',true)\">&#10003; Valider CNI</button>";
+        html += "<button class=\"cni-admin-reject-btn\" onclick=\"adminValidateCNI('" + p.id + "',false)\">&#10060; Refuser CNI</button>";
+        html += "</div>";
+        html += "</div>";
+      } else {
+        html += "<div style=\"font-size:0.65rem;color:var(--muted);margin-top:0.4rem;padding:0.4rem 0.6rem;background:rgba(255,255,255,0.03);border-radius:8px;\">Pas de CNI soumise</div>";
+      }
+    }
+    html+="</div>";
   });
 
   if(visible.length===0){
@@ -8136,6 +8307,17 @@ function submitEtablissement(event){
   if(!modePay) validErrors.push("Mode de paiement requis");
   // Consentement
   if(!consent) validErrors.push("Vous devez certifier l'exactitude des informations");
+  // ── CNI Validation ──
+  var cniNum    = (document.getElementById("cniNumero")||{}).value||"";
+  var cniExpV   = parseInt((document.getElementById("cniAnneeExp")||{}).value)||0;
+  var cniEtabV  = parseInt((document.getElementById("cniAnneeEtab")||{}).value)||0;
+  var _curYear  = new Date().getFullYear();
+  if(!cniNum.trim()) validErrors.push("Numero de carte d identite obligatoire");
+  if(!cniEtabV)      validErrors.push("Annee d etablissement de la CNI requise");
+  if(!cniExpV)       validErrors.push("Annee d expiration de la CNI requise");
+  if(cniExpV && cniExpV < _curYear)
+    validErrors.push("CARTE D IDENTITE EXPIREE (" + cniExpV + ") — Inscription refusee automatiquement");
+  if(!_cniPhotoBase64) validErrors.push("Photo de la carte d identite obligatoire");
   // Anti-flood : 1 demande toutes les 2h par appareil
   var lastDemande = parseInt(lsGet("ambi241_last_demande")||"0");
   var FLOOD_CD = 2 * 3600 * 1000;
@@ -8175,6 +8357,11 @@ function submitEtablissement(event){
     longitude: lng||"",
     maps_url: mapsUrl||"",
     statut_demande: "En attente",
+    cni_numero: cniNum,
+    cni_annee_etab: cniEtabV,
+    cni_annee_exp: cniExpV,
+    cni_photo: _cniPhotoBase64 || "",
+    cni_status: "pending",
     createdAt: new Date().toISOString(),
     timestamp: Date.now()
   };
@@ -12744,7 +12931,7 @@ function getPhotoUrl(placeId,type){
     ctx.closePath();
     ctx.fillStyle = color;
     ctx.shadowColor = color;
-    ctx.shadowBlur = outerR * 1.2;
+    ctx.shadowBlur = outerR * 2.5;
     ctx.fill();
     ctx.restore();
   }
@@ -12756,8 +12943,8 @@ function getPhotoUrl(placeId,type){
   function burst(cx, cy, count){
     for(var i=0;i<count;i++){
       var angle = (Math.PI*2/count)*i + (Math.random()-0.5)*0.3;
-      var speed = 1.2 + Math.random()*2.8;
-      var size  = 1.5 + Math.random()*3;
+      var speed = 2.5 + Math.random()*5.5;
+      var size  = 3 + Math.random()*6;
       var color = GOLDS[Math.floor(Math.random()*GOLDS.length)];
       particles.push({
         x:cx, y:cy,
@@ -12765,12 +12952,12 @@ function getPhotoUrl(placeId,type){
         vy: Math.sin(angle)*speed,
         size: size,
         color: color,
-        alpha: 0.7,
+        alpha: 1,
         rot: Math.random()*Math.PI*2,
         rotV: (Math.random()-0.5)*0.25,
         gravity: 0.06 + Math.random()*0.04,
-        life: 0.7,
-        decay: 0.038 + Math.random()*0.030
+        life: 1,
+        decay: 0.022 + Math.random()*0.022
       });
     }
   }
@@ -12778,10 +12965,15 @@ function getPhotoUrl(placeId,type){
   /* ── Séquence de salves ── */
   var W = canvas.width, H = canvas.height;
   var salves = [
-    { t:40,  cx:W*0.5,  cy:H*0.38, n:18 },
-    { t:110, cx:W*0.28, cy:H*0.45, n:14 },
-    { t:110, cx:W*0.72, cy:H*0.42, n:14 },
-    { t:200, cx:W*0.5,  cy:H*0.35, n:16 },
+    { t:40,  cx:W*0.5,  cy:H*0.38, n:38 },
+    { t:120, cx:W*0.25, cy:H*0.45, n:28 },
+    { t:120, cx:W*0.75, cy:H*0.42, n:28 },
+    { t:200, cx:W*0.15, cy:H*0.55, n:22 },
+    { t:200, cx:W*0.85, cy:H*0.50, n:22 },
+    { t:280, cx:W*0.5,  cy:H*0.30, n:34 },
+    { t:360, cx:W*0.35, cy:H*0.60, n:20 },
+    { t:360, cx:W*0.65, cy:H*0.58, n:20 },
+    { t:420, cx:W*0.5,  cy:H*0.42, n:42 },
   ];
 
   var start = null;
