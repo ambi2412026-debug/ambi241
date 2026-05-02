@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paiement AMBI241 - Vérification ID + Paiement</title>
+<!-- Stripe JS -->
+<script src="https://js.stripe.com/v3/"></script>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d0014;
+  --surface: #130020;
+  --surface2: #1a0028;
+  --text: #fff0f8;
+  --muted: #b088c0;
+  --pink: #ff2d9b;
+  --cyan: #00e5ff;
+  --green: #00ffaa;
+  --red: #ff4466;
+  --amber: #ffd700;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  padding: 2rem 1rem;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ════════════════════════════════════════════════════════════
+   HEADER
+   ════════════════════════════════════════════════════════════ */
+
+header {
+  text-align: center;
+  margin-bottom: 3rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid rgba(255, 45, 155, 0.2);
+}
+
+header h1 {
+  font-family: 'Syne', sans-serif;
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--pink);
+  margin-bottom: 0.5rem;
+}
+
+header p {
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+/* ════════════════════════════════════════════════════════════
+   PROGRESS STEPS
+   ════════════════════════════════════════════════════════════ */
+
+.progress-steps {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 3rem;
+  position: relative;
+}
+
+.progress-steps::before {
+  content: '';
+  position: absolute;
+  top: 25px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255, 45, 155, 0.1);
+  z-index: 0;
+}
+
+.progress-step {
+  flex: 1;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.progress-step.active .step-number {
+  background: linear-gradient(135deg, var(--pink), var(--cyan));
+  color: #000;
+  box-shadow: 0 0 20px rgba(255, 45, 155, 0.5);
+}
+
+.progress-step.completed .step-number {
+  background: var(--green);
+  color: #000;
+}
+
+.step-number {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: rgba(255, 45, 155, 0.1);
+  border: 2px solid rgba(255, 45, 155, 0.3);
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 0.8rem;
+  transition: all 0.3s;
+}
+
+.step-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.progress-step.active .step-label,
+.progress-step.completed .step-label {
+  color: var(--text);
+}
+
+/* ════════════════════════════════════════════════════════════
+   MAIN LAYOUT
+   ════════════════════════════════════════════════════════════ */
+
+.main-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .main-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   SECTION: VERIFICATION ID
+   ════════════════════════════════════════════════════════════ */
+
+.section {
+  background: linear-gradient(135deg, rgba(255, 45, 155, 0.05), rgba(204, 68, 255, 0.03));
+  border: 1px solid rgba(255, 45, 155, 0.2);
+  border-radius: 16px;
+  padding: 2rem;
+}
+
+.section-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--pink);
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+/* ════════════════════════════════════════════════════════════
+   ID VERIFICATION SECTION
+   ════════════════════════════════════════════════════════════ */
+
+.id-upload-zone {
+  border: 2px dashed rgba(255, 45, 155, 0.4);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  background: rgba(255, 45, 155, 0.03);
+  transition: all 0.3s;
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.id-upload-zone:hover {
+  border-color: rgba(255, 45, 155, 0.6);
+  background: rgba(255, 45, 155, 0.08);
+}
+
+.id-upload-zone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.id-upload-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.8rem;
+  display: block;
+}
+
+.id-upload-text {
+  font-size: 0.9rem;
+  color: var(--text);
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+.id-upload-subtext {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.id-preview {
+  display: none;
+  margin-bottom: 1.5rem;
+}
+
+.id-preview.show {
+  display: block;
+}
+
+.id-preview-image {
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 45, 155, 0.2);
+  margin-bottom: 0.8rem;
+}
+
+.id-status {
+  padding: 1rem;
+  border-radius: 10px;
+  margin-bottom: 1.5rem;
+  display: none;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.id-status.show {
+  display: block;
+}
+
+.id-status.valid {
+  background: linear-gradient(135deg, rgba(0, 255, 170, 0.12), rgba(0, 255, 170, 0.06));
+  border: 1px solid rgba(0, 255, 170, 0.3);
+  color: var(--green);
+}
+
+.id-status.invalid {
+  background: linear-gradient(135deg, rgba(255, 68, 102, 0.12), rgba(255, 68, 102, 0.06));
+  border: 1px solid rgba(255, 68, 102, 0.3);
+  color: var(--red);
+}
+
+.id-status.pending {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(255, 215, 0, 0.06));
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  color: var(--amber);
+}
+
+/* ════════════════════════════════════════════════════════════
+   PAYMENT SECTION
+   ════════════════════════════════════════════════════════════ */
+
+.payment-section {
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.05), rgba(0, 229, 255, 0.03));
+  border: 1px solid rgba(0, 229, 255, 0.2);
+}
+
+/* ════════════════════════════════════════════════════════════
+   PAYMENT METHODS
+   ════════════════════════════════════════════════════════════ */
+
+.payment-methods {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.payment-method {
+  padding: 1.2rem;
+  border: 2px solid rgba(255, 45, 155, 0.2);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: var(--surface2);
+  position: relative;
+}
+
+.payment-method:hover {
+  border-color: rgba(255, 45, 155, 0.4);
+  background: rgba(255, 45, 155, 0.05);
+}
+
+.payment-method.active {
+  border-color: var(--pink);
+  background: rgba(255, 45, 155, 0.1);
+  box-shadow: 0 0 20px rgba(255, 45, 155, 0.2);
+}
+
+.payment-method input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+.payment-method-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.payment-method-icon {
+  font-size: 2.5rem;
+  flex-shrink: 0;
+}
+
+.payment-method-info {
+  flex: 1;
+}
+
+.payment-method-name {
+  font-family: 'Syne', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.3rem;
+}
+
+.payment-method-desc {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.payment-method-badge {
+  font-size: 0.7rem;
+  background: linear-gradient(135deg, var(--green), #00cc88);
+  color: #000;
+  padding: 0.3rem 0.6rem;
+  border-radius: 20px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ════════════════════════════════════════════════════════════
+   FORM FIELDS
+   ════════════════════════════════════════════════════════════ */
+
+.form-group {
+  margin-bottom: 1.2rem;
+}
+
+.form-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.9rem;
+  background: var(--surface);
+  border: 1px solid rgba(255, 45, 155, 0.2);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: rgba(255, 45, 155, 0.5);
+  box-shadow: 0 0 0 3px rgba(255, 45, 155, 0.1);
+}
+
+.form-input::placeholder {
+  color: var(--muted);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+/* ════════════════════════════════════════════════════════════
+   STRIPE ELEMENTS
+   ════════════════════════════════════════════════════════════ */
+
+#card-element {
+  padding: 0.9rem;
+  border: 1px solid rgba(255, 45, 155, 0.2);
+  border-radius: 10px;
+  background: var(--surface);
+  font-family: inherit;
+}
+
+.StripeElement {
+  color: var(--text);
+}
+
+.StripeElement--focus {
+  border-color: rgba(255, 45, 155, 0.5);
+  box-shadow: 0 0 0 3px rgba(255, 45, 155, 0.1);
+}
+
+.StripeElement--invalid {
+  border-color: var(--red);
+}
+
+/* ════════════════════════════════════════════════════════════
+   SUMMARY SECTION
+   ════════════════════════════════════════════════════════════ */
+
+.summary-section {
+  background: var(--surface2);
+  border: 1px solid rgba(255, 45, 155, 0.2);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.summary-title {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  color: var(--pink);
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.9rem;
+}
+
+.summary-row:last-child {
+  border-bottom: none;
+  padding-top: 1rem;
+  padding-bottom: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--cyan);
+}
+
+.summary-label {
+  color: var(--muted);
+}
+
+.summary-value {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ════════════════════════════════════════════════════════════
+   BUTTONS
+   ════════════════════════════════════════════════════════════ */
+
+.btn {
+  width: 100%;
+  padding: 1.1rem;
+  border: none;
+  border-radius: 12px;
+  font-family: 'Syne', sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.3s;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 0.5rem;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--pink), var(--cyan));
+  color: #000;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(255, 45, 155, 0.4);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* ════════════════════════════════════════════════════════════
+   ALERTS
+   ════════════════════════════════════════════════════════════ */
+
+.alert {
+  padding: 1rem;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  display: none;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.alert.show {
+  display: block;
+}
+
+.alert-success {
+  background: linear-gradient(135deg, rgba(0, 255, 170, 0.12), rgba(0, 255, 170, 0.06));
+  border: 1px solid rgba(0, 255, 170, 0.3);
+  color: var(--green);
+}
+
+.alert-error {
+  background: linear-gradient(135deg, rgba(255, 68, 102, 0.12), rgba(255, 68, 102, 0.06));
+  border: 1px solid rgba(255, 68, 102, 0.3);
+  color: var(--red);
+}
+
+.alert-warning {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(255, 215, 0, 0.06));
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  color: var(--amber);
+}
+
+.alert-info {
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.12), rgba(0, 229, 255, 0.06));
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  color: var(--cyan);
+}
+
+/* ════════════════════════════════════════════════════════════
+   LOADING
+   ════════════════════════════════════════════════════════════ */
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--pink);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+  margin-right: 0.5rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  header h1 {
+    font-size: 1.6rem;
+  }
+  
+  .progress-steps {
+    margin-bottom: 2rem;
+  }
+  
+  .progress-step {
+    font-size: 0.75rem;
+  }
+  
+  .step-number {
+    width: 40px;
+    height: 40px;
+    font-size: 0.9rem;
+  }
+  
+  .section {
+    padding: 1.5rem;
+  }
+  
+  .payment-method-content {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+</style>
+</head>
+<body>
+
+<div class="container">
+  
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- HEADER -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <header>
+    <h1>🎉 Rejoindre AMBI241</h1>
+    <p>Vérifiez votre identité et complétez votre paiement d'inscription</p>
+  </header>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- PROGRESS STEPS -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div class="progress-steps">
+    <div class="progress-step active" id="step1">
+      <div class="step-number">1</div>
+      <div class="step-label">Vérification ID</div>
+    </div>
+    <div class="progress-step" id="step2">
+      <div class="step-number">2</div>
+      <div class="step-label">Paiement</div>
+    </div>
+    <div class="progress-step" id="step3">
+      <div class="step-number">3</div>
+      <div class="step-label">Confirmation</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- MAIN LAYOUT -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div class="main-layout">
+    
+    <!-- ════════════════════════════════════════════════════════ -->
+    <!-- SECTION 1: VERIFICATION ID -->
+    <!-- ════════════════════════════════════════════════════════ -->
+    <div class="section" id="idSection">
+      <div class="section-title">🆔 Vérification d'Identité</div>
+      
+      <div id="alertBox"></div>
+      
+      <div class="id-upload-zone" id="idUploadZone">
+        <span class="id-upload-icon">📷</span>
+        <div class="id-upload-text">Cliquez ou glissez votre pièce d'identité</div>
+        <div class="id-upload-subtext">CNI, Passeport ou Permis de Conduire (JPG, PNG, PDF)</div>
+        <input type="file" id="idFileInput" accept="image/*,.pdf">
+      </div>
+      
+      <div class="id-preview" id="idPreview">
+        <img id="idPreviewImage" class="id-preview-image" alt="ID Photo">
+      </div>
+      
+      <div class="id-status" id="idStatus"></div>
+      
+      <button class="btn btn-secondary" id="continueToPaymentBtn" style="display:none;">
+        ✓ Continuer vers Paiement
+      </button>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════ -->
+    <!-- SECTION 2: PAYMENT -->
+    <!-- ════════════════════════════════════════════════════════ -->
+    <div class="section payment-section" id="paymentSection" style="display:none;">
+      <div class="section-title">💳 Paiement d'Inscription</div>
+      
+      <!-- ────────────────────────────────────────────────────── -->
+      <!-- PAYMENT METHODS -->
+      <!-- ────────────────────────────────────────────────────── -->
+      <div class="form-group">
+        <div class="form-label">Méthode de Paiement</div>
+        <div class="payment-methods">
+          
+          <!-- AIRTEL MONEY -->
+          <label class="payment-method active" id="airtelMethod">
+            <input type="radio" name="paymentMethod" value="airtel" checked>
+            <div class="payment-method-content">
+              <div class="payment-method-icon">🟠</div>
+              <div class="payment-method-info">
+                <div class="payment-method-name">Airtel Money</div>
+                <div class="payment-method-desc">Paiement par téléphone Airtel</div>
+              </div>
+              <div class="payment-method-badge">POPULAIRE</div>
+            </div>
+          </label>
+
+          <!-- MOOV MONEY -->
+          <label class="payment-method" id="moovMethod">
+            <input type="radio" name="paymentMethod" value="moov">
+            <div class="payment-method-content">
+              <div class="payment-method-icon">🔴</div>
+              <div class="payment-method-info">
+                <div class="payment-method-name">Moov Money</div>
+                <div class="payment-method-desc">Paiement par téléphone Moov</div>
+              </div>
+            </div>
+          </label>
+
+          <!-- CARTE VISA INTERNATIONALE -->
+          <label class="payment-method" id="visaMethod">
+            <input type="radio" name="paymentMethod" value="visa">
+            <div class="payment-method-content">
+              <div class="payment-method-icon">💳</div>
+              <div class="payment-method-info">
+                <div class="payment-method-name">Carte Visa/Mastercard</div>
+                <div class="payment-method-desc">Paiement international sécurisé</div>
+              </div>
+              <div class="payment-method-badge">NOUVEAU</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- ────────────────────────────────────────────────────── -->
+      <!-- AIRTEL MONEY FORM -->
+      <!-- ────────────────────────────────────────────────────── -->
+      <div id="airtelForm" style="display:block;">
+        <div class="form-group">
+          <label class="form-label">Numéro de Téléphone Airtel</label>
+          <input type="tel" class="form-input" id="airtelPhone" placeholder="+241 01 23 45 67" pattern="[0-9+\s\-()]*">
+        </div>
+        <p style="font-size: 0.8rem; color: var(--muted); margin-bottom: 1rem;">
+          ℹ️ Vous recevrez un code de confirmation sur votre téléphone
+        </p>
+      </div>
+
+      <!-- ────────────────────────────────────────────────────── -->
+      <!-- MOOV MONEY FORM -->
+      <!-- ────────────────────────────────────────────────────── -->
+      <div id="moovForm" style="display:none;">
+        <div class="form-group">
+          <label class="form-label">Numéro de Téléphone Moov</label>
+          <input type="tel" class="form-input" id="moovPhone" placeholder="+241 06 12 34 56" pattern="[0-9+\s\-()]*">
+        </div>
+        <p style="font-size: 0.8rem; color: var(--muted); margin-bottom: 1rem;">
+          ℹ️ Vous recevrez un code de confirmation sur votre téléphone
+        </p>
+      </div>
+
+      <!-- ────────────────────────────────────────────────────── -->
+      <!-- CARTE VISA FORM -->
+      <!-- ────────────────────────────────────────────────────── -->
+      <div id="visaForm" style="display:none;">
+        <div class="form-group">
+          <label class="form-label">Informations Carte</label>
+          <div id="card-element" style="border: 1px solid rgba(255, 45, 155, 0.2); border-radius: 10px; padding: 0.9rem;"></div>
+          <div id="card-errors" style="color: var(--red); font-size: 0.85rem; margin-top: 0.5rem; display:none;"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Nom Complet</label>
+            <input type="text" class="form-input" id="cardholderName" placeholder="Dupont Jean">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <input type="email" class="form-input" id="cardholderEmail" placeholder="john@example.com">
+          </div>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--muted); margin-bottom: 1rem;">
+          🔒 Votre paiement est sécurisé par Stripe
+        </p>
+      </div>
+
+      <!-- ────────────────────────────────────────────────────── -->
+      <!-- SUMMARY -->
+      <!-- ────────────────────────────────────────────────────── -->
+      <div class="summary-section">
+        <div class="summary-title">Résumé du Paiement</div>
+        <div class="summary-row">
+          <span class="summary-label">Inscription AMBI241</span>
+          <span class="summary-value" id="amountDisplay">5,000 XAF</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Frais de transaction</span>
+          <span class="summary-value" id="feesDisplay">0 XAF</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Montant Total</span>
+          <span class="summary-value" id="totalDisplay">5,000 XAF</span>
+        </div>
+      </div>
+
+      <!-- ────────────────────────────────────────────────────── -->
+      <!-- BUTTONS -->
+      <!-- ────────────────────────────────────────────────────── -->
+      <button class="btn btn-primary" id="submitPaymentBtn">
+        💳 Procéder au Paiement (5,000 XAF)
+      </button>
+      <button class="btn btn-secondary" id="backToIdBtn">
+        ← Retour
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- JAVASCRIPT -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<script>
+// ════════════════════════════════════════════════════════════
+// STATE MANAGEMENT
+// ════════════════════════════════════════════════════════════
+
+let appState = {
+  idVerified: false,
+  idPhoto: null,
+  idStatus: null,
+  paymentMethod: 'airtel',
+  amount: 5000, // XAF
+  fees: 0,
+  stripePublicKey: 'pk_test_51234567890abcdefghijk', // À remplacer!
+  stripe: null,
+  cardElement: null
+};
+
+// ════════════════════════════════════════════════════════════
+// ELEMENTS
+// ════════════════════════════════════════════════════════════
+
+const idUploadZone = document.getElementById('idUploadZone');
+const idFileInput = document.getElementById('idFileInput');
+const idPreview = document.getElementById('idPreview');
+const idPreviewImage = document.getElementById('idPreviewImage');
+const idStatus = document.getElementById('idStatus');
+const continueToPaymentBtn = document.getElementById('continueToPaymentBtn');
+const idSection = document.getElementById('idSection');
+const paymentSection = document.getElementById('paymentSection');
+const submitPaymentBtn = document.getElementById('submitPaymentBtn');
+const backToIdBtn = document.getElementById('backToIdBtn');
+const alertBox = document.getElementById('alertBox');
+
+// ════════════════════════════════════════════════════════════
+// ID VERIFICATION
+// ════════════════════════════════════════════════════════════
+
+// Upload zone click
+idUploadZone.addEventListener('click', () => idFileInput.click());
+
+// Drag and drop
+idUploadZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  idUploadZone.style.borderColor = 'rgba(255, 45, 155, 0.6)';
+});
+
+idUploadZone.addEventListener('dragleave', () => {
+  idUploadZone.style.borderColor = 'rgba(255, 45, 155, 0.4)';
+});
+
+idUploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  idUploadZone.style.borderColor = 'rgba(255, 45, 155, 0.4)';
+  if (e.dataTransfer.files.length > 0) {
+    handleIDFileSelect(e.dataTransfer.files[0]);
+  }
+});
+
+idFileInput.addEventListener('change', (e) => {
+  if (e.target.files.length > 0) {
+    handleIDFileSelect(e.target.files[0]);
+  }
+});
+
+function handleIDFileSelect(file) {
+  if (file.size > 10 * 1024 * 1024) {
+    showAlert('Erreur: Fichier trop volumineux (max 10MB)', 'error');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    appState.idPhoto = e.target.result;
+    idPreviewImage.src = e.target.result;
+    idPreview.classList.add('show');
+    
+    // Simuler la vérification OCR
+    simulateIDVerification();
+    showAlert('✅ Pièce d\'identité uploadée', 'success');
+  };
+  reader.readAsDataURL(file);
+}
+
+function simulateIDVerification() {
+  // Simulated OCR - Dans la vraie app, intégrer Tesseract.js ou Google Vision
+  const mockData = {
+    name: 'Dupont Jean Marie',
+    idNumber: '12345678901',
+    expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 an
+  };
+
+  const expiryDate = mockData.expiryDate;
+  const today = new Date();
+  const isValid = expiryDate > today;
+  const daysRemaining = Math.floor((expiryDate - today) / (1000 * 60 * 60 * 24));
+
+  if (isValid) {
+    appState.idStatus = 'valid';
+    idStatus.className = 'id-status valid show';
+    idStatus.innerHTML = `
+      <strong>✓ Pièce d'identité valide</strong><br>
+      Nom: ${mockData.name}<br>
+      Numéro: ${mockData.idNumber}<br>
+      Expire dans ${daysRemaining} jours
+    `;
+    continueToPaymentBtn.style.display = 'block';
+    appState.idVerified = true;
+  } else {
+    appState.idStatus = 'invalid';
+    idStatus.className = 'id-status invalid show';
+    idStatus.innerHTML = `
+      <strong>✕ Pièce d'identité expirée</strong><br>
+      Cette pièce d'identité ne peut pas être utilisée. Veuillez fournir une pièce valide.
+    `;
+    continueToPaymentBtn.style.display = 'none';
+    appState.idVerified = false;
+  }
+}
+
+continueToPaymentBtn.addEventListener('click', () => {
+  idSection.style.display = 'none';
+  paymentSection.style.display = 'block';
+  document.getElementById('step1').classList.add('completed');
+  document.getElementById('step2').classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+backToIdBtn.addEventListener('click', () => {
+  paymentSection.style.display = 'none';
+  idSection.style.display = 'block';
+  document.getElementById('step2').classList.remove('active');
+  document.getElementById('step1').classList.remove('completed');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+// ════════════════════════════════════════════════════════════
+// PAYMENT METHODS SELECTION
+// ════════════════════════════════════════════════════════════
+
+const paymentMethodInputs = document.querySelectorAll('input[name="paymentMethod"]');
+const airtelForm = document.getElementById('airtelForm');
+const moovForm = document.getElementById('moovForm');
+const visaForm = document.getElementById('visaForm');
+
+paymentMethodInputs.forEach(input => {
+  input.addEventListener('change', (e) => {
+    appState.paymentMethod = e.target.value;
+    
+    // Update UI
+    document.querySelectorAll('.payment-method').forEach(el => el.classList.remove('active'));
+    e.target.closest('.payment-method').classList.add('active');
+    
+    // Show appropriate form
+    airtelForm.style.display = 'none';
+    moovForm.style.display = 'none';
+    visaForm.style.display = 'none';
+    
+    if (e.target.value === 'airtel') {
+      airtelForm.style.display = 'block';
+      appState.fees = 0;
+    } else if (e.target.value === 'moov') {
+      moovForm.style.display = 'block';
+      appState.fees = 0;
+    } else if (e.target.value === 'visa') {
+      visaForm.style.display = 'block';
+      appState.fees = 500; // 500 XAF fees for Stripe
+      initStripe();
+    }
+    
+    updatePaymentSummary();
+  });
+});
+
+// ════════════════════════════════════════════════════════════
+// STRIPE SETUP (For Visa/Mastercard)
+// ════════════════════════════════════════════════════════════
+
+function initStripe() {
+  if (appState.stripe) return;
+  
+  // Initialize Stripe (replace with your real public key!)
+  appState.stripe = Stripe(appState.stripePublicKey);
+  const elements = appState.stripe.elements();
+  
+  if (!appState.cardElement) {
+    appState.cardElement = elements.create('card', {
+      style: {
+        base: {
+          fontSize: '16px',
+          color: '#fff0f8',
+          '::placeholder': {
+            color: '#b088c0'
+          }
+        }
+      }
+    });
+    appState.cardElement.mount('#card-element');
+    
+    // Handle card errors
+    appState.cardElement.addEventListener('change', (event) => {
+      const displayError = document.getElementById('card-errors');
+      if (event.error) {
+        displayError.textContent = event.error.message;
+        displayError.style.display = 'block';
+      } else {
+        displayError.textContent = '';
+        displayError.style.display = 'none';
+      }
+    });
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// PAYMENT SUBMISSION
+// ════════════════════════════════════════════════════════════
+
+submitPaymentBtn.addEventListener('click', async () => {
+  if (!appState.idVerified) {
+    showAlert('Veuillez d\'abord vérifier votre identité', 'error');
+    return;
+  }
+
+  submitPaymentBtn.disabled = true;
+  submitPaymentBtn.innerHTML = '<span class="spinner"></span>Traitement...';
+
+  try {
+    if (appState.paymentMethod === 'airtel') {
+      await processAirtelPayment();
+    } else if (appState.paymentMethod === 'moov') {
+      await processMoovPayment();
+    } else if (appState.paymentMethod === 'visa') {
+      await processVisaPayment();
+    }
+  } catch (error) {
+    showAlert('❌ Erreur: ' + error.message, 'error');
+    submitPaymentBtn.disabled = false;
+    submitPaymentBtn.innerHTML = '💳 Procéder au Paiement (' + appState.amount + ' XAF)';
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+// PAYMENT PROCESSORS
+// ════════════════════════════════════════════════════════════
+
+async function processAirtelPayment() {
+  const phone = document.getElementById('airtelPhone').value.trim();
+  
+  if (!phone) {
+    throw new Error('Veuillez entrer votre numéro Airtel');
+  }
+
+  // Appel API Airtel Money
+  const response = await fetch('/api/payments/airtel', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      phone: phone,
+      amount: appState.amount,
+      idPhoto: appState.idPhoto,
+      idStatus: appState.idStatus
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error('Erreur Airtel Money');
+  }
+
+  const result = await response.json();
+  
+  if (result.success) {
+    showPaymentSuccess('Airtel Money', phone);
+  } else {
+    throw new Error(result.message);
+  }
+}
+
+async function processMoovPayment() {
+  const phone = document.getElementById('moovPhone').value.trim();
+  
+  if (!phone) {
+    throw new Error('Veuillez entrer votre numéro Moov');
+  }
+
+  // Appel API Moov Money
+  const response = await fetch('/api/payments/moov', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      phone: phone,
+      amount: appState.amount,
+      idPhoto: appState.idPhoto,
+      idStatus: appState.idStatus
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error('Erreur Moov Money');
+  }
+
+  const result = await response.json();
+  
+  if (result.success) {
+    showPaymentSuccess('Moov Money', phone);
+  } else {
+    throw new Error(result.message);
+  }
+}
+
+async function processVisaPayment() {
+  const name = document.getElementById('cardholderName').value.trim();
+  const email = document.getElementById('cardholderEmail').value.trim();
+
+  if (!name || !email) {
+    throw new Error('Veuillez entrer vos informations');
+  }
+
+  // Create payment intent
+  const intentResponse = await fetch('/api/payments/create-intent', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      amount: appState.amount + appState.fees,
+      currency: 'xaf',
+      email: email,
+      idStatus: appState.idStatus
+    })
+  });
+
+  const intentData = await intentResponse.json();
+  const clientSecret = intentData.clientSecret;
+
+  // Confirm payment with Stripe
+  const { paymentIntent, error } = await appState.stripe.confirmCardPayment(clientSecret, {
+    payment_method: {
+      card: appState.cardElement,
+      billing_details: { name: name }
+    }
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (paymentIntent.status === 'succeeded') {
+    showPaymentSuccess('Carte Visa/Mastercard', email);
+  } else {
+    throw new Error('Paiement non complété');
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// SUCCESS HANDLER
+// ════════════════════════════════════════════════════════════
+
+function showPaymentSuccess(method, reference) {
+  paymentSection.style.display = 'none';
+  
+  const successSection = document.createElement('div');
+  successSection.className = 'section';
+  successSection.innerHTML = `
+    <div style="text-align: center;">
+      <div style="font-size: 4rem; margin-bottom: 1rem;">🎉</div>
+      <h2 style="font-family: 'Syne', sans-serif; font-size: 1.8rem; font-weight: 800; color: var(--green); margin-bottom: 1rem;">
+        Paiement Réussi!
+      </h2>
+      <p style="color: var(--muted); margin-bottom: 1.5rem;">
+        Bienvenue dans AMBI241!
+      </p>
+      <div style="background: var(--surface2); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; text-align: left;">
+        <div style="display: grid; grid-template-columns: 120px 1fr; gap: 1rem; font-size: 0.9rem;">
+          <span style="color: var(--muted);">Méthode:</span>
+          <span style="color: var(--text); font-weight: 600;">${method}</span>
+          <span style="color: var(--muted);">Référence:</span>
+          <span style="color: var(--cyan); font-weight: 600; font-family: monospace;">${reference}</span>
+          <span style="color: var(--muted);">Montant:</span>
+          <span style="color: var(--green); font-weight: 600;">${appState.amount + appState.fees} XAF</span>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="window.location.href='/';">
+        🏠 Retour à l'Accueil
+      </button>
+    </div>
+  `;
+  
+  paymentSection.parentElement.appendChild(successSection);
+  document.getElementById('step2').classList.add('completed');
+  document.getElementById('step3').classList.add('active', 'completed');
+  
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ════════════════════════════════════════════════════════════
+// PAYMENT SUMMARY
+// ════════════════════════════════════════════════════════════
+
+function updatePaymentSummary() {
+  document.getElementById('amountDisplay').textContent = appState.amount.toLocaleString('fr-FR') + ' XAF';
+  document.getElementById('feesDisplay').textContent = appState.fees.toLocaleString('fr-FR') + ' XAF';
+  document.getElementById('totalDisplay').textContent = (appState.amount + appState.fees).toLocaleString('fr-FR') + ' XAF';
+  submitPaymentBtn.innerHTML = '💳 Procéder au Paiement (' + (appState.amount + appState.fees) + ' XAF)';
+}
+
+// ════════════════════════════════════════════════════════════
+// ALERTS
+// ════════════════════════════════════════════════════════════
+
+function showAlert(message, type = 'info') {
+  const alertDiv = document.createElement('div');
+  alertDiv.className = `alert alert-${type} show`;
+  alertDiv.textContent = message;
+  alertBox.appendChild(alertDiv);
+  
+  setTimeout(() => alertDiv.remove(), 5000);
+}
+
+// ════════════════════════════════════════════════════════════
+// INITIALIZATION
+// ════════════════════════════════════════════════════════════
+
+updatePaymentSummary();
+
+</script>
+
+</body>
+</html>
