@@ -9867,12 +9867,58 @@ function renderAdmSettings(){
 
   // Trafic
   var t=getTraffic();
-  html+="<div style='background:rgba(204,68,255,0.04);border:1px solid rgba(204,68,255,0.15);border-radius:14px;padding:1rem;'>";
+  html+="<div style='background:rgba(204,68,255,0.04);border:1px solid rgba(204,68,255,0.15);border-radius:14px;padding:1rem;margin-bottom:1rem;'>";
   html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--purple);font-size:0.85rem;margin-bottom:0.6rem;'>📈 Trafic</div>";
   html+="<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;'>";
   html+="<div class='adm-kpi'><div class='kv' style='color:var(--purple);'>"+t.count+"</div><div class='kl'>Aujourd'hui</div></div>";
   html+="<div class='adm-kpi'><div class='kv' style='color:var(--purple);'>"+t.total+"</div><div class='kl'>Total</div></div>";
   html+="</div></div>";
+
+  // ══ BLOC RESET DONNÉES DYNAMIQUES — SUPERADMIN UNIQUEMENT ══
+  if(iAmSuper){
+    html+="<div id='superAdminResetBlock' style='"
+      +"background:linear-gradient(135deg,rgba(255,68,102,0.10),rgba(255,45,155,0.06));"
+      +"border:1.5px solid rgba(255,68,102,0.45);"
+      +"border-radius:16px;padding:1.1rem 1rem;margin-bottom:1rem;"
+      +"position:relative;overflow:hidden;"
+      +"'>";
+    // En-tête
+    html+="<div style='display:flex;align-items:center;gap:0.55rem;margin-bottom:0.5rem;'>"
+      +"<span style='font-size:1.25rem;'>🔄</span>"
+      +"<div style='flex:1;'>"
+      +"<div style='font-family:Syne,sans-serif;font-weight:800;color:var(--red);font-size:0.9rem;'>Réinitialisation des compteurs</div>"
+      +"<div style='font-size:0.62rem;color:var(--muted);margin-top:0.05rem;'>SuperAdmin uniquement · Action irréversible</div>"
+      +"</div>"
+      +"<span style='font-size:0.58rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;"
+      +"background:rgba(255,68,102,0.18);color:var(--red);border:1px solid rgba(255,68,102,0.4);"
+      +"padding:0.15rem 0.5rem;border-radius:100px;white-space:nowrap;'>👑 PROPRIÉTAIRE</span>"
+      +"</div>";
+    // Explication
+    html+="<div style='background:rgba(0,0,0,0.25);border-radius:10px;padding:0.75rem 0.85rem;margin-bottom:0.9rem;'>";
+    html+="<div style='font-size:0.72rem;color:var(--muted);line-height:1.75;'>";
+    html+="<strong style='color:var(--text);display:block;margin-bottom:0.3rem;'>✅ Données préservées (stables)</strong>";
+    html+="• Nom, type, quartier, description des établissements<br>";
+    html+="• Nombre d'étoiles Google Maps · Lien Maps · Photos permanentes<br>";
+    html+="• Abonnements, paiements, contacts, comptes membres<br>";
+    html+="• PIN Admin · Configuration Firebase<br><br>";
+    html+="<strong style='color:var(--red);display:block;margin-bottom:0.3rem;'>🔄 Données réinitialisées (dynamiques)</strong>";
+    html+="• Votes communautaires (👍👎) · Présences / Check-ins<br>";
+    html+="• Signalements d'affluence · Notes/avis membres (⭐)<br>";
+    html+="• Ambiances, statuts, affluence % → remis à zéro<br>";
+    html+="• Événements flash · Photos éphémères ce soir<br>";
+    html+="• Compteurs de visites · Journal de notifications";
+    html+="</div></div>";
+    // Bouton RESET
+    html+="<button onclick='openSuperResetModal()' "
+      +"style='width:100%;padding:0.75rem;border-radius:12px;border:none;"
+      +"background:linear-gradient(135deg,rgba(255,68,102,0.85),rgba(255,45,155,0.85));"
+      +"color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;"
+      +"cursor:pointer;letter-spacing:0.02em;transition:opacity 0.2s;"
+      +"display:flex;align-items:center;justify-content:center;gap:0.5rem;'>"
+      +"<span>🔄</span> Réinitialiser les données dynamiques"
+      +"</button>";
+    html+="</div>";
+  }
 
   document.getElementById("adminSettingsContent").innerHTML=html;
 }
@@ -9889,6 +9935,234 @@ function changeAdminPin(){
   });
 }
 window.changeAdminPin=changeAdminPin;
+
+// ══════════════════════════════════════════════════════════════
+// ══ RESET DONNÉES DYNAMIQUES — SUPERADMIN SEULEMENT         ══
+// ══════════════════════════════════════════════════════════════
+
+/* Ouvre la modale de confirmation à double validation */
+window.openSuperResetModal = function(){
+  if(!isSuperAdminUser()){ showToast("Réservé au SuperAdmin"); return; }
+
+  var existing = document.getElementById("_superResetOverlay");
+  if(existing) existing.remove();
+
+  var html =
+    '<div id="_superResetOverlay" style="position:fixed;inset:0;z-index:600;background:rgba(0,0,0,0.92);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;padding:1rem;" onclick="if(event.target===this)closeSuperResetModal()">'
+    +'<div style="background:var(--surface);border:1.5px solid rgba(255,68,102,0.5);border-radius:22px;padding:1.6rem 1.4rem;width:min(380px,100%);max-height:90vh;overflow-y:auto;position:relative;animation:popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);">'
+    +'<button onclick="closeSuperResetModal()" style="position:absolute;top:0.9rem;right:0.9rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--muted);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:0.9rem;display:flex;align-items:center;justify-content:center;">✕</button>'
+    // Icône + titre
+    +'<div style="text-align:center;margin-bottom:1.1rem;">'
+    +'<div style="font-size:2.8rem;margin-bottom:0.4rem;">⚠️</div>'
+    +'<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1rem;color:var(--red);">Réinitialisation des compteurs</div>'
+    +'<div style="font-size:0.73rem;color:var(--muted);margin-top:0.25rem;line-height:1.5;">Cette opération va remettre à zéro toutes les données<br>dynamiques sur Firebase et en local.<br><strong style="color:var(--text);">Elle est irréversible.</strong></div>'
+    +'</div>'
+    // Checklist de ce qui sera effacé
+    +'<div style="background:rgba(255,68,102,0.07);border:1px solid rgba(255,68,102,0.25);border-radius:12px;padding:0.85rem;margin-bottom:1rem;">'
+    +'<div style="font-size:0.7rem;font-weight:700;color:var(--red);margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.07em;">Sera effacé</div>'
+    +'<div style="font-size:0.72rem;color:var(--muted);line-height:1.8;">'
+    +'🗳️ Votes communautaires (toutes collections)<br>'
+    +'👣 Présences / check-ins<br>'
+    +'📊 Signalements d\'affluence<br>'
+    +'⭐ Notes & avis membres<br>'
+    +'📣 Événements flash de chaque établissement<br>'
+    +'📸 Photos éphémères "ce soir" (localStorage)<br>'
+    +'📊 Ambiances, statuts, affluence % → remis à 50%<br>'
+    +'🔢 Compteurs de visites<br>'
+    +'🔔 Journal de notifications admin'
+    +'</div></div>'
+    // Confirmation textuelle
+    +'<div style="margin-bottom:1rem;">'
+    +'<label style="font-size:0.73rem;color:var(--muted);display:block;margin-bottom:0.4rem;font-weight:600;">Tapez <strong style="color:var(--red);">RESET</strong> pour confirmer</label>'
+    +'<input id="_srConfirmInput" type="text" placeholder="Tapez RESET ici" autocomplete="off" style="width:100%;background:var(--surface2);border:1.5px solid rgba(255,68,102,0.3);border-radius:10px;color:var(--text);padding:0.6rem 0.85rem;font-size:0.88rem;font-family:DM Sans,sans-serif;outline:none;box-sizing:border-box;" oninput="document.getElementById(\'_srExecBtn\').disabled=this.value.trim()!==\'RESET\'">'
+    +'</div>'
+    // Bouton exécuter (désactivé par défaut)
+    +'<button id="_srExecBtn" disabled onclick="executeSuperReset()" '
+    +'style="width:100%;padding:0.8rem;border-radius:12px;border:none;'
+    +'background:linear-gradient(135deg,rgba(255,68,102,0.9),rgba(255,45,155,0.8));'
+    +'color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;'
+    +'cursor:pointer;opacity:0.45;transition:opacity 0.2s;" '
+    +'style-disabled="opacity:0.4;cursor:not-allowed;">'
+    +'🔄 Lancer la réinitialisation'
+    +'</button>'
+    +'<div id="_srStatus" style="font-size:0.72rem;text-align:center;margin-top:0.6rem;display:none;"></div>'
+    +'</div></div>';
+
+  document.body.insertAdjacentHTML("beforeend", html);
+
+  // Activer le bouton quand input === "RESET"
+  document.getElementById("_srExecBtn").addEventListener("click", function(){});
+  // Style bouton quand actif
+  var inp2 = document.getElementById("_srConfirmInput");
+  inp2.addEventListener("input", function(){
+    var btn = document.getElementById("_srExecBtn");
+    var ok = inp2.value.trim() === "RESET";
+    btn.disabled = !ok;
+    btn.style.opacity = ok ? "1" : "0.45";
+    btn.style.cursor  = ok ? "pointer" : "not-allowed";
+  });
+};
+
+window.closeSuperResetModal = function(){
+  var el = document.getElementById("_superResetOverlay");
+  if(el) el.remove();
+};
+
+/* Exécute le reset Firebase + localStorage */
+window.executeSuperReset = function(){
+  if(!isSuperAdminUser()){ showToast("Réservé au SuperAdmin"); return; }
+
+  var btn = document.getElementById("_srExecBtn");
+  var status = document.getElementById("_srStatus");
+  if(btn){ btn.disabled = true; btn.textContent = "⏳ Réinitialisation en cours..."; btn.style.opacity = "0.6"; }
+  if(status){ status.style.display = "block"; status.style.color = "var(--cyan)"; status.textContent = "Démarrage..."; }
+
+  var steps = [];
+  var errors = [];
+
+  function setStatus(msg){ if(status) status.textContent = msg; }
+
+  // ── 1. Effacer localStorage dynamique ────────────────────────
+  var lsKeysToReset = [
+    "ambi241_visits_count",
+    "ambi241_visits_total",
+    "ambi241_visits_date",
+    "ambi241_slot_photos",    // photos éphémères ce soir
+    "ambi241_galerie",        // galeries membres
+    "ambi241_notifications",  // notifs utilisateur courant
+    NOTIF_ADMIN_KEY,          // journal notifs admin
+    "ambi241_notif_prefs"     // préférences notifs
+  ];
+  lsKeysToReset.forEach(function(k){
+    try{ localStorage.removeItem(k); }catch(e){}
+  });
+  // Supprimer aussi les cooldowns signalement (ambi241_scd_*)
+  try{
+    Object.keys(localStorage).forEach(function(k){
+      if(k.indexOf("ambi241_scd_") === 0) localStorage.removeItem(k);
+    });
+  }catch(e){}
+  setStatus("✓ localStorage nettoyé");
+
+  // ── 2. Remettre les données locales en mémoire ───────────────
+  etablissements.forEach(function(e){
+    e.affluence = 50;
+    e.statut    = "Ferme";
+    e.ambiance  = "Chill";
+    e.event_flash = {};
+    delete e._liveAff;
+    delete e._livePresences;
+    delete e._liveVotes;
+  });
+  renderStats(); renderAll(); renderHome();
+
+  // ── 3. Si Firebase disponible : effacer les collections ──────
+  if(!window.db || !window.fbGetDocs || !window.fbCollection || !window.fbDeleteDoc){
+    setStatus("✅ Reset local terminé (Firebase non disponible)");
+    if(status) status.style.color = "var(--green)";
+    setTimeout(function(){ closeSuperResetModal(); showToast("✅ Données locales réinitialisées !"); }, 1500);
+    return;
+  }
+
+  var collectionsToWipe = [
+    "votes_communautaires",
+    "presences",
+    "affluence_signalements"
+  ];
+
+  function wipeCollection(colName, cb){
+    setStatus("⏳ Suppression : " + colName + "...");
+    window.fbGetDocs(window.fbCollection(window.db, colName)).then(function(snap){
+      if(!snap.size){ cb(); return; }
+      var dels = snap.docs.map(function(d){
+        return window.fbDeleteDoc(window.fbDoc(window.db, colName, d.id));
+      });
+      Promise.all(dels).then(cb).catch(function(err){ errors.push(colName + ": " + err.message); cb(); });
+    }).catch(function(err){ errors.push(colName + ": " + err.message); cb(); });
+  }
+
+  // Effacer chaque collection en séquence
+  var idx = 0;
+  function nextCollection(){
+    if(idx >= collectionsToWipe.length){
+      // ── 4. Effacer les sous-collections ratings + event_flash sur établissements ──
+      resetEtablissementsDynamic();
+      return;
+    }
+    wipeCollection(collectionsToWipe[idx], function(){ idx++; nextCollection(); });
+  }
+
+  function resetEtablissementsDynamic(){
+    setStatus("⏳ Réinitialisation des établissements...");
+    var promises = [];
+    etablissements.forEach(function(e){
+      if(!e._docId && !e.id) return;
+      var docId = e._docId || String(e.id);
+      var updateData = {
+        affluence: 50,
+        statut: "Ferme",
+        ambiance: "Chill",
+        event_flash: {}
+      };
+      // Supprimer aussi les ratings (sous-collection) via query
+      promises.push(
+        window.fbUpdateDoc(window.fbDoc(window.db, "etablissements", docId), updateData)
+          .then(function(){
+            // Ratings sous-collection
+            return window.fbGetDocs(window.fbCollection(window.db, "etablissements", docId, "ratings"));
+          })
+          .then(function(rSnap){
+            var rdels = rSnap.docs.map(function(rd){
+              return window.fbDeleteDoc(window.fbDoc(window.db, "etablissements", docId, "ratings", rd.id));
+            });
+            return Promise.all(rdels);
+          })
+          .catch(function(err){ errors.push("etab "+docId+": "+err.message); })
+      );
+    });
+    Promise.all(promises).then(function(){
+      finalizeReset();
+    }).catch(function(){ finalizeReset(); });
+  }
+
+  function finalizeReset(){
+    // ── 5. Journaliser l'action dans Firebase (traçabilité) ────
+    try{
+      window.fbAddDoc(window.fbCollection(window.db, "admin_actions"), {
+        action: "SUPER_RESET_DYNAMIQUE",
+        performedBy: currentUserEmail || "SuperAdmin (PIN)",
+        ts: Date.now(),
+        isoDate: new Date().toISOString(),
+        details: "Réinitialisation complète des compteurs dynamiques avant/au lancement"
+      }).catch(function(){});
+    }catch(e){}
+
+    if(errors.length > 0){
+      setStatus("⚠️ Terminé avec " + errors.length + " erreur(s) — " + errors.join(", ").slice(0, 120));
+      if(status) status.style.color = "var(--amber)";
+    } else {
+      setStatus("✅ Réinitialisation complète !");
+      if(status) status.style.color = "var(--green)";
+    }
+    renderStats(); renderAll(); renderHome();
+    pushNotif({
+      targetRole: "admin",
+      key: "super_reset_" + Date.now(),
+      icon: "🔄",
+      title: "Réinitialisation effectuée",
+      msg: "Les compteurs dynamiques ont été remis à zéro par le SuperAdmin.",
+      channel: "push",
+      fromAdmin: true
+    });
+    setTimeout(function(){
+      closeSuperResetModal();
+      showToast("✅ Compteurs remis à zéro avec succès !");
+    }, 2200);
+  }
+
+  nextCollection();
+};
+
 
 // ── Afficher le bouton Admin dans la nav quand mode admin actif ─
 var _admNavShown=false;
