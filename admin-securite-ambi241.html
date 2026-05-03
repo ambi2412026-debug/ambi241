@@ -1,0 +1,1501 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMBI241 — Admin · Sécurité & Requêtes</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ══ DESIGN SYSTEM AMBI241 ══ */
+:root{
+  --bg:#0d0014;--surface:#130020;--surface2:#1a0028;--surface3:#200030;
+  --border:rgba(255,45,155,0.15);--text:#fff0f8;--muted:#b088c0;
+  --pink:#ff2d9b;--cyan:#00e5ff;--amber:#ffd700;--green:#00ffaa;
+  --red:#ff4466;--purple:#cc44ff;--orange:#ff8c00;
+  --mono:'JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse at 10% 10%,rgba(255,45,155,0.10) 0%,transparent 50%),
+    radial-gradient(ellipse at 90% 20%,rgba(0,229,255,0.08) 0%,transparent 50%),
+    radial-gradient(ellipse at 50% 90%,rgba(204,68,255,0.07) 0%,transparent 50%);
+  pointer-events:none;z-index:0;}
+
+/* ══ SCROLLBAR ══ */
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:var(--surface);}
+::-webkit-scrollbar-thumb{background:rgba(255,45,155,0.4);border-radius:4px;}
+
+/* ══ LAYOUT ══ */
+.admin-shell{position:relative;z-index:1;max-width:900px;margin:0 auto;padding:1.5rem 1rem 4rem;}
+
+/* ══ HEADER MODULE ══ */
+.mod-header{
+  display:flex;align-items:center;justify-content:space-between;
+  background:linear-gradient(135deg,rgba(255,45,155,0.10),rgba(204,68,255,0.06));
+  border:1px solid rgba(255,45,155,0.30);
+  border-radius:20px;padding:1.2rem 1.4rem;margin-bottom:1.5rem;
+  position:relative;overflow:hidden;
+}
+.mod-header::before{content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.02),transparent);
+  animation:shimmer 3s infinite;}
+@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.mod-header-left{display:flex;align-items:center;gap:0.9rem;}
+.mod-header-icon{width:48px;height:48px;background:rgba(255,45,155,0.15);border:1px solid rgba(255,45,155,0.4);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0;}
+.mod-header-title{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:800;color:var(--text);}
+.mod-header-sub{font-size:0.72rem;color:var(--muted);margin-top:0.2rem;}
+.mod-header-badge{display:flex;align-items:center;gap:0.35rem;background:rgba(0,255,170,0.10);border:1px solid rgba(0,255,170,0.30);color:var(--green);font-size:0.6rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;padding:0.28rem 0.6rem;border-radius:100px;}
+.mod-header-badge-dot{width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;flex-shrink:0;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.3;transform:scale(0.6)}}
+
+/* ══ ONGLETS PRINCIPAUX ══ */
+.tabs-primary{display:flex;gap:0.35rem;background:var(--surface2);border-radius:14px;padding:0.3rem;margin-bottom:1.5rem;border:1px solid rgba(255,255,255,0.05);}
+.tab-primary{flex:1;padding:0.6rem 0.5rem;border-radius:10px;border:none;background:transparent;color:var(--muted);font-size:0.72rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;text-align:center;display:flex;flex-direction:column;align-items:center;gap:0.2rem;}
+.tab-primary .tp-icon{font-size:1rem;}
+.tab-primary.active{background:rgba(255,45,155,0.15);color:var(--pink);border:1px solid rgba(255,45,155,0.35);}
+.tab-primary:active{transform:scale(0.96);}
+.tab-content{display:none;}
+.tab-content.active{display:block;animation:fadeIn 0.25s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ══ SECTION TITLE ══ */
+.section-title{font-family:'Syne',sans-serif;font-size:0.82rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.9rem;display:flex;align-items:center;gap:0.4rem;}
+.section-title::after{content:'';flex:1;height:1px;background:linear-gradient(to right,rgba(255,45,155,0.25),transparent);}
+
+/* ══ KPI CARDS ══ */
+.kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0.7rem;margin-bottom:1.5rem;}
+.kpi-card{background:var(--surface2);border-radius:14px;padding:1rem 0.9rem;text-align:center;border:1px solid rgba(255,255,255,0.05);transition:transform 0.2s;}
+.kpi-card:hover{transform:translateY(-2px);}
+.kpi-val{font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;line-height:1;}
+.kpi-lbl{font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-top:0.3rem;}
+.kpi-trend{font-size:0.6rem;margin-top:0.25rem;}
+.kpi-pink .kpi-val{color:var(--pink);}
+.kpi-cyan .kpi-val{color:var(--cyan);}
+.kpi-amber .kpi-val{color:var(--amber);}
+.kpi-green .kpi-val{color:var(--green);}
+.kpi-red .kpi-val{color:var(--red);}
+.kpi-purple .kpi-val{color:var(--purple);}
+
+/* ══ REQUÊTES TABLE ══ */
+.req-list{display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1.2rem;}
+.req-item{background:var(--surface2);border:1px solid rgba(255,255,255,0.05);border-radius:14px;padding:0.95rem 1rem;position:relative;transition:all 0.2s;cursor:default;}
+.req-item:hover{border-color:rgba(255,45,155,0.25);background:var(--surface3);}
+.req-item.priority-high{border-left:3px solid var(--red);}
+.req-item.priority-medium{border-left:3px solid var(--amber);}
+.req-item.priority-low{border-left:3px solid var(--cyan);}
+.req-top{display:flex;align-items:flex-start;justify-content:space-between;gap:0.6rem;margin-bottom:0.5rem;}
+.req-user{display:flex;align-items:center;gap:0.5rem;}
+.req-avatar{width:32px;height:32px;border-radius:50%;background:rgba(255,45,155,0.15);border:1.5px solid rgba(255,45,155,0.3);display:flex;align-items:center;justify-content:center;font-size:0.9rem;flex-shrink:0;}
+.req-name{font-size:0.82rem;font-weight:700;color:var(--text);}
+.req-email{font-size:0.65rem;color:var(--muted);font-family:var(--mono);}
+.req-badges{display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap;}
+.badge{display:inline-flex;align-items:center;gap:0.2rem;font-size:0.58rem;font-weight:800;padding:0.18rem 0.45rem;border-radius:6px;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;}
+.badge-pending{background:rgba(255,215,0,0.12);color:var(--amber);border:1px solid rgba(255,215,0,0.3);}
+.badge-done{background:rgba(0,255,170,0.10);color:var(--green);border:1px solid rgba(0,255,170,0.25);}
+.badge-rejected{background:rgba(255,68,102,0.12);color:var(--red);border:1px solid rgba(255,68,102,0.3);}
+.badge-processing{background:rgba(0,229,255,0.10);color:var(--cyan);border:1px solid rgba(0,229,255,0.25);}
+.badge-type-reset{background:rgba(204,68,255,0.10);color:var(--purple);border:1px solid rgba(204,68,255,0.25);}
+.badge-type-access{background:rgba(255,140,0,0.10);color:var(--orange);border:1px solid rgba(255,140,0,0.25);}
+.badge-type-delete{background:rgba(255,68,102,0.10);color:var(--red);border:1px solid rgba(255,68,102,0.25);}
+.badge-type-update{background:rgba(0,229,255,0.10);color:var(--cyan);border:1px solid rgba(0,229,255,0.25);}
+.req-detail{font-size:0.73rem;color:var(--muted);line-height:1.5;margin-bottom:0.65rem;}
+.req-meta{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.4rem;}
+.req-time{font-size:0.6rem;color:rgba(255,255,255,0.25);font-family:var(--mono);}
+.req-actions{display:flex;gap:0.35rem;}
+.req-btn{padding:0.3rem 0.65rem;border-radius:8px;font-size:0.65rem;font-weight:700;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:all 0.15s;white-space:nowrap;}
+.req-btn:active{transform:scale(0.93);}
+.req-btn-approve{background:rgba(0,255,170,0.12);border:1px solid rgba(0,255,170,0.3);color:var(--green);}
+.req-btn-approve:hover{background:rgba(0,255,170,0.22);}
+.req-btn-reject{background:rgba(255,68,102,0.10);border:1px solid rgba(255,68,102,0.25);color:var(--red);}
+.req-btn-reject:hover{background:rgba(255,68,102,0.20);}
+.req-btn-view{background:rgba(255,45,155,0.10);border:1px solid rgba(255,45,155,0.25);color:var(--pink);}
+.req-btn-view:hover{background:rgba(255,45,155,0.20);}
+.req-btn-send{background:rgba(0,229,255,0.10);border:1px solid rgba(0,229,255,0.25);color:var(--cyan);}
+.req-btn-send:hover{background:rgba(0,229,255,0.20);}
+
+/* ══ FILTRES ══ */
+.filter-bar{display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:1.1rem;align-items:center;}
+.filter-chip{padding:0.3rem 0.7rem;border-radius:100px;font-size:0.67rem;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,0.08);background:var(--surface2);color:var(--muted);transition:all 0.2s;font-family:'DM Sans',sans-serif;}
+.filter-chip.active{background:rgba(255,45,155,0.15);border-color:rgba(255,45,155,0.40);color:var(--pink);}
+.filter-chip:active{transform:scale(0.95);}
+.search-box{flex:1;min-width:140px;position:relative;}
+.search-box input{width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.08);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.8rem;padding:0.45rem 0.8rem 0.45rem 2rem;outline:none;transition:border-color 0.2s;}
+.search-box input:focus{border-color:rgba(255,45,155,0.40);}
+.search-box input::placeholder{color:var(--muted);}
+.search-box::before{content:'🔍';position:absolute;left:0.55rem;top:50%;transform:translateY(-50%);font-size:0.75rem;pointer-events:none;}
+
+/* ══ FORMULAIRE DE RÉINITIALISATION ADMIN ══ */
+.reset-panel{background:var(--surface2);border:1px solid rgba(255,45,155,0.20);border-radius:18px;padding:1.4rem;margin-bottom:1.2rem;}
+.reset-panel-title{font-family:'Syne',sans-serif;font-size:0.88rem;font-weight:800;color:var(--pink);margin-bottom:0.25rem;}
+.reset-panel-sub{font-size:0.72rem;color:var(--muted);margin-bottom:1.2rem;line-height:1.5;}
+.field{margin-bottom:0.9rem;}
+.field label{display:block;font-size:0.68rem;font-weight:700;color:var(--muted);margin-bottom:0.35rem;text-transform:uppercase;letter-spacing:0.07em;}
+.field input,.field select,.field textarea{width:100%;background:var(--surface);border:1px solid rgba(255,45,155,0.18);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.85rem;padding:0.6rem 0.85rem;outline:none;transition:border-color 0.2s;}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:rgba(255,45,155,0.50);}
+.field input::placeholder,.field textarea::placeholder{color:var(--muted);}
+.field select option{background:var(--surface2);}
+.field textarea{resize:vertical;min-height:70px;}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;}
+.panel-btn{padding:0.65rem 1.2rem;border-radius:11px;border:none;font-family:'Syne',sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;transition:all 0.2s;display:inline-flex;align-items:center;gap:0.4rem;}
+.panel-btn-primary{background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;}
+.panel-btn-primary:hover{opacity:0.9;}
+.panel-btn-secondary{background:rgba(255,255,255,0.06);color:var(--muted);border:1px solid rgba(255,255,255,0.1);}
+.panel-btn:active{transform:scale(0.95);}
+.panel-btn:disabled{opacity:0.5;cursor:not-allowed;transform:none !important;}
+.btn-row{display:flex;gap:0.6rem;flex-wrap:wrap;margin-top:0.4rem;}
+
+/* ══ SÉCURITÉ OPTIONS ══ */
+.security-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;margin-bottom:1.2rem;}
+.sec-card{background:var(--surface2);border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:1.1rem 1rem;transition:all 0.2s;cursor:default;}
+.sec-card:hover{border-color:rgba(255,45,155,0.2);}
+.sec-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;}
+.sec-card-icon{font-size:1.3rem;}
+.sec-card-title{font-family:'Syne',sans-serif;font-size:0.78rem;font-weight:800;color:var(--text);margin-bottom:0.2rem;}
+.sec-card-desc{font-size:0.67rem;color:var(--muted);line-height:1.45;}
+/* Toggle switch */
+.toggle-wrap{position:relative;width:40px;height:22px;flex-shrink:0;}
+.toggle-wrap input{opacity:0;width:0;height:0;position:absolute;}
+.toggle-slider{position:absolute;inset:0;background:rgba(255,255,255,0.08);border-radius:22px;cursor:pointer;transition:0.25s;border:1px solid rgba(255,255,255,0.1);}
+.toggle-slider:before{content:'';position:absolute;width:16px;height:16px;left:2px;top:2px;background:var(--muted);border-radius:50%;transition:0.25s;}
+.toggle-wrap input:checked+.toggle-slider{background:rgba(0,255,170,0.25);border-color:var(--green);}
+.toggle-wrap input:checked+.toggle-slider:before{transform:translateX(18px);background:var(--green);}
+
+/* ══ TIMELINE ACTIVITÉ ══ */
+.activity-list{display:flex;flex-direction:column;gap:0;}
+.activity-item{display:flex;gap:0.8rem;padding:0.7rem 0;position:relative;}
+.activity-item:not(:last-child){border-bottom:1px solid rgba(255,255,255,0.04);}
+.activity-line{display:flex;flex-direction:column;align-items:center;gap:0;flex-shrink:0;}
+.activity-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;margin-top:0.25rem;}
+.ad-reset{background:var(--purple);box-shadow:0 0 6px rgba(204,68,255,0.5);}
+.ad-approve{background:var(--green);box-shadow:0 0 6px rgba(0,255,170,0.5);}
+.ad-reject{background:var(--red);box-shadow:0 0 6px rgba(255,68,102,0.5);}
+.ad-lock{background:var(--amber);box-shadow:0 0 6px rgba(255,215,0,0.5);}
+.ad-warn{background:var(--orange);box-shadow:0 0 6px rgba(255,140,0,0.5);}
+.activity-body{flex:1;}
+.activity-title{font-size:0.78rem;font-weight:700;color:var(--text);line-height:1.3;}
+.activity-detail{font-size:0.67rem;color:var(--muted);margin-top:0.1rem;font-family:var(--mono);}
+.activity-time{font-size:0.6rem;color:rgba(255,255,255,0.25);margin-top:0.1rem;font-family:var(--mono);}
+
+/* ══ POLICY CHECKER ══ */
+.policy-list{display:flex;flex-direction:column;gap:0.5rem;}
+.policy-item{display:flex;align-items:center;justify-content:space-between;padding:0.7rem 0.9rem;background:var(--surface2);border-radius:11px;border:1px solid rgba(255,255,255,0.05);}
+.policy-item-left{display:flex;align-items:center;gap:0.55rem;}
+.policy-item-icon{font-size:0.95rem;}
+.policy-item-label{font-size:0.78rem;color:var(--text);font-weight:600;}
+.policy-item-desc{font-size:0.62rem;color:var(--muted);margin-top:0.06rem;}
+.policy-status{font-size:0.65rem;font-weight:700;padding:0.2rem 0.5rem;border-radius:5px;}
+.ps-ok{background:rgba(0,255,170,0.12);color:var(--green);}
+.ps-warn{background:rgba(255,215,0,0.12);color:var(--amber);}
+.ps-fail{background:rgba(255,68,102,0.12);color:var(--red);}
+
+/* ══ PASSWORD STRENGTH METER ══ */
+.strength-bar{height:4px;border-radius:4px;background:rgba(255,255,255,0.08);margin-top:0.5rem;overflow:hidden;}
+.strength-fill{height:100%;border-radius:4px;transition:all 0.4s;width:0%;}
+.strength-label{font-size:0.62rem;margin-top:0.25rem;font-weight:700;}
+
+/* ══ MODAL OVERLAY ══ */
+.overlay{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.88);backdrop-filter:blur(12px);align-items:center;justify-content:center;padding:1rem;}
+.overlay.show{display:flex;animation:fadeIn 0.2s ease;}
+.modal{background:var(--surface);border:1px solid rgba(255,45,155,0.30);border-radius:22px;padding:1.8rem 1.5rem;width:min(420px,100%);max-height:90vh;overflow-y:auto;box-shadow:0 0 50px rgba(255,45,155,0.15);animation:popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);}
+@keyframes popIn{from{opacity:0;transform:scale(0.88)}to{opacity:1;transform:scale(1)}}
+.modal-title{font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:var(--pink);margin-bottom:0.25rem;}
+.modal-sub{font-size:0.75rem;color:var(--muted);margin-bottom:1.3rem;line-height:1.5;}
+.modal-close{float:right;margin-top:-0.2rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--muted);width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.85rem;display:inline-flex;align-items:center;justify-content:center;transition:all 0.2s;}
+.modal-close:hover{background:rgba(255,255,255,0.12);}
+
+/* ══ ALERT BOX ══ */
+.alert{padding:0.75rem 0.95rem;border-radius:11px;font-size:0.75rem;line-height:1.5;display:none;}
+.alert.show{display:block;}
+.alert-success{background:rgba(0,255,170,0.08);border:1px solid rgba(0,255,170,0.25);color:var(--green);}
+.alert-error{background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.25);color:var(--red);}
+.alert-warn{background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.25);color:var(--amber);}
+.alert-info{background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.20);color:var(--cyan);}
+
+/* ══ TOAST ══ */
+.toast-wrap{position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem;pointer-events:none;}
+.toast{padding:0.7rem 1.1rem;border-radius:14px;font-size:0.8rem;font-weight:700;color:#fff;opacity:0;transform:translateX(30px);transition:all 0.35s cubic-bezier(0.34,1.56,0.64,1);pointer-events:none;max-width:280px;font-family:'DM Sans',sans-serif;line-height:1.4;}
+.toast.show{opacity:1;transform:translateX(0);}
+.toast-success{background:linear-gradient(135deg,rgba(0,200,100,0.95),rgba(0,180,80,0.95));border:1px solid rgba(0,255,170,0.4);}
+.toast-error{background:linear-gradient(135deg,rgba(220,40,80,0.95),rgba(200,20,60,0.95));border:1px solid rgba(255,68,102,0.4);}
+.toast-info{background:linear-gradient(135deg,rgba(0,180,220,0.95),rgba(0,160,200,0.95));border:1px solid rgba(0,229,255,0.4);}
+.toast-warn{background:linear-gradient(135deg,rgba(200,160,0,0.95),rgba(180,140,0,0.95));border:1px solid rgba(255,215,0,0.4);}
+
+/* ══ SECURITY SCORE ══ */
+.score-ring{display:flex;align-items:center;gap:1.2rem;background:var(--surface2);border-radius:18px;padding:1.2rem 1.3rem;border:1px solid rgba(255,255,255,0.06);margin-bottom:1.2rem;}
+.ring-svg{flex-shrink:0;}
+.score-info{flex:1;}
+.score-label{font-family:'Syne',sans-serif;font-size:0.75rem;font-weight:800;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:0.3rem;}
+.score-value{font-family:'Syne',sans-serif;font-size:2.2rem;font-weight:800;line-height:1;}
+.score-desc{font-size:0.68rem;color:var(--muted);margin-top:0.3rem;line-height:1.4;}
+.score-factors{display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.6rem;}
+.sf-item{font-size:0.6rem;padding:0.18rem 0.45rem;border-radius:5px;font-weight:700;}
+.sf-ok{background:rgba(0,255,170,0.10);color:var(--green);}
+.sf-warn{background:rgba(255,215,0,0.10);color:var(--amber);}
+.sf-fail{background:rgba(255,68,102,0.10);color:var(--red);}
+
+/* ══ LOG TABLE ══ */
+.log-table{width:100%;border-collapse:collapse;font-size:0.72rem;}
+.log-table th{text-align:left;padding:0.5rem 0.7rem;color:var(--muted);font-size:0.62rem;text-transform:uppercase;letter-spacing:0.07em;border-bottom:1px solid rgba(255,255,255,0.06);}
+.log-table td{padding:0.6rem 0.7rem;border-bottom:1px solid rgba(255,255,255,0.03);color:var(--text);vertical-align:middle;}
+.log-table tr:hover td{background:rgba(255,255,255,0.02);}
+.log-ip{font-family:var(--mono);color:var(--cyan);font-size:0.65rem;}
+.log-status-ok{color:var(--green);}
+.log-status-fail{color:var(--red);}
+.log-status-warn{color:var(--amber);}
+
+/* ══ EMPTY STATE ══ */
+.empty-state{text-align:center;padding:3rem 1rem;color:var(--muted);}
+.empty-icon{font-size:2.5rem;margin-bottom:0.7rem;display:block;}
+.empty-text{font-size:0.85rem;font-weight:600;}
+.empty-sub{font-size:0.72rem;margin-top:0.3rem;opacity:0.7;}
+
+/* ══ PAGINATION ══ */
+.pagination{display:flex;align-items:center;justify-content:space-between;margin-top:1rem;}
+.page-info{font-size:0.68rem;color:var(--muted);font-family:var(--mono);}
+.page-btns{display:flex;gap:0.35rem;}
+.page-btn{width:30px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:var(--surface2);color:var(--muted);font-size:0.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;font-family:'DM Sans',sans-serif;}
+.page-btn.active{background:rgba(255,45,155,0.15);border-color:rgba(255,45,155,0.35);color:var(--pink);}
+.page-btn:disabled{opacity:0.4;cursor:not-allowed;}
+
+/* ══ SEPARATOR ══ */
+.sep{height:1px;background:linear-gradient(to right,transparent,rgba(255,45,155,0.2),transparent);margin:1.2rem 0;}
+
+/* ══ REGISTRE DE TRANSACTIONS ══ */
+.reg-banner{
+  display:flex;align-items:center;gap:0.8rem;
+  background:linear-gradient(135deg,rgba(0,229,255,0.06),rgba(204,68,255,0.05));
+  border:1px solid rgba(0,229,255,0.22);border-radius:16px;
+  padding:1rem 1.2rem;margin-bottom:1.3rem;
+}
+.reg-banner-icon{font-size:1.8rem;flex-shrink:0;}
+.reg-banner-title{font-family:'Syne',sans-serif;font-size:0.88rem;font-weight:800;color:var(--cyan);}
+.reg-banner-sub{font-size:0.68rem;color:var(--muted);margin-top:0.2rem;line-height:1.45;}
+.reg-immutable{font-size:0.6rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--green);background:rgba(0,255,170,0.10);border:1px solid rgba(0,255,170,0.25);padding:0.18rem 0.45rem;border-radius:5px;display:inline-flex;align-items:center;gap:0.25rem;margin-top:0.4rem;}
+
+/* Transaction items */
+.txn-list{display:flex;flex-direction:column;gap:0.5rem;}
+.txn-item{background:var(--surface2);border:1px solid rgba(255,255,255,0.05);border-radius:14px;padding:0.85rem 1rem;position:relative;transition:border-color 0.2s;cursor:default;}
+.txn-item:hover{border-color:rgba(0,229,255,0.20);}
+.txn-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:14px 0 0 14px;}
+.txn-cat-reset::before{background:var(--purple);}
+.txn-cat-auth::before{background:var(--cyan);}
+.txn-cat-account::before{background:var(--amber);}
+.txn-cat-security::before{background:var(--red);}
+.txn-cat-admin::before{background:var(--pink);}
+.txn-cat-payment::before{background:var(--green);}
+.txn-top{display:flex;align-items:flex-start;justify-content:space-between;gap:0.5rem;margin-bottom:0.45rem;}
+.txn-id{font-family:var(--mono);font-size:0.6rem;color:var(--muted);background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);padding:0.12rem 0.4rem;border-radius:4px;}
+.txn-hash{font-family:var(--mono);font-size:0.55rem;color:rgba(0,229,255,0.5);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.txn-main{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;flex-wrap:wrap;}
+.txn-action{font-size:0.8rem;font-weight:700;color:var(--text);}
+.txn-user-chip{display:inline-flex;align-items:center;gap:0.3rem;background:rgba(255,45,155,0.08);border:1px solid rgba(255,45,155,0.2);padding:0.12rem 0.45rem;border-radius:100px;font-size:0.62rem;font-weight:700;color:var(--pink);}
+.txn-meta-row{display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;}
+.txn-meta-item{font-size:0.62rem;color:var(--muted);display:flex;align-items:center;gap:0.2rem;}
+.txn-meta-item strong{color:rgba(255,255,255,0.55);}
+.txn-actions{display:flex;gap:0.3rem;margin-top:0.5rem;flex-wrap:wrap;}
+.txn-integrity{display:inline-flex;align-items:center;gap:0.2rem;font-size:0.58rem;font-weight:700;padding:0.15rem 0.4rem;border-radius:5px;}
+.txn-int-ok{background:rgba(0,255,170,0.10);color:var(--green);border:1px solid rgba(0,255,170,0.2);}
+.txn-int-warn{background:rgba(255,215,0,0.10);color:var(--amber);border:1px solid rgba(255,215,0,0.2);}
+
+/* Category badges */
+.cat-badge{display:inline-flex;align-items:center;gap:0.2rem;font-size:0.56rem;font-weight:800;padding:0.14rem 0.38rem;border-radius:5px;text-transform:uppercase;letter-spacing:0.04em;}
+.cat-reset{background:rgba(204,68,255,0.12);color:var(--purple);border:1px solid rgba(204,68,255,0.25);}
+.cat-auth{background:rgba(0,229,255,0.10);color:var(--cyan);border:1px solid rgba(0,229,255,0.22);}
+.cat-account{background:rgba(255,215,0,0.10);color:var(--amber);border:1px solid rgba(255,215,0,0.22);}
+.cat-security{background:rgba(255,68,102,0.10);color:var(--red);border:1px solid rgba(255,68,102,0.22);}
+.cat-admin{background:rgba(255,45,155,0.10);color:var(--pink);border:1px solid rgba(255,45,155,0.22);}
+.cat-payment{background:rgba(0,255,170,0.10);color:var(--green);border:1px solid rgba(0,255,170,0.22);}
+
+/* Proof modal */
+.proof-block{background:var(--bg);border:1px solid rgba(0,229,255,0.20);border-radius:12px;padding:1rem;font-family:var(--mono);font-size:0.65rem;color:var(--cyan);line-height:1.8;overflow-x:auto;white-space:pre-wrap;word-break:break-all;}
+.proof-seal{display:flex;align-items:center;gap:0.6rem;background:rgba(0,255,170,0.06);border:1px solid rgba(0,255,170,0.2);border-radius:10px;padding:0.7rem 0.9rem;margin-top:0.8rem;}
+.proof-seal-icon{font-size:1.5rem;}
+.proof-seal-text{font-size:0.72rem;font-weight:700;color:var(--green);}
+.proof-seal-sub{font-size:0.62rem;color:var(--muted);margin-top:0.1rem;}
+
+/* Claim modal */
+.claim-step{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.9rem;}
+.claim-step-num{width:24px;height:24px;border-radius:50%;background:rgba(255,45,155,0.15);border:1.5px solid rgba(255,45,155,0.35);color:var(--pink);font-size:0.7rem;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.claim-step-label{font-size:0.78rem;font-weight:700;color:var(--text);}
+
+/* Export toolbar */
+.export-bar{display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem;background:var(--surface2);border:1px solid rgba(255,255,255,0.05);border-radius:12px;padding:0.7rem 0.9rem;}
+.export-label{font-size:0.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-right:0.2rem;}
+.export-btn{padding:0.35rem 0.75rem;border-radius:8px;font-size:0.68rem;font-weight:700;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:all 0.2s;display:inline-flex;align-items:center;gap:0.3rem;}
+.export-btn:active{transform:scale(0.94);}
+.export-csv{background:rgba(0,255,170,0.12);border:1px solid rgba(0,255,170,0.25);color:var(--green);}
+.export-json{background:rgba(0,229,255,0.10);border:1px solid rgba(0,229,255,0.22);color:var(--cyan);}
+.export-pdf{background:rgba(255,45,155,0.10);border:1px solid rgba(255,45,155,0.25);color:var(--pink);}
+.export-claim{background:rgba(255,215,0,0.10);border:1px solid rgba(255,215,0,0.25);color:var(--amber);}
+
+/* Integrity banner */
+.integrity-banner{display:flex;align-items:center;gap:0.7rem;background:rgba(0,255,170,0.05);border:1px solid rgba(0,255,170,0.18);border-radius:12px;padding:0.7rem 1rem;margin-bottom:1rem;}
+.integrity-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px rgba(0,255,170,0.6);animation:pulse 2s infinite;flex-shrink:0;}
+.integrity-text{font-size:0.72rem;font-weight:700;color:var(--green);}
+.integrity-sub{font-size:0.62rem;color:var(--muted);font-family:var(--mono);}
+
+/* ══ RESPONSIVE ══ */
+@media(max-width:600px){
+  .security-grid{grid-template-columns:1fr;}
+  .kpi-grid{grid-template-columns:repeat(2,1fr);}
+  .field-row{grid-template-columns:1fr;}
+  .score-ring{flex-direction:column;text-align:center;}
+  .log-table th:nth-child(4),.log-table td:nth-child(4){display:none;}
+}
+</style>
+</head>
+<body>
+
+<!-- ══ TOAST CONTAINER ══ -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<!-- ══ MODAL DÉTAIL REQUÊTE ══ -->
+<div class="overlay" id="reqDetailOverlay">
+  <div class="modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.3rem;">
+      <span class="modal-title" id="reqDetailTitle">Détail de la requête</span>
+      <button class="modal-close" onclick="closeReqDetail()">✕</button>
+    </div>
+    <div id="reqDetailBody"></div>
+    <div class="btn-row" style="margin-top:1rem;">
+      <button class="panel-btn panel-btn-primary" id="reqDetailApproveBtn" onclick="approveFromDetail()">✅ Approuver & Envoyer reset</button>
+      <button class="panel-btn panel-btn-secondary" onclick="rejectFromDetail()">✕ Rejeter</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL CONFIRMATION RESET FORCÉ ══ -->
+<div class="overlay" id="forceResetOverlay">
+  <div class="modal" style="text-align:center;max-width:360px;">
+    <div style="font-size:2.5rem;margin-bottom:0.8rem;">🔐</div>
+    <div class="modal-title" style="text-align:center;margin-bottom:0.3rem;">Confirmer la réinitialisation</div>
+    <div style="font-size:0.75rem;color:var(--muted);margin-bottom:1.3rem;line-height:1.6;" id="forceResetDesc">Cette action enverra un lien de réinitialisation sécurisé à l'utilisateur.</div>
+    <div class="alert alert-warn show" style="margin-bottom:1rem;">⚠️ Action irréversible — l'ancien mot de passe sera invalidé immédiatement.</div>
+    <div class="btn-row" style="justify-content:center;">
+      <button class="panel-btn panel-btn-primary" onclick="confirmForceReset()">🚀 Confirmer l'envoi</button>
+      <button class="panel-btn panel-btn-secondary" onclick="document.getElementById('forceResetOverlay').classList.remove('show')">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL PREUVE DE TRANSACTION ══ -->
+<div class="overlay" id="proofOverlay">
+  <div class="modal" style="max-width:520px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;">
+      <span class="modal-title">📜 Preuve officielle de transaction</span>
+      <button class="modal-close" onclick="document.getElementById('proofOverlay').classList.remove('show')">✕</button>
+    </div>
+    <div style="font-size:0.72rem;color:var(--muted);margin-bottom:1rem;line-height:1.5;">Ce document certifie l'authenticité et l'intégrité de la transaction enregistrée dans le registre AMBI241. Il peut être utilisé comme preuve en cas de réclamation.</div>
+    <pre class="proof-block" id="proofContent"></pre>
+    <div class="proof-seal">
+      <div class="proof-seal-icon">🔏</div>
+      <div>
+        <div class="proof-seal-text">✓ Transaction certifiée — Registre AMBI241</div>
+        <div class="proof-seal-sub">Intégrité vérifiée par hash SHA-256 · Horodatage immuable · Non modifiable</div>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:1rem;">
+      <button class="panel-btn panel-btn-primary" onclick="copyProof()">📋 Copier la preuve</button>
+      <button class="panel-btn panel-btn-secondary" onclick="downloadProof()">⬇ Télécharger .txt</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL RÉCLAMATION ══ -->
+<div class="overlay" id="claimOverlay">
+  <div class="modal" style="max-width:460px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;">
+      <span class="modal-title">⚖️ Ouvrir une réclamation</span>
+      <button class="modal-close" onclick="document.getElementById('claimOverlay').classList.remove('show')">✕</button>
+    </div>
+    <div style="font-size:0.72rem;color:var(--muted);margin-bottom:1.2rem;line-height:1.5;">Liez cette transaction à un dossier de réclamation officiel. La transaction restera immuable et servira de preuve dans le traitement.</div>
+    <div id="claimTxnRef" style="background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:10px;padding:0.7rem 0.9rem;margin-bottom:1rem;font-size:0.72rem;color:var(--amber);font-family:var(--mono);"></div>
+    <div class="claim-step"><div class="claim-step-num">1</div><div class="claim-step-label">Identité du réclamant</div></div>
+    <div class="field-row" style="margin-bottom:0.9rem;">
+      <div class="field" style="margin-bottom:0;"><label>Nom complet</label><input type="text" id="claimName" placeholder="Ex : Koumba Mba"></div>
+      <div class="field" style="margin-bottom:0;"><label>Email</label><input type="email" id="claimEmail" placeholder="email@example.com"></div>
+    </div>
+    <div class="claim-step"><div class="claim-step-num">2</div><div class="claim-step-label">Nature de la réclamation</div></div>
+    <div class="field">
+      <label>Catégorie</label>
+      <select id="claimCategory">
+        <option value="">— Sélectionner —</option>
+        <option value="unauthorized">Action non autorisée</option>
+        <option value="error">Erreur de transaction</option>
+        <option value="identity">Usurpation d'identité</option>
+        <option value="data">Violation de données</option>
+        <option value="other">Autre</option>
+      </select>
+    </div>
+    <div class="claim-step"><div class="claim-step-num">3</div><div class="claim-step-label">Description détaillée</div></div>
+    <div class="field">
+      <label>Exposé des faits <span style="color:var(--red);">*</span></label>
+      <textarea id="claimDesc" placeholder="Décrivez précisément les faits contestés, les dates, et les préjudices subis…"></textarea>
+    </div>
+    <div class="alert" id="claimMsg" style="margin-bottom:0.8rem;"></div>
+    <div class="btn-row">
+      <button class="panel-btn panel-btn-primary" onclick="submitClaim()">⚖️ Soumettre la réclamation</button>
+      <button class="panel-btn panel-btn-secondary" onclick="document.getElementById('claimOverlay').classList.remove('show')">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SHELL PRINCIPAL ══ -->
+<div class="admin-shell">
+
+  <!-- HEADER -->
+  <div class="mod-header">
+    <div class="mod-header-left">
+      <div class="mod-header-icon">🛡️</div>
+      <div>
+        <div class="mod-header-title">Centre de Sécurité — Admin AMBI241</div>
+        <div class="mod-header-sub">Gestion des requêtes · Réinitialisations · Analyse · Politique de sécurité</div>
+      </div>
+    </div>
+    <div class="mod-header-badge">
+      <div class="mod-header-badge-dot"></div>
+      Système actif
+    </div>
+  </div>
+
+  <!-- ONGLETS PRINCIPAUX -->
+  <div class="tabs-primary">
+    <button class="tab-primary active" onclick="switchTab('requetes')">
+      <span class="tp-icon">📥</span>Requêtes
+    </button>
+    <button class="tab-primary" onclick="switchTab('reinitialiser')">
+      <span class="tp-icon">🔑</span>Reset MDP
+    </button>
+    <button class="tab-primary" onclick="switchTab('analyse')">
+      <span class="tp-icon">📊</span>Analyse
+    </button>
+    <button class="tab-primary" onclick="switchTab('securite')">
+      <span class="tp-icon">🔒</span>Sécurité
+    </button>
+    <button class="tab-primary" onclick="switchTab('registre')">
+      <span class="tp-icon">📜</span>Registre
+    </button>
+  </div>
+
+  <!-- ══════════════════════════════════════════ -->
+  <!-- ONGLET 1 : REQUÊTES                        -->
+  <!-- ══════════════════════════════════════════ -->
+  <div class="tab-content active" id="tab-requetes">
+
+    <!-- KPIs -->
+    <div class="kpi-grid">
+      <div class="kpi-card kpi-amber">
+        <div class="kpi-val" id="kpiPending">—</div>
+        <div class="kpi-lbl">En attente</div>
+        <div class="kpi-trend" style="color:var(--amber);">⏳ À traiter</div>
+      </div>
+      <div class="kpi-card kpi-green">
+        <div class="kpi-val" id="kpiDone">—</div>
+        <div class="kpi-lbl">Traités</div>
+        <div class="kpi-trend" style="color:var(--green);">✓ Résolus</div>
+      </div>
+      <div class="kpi-card kpi-purple">
+        <div class="kpi-val" id="kpiTotal">—</div>
+        <div class="kpi-lbl">Total</div>
+        <div class="kpi-trend" style="color:var(--purple);">📅 Ce mois</div>
+      </div>
+    </div>
+
+    <!-- FILTRES -->
+    <div class="filter-bar">
+      <div class="search-box">
+        <input type="text" id="reqSearch" placeholder="Rechercher utilisateur, email…" oninput="renderRequests()">
+      </div>
+      <button class="filter-chip active" data-filter="all" onclick="setFilter(this)">Tous</button>
+      <button class="filter-chip" data-filter="pending" onclick="setFilter(this)">⏳ En attente</button>
+      <button class="filter-chip" data-filter="processing" onclick="setFilter(this)">🔄 En cours</button>
+      <button class="filter-chip" data-filter="done" onclick="setFilter(this)">✅ Traités</button>
+    </div>
+
+    <!-- LISTE DES REQUÊTES -->
+    <div class="req-list" id="reqList"></div>
+    <div class="pagination" id="reqPagination"></div>
+
+  </div><!-- /tab-requetes -->
+
+  <!-- ══════════════════════════════════════════ -->
+  <!-- ONGLET 2 : RÉINITIALISATION MDP            -->
+  <!-- ══════════════════════════════════════════ -->
+  <div class="tab-content" id="tab-reinitialiser">
+
+    <!-- Reset par email -->
+    <div class="reset-panel">
+      <div class="reset-panel-title">🔗 Réinitialisation par lien email</div>
+      <div class="reset-panel-sub">Envoie un lien sécurisé JWT à durée limitée (15 min) directement sur l'email de l'utilisateur. Journalisé automatiquement.</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Email utilisateur <span style="color:var(--red);">*</span></label>
+          <input type="email" id="resetEmail" placeholder="user@example.com" oninput="searchUserEmail()">
+        </div>
+        <div class="field">
+          <label>UID Firebase (auto)</label>
+          <input type="text" id="resetUid" placeholder="Détecté automatiquement" readonly style="font-family:var(--mono);font-size:0.72rem;opacity:0.7;">
+        </div>
+      </div>
+      <div class="alert alert-info show" id="resetUserInfo" style="display:none;"></div>
+      <div class="field">
+        <label>Raison administrative</label>
+        <select id="resetReason">
+          <option value="">— Choisir une raison —</option>
+          <option value="user_request">Demande utilisateur validée</option>
+          <option value="security_breach">Suspicion de compromission</option>
+          <option value="mass_reset">Réinitialisation de masse</option>
+          <option value="account_takeover">Récupération de compte</option>
+          <option value="admin_action">Action administrative</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Note interne (optionnel)</label>
+        <textarea id="resetNote" placeholder="Contexte ou observation…"></textarea>
+      </div>
+      <!-- Options avancées -->
+      <details style="margin-bottom:1rem;">
+        <summary style="font-size:0.75rem;font-weight:700;color:var(--muted);cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:0.4rem;">
+          ⚙️ Options avancées de sécurité
+          <span style="margin-left:auto;font-size:0.65rem;color:rgba(255,255,255,0.2);">▼</span>
+        </summary>
+        <div style="margin-top:0.9rem;display:flex;flex-direction:column;gap:0.6rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0.6rem 0.8rem;background:var(--surface);border-radius:10px;border:1px solid rgba(255,255,255,0.05);">
+            <div>
+              <div style="font-size:0.75rem;font-weight:700;color:var(--text);">Invalider toutes les sessions actives</div>
+              <div style="font-size:0.62rem;color:var(--muted);">Force le logout sur tous les appareils</div>
+            </div>
+            <label class="toggle-wrap"><input type="checkbox" id="optInvalidateSessions" checked><span class="toggle-slider"></span></label>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0.6rem 0.8rem;background:var(--surface);border-radius:10px;border:1px solid rgba(255,255,255,0.05);">
+            <div>
+              <div style="font-size:0.75rem;font-weight:700;color:var(--text);">Notifier par SMS en plus de l'email</div>
+              <div style="font-size:0.62rem;color:var(--muted);">Si le numéro est enregistré dans le profil</div>
+            </div>
+            <label class="toggle-wrap"><input type="checkbox" id="optNotifySMS"><span class="toggle-slider"></span></label>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0.6rem 0.8rem;background:var(--surface);border-radius:10px;border:1px solid rgba(255,255,255,0.05);">
+            <div>
+              <div style="font-size:0.75rem;font-weight:700;color:var(--text);">Expiration raccourcie du lien (5 min)</div>
+              <div style="font-size:0.62rem;color:var(--muted);">Au lieu de 15 min — pour contextes sensibles</div>
+            </div>
+            <label class="toggle-wrap"><input type="checkbox" id="optShortExpiry"><span class="toggle-slider"></span></label>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0.6rem 0.8rem;background:var(--surface);border-radius:10px;border:1px solid rgba(255,255,255,0.05);">
+            <div>
+              <div style="font-size:0.75rem;font-weight:700;color:var(--text);">Exiger 2FA après réinitialisation</div>
+              <div style="font-size:0.62rem;color:var(--muted);">Double authentification obligatoire à la reconnexion</div>
+            </div>
+            <label class="toggle-wrap"><input type="checkbox" id="optRequire2FA"><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+      </details>
+
+      <div class="alert" id="resetEmailMsg" style="margin-bottom:0.8rem;"></div>
+      <div class="btn-row">
+        <button class="panel-btn panel-btn-primary" onclick="sendPasswordReset()">
+          📧 Envoyer le lien de réinitialisation
+        </button>
+        <button class="panel-btn panel-btn-secondary" onclick="clearResetForm()">Réinitialiser le formulaire</button>
+      </div>
+    </div>
+
+    <!-- Reset par téléphone / validation manuelle -->
+    <div class="reset-panel">
+      <div class="reset-panel-title">📱 Validation manuelle par téléphone</div>
+      <div class="reset-panel-sub">Pour les utilisateurs sans accès email. Vérifiez l'identité manuellement, puis déclenchez le reset avec code SMS ou lien alternatif.</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Pseudo utilisateur <span style="color:var(--red);">*</span></label>
+          <input type="text" id="verifyPseudo" placeholder="@pseudo">
+        </div>
+        <div class="field">
+          <label>Numéro de téléphone <span style="color:var(--red);">*</span></label>
+          <input type="tel" id="verifyTel" placeholder="+241 XX XX XX XX">
+        </div>
+      </div>
+      <div class="field">
+        <label>Questions de sécurité validées</label>
+        <div style="display:flex;flex-direction:column;gap:0.4rem;">
+          <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.75rem;color:var(--text);text-transform:none;letter-spacing:0;font-weight:400;">
+            <input type="checkbox" id="verQ1" style="accent-color:var(--green);"> Date d'inscription confirmée
+          </label>
+          <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.75rem;color:var(--text);text-transform:none;letter-spacing:0;font-weight:400;">
+            <input type="checkbox" id="verQ2" style="accent-color:var(--green);"> Dernier lieu visité confirmé
+          </label>
+          <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.75rem;color:var(--text);text-transform:none;letter-spacing:0;font-weight:400;">
+            <input type="checkbox" id="verQ3" style="accent-color:var(--green);"> Identité photo ou pièce vérifiée
+          </label>
+        </div>
+      </div>
+      <div class="field">
+        <label>Email de secours (pour envoi du lien)</label>
+        <input type="email" id="verifyAltEmail" placeholder="email.alternatif@example.com">
+      </div>
+      <div class="alert" id="verifyMsg" style="margin-bottom:0.8rem;"></div>
+      <div class="btn-row">
+        <button class="panel-btn panel-btn-primary" onclick="manualVerifyAndReset()">🔐 Valider & Déclencher reset</button>
+      </div>
+    </div>
+
+    <!-- Nouveau mot de passe temporaire admin -->
+    <div class="reset-panel">
+      <div class="reset-panel-title">🔑 Générateur de mot de passe temporaire</div>
+      <div class="reset-panel-sub">Génère un mot de passe fort à usage unique à communiquer manuellement à l'utilisateur. Il sera forcé de le changer à la prochaine connexion.</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Longueur</label>
+          <select id="pwdLength">
+            <option value="12">12 caractères</option>
+            <option value="16" selected>16 caractères (recommandé)</option>
+            <option value="20">20 caractères</option>
+            <option value="24">24 caractères (haute sécurité)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Complexité</label>
+          <select id="pwdComplexity">
+            <option value="standard">Standard (MAJMIN+chiffres)</option>
+            <option value="high" selected>Haute (+ caractères spéciaux)</option>
+            <option value="max">Maximum (cryptographique)</option>
+          </select>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:1px solid rgba(255,45,155,0.2);border-radius:11px;padding:0.9rem 1rem;margin-bottom:0.5rem;display:flex;align-items:center;justify-content:space-between;gap:0.8rem;">
+        <code id="generatedPwd" style="font-family:var(--mono);font-size:0.85rem;color:var(--text);word-break:break-all;flex:1;letter-spacing:0.05em;">— Cliquez sur Générer —</code>
+        <button class="panel-btn panel-btn-secondary" onclick="copyPwd()" style="flex-shrink:0;font-size:0.7rem;padding:0.35rem 0.7rem;">📋 Copier</button>
+      </div>
+      <div class="strength-bar"><div class="strength-fill" id="strengthFill"></div></div>
+      <div class="strength-label" id="strengthLabel" style="color:var(--muted);"></div>
+      <div class="btn-row" style="margin-top:0.7rem;">
+        <button class="panel-btn panel-btn-primary" onclick="generatePassword()">⚡ Générer un mot de passe</button>
+      </div>
+    </div>
+
+  </div><!-- /tab-reinitialiser -->
+
+  <!-- ══════════════════════════════════════════ -->
+  <!-- ONGLET 3 : ANALYSE                         -->
+  <!-- ══════════════════════════════════════════ -->
+  <div class="tab-content" id="tab-analyse">
+
+    <!-- Score de sécurité global -->
+    <div class="score-ring">
+      <svg class="ring-svg" width="80" height="80" viewBox="0 0 80 80">
+        <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="8"/>
+        <circle cx="40" cy="40" r="34" fill="none" stroke="url(#scoreGrad)" stroke-width="8"
+          stroke-linecap="round" stroke-dasharray="213.6" stroke-dashoffset="42.7"
+          transform="rotate(-90 40 40)" id="scoreCircle"/>
+        <defs>
+          <linearGradient id="scoreGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#ff2d9b"/>
+            <stop offset="100%" stop-color="#cc44ff"/>
+          </linearGradient>
+        </defs>
+        <text x="40" y="44" text-anchor="middle" font-family="Syne,sans-serif" font-size="16" font-weight="800" fill="#fff0f8" id="scoreText">80</text>
+      </svg>
+      <div class="score-info">
+        <div class="score-label">Score de sécurité global</div>
+        <div class="score-value" style="color:var(--green);" id="scoreDisplay">80<span style="font-size:1rem;color:var(--muted);">/100</span></div>
+        <div class="score-desc">Basé sur les politiques actives, le taux de résolution des requêtes et les tentatives de connexion échouées.</div>
+        <div class="score-factors" id="scoreFactors"></div>
+      </div>
+    </div>
+
+    <!-- KPIs analyse -->
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
+      <div class="kpi-card kpi-green">
+        <div class="kpi-val" id="kpiResolRate">—</div>
+        <div class="kpi-lbl">Taux résolution</div>
+        <div class="kpi-trend" style="color:var(--green);">↑ 7j</div>
+      </div>
+      <div class="kpi-card kpi-red">
+        <div class="kpi-val" id="kpiFailedLogins">12</div>
+        <div class="kpi-lbl">Tentatives échouées</div>
+        <div class="kpi-trend" style="color:var(--red);">⚠ Aujourd'hui</div>
+      </div>
+      <div class="kpi-card kpi-cyan">
+        <div class="kpi-val" id="kpiAvgTime">~4min</div>
+        <div class="kpi-lbl">Temps moyen traitement</div>
+        <div class="kpi-trend" style="color:var(--cyan);">📉 -2min</div>
+      </div>
+    </div>
+
+    <!-- Timeline activité -->
+    <div class="section-title">Activité récente</div>
+    <div style="background:var(--surface2);border:1px solid rgba(255,255,255,0.05);border-radius:16px;padding:1rem 1.1rem;margin-bottom:1.2rem;">
+      <div class="activity-list" id="activityList"></div>
+    </div>
+
+    <!-- Logs de connexion -->
+    <div class="section-title">Journal des tentatives de connexion</div>
+    <div style="background:var(--surface2);border:1px solid rgba(255,255,255,0.05);border-radius:16px;overflow:hidden;margin-bottom:1.2rem;">
+      <div style="overflow-x:auto;">
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th>Utilisateur</th>
+              <th>IP / Appareil</th>
+              <th>Heure</th>
+              <th>Statut</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="logTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Alertes actives -->
+    <div class="section-title">Alertes de sécurité actives</div>
+    <div id="alertsList" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+
+  </div><!-- /tab-analyse -->
+
+  <!-- ══════════════════════════════════════════ -->
+  <!-- ONGLET 4 : SÉCURITÉ                        -->
+  <!-- ══════════════════════════════════════════ -->
+  <div class="tab-content" id="tab-securite">
+
+    <div class="section-title">Politiques de mot de passe</div>
+    <div class="security-grid">
+      <div class="sec-card">
+        <div class="sec-card-head">
+          <div>
+            <div class="sec-card-icon">📏</div>
+          </div>
+          <label class="toggle-wrap"><input type="checkbox" id="polMinLength" checked onchange="updateScore()"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="sec-card-title">Longueur minimale 12 caractères</div>
+        <div class="sec-card-desc">Rejette tout mot de passe inférieur à 12 caractères lors de l'inscription ou du changement.</div>
+      </div>
+      <div class="sec-card">
+        <div class="sec-card-head">
+          <div><div class="sec-card-icon">🔡</div></div>
+          <label class="toggle-wrap"><input type="checkbox" id="polMixCase" checked onchange="updateScore()"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="sec-card-title">Majuscules + minuscules obligatoires</div>
+        <div class="sec-card-desc">Le mot de passe doit contenir au moins une lettre majuscule et une minuscule.</div>
+      </div>
+      <div class="sec-card">
+        <div class="sec-card-head">
+          <div><div class="sec-card-icon">🔢</div></div>
+          <label class="toggle-wrap"><input type="checkbox" id="polNumbers" checked onchange="updateScore()"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="sec-card-title">Chiffre obligatoire</div>
+        <div class="sec-card-desc">Au moins un chiffre (0–9) requis dans chaque mot de passe.</div>
+      </div>
+      <div class="sec-card">
+        <div class="sec-card-head">
+          <div><div class="sec-card-icon">💥</div></div>
+          <label class="toggle-wrap"><input type="checkbox" id="polSpecial" checked onchange="updateScore()"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="sec-card-title">Caractère spécial obligatoire</div>
+        <div class="sec-card-desc">Requiert au moins un caractère : !@#$%^&*()_+{}[]|;:,&lt;&gt;?</div>
+      </div>
+    </div>
+
+    <div class="section-title" style="margin-top:0.8rem;">Contrôle d'accès & sessions</div>
+    <div class="security-grid">
+      <div class="sec-card">
+        <div class="sec-card-head">
+          <div><div class="sec-card-icon">🚫</div></div>
+          <label class="toggle-wrap"><input type="checkbox" id="polBruteForce" checked onchange="updateScore()"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="sec-card-title">Anti brute-force (5 tentatives)</div>
+        <div class="sec-card-desc">Verrouille le compte 30 min après 5 échecs consécutifs. IP bloquée.</div>
+      </div>
+      <div class="sec-card">
+        <div class="sec-card-head">
+          <div><div class="sec-card-icon">⏰</div></div>
+          <label class="toggle-wrap"><input type="checkbox" id="polSessionExpiry" checked onchange="updateScore()"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="sec-card-title">Expiration de session (24h)</div>
+        <div class="sec-card-desc">Déconnexion automatique après 24h d'inactivité sur tous les appareils.</div>
+      </div>
+      <div class="sec-card">
+        <div class="sec-card-head">
+          <div><div class="sec-card-icon">🔐</div></div>
+          <label class="toggle-wrap"><input type="checkbox" id="polTwoFA" onchange="updateScore()"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="sec-card-title">2FA obligatoire (admins)</div>
+        <div class="sec-card-desc">Double authentification par TOTP ou SMS requis pour tous les comptes administrateurs.</div>
+      </div>
+      <div class="sec-card">
+        <div class="sec-card-head">
+          <div><div class="sec-card-icon">📍</div></div>
+          <label class="toggle-wrap"><input type="checkbox" id="polGeoBlock" onchange="updateScore()"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="sec-card-title">Géo-restriction (Gabon only)</div>
+        <div class="sec-card-desc">Bloque les connexions en dehors du Gabon. Alerte admin si connexion étrangère détectée.</div>
+      </div>
+    </div>
+
+    <div class="section-title" style="margin-top:0.8rem;">Politique de réinitialisation</div>
+    <div class="security-grid">
+      <div class="sec-card">
+        <div class="sec-card-head">
+          <div><div class="sec-card-icon">⏱️</div></div>
+          <label class="toggle-wrap"><input type="checkbox" id="polResetCooldown" checked onchange="updateScore()"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="sec-card-title">Délai entre demandes (10 min)</div>
+        <div class="sec-card-desc">Empêche le spam de demandes de réinitialisation : 1 demande autorisée par tranche de 10 min.</div>
+      </div>
+      <div class="sec-card">
+        <div class="sec-card-head">
+          <div><div class="sec-card-icon">📋</div></div>
+          <label class="toggle-wrap"><input type="checkbox" id="polResetLog" checked onchange="updateScore()"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="sec-card-title">Journalisation complète des resets</div>
+        <div class="sec-card-desc">Chaque reset déclenché (admin ou auto) est enregistré avec IP, heure, raison et résultat.</div>
+      </div>
+      <div class="sec-card">
+        <div class="sec-card-head">
+          <div><div class="sec-card-icon">🔄</div></div>
+          <label class="toggle-wrap"><input type="checkbox" id="polPwdHistory" checked onchange="updateScore()"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="sec-card-title">Historique des mots de passe (5)</div>
+        <div class="sec-card-desc">Interdit la réutilisation des 5 derniers mots de passe lors d'un changement.</div>
+      </div>
+      <div class="sec-card">
+        <div class="sec-card-head">
+          <div><div class="sec-card-icon">📣</div></div>
+          <label class="toggle-wrap"><input type="checkbox" id="polNotifOnReset" checked onchange="updateScore()"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="sec-card-title">Notification email sur reset</div>
+        <div class="sec-card-desc">Informe l'utilisateur par email à chaque réinitialisation déclenchée (automatique ou admin).</div>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- Vérification de conformité -->
+    <div class="section-title">Vérification de conformité en temps réel</div>
+    <div class="policy-list" id="policyChecklist"></div>
+
+    <div class="btn-row" style="margin-top:1.2rem;">
+      <button class="panel-btn panel-btn-primary" onclick="saveSecuritySettings()">💾 Sauvegarder les paramètres</button>
+      <button class="panel-btn panel-btn-secondary" onclick="runComplianceCheck()">🔍 Lancer un audit de conformité</button>
+    </div>
+
+  </div><!-- /tab-securite -->
+
+  <!-- ══════════════════════════════════════════ -->
+  <!-- ONGLET 5 : REGISTRE DE TRANSACTIONS        -->
+  <!-- ══════════════════════════════════════════ -->
+  <div class="tab-content" id="tab-registre">
+
+    <!-- Bannière registre immuable -->
+    <div class="reg-banner">
+      <div class="reg-banner-icon">📜</div>
+      <div style="flex:1;">
+        <div class="reg-banner-title">Registre Immuable de Transactions</div>
+        <div class="reg-banner-sub">Chaque action admin (reset, approbation, rejet, connexion, modification) est enregistrée automatiquement avec horodatage, IP, UID et hash SHA-256. Ce registre ne peut pas être modifié ni supprimé — il sert de preuve légale en cas de réclamation.</div>
+        <div><span class="reg-immutable">🔒 APPEND-ONLY · NON MODIFIABLE</span></div>
+      </div>
+    </div>
+
+    <!-- Bannière intégrité globale -->
+    <div class="integrity-banner">
+      <div class="integrity-dot"></div>
+      <div>
+        <div class="integrity-text">✓ Intégrité du registre vérifiée</div>
+        <div class="integrity-sub" id="integrityHashDisplay">Hash chaîne : <span id="chainHash">Calcul en cours…</span></div>
+      </div>
+      <div style="margin-left:auto;">
+        <button class="req-btn req-btn-view" onclick="verifyChainIntegrity()" style="font-size:0.65rem;">🔍 Vérifier</button>
+      </div>
+    </div>
+
+    <!-- KPIs registre -->
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:1.2rem;">
+      <div class="kpi-card kpi-cyan">
+        <div class="kpi-val" id="kpiTxnTotal">—</div>
+        <div class="kpi-lbl">Transactions enregistrées</div>
+        <div class="kpi-trend" style="color:var(--cyan);">📜 Total registre</div>
+      </div>
+      <div class="kpi-card kpi-green">
+        <div class="kpi-val" id="kpiTxnToday">—</div>
+        <div class="kpi-lbl">Aujourd'hui</div>
+        <div class="kpi-trend" style="color:var(--green);">📅 03/05/2026</div>
+      </div>
+      <div class="kpi-card kpi-amber">
+        <div class="kpi-val" id="kpiTxnClaims">—</div>
+        <div class="kpi-lbl">Réclamations liées</div>
+        <div class="kpi-trend" style="color:var(--amber);">⚖️ En cours</div>
+      </div>
+    </div>
+
+    <!-- Barre d'export et d'outils -->
+    <div class="export-bar">
+      <span class="export-label">Export :</span>
+      <button class="export-btn export-csv" onclick="exportCSV()">📊 CSV</button>
+      <button class="export-btn export-json" onclick="exportJSON()">📦 JSON</button>
+      <button class="export-btn export-pdf" onclick="exportPDF()">🖨 Rapport PDF</button>
+      <div style="flex:1;"></div>
+      <button class="export-btn export-claim" onclick="openNewClaim()">⚖️ Nouvelle réclamation</button>
+    </div>
+
+    <!-- Filtres registre -->
+    <div class="filter-bar">
+      <div class="search-box">
+        <input type="text" id="txnSearch" placeholder="Rechercher utilisateur, ID, IP, hash…" oninput="renderRegistry()">
+      </div>
+      <button class="filter-chip active" data-txnfilter="all" onclick="setTxnFilter(this)">Tout</button>
+      <button class="filter-chip" data-txnfilter="reset" onclick="setTxnFilter(this)">🔑 Resets</button>
+      <button class="filter-chip" data-txnfilter="auth" onclick="setTxnFilter(this)">🔓 Auth</button>
+      <button class="filter-chip" data-txnfilter="account" onclick="setTxnFilter(this)">👤 Compte</button>
+      <button class="filter-chip" data-txnfilter="security" onclick="setTxnFilter(this)">🛡 Sécu</button>
+      <button class="filter-chip" data-txnfilter="admin" onclick="setTxnFilter(this)">⚙️ Admin</button>
+    </div>
+
+    <!-- Liste des transactions -->
+    <div class="txn-list" id="txnList"></div>
+    <div class="pagination" id="txnPagination"></div>
+
+  </div><!-- /tab-registre -->
+
+</div><!-- /admin-shell -->
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   DONNÉES DE DÉMONSTRATION
+══════════════════════════════════════════════════════════ */
+var REQUESTS = [
+  {id:1,user:"Koumba Mba",email:"koumba.mba@gmail.com",avatar:"👤",type:"reset",typeLbl:"Reset MDP",status:"pending",priority:"high",detail:"L'utilisateur signale ne plus avoir accès à son compte depuis 2 jours. Email de reset non reçu. Vérifié dans spams.",date:"2026-05-03 08:14",uid:"uid_koumba_001"},
+  {id:2,user:"Steeve Nguema",email:"steeve241@yahoo.fr",avatar:"👤",type:"access",typeLbl:"Accès bloqué",status:"pending",priority:"high",detail:"Compte bloqué après 5 tentatives échouées. L'utilisateur confirme qu'il n'est pas à l'origine des tentatives. Possible attaque.",date:"2026-05-03 09:37",uid:"uid_steeve_002"},
+  {id:3,user:"Aminata Diallo",email:"aminata.diallo@ambi241.ga",avatar:"👤",type:"update",typeLbl:"MàJ profil",status:"processing",priority:"medium",detail:"Demande de mise à jour de l'adresse email principale. Ancienne adresse plus accessible (domaine expiré).",date:"2026-05-02 16:22",uid:"uid_aminata_003"},
+  {id:4,user:"Jean-Marc Obame",email:"jm.obame@hotmail.com",avatar:"👤",type:"reset",typeLbl:"Reset MDP",status:"done",priority:"low",detail:"Réinitialisation standard suite à oubli. Lien envoyé et confirmé utilisé à 14h35.",date:"2026-05-02 14:10",uid:"uid_jm_004"},
+  {id:5,user:"Patricia Nzeng",email:"p.nzeng@gmail.com",avatar:"👤",type:"delete",typeLbl:"Suppression compte",status:"pending",priority:"medium",detail:"Demande de suppression RGPD. L'utilisatrice souhaite effacer toutes ses données conformément à l'article 17.",date:"2026-05-01 11:00",uid:"uid_pat_005"},
+  {id:6,user:"Flavien Ondo",email:"f.ondo@librevil.ga",avatar:"👤",type:"reset",typeLbl:"Reset MDP",status:"done",priority:"low",detail:"Changement de dispositif. Réinitialisation préventive effectuée avec double notification.",date:"2026-04-30 09:15",uid:"uid_fla_006"},
+  {id:7,user:"Rosalie Mouele",email:"rosalie.m@gmail.com",avatar:"👤",type:"access",typeLbl:"Accès bloqué",status:"processing",priority:"high",detail:"Tentatives de connexion depuis une IP inconnue au Cameroun. Compte temporairement suspendu en attendant confirmation.",date:"2026-05-03 07:45",uid:"uid_ros_007"},
+];
+
+var ACTIVITY = [
+  {type:"reset",icon:"🔑",title:"Reset MDP envoyé — Koumba Mba",detail:"koumba.mba@gmail.com · IP: 197.231.x.x · Raison: Demande validée",time:"08:22 · 03/05/2026",dotClass:"ad-reset"},
+  {type:"approve",icon:"✅",title:"Requête approuvée — Jean-Marc Obame",detail:"Lien de réinitialisation utilisé avec succès",time:"14:38 · 02/05/2026",dotClass:"ad-approve"},
+  {type:"lock",icon:"🔒",title:"Compte verrouillé automatiquement — Rosalie Mouele",detail:"5 tentatives échouées depuis 154.72.x.x (Douala, CM)",time:"07:46 · 03/05/2026",dotClass:"ad-lock"},
+  {type:"reject",icon:"✕",title:"Requête rejetée — Anonyme",detail:"Tentative de reset sans correspondance email/UID",time:"21:14 · 02/05/2026",dotClass:"ad-reject"},
+  {type:"warn",icon:"⚠️",title:"Alerte : IP suspecte détectée",detail:"6 tentatives différents comptes depuis 185.x.x.x",time:"18:55 · 01/05/2026",dotClass:"ad-warn"},
+  {type:"approve",icon:"✅",title:"Suppression compte confirmée — Ex-utilisateur",detail:"Données effacées conformément RGPD",time:"11:30 · 01/05/2026",dotClass:"ad-approve"},
+];
+
+var LOGS = [
+  {user:"koumba.mba@gmail.com",ip:"197.231.44.12",device:"Android Chrome",time:"08:22",status:"ok",statusLbl:"Succès"},
+  {user:"steeve241@yahoo.fr",ip:"154.72.11.85",device:"iOS Safari",time:"09:37",status:"fail",statusLbl:"Échec (5e)"},
+  {user:"unknown@test.com",ip:"185.220.101.9",device:"Tor Browser",time:"18:55",status:"warn",statusLbl:"Bloqué"},
+  {user:"rosalie.m@gmail.com",ip:"154.72.99.01",device:"Windows Edge",time:"07:45",status:"fail",statusLbl:"Compte suspendu"},
+  {user:"jm.obame@hotmail.com",ip:"197.231.50.4",device:"Android Chrome",time:"14:35",status:"ok",statusLbl:"Succès"},
+  {user:"f.ondo@librevil.ga",ip:"197.231.12.88",device:"macOS Safari",time:"09:15",status:"ok",statusLbl:"Succès"},
+];
+
+var SECURITY_ALERTS = [
+  {level:"high",icon:"🚨",title:"Connexion Tor détectée",desc:"Une tentative de connexion via le réseau Tor a été bloquée automatiquement (IP: 185.220.101.9). Surveillance renforcée activée."},
+  {level:"medium",icon:"⚠️",title:"IP étrangère active — Cameroun",desc:"IP camerounaise (154.72.x.x) : 7 tentatives sur 3 comptes différents. Possible attaque par dictionnaire."},
+  {level:"low",icon:"ℹ️",title:"5 resets déclenchés aujourd'hui",desc:"Taux supérieur à la moyenne hebdomadaire (+40%). Surveillance recommandée."},
+];
+
+var POLICY_CHECKS = [
+  {icon:"📏",label:"Longueur minimale",desc:"≥12 caractères imposés",polId:"polMinLength",impact:10},
+  {icon:"🔡",label:"Casse mixte",desc:"Maj + Min obligatoires",polId:"polMixCase",impact:8},
+  {icon:"🔢",label:"Chiffres requis",desc:"Au moins 1 chiffre",polId:"polNumbers",impact:8},
+  {icon:"💥",label:"Caractères spéciaux",desc:"Au moins 1 !@#…",polId:"polSpecial",impact:10},
+  {icon:"🚫",label:"Anti brute-force",desc:"Verrou après 5 échecs",polId:"polBruteForce",impact:15},
+  {icon:"⏰",label:"Expiration session",desc:"Déconnexion auto 24h",polId:"polSessionExpiry",impact:10},
+  {icon:"🔐",label:"2FA admins",desc:"TOTP ou SMS requis",polId:"polTwoFA",impact:20},
+  {icon:"📋",label:"Journalisation resets",desc:"Log complet activé",polId:"polResetLog",impact:7},
+  {icon:"🔄",label:"Historique MDP",desc:"5 derniers interdits",polId:"polPwdHistory",impact:7},
+  {icon:"📣",label:"Notifs sur reset",desc:"Email à chaque reset",polId:"polNotifOnReset",impact:5},
+];
+
+/* ══ STATE ══ */
+var currentFilter = "all";
+var currentPage = 1;
+var PER_PAGE = 4;
+var currentReqId = null;
+
+/* ══════════════════════════════════════════════════════════
+   ONGLETS
+══════════════════════════════════════════════════════════ */
+function switchTab(name){
+  document.querySelectorAll(".tab-content").forEach(function(el){el.classList.remove("active");});
+  document.querySelectorAll(".tab-primary").forEach(function(el){el.classList.remove("active");});
+  document.getElementById("tab-"+name).classList.add("active");
+  event.currentTarget.classList.add("active");
+  if(name==="analyse") renderAnalyse();
+  if(name==="securite"){ renderPolicyChecklist(); updateScore(); }
+}
+
+/* ══════════════════════════════════════════════════════════
+   REQUÊTES
+══════════════════════════════════════════════════════════ */
+function setFilter(btn){
+  document.querySelectorAll(".filter-chip").forEach(function(c){c.classList.remove("active");});
+  btn.classList.add("active");
+  currentFilter = btn.dataset.filter;
+  currentPage = 1;
+  renderRequests();
+}
+
+function getFilteredRequests(){
+  var search = (document.getElementById("reqSearch")||{}).value||"";
+  search = search.toLowerCase().trim();
+  return REQUESTS.filter(function(r){
+    var statusMatch = currentFilter==="all" || r.status===currentFilter;
+    var searchMatch = !search || r.user.toLowerCase().includes(search) || r.email.toLowerCase().includes(search);
+    return statusMatch && searchMatch;
+  });
+}
+
+function renderRequests(){
+  var filtered = getFilteredRequests();
+  var total = filtered.length;
+  var pages = Math.ceil(total/PER_PAGE)||1;
+  if(currentPage>pages) currentPage=1;
+  var slice = filtered.slice((currentPage-1)*PER_PAGE, currentPage*PER_PAGE);
+
+  // KPIs
+  var pending = REQUESTS.filter(function(r){return r.status==="pending";}).length;
+  var done = REQUESTS.filter(function(r){return r.status==="done";}).length;
+  document.getElementById("kpiPending").textContent = pending;
+  document.getElementById("kpiDone").textContent = done;
+  document.getElementById("kpiTotal").textContent = REQUESTS.length;
+
+  var html = "";
+  if(!slice.length){
+    html = "<div class='empty-state'><span class='empty-icon'>📭</span><div class='empty-text'>Aucune requête trouvée</div><div class='empty-sub'>Modifiez le filtre ou la recherche</div></div>";
+  } else {
+    slice.forEach(function(r){
+      var statusBadge = {
+        pending:"<span class='badge badge-pending'>⏳ En attente</span>",
+        processing:"<span class='badge badge-processing'>🔄 En cours</span>",
+        done:"<span class='badge badge-done'>✅ Traité</span>",
+        rejected:"<span class='badge badge-rejected'>✕ Rejeté</span>"
+      }[r.status]||"";
+      var typeBadge = {
+        reset:"<span class='badge badge-type-reset'>🔑 Reset MDP</span>",
+        access:"<span class='badge badge-type-access'>🔓 Accès</span>",
+        delete:"<span class='badge badge-type-delete'>🗑 Suppression</span>",
+        update:"<span class='badge badge-type-update'>✏️ MàJ</span>"
+      }[r.type]||"";
+      var prioClass = {high:"priority-high",medium:"priority-medium",low:"priority-low"}[r.priority]||"";
+      var actions = "";
+      if(r.status==="pending"||r.status==="processing"){
+        actions += "<button class='req-btn req-btn-approve' onclick='approveRequest("+r.id+")'>✅ Approuver</button>";
+        actions += "<button class='req-btn req-btn-reject' onclick='rejectRequest("+r.id+")'>✕ Rejeter</button>";
+      }
+      actions += "<button class='req-btn req-btn-view' onclick='openReqDetail("+r.id+")'>👁 Détail</button>";
+      if(r.type==="reset" && r.status!=="done"){
+        actions += "<button class='req-btn req-btn-send' onclick='quickReset("+r.id+")'>📧 Reset</button>";
+      }
+      html += "<div class='req-item "+prioClass+"'>";
+      html += "<div class='req-top'>";
+      html += "<div class='req-user'><div class='req-avatar'>"+r.avatar+"</div><div><div class='req-name'>"+r.user+"</div><div class='req-email'>"+r.email+"</div></div></div>";
+      html += "<div class='req-badges'>"+typeBadge+statusBadge+"</div>";
+      html += "</div>";
+      html += "<div class='req-detail'>"+r.detail+"</div>";
+      html += "<div class='req-meta'><div class='req-time'>🕒 "+r.date+"</div><div class='req-actions'>"+actions+"</div></div>";
+      html += "</div>";
+    });
+  }
+  document.getElementById("reqList").innerHTML = html;
+
+  // Pagination
+  var pHtml = "<div class='page-info'>"+total+" résultat"+(total>1?"s":"")+" · Page "+currentPage+"/"+pages+"</div>";
+  pHtml += "<div class='page-btns'>";
+  pHtml += "<button class='page-btn' onclick='changePage(-1)' "+(currentPage<=1?"disabled":"")+">&laquo;</button>";
+  for(var i=1;i<=pages;i++){
+    pHtml += "<button class='page-btn"+(i===currentPage?" active":"")+"' onclick='goPage("+i+")'>"+i+"</button>";
+  }
+  pHtml += "<button class='page-btn' onclick='changePage(1)' "+(currentPage>=pages?"disabled":"")+">&raquo;</button>";
+  pHtml += "</div>";
+  document.getElementById("reqPagination").innerHTML = pHtml;
+}
+
+function changePage(d){ currentPage+=d; renderRequests(); }
+function goPage(p){ currentPage=p; renderRequests(); }
+
+function approveRequest(id){
+  var r = REQUESTS.find(function(x){return x.id===id;});
+  if(!r) return;
+  r.status = "done";
+  showToast("✅ Requête #"+id+" approuvée","success");
+  addActivity("approve","✅","Requête approuvée — "+r.user,r.email+" · "+r.type,"ad-approve");
+  renderRequests();
+}
+
+function rejectRequest(id){
+  var r = REQUESTS.find(function(x){return x.id===id;});
+  if(!r) return;
+  if(!confirm("Rejeter la requête de "+r.user+" ?")) return;
+  r.status = "rejected";
+  showToast("✕ Requête rejetée","error");
+  addActivity("reject","✕","Requête rejetée — "+r.user,r.email,"ad-reject");
+  renderRequests();
+}
+
+function quickReset(id){
+  var r = REQUESTS.find(function(x){return x.id===id;});
+  if(!r) return;
+  currentReqId = id;
+  document.getElementById("forceResetDesc").textContent = "Envoyer un lien de réinitialisation sécurisé à "+r.email+" ("+r.user+"). Action journalisée.";
+  document.getElementById("forceResetOverlay").classList.add("show");
+}
+
+function confirmForceReset(){
+  document.getElementById("forceResetOverlay").classList.remove("show");
+  var r = REQUESTS.find(function(x){return x.id===currentReqId;});
+  if(!r) return;
+  // Simuler appel Firebase
+  simulateFirebaseReset(r.email, function(){
+    r.status = "done";
+    showToast("📧 Lien de reset envoyé à "+r.email,"success");
+    addActivity("reset","🔑","Reset MDP envoyé — "+r.user,r.email+" · Raison: Requête approuvée","ad-reset");
+    renderRequests();
+  });
+}
+
+function openReqDetail(id){
+  var r = REQUESTS.find(function(x){return x.id===id;});
+  if(!r) return;
+  currentReqId = id;
+  document.getElementById("reqDetailTitle").textContent = "Requête #"+id+" — "+r.user;
+  var html = "";
+  html += "<div style='background:var(--surface2);border-radius:12px;padding:0.9rem 1rem;margin-bottom:1rem;'>";
+  html += "<div style='display:flex;align-items:center;gap:0.6rem;margin-bottom:0.7rem;'>";
+  html += "<div style='width:40px;height:40px;border-radius:50%;background:rgba(255,45,155,0.15);border:2px solid rgba(255,45,155,0.3);display:flex;align-items:center;justify-content:center;font-size:1.2rem;'>"+r.avatar+"</div>";
+  html += "<div><div style='font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;color:var(--text);'>"+r.user+"</div><div style='font-size:0.65rem;color:var(--muted);font-family:JetBrains Mono,monospace;'>"+r.email+"</div></div>";
+  html += "</div>";
+  html += "<div style='font-size:0.72rem;color:var(--text);line-height:1.6;'>"+r.detail+"</div>";
+  html += "</div>";
+  html += "<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:1rem;'>";
+  html += "<div style='background:var(--surface2);border-radius:10px;padding:0.7rem;'><div style='font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;'>Type</div><div style='font-size:0.8rem;font-weight:700;color:var(--purple);margin-top:0.2rem;'>"+r.typeLbl+"</div></div>";
+  html += "<div style='background:var(--surface2);border-radius:10px;padding:0.7rem;'><div style='font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;'>Priorité</div><div style='font-size:0.8rem;font-weight:700;color:"+(r.priority==="high"?"var(--red)":r.priority==="medium"?"var(--amber)":"var(--cyan)")+"'>"+r.priority.toUpperCase()+"</div></div>";
+  html += "<div style='background:var(--surface2);border-radius:10px;padding:0.7rem;'><div style='font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;'>Soumis le</div><div style='font-size:0.72rem;font-weight:700;color:var(--text);margin-top:0.2rem;font-family:JetBrains Mono,monospace;'>"+r.date+"</div></div>";
+  html += "<div style='background:var(--surface2);border-radius:10px;padding:0.7rem;'><div style='font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;'>UID Firebase</div><div style='font-size:0.65rem;font-weight:700;color:var(--cyan);margin-top:0.2rem;font-family:JetBrains Mono,monospace;word-break:break-all;'>"+r.uid+"</div></div>";
+  html += "</div>";
+  if(r.status==="done"||r.status==="rejected"){
+    document.getElementById("reqDetailApproveBtn").style.display = "none";
+  } else {
+    document.getElementById("reqDetailApproveBtn").style.display = "";
+  }
+  document.getElementById("reqDetailBody").innerHTML = html;
+  document.getElementById("reqDetailOverlay").classList.add("show");
+}
+
+function closeReqDetail(){ document.getElementById("reqDetailOverlay").classList.remove("show"); }
+function approveFromDetail(){ closeReqDetail(); if(currentReqId) approveRequest(currentReqId); }
+function rejectFromDetail(){ closeReqDetail(); if(currentReqId) rejectRequest(currentReqId); }
+
+/* ══════════════════════════════════════════════════════════
+   RÉINITIALISATION MDP
+══════════════════════════════════════════════════════════ */
+function searchUserEmail(){
+  var email = document.getElementById("resetEmail").value.trim();
+  var infoBox = document.getElementById("resetUserInfo");
+  if(email.length < 5){ infoBox.style.display="none"; document.getElementById("resetUid").value=""; return; }
+  // Simuler recherche dans Firebase
+  var found = REQUESTS.find(function(r){ return r.email.toLowerCase()===email.toLowerCase(); });
+  if(found){
+    document.getElementById("resetUid").value = found.uid;
+    infoBox.className = "alert alert-info";
+    infoBox.innerHTML = "👤 Utilisateur trouvé : <strong>"+found.user+"</strong> · Compte actif";
+    infoBox.style.display = "block";
+  } else {
+    document.getElementById("resetUid").value = "";
+    infoBox.className = "alert alert-warn";
+    infoBox.innerHTML = "⚠️ Aucun compte trouvé avec cet email dans la base locale. Vérifiez dans Firebase Console.";
+    infoBox.style.display = "block";
+  }
+}
+
+function sendPasswordReset(){
+  var email = document.getElementById("resetEmail").value.trim();
+  var reason = document.getElementById("resetReason").value;
+  var msg = document.getElementById("resetEmailMsg");
+  if(!email){ showAlert(msg,"error","⛔ Veuillez entrer une adresse email."); return; }
+  if(!reason){ showAlert(msg,"warn","⚠️ Veuillez choisir une raison administrative."); return; }
+  var btn = event.currentTarget;
+  btn.disabled = true; btn.textContent = "⏳ Envoi en cours…";
+  simulateFirebaseReset(email, function(){
+    btn.disabled = false; btn.textContent = "📧 Envoyer le lien de réinitialisation";
+    var opts = [];
+    if(document.getElementById("optInvalidateSessions").checked) opts.push("Sessions invalidées");
+    if(document.getElementById("optNotifySMS").checked) opts.push("SMS envoyé");
+    if(document.getElementById("optShortExpiry").checked) opts.push("Expiration 5min");
+    if(document.getElementById("optRequire2FA").checked) opts.push("2FA requis");
+    var optStr = opts.length ? " · "+opts.join(" · ") : "";
+    showAlert(msg,"success","✅ Lien de réinitialisation envoyé à <strong>"+email+"</strong>. Valide 15 min."+optStr);
+    addActivity("reset","🔑","Reset MDP admin — "+email,"Raison: "+reason+optStr,"ad-reset");
+    showToast("📧 Lien envoyé à "+email,"success");
+  });
+}
+
+function clearResetForm(){
+  document.getElementById("resetEmail").value="";
+  document.getElementById("resetUid").value="";
+  document.getElementById("resetReason").value="";
+  document.getElementById("resetNote").value="";
+  document.getElementById("resetUserInfo").style.display="none";
+  document.getElementById("resetEmailMsg").classList.remove("show");
+}
+
+function manualVerifyAndReset(){
+  var pseudo = document.getElementById("verifyPseudo").value.trim();
+  var tel = document.getElementById("verifyTel").value.trim();
+  var altEmail = document.getElementById("verifyAltEmail").value.trim();
+  var q1 = document.getElementById("verQ1").checked;
+  var q2 = document.getElementById("verQ2").checked;
+  var q3 = document.getElementById("verQ3").checked;
+  var msg = document.getElementById("verifyMsg");
+  if(!pseudo||!tel){ showAlert(msg,"error","⛔ Pseudo et téléphone obligatoires."); return; }
+  if(!q1&&!q2&&!q3){ showAlert(msg,"warn","⚠️ Cochez au moins une vérification d'identité effectuée."); return; }
+  var checks = [q1,q2,q3].filter(Boolean).length;
+  var btn = event.currentTarget;
+  btn.disabled = true; btn.textContent = "⏳ Vérification…";
+  setTimeout(function(){
+    btn.disabled = false; btn.textContent = "🔐 Valider & Déclencher reset";
+    if(checks >= 2){
+      var dest = altEmail || "contact@ambi241.ga";
+      showAlert(msg,"success","✅ Identité validée ("+checks+"/3 checks). Lien de reset envoyé à <strong>"+dest+"</strong>. Journalisé.");
+      addActivity("reset","🔑","Reset manuel — "+pseudo,tel+" · "+checks+"/3 vérifications","ad-reset");
+      showToast("✅ Reset manuel déclenché pour "+pseudo,"success");
+    } else {
+      showAlert(msg,"error","⛔ Vérifications insuffisantes ("+checks+"/3). Minimum 2 requis pour déclencher le reset.");
+    }
+  }, 1200);
+}
+
+function generatePassword(){
+  var length = parseInt(document.getElementById("pwdLength").value)||16;
+  var complexity = document.getElementById("pwdComplexity").value;
+  var chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  if(complexity==="high") chars += "!@#$%^&*()-_+=[]{}|;:,.<>?";
+  if(complexity==="max"){
+    chars += "!@#$%^&*()-_+=[]{}|;:,.<>?~`'\"/\\";
+    length = Math.max(length, 20);
+  }
+  var arr = new Uint32Array(length);
+  window.crypto.getRandomValues(arr);
+  var pwd = Array.from(arr).map(function(n){ return chars[n%chars.length]; }).join("");
+  // Assurer au moins un de chaque catégorie
+  var lc="abcdefghijklmnopqrstuvwxyz", uc="ABCDEFGHIJKLMNOPQRSTUVWXYZ", dg="0123456789", sp="!@#$%^&*()-_+=";
+  pwd = pwd.slice(0,-4) + lc[Math.floor(Math.random()*lc.length)] + uc[Math.floor(Math.random()*uc.length)] + dg[Math.floor(Math.random()*dg.length)] + (complexity!=="standard"?sp[Math.floor(Math.random()*sp.length)]:"a");
+  pwd = pwd.split('').sort(function(){return Math.random()-0.5;}).join('');
+  document.getElementById("generatedPwd").textContent = pwd;
+  // Calculer force
+  var score = 0;
+  if(pwd.length>=12) score+=25; if(pwd.length>=16) score+=15; if(pwd.length>=20) score+=10;
+  if(/[a-z]/.test(pwd)) score+=10; if(/[A-Z]/.test(pwd)) score+=10;
+  if(/[0-9]/.test(pwd)) score+=15; if(/[^a-zA-Z0-9]/.test(pwd)) score+=15;
+  score = Math.min(100,score);
+  var fill = document.getElementById("strengthFill");
+  var lbl = document.getElementById("strengthLabel");
+  fill.style.width = score+"%";
+  if(score<40){ fill.style.background="var(--red)"; lbl.style.color="var(--red)"; lbl.textContent="Faible — Augmentez la longueur"; }
+  else if(score<70){ fill.style.background="var(--amber)"; lbl.style.color="var(--amber)"; lbl.textContent="Moyen — Ajoutez des caractères spéciaux"; }
+  else if(score<90){ fill.style.background="var(--green)"; lbl.style.color="var(--green)"; lbl.textContent="Fort"; }
+  else { fill.style.background="var(--cyan)"; lbl.style.color="var(--cyan)"; lbl.textContent="Très fort — Niveau cryptographique ✓"; }
+}
+
+function copyPwd(){
+  var txt = document.getElementById("generatedPwd").textContent;
+  if(txt==="— Cliquez sur Générer —"){ showToast("⚠️ Générez d'abord un mot de passe","warn"); return; }
+  navigator.clipboard.writeText(txt).then(function(){
+    showToast("📋 Mot de passe copié dans le presse-papiers","success");
+  }).catch(function(){ showToast("Copiez manuellement : "+txt,"info"); });
+}
+
+/* ══════════════════════════════════════════════════════════
+   ANALYSE
+══════════════════════════════════════════════════════════ */
+function renderAnalyse(){
+  // KPIs
+  var done = REQUESTS.filter(function(r){return r.status==="done";}).length;
+  var rate = Math.round((done/REQUESTS.length)*100);
+  document.getElementById("kpiResolRate").textContent = rate+"%";
+
+  // Activité
+  var html = "";
+  ACTIVITY.forEach(function(a){
+    html += "<div class='activity-item'>";
+    html += "<div class='activity-line'><div class='activity-dot "+a.dotClass+"'></div></div>";
+    html += "<div class='activity-body'>";
+    html += "<div class='activity-title'>"+a.icon+" "+a.title+"</div>";
+    html += "<div class='activity-detail'>"+a.detail+"</div>";
+    html += "<div class='activity-time'>"+a.time+"</div>";
+    html += "</div></div>";
+  });
+  document.getElementById("activityList").innerHTML = html;
+
+  // Logs
+  var logHtml = "";
+  LOGS.forEach(function(l){
+    var statusCls = {ok:"log-status-ok",fail:"log-status-fail",warn:"log-status-warn"}[l.status]||"";
+    logHtml += "<tr>";
+    logHtml += "<td style='font-size:0.72rem;'>"+l.user+"</td>";
+    logHtml += "<td><span class='log-ip'>"+l.ip+"</span><br><span style='font-size:0.6rem;color:var(--muted);'>"+l.device+"</span></td>";
+    logHtml += "<td style='font-family:var(--mono);font-size:0.68rem;'>"+l.time+"</td>";
+    logHtml += "<td class='"+statusCls+"' style='font-size:0.7rem;font-weight:700;'>"+l.statusLbl+"</td>";
+    logHtml += "<td><button class='req-btn req-btn-view' style='font-size:0.6rem;padding:0.22rem 0.5rem;' onclick='showToast(\"Log "+l.ip+" — Détails exportés\",\"info\")'>📋 Log</button></td>";
+    logHtml += "</tr>";
+  });
+  document.getElementById("logTableBody").innerHTML = logHtml;
+
+  // Alertes
+  var alertHtml = "";
+  SECURITY_ALERTS.forEach(function(a){
+    var colors = {high:"var(--red)",medium:"var(--amber)",low:"var(--cyan)"};
+    var bgs = {high:"rgba(255,68,102,0.07)",medium:"rgba(255,215,0,0.06)",low:"rgba(0,229,255,0.05)"};
+    var borders = {high:"rgba(255,68,102,0.25)",medium:"rgba(255,215,0,0.25)",low:"rgba(0,229,255,0.20)"};
+    alertHtml += "<div style='background:"+bgs[a.level]+";border:1px solid "+borders[a.level]+";border-radius:12px;padding:0.9rem 1rem;display:flex;gap:0.7rem;align-items:flex-start;'>";
+    alertHtml += "<span style='font-size:1.3rem;flex-shrink:0;'>"+a.icon+"</span>";
+    alertHtml += "<div style='flex:1;'>";
+    alertHtml += "<div style='font-size:0.8rem;font-weight:700;color:"+colors[a.level]+";margin-bottom:0.2rem;'>"+a.title+"</div>";
+    alertHtml += "<div style='font-size:0.7rem;color:var(--muted);line-height:1.5;'>"+a.desc+"</div>";
+    alertHtml += "</div>";
+    alertHtml += "<button class='req-btn req-btn-view' style='font-size:0.6rem;padding:0.25rem 0.55rem;flex-shrink:0;' onclick='showToast(\"Alerte marquée comme traitée\",\"success\");this.closest(\"div\").style.opacity=0.4;'>✓ Traité</button>";
+    alertHtml += "</div>";
+  });
+  document.getElementById("alertsList").innerHTML = alertHtml;
+}
+
+/* ══════════════════════════════════════════════════════════
+   SÉCURITÉ
+══════════════════════════════════════════════════════════ */
+function renderPolicyChecklist(){
+  var html = "";
+  POLICY_CHECKS.forEach(function(p){
+    var el = document.getElementById(p.polId);
+    var active = el ? el.checked : false;
+    var statusCls = active ? "ps-ok" : "ps-fail";
+    var statusLbl = active ? "✓ Actif" : "✕ Inactif";
+    html += "<div class='policy-item'>";
+    html += "<div class='policy-item-left'>";
+    html += "<div class='policy-item-icon'>"+p.icon+"</div>";
+    html += "<div><div class='policy-item-label'>"+p.label+"</div><div class='policy-item-desc'>"+p.desc+" · Impact: +"+p.impact+" pts</div></div>";
+    html += "</div>";
+    html += "<span class='policy-status "+statusCls+"'>"+statusLbl+"</span>";
+    html += "</div>";
+  });
+  document.getElementById("policyChecklist").innerHTML = html;
+}
+
+function updateScore(){
+  var score = 0;
+  POLICY_CHECKS.forEach(function(p){
+    var el = document.getElementById(p.polId);
+    if(el && el.checked) score += p.impact;
+  });
+  score = Math.min(100,score);
+  // Anneau SVG
+  var circumference = 2*Math.PI*34; // ~213.6
+  var offset = circumference*(1 - score/100);
+  var circle = document.getElementById("scoreCircle");
+  if(circle) circle.setAttribute("stroke-dashoffset", offset.toFixed(1));
+  var txt = document.getElementById("scoreText");
+  if(txt) txt.textContent = score;
+  var disp = document.getElementById("scoreDisplay");
+  if(disp){
+    var col = score>=80?"var(--green)":score>=60?"var(--amber)":"var(--red)";
+    disp.innerHTML = "<span style='color:"+col+";font-family:Syne,sans-serif;font-size:2.2rem;font-weight:800;'>"+score+"</span><span style='font-size:1rem;color:var(--muted);'>/100</span>";
+  }
+  // Facteurs
+  var factors = [];
+  POLICY_CHECKS.forEach(function(p){
+    var el = document.getElementById(p.polId);
+    if(el) factors.push({label:p.label, ok:el.checked});
+  });
+  var fHtml = "";
+  factors.slice(0,6).forEach(function(f){
+    fHtml += "<span class='sf-item "+(f.ok?"sf-ok":"sf-fail")+"'>"+(f.ok?"✓":"✕")+" "+f.label+"</span>";
+  });
+  if(document.getElementById("scoreFactors")) document.getElementById("scoreFactors").innerHTML = fHtml;
+  // Refresh checklist si visible
+  var checkEl = document.getElementById("policyChecklist");
+  if(checkEl && checkEl.innerHTML) renderPolicyChecklist();
+}
+
+function saveSecuritySettings(){
+  var settings = {};
+  POLICY_CHECKS.forEach(function(p){
+    var el = document.getElementById(p.polId);
+    if(el) settings[p.polId] = el.checked;
+  });
+  // Simuler sauvegarde
+  setTimeout(function(){
+    showToast("💾 Paramètres de sécurité sauvegardés","success");
+    addActivity("approve","💾","Politiques de sécurité mises à jour","Admin · "+Object.values(settings).filter(Boolean).length+" politiques actives","ad-approve");
+  }, 600);
+}
+
+function runComplianceCheck(){
+  var btn = event.currentTarget;
+  btn.disabled = true; btn.textContent = "🔍 Audit en cours…";
+  var progress = 0;
+  var interval = setInterval(function(){
+    progress += 20;
+    btn.textContent = "🔍 Audit… "+progress+"%";
+    if(progress>=100){
+      clearInterval(interval);
+      btn.disabled = false; btn.textContent = "🔍 Lancer un audit de conformité";
+      var active = POLICY_CHECKS.filter(function(p){ var el=document.getElementById(p.polId); return el&&el.checked; }).length;
+      var total = POLICY_CHECKS.length;
+      showToast("🔍 Audit terminé : "+active+"/"+total+" politiques conformes","info");
+      renderPolicyChecklist();
+    }
+  }, 400);
+}
+
+/* ══════════════════════════════════════════════════════════
+   UTILITAIRES
+══════════════════════════════════════════════════════════ */
+function simulateFirebaseReset(email, cb){
+  // Ici se brancherait window.fbSendPasswordResetEmail(window.auth, email)
+  setTimeout(cb, 900 + Math.random()*400);
+}
+
+function addActivity(type, icon, title, detail, dotClass){
+  ACTIVITY.unshift({type:type,icon:icon,title:title,detail:detail,time:new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})+" · "+new Date().toLocaleDateString("fr-FR"),dotClass:dotClass});
+}
+
+function showAlert(el, type, html){
+  var cls = {success:"alert-success",error:"alert-error",warn:"alert-warn",info:"alert-info"}[type]||"alert-info";
+  el.className = "alert "+cls;
+  el.innerHTML = html;
+  el.style.display = "block";
+  el.classList.add("show");
+}
+
+function showToast(msg, type){
+  type = type||"info";
+  var wrap = document.getElementById("toastWrap");
+  var t = document.createElement("div");
+  t.className = "toast toast-"+(type==="success"?"success":type==="error"?"error":type==="warn"?"warn":"info");
+  t.textContent = msg;
+  wrap.appendChild(t);
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){ t.classList.add("show"); });
+  });
+  setTimeout(function(){
+    t.classList.remove("show");
+    setTimeout(function(){ if(t.parentNode) t.parentNode.removeChild(t); }, 400);
+  }, 3500);
+}
+
+/* ══ INIT ══ */
+document.addEventListener("DOMContentLoaded", function(){
+  renderRequests();
+  updateScore();
+  // Score initial animé
+  setTimeout(function(){
+    var circle = document.getElementById("scoreCircle");
+    if(circle){ circle.style.transition="stroke-dashoffset 1.2s cubic-bezier(0.34,1.56,0.64,1)"; updateScore(); }
+  }, 300);
+});
+</script>
+</body>
+</html>
