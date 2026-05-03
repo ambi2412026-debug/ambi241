@@ -10199,6 +10199,109 @@ window.closeReservationModal=closeReservationModal;
 window.envoyerReservation=envoyerReservation;
 window.repondreReservation=repondreReservation;
 window.renderAdmReservations=renderAdmReservations;
+
+// ══════════════════════════════════════════════════════════════
+// ══  SERVICES & EXTRAS ORDERING SYSTEM                       ══
+// ══════════════════════════════════════════════════════════════
+
+var _SERVICES_CATALOG = [
+  { id:'bouteille',  icon:'🍾', name:'Bouteille Premium',   price:25000,  desc:'Champagne, whisky ou vin sélection VIP' },
+  { id:'table_vip',  icon:'🛋️', name:'Table VIP Réservée',  price:15000,  desc:'Table privée avec décoration incluse' },
+  { id:'anniversaire',icon:'🎂',name:'Pack Anniversaire',   price:20000,  desc:'Gâteau, bougies, service dédié' },
+  { id:'cocktails',  icon:'🍹', name:'Pack Cocktails ×4',   price:18000,  desc:'4 cocktails signature de la maison' },
+  { id:'menu_vip',   icon:'🍽️', name:'Menu Gastronomique',  price:35000,  desc:'Dîner 3 plats pour 2 personnes' },
+  { id:'dj_dedicace',icon:'🎵', name:'Dédicace DJ',         price:10000,  desc:'Message ou chanson dédié en soirée' },
+  { id:'photo_pack', icon:'📸', name:'Pack Photo Soirée',   price:12000,  desc:'Séance photo + retouches livrées' },
+  { id:'transport',  icon:'🚖', name:'Navette VIP',         price:8000,   desc:'Transfert aller-retour (zone Libreville)' }
+];
+
+var _selectedServices = {};
+
+function _renderServicesGrid() {
+  var grid = document.getElementById('servicesGrid');
+  if (!grid) return;
+  var html = '';
+  _SERVICES_CATALOG.forEach(function(svc) {
+    var sel = !!_selectedServices[svc.id];
+    html += '<div class="svc-card' + (sel ? ' selected' : '') + '" onclick="toggleService(\'' + svc.id + '\')">'
+      + '<div class="svc-check">✓</div>'
+      + '<div class="svc-icon">' + svc.icon + '</div>'
+      + '<div class="svc-name">' + svc.name + '</div>'
+      + '<div class="svc-price">' + svc.price.toLocaleString('fr-FR') + ' XAF</div>'
+      + '<div class="svc-desc">' + svc.desc + '</div>'
+      + '</div>';
+  });
+  grid.innerHTML = html;
+  _updateServicesSummary();
+}
+
+function toggleService(svcId) {
+  if (_selectedServices[svcId]) {
+    delete _selectedServices[svcId];
+  } else {
+    var svc = _SERVICES_CATALOG.find(function(s) { return s.id === svcId; });
+    if (svc) _selectedServices[svcId] = svc;
+  }
+  _renderServicesGrid();
+}
+
+function _updateServicesSummary() {
+  var keys = Object.keys(_selectedServices);
+  var summary = document.getElementById('servicesSummary');
+  var listEl  = document.getElementById('servicesSumList');
+  var totalEl = document.getElementById('servicesSumTotal');
+  if (!summary) return;
+
+  if (!keys.length) {
+    summary.classList.remove('show');
+    return;
+  }
+  summary.classList.add('show');
+
+  var total = 0;
+  var html = '';
+  keys.forEach(function(k) {
+    var s = _selectedServices[k];
+    html += s.icon + ' ' + s.name + ' <span>' + s.price.toLocaleString('fr-FR') + ' XAF</span><br>';
+    total += s.price;
+  });
+  listEl.innerHTML = html;
+  totalEl.textContent = total.toLocaleString('fr-FR') + ' XAF';
+}
+
+function getSelectedServicesText() {
+  var keys = Object.keys(_selectedServices);
+  if (!keys.length) return '';
+  return 'Services demandés: ' + keys.map(function(k) {
+    return _selectedServices[k].name + ' (' + _selectedServices[k].price.toLocaleString('fr-FR') + ' XAF)';
+  }).join(', ');
+}
+
+// Patch openReservationModal to also reset and render services
+var _origOpenReservationModal = openReservationModal;
+openReservationModal = function(etabId, etabNom, affluence) {
+  _selectedServices = {};
+  _origOpenReservationModal(etabId, etabNom, affluence);
+  _renderServicesGrid();
+};
+window.openReservationModal = openReservationModal;
+
+// Patch envoyerReservation to include selected services in the message
+var _origEnvoyerReservation = envoyerReservation;
+envoyerReservation = function() {
+  var svcText = getSelectedServicesText();
+  if (svcText) {
+    var msgEl = document.getElementById('reservMsg');
+    if (msgEl) {
+      var existing = msgEl.value.trim();
+      msgEl.value = existing ? existing + '\n' + svcText : svcText;
+    }
+  }
+  _origEnvoyerReservation();
+};
+window.envoyerReservation = envoyerReservation;
+
+window.toggleService = toggleService;
 // -----------------------------------------------------------------
 
 // ══════════════════════════════════════════════════════════════════
@@ -10704,6 +10807,35 @@ window.doAssignEtab = doAssignEtab;
   </div>
 </div>
 
+<!-- ══ SERVICES PANEL CSS ══ -->
+<style>
+/* ── Services Panel ── */
+.services-panel{margin-top:0.9rem;border-top:1px solid rgba(255,215,0,0.15);padding-top:0.85rem;}
+.services-panel-title{font-family:'Syne',sans-serif;font-size:0.78rem;font-weight:800;color:var(--amber);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.7rem;display:flex;align-items:center;gap:0.4rem;}
+.services-panel-title::after{content:'';flex:1;height:1px;background:rgba(255,215,0,0.2);}
+.services-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.45rem;margin-bottom:0.75rem;}
+.svc-card{position:relative;background:var(--surface2);border:1.5px solid rgba(255,255,255,0.07);border-radius:13px;padding:0.65rem 0.6rem;cursor:pointer;transition:all 0.2s;user-select:none;overflow:hidden;}
+.svc-card:active{transform:scale(0.96);}
+.svc-card::before{content:'';position:absolute;inset:0;opacity:0;background:rgba(255,255,255,0.05);transition:opacity 0.2s;border-radius:inherit;}
+.svc-card:hover::before{opacity:1;}
+.svc-card.selected{border-color:var(--amber);background:rgba(255,215,0,0.08);box-shadow:0 0 14px rgba(255,215,0,0.18);}
+.svc-card.selected .svc-check{opacity:1;transform:scale(1);}
+.svc-check{position:absolute;top:6px;right:6px;width:16px;height:16px;border-radius:50%;background:var(--amber);display:flex;align-items:center;justify-content:center;font-size:0.55rem;color:#000;font-weight:900;opacity:0;transform:scale(0.6);transition:all 0.2s;}
+.svc-icon{font-size:1.3rem;margin-bottom:0.2rem;line-height:1;}
+.svc-name{font-family:'Syne',sans-serif;font-size:0.7rem;font-weight:800;color:var(--text);line-height:1.2;}
+.svc-price{font-size:0.65rem;font-weight:700;color:var(--amber);margin-top:0.18rem;}
+.svc-desc{font-size:0.58rem;color:var(--muted);margin-top:0.1rem;line-height:1.35;}
+.services-summary{background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.25);border-radius:12px;padding:0.7rem 0.9rem;margin-bottom:0.7rem;display:none;}
+.services-summary.show{display:block;}
+.svc-sum-title{font-size:0.68rem;font-weight:800;color:var(--amber);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.45rem;}
+.svc-sum-list{font-size:0.73rem;color:var(--text);line-height:1.8;}
+.svc-sum-list span{color:var(--muted);margin-left:0.3rem;}
+.svc-sum-total{display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem;padding-top:0.45rem;border-top:1px solid rgba(255,215,0,0.15);}
+.svc-sum-total-label{font-size:0.72rem;color:var(--muted);}
+.svc-sum-total-price{font-family:'Syne',sans-serif;font-weight:800;color:var(--amber);font-size:0.95rem;}
+.svc-note{font-size:0.65rem;color:var(--muted);text-align:center;margin-top:0.4rem;line-height:1.4;}
+</style>
+
 <!-- MODAL RESERVATION VIP -->
 <div class="overlay" id="reservationOverlay" onclick="if(event.target===this)closeReservationModal()">
   <div class="modal" style="position:relative;">
@@ -10726,6 +10858,26 @@ window.doAssignEtab = doAssignEtab;
     <div class="field"><label>Message (optionnel)</label>
       <textarea id="reservMsg" placeholder="Occasion sp&#233;ciale, pr&#233;f&#233;rences..." maxlength="200" rows="3"></textarea>
     </div>
+
+    <!-- ══ SERVICES PANEL ══ -->
+    <div class="services-panel" id="servicesPanelWrap">
+      <div class="services-panel-title">&#127847; Services &amp; Extras</div>
+      <div class="services-grid" id="servicesGrid">
+        <!-- Rendered by JS -->
+      </div>
+      <!-- Résumé des services sélectionnés -->
+      <div class="services-summary" id="servicesSummary">
+        <div class="svc-sum-title">&#128221; R&#233;capitulatif de votre commande</div>
+        <div class="svc-sum-list" id="servicesSumList"></div>
+        <div class="svc-sum-total">
+          <span class="svc-sum-total-label">Total estim&#233;</span>
+          <span class="svc-sum-total-price" id="servicesSumTotal">0 XAF</span>
+        </div>
+      </div>
+      <div class="svc-note">&#9432; Les services sont soumis &agrave; disponibilit&#233; et confirm&#233;s par l&rsquo;établissement. R&#232;glement sur place.</div>
+    </div>
+    <!-- ══ END SERVICES PANEL ══ -->
+
     <button onclick="envoyerReservation()" class="modal-btn" id="reservBtn" style="background:linear-gradient(135deg,var(--amber),var(--pink));color:#000;">&#11088; Envoyer ma demande VIP</button>
     <div id="reservFeedback" style="font-size:0.8rem;text-align:center;margin-top:0.7rem;display:none;padding:0.7rem;border-radius:10px;"></div>
   </div>
