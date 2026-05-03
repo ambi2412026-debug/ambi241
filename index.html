@@ -6758,7 +6758,7 @@ function buildCard(e,delay,compact,rank){
   var soireeHtml="";
   if(sp.length>0){
     soireeHtml="<div style='position:relative;width:100%;overflow:hidden;background:rgba(255,45,155,0.04);border-top:1px solid rgba(255,255,255,0.05);'>";
-    soireeHtml+="<img src='"+sp[0].url+"' style='width:100%;height:180px;object-fit:cover;display:block;cursor:zoom-in;' onclick=\"openFullscreenPhoto('"+sp[0].url.replace(/'/g,"\\'")+"',"+e.id+",'soiree','"+((e.nom||"").replace(/'/g,"\\'"))+"')\">";
+    soireeHtml+="<img src='"+sp[0].url+"' style='width:100%;height:180px;object-fit:cover;display:block;cursor:zoom-in;' onclick=\"openFullscreenPhoto('"+sp[0].url.replace(/'/g,"\\'")+"',"+e.id+",'soiree','"+((e.nom||"").replace(/'/g,"\\'"))+"')\" onerror=\"this.onerror=null;this.style.height='70px';this.style.objectFit='contain';this.style.opacity='0.3';this.src='"+generateFallbackPhoto(e.type,e.nom).replace(/'/g,"\\'")+"'\">";
     soireeHtml+="<div style='display:flex;align-items:center;gap:0.4rem;padding:0.4rem 0.55rem;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);border-top:1px solid rgba(255,255,255,0.06);'>";
     soireeHtml+="<span style='font-size:0.6rem;color:var(--muted);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>🔥 Ce soir &bull; "+getTimeLeft(sp[0].ts)+"</span>";
     soireeHtml+="<a href='"+sp[0].url+"' download style='display:flex;align-items:center;gap:0.25rem;padding:0.28rem 0.55rem;border-radius:100px;font-size:0.65rem;font-weight:700;font-family:DM Sans,sans-serif;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.35);color:var(--pink);text-decoration:none;'>⬇ Télécharger</a>";
@@ -10631,6 +10631,8 @@ function switchAdmTab(tab){
   else if(tab==="support") renderAdmSupport();
 }
 window.switchAdmTab=switchAdmTab;
+window.openAdminAddModal=openAdminAddModal;
+window.loadData=loadData;
 
 // ── Vue d'ensemble ─────────────────────────────────────────────
 function renderAdmOverview(){
@@ -10674,13 +10676,13 @@ function renderAdmOverview(){
   // Actions rapides
   html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--amber);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.7rem;'>⚡ Actions rapides</div>";
   html+="<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:1rem;'>";
-  html+="<button onclick=\"openAdminAddModal()\" class='adm-action-btn' style='background:rgba(0,255,170,0.08);border-color:rgba(0,255,170,0.3);color:var(--green);'>&#43; Ajouter lieu</button>";
-  html+="<button onclick=\"switchAdmTab('payments')\" class='adm-action-btn' style='background:rgba(255,215,0,0.08);border-color:rgba(255,215,0,0.3);color:var(--amber);'>&#128179; Paiements ("+pending+" att.)</button>";
-  html+="<button onclick=\"switchAdmTab('notifs')\" class='adm-action-btn' style='background:rgba(255,45,155,0.08);border-color:rgba(255,45,155,0.3);color:var(--pink);'>&#128276; Notifs ("+totalNotifs+")</button>";
-  html+="<button onclick=\"switchAdmTab('moderation')\" class='adm-action-btn' style='background:rgba(204,68,255,0.08);border-color:rgba(204,68,255,0.3);color:var(--purple);'>&#128737; Modération</button>";
-  html+="<button onclick=\"loadData()\" class='adm-action-btn' style='background:rgba(0,229,255,0.08);border-color:rgba(0,229,255,0.3);color:var(--cyan);'>&#8635; Synchroniser Firebase</button>";
-  html+="<button onclick=\"switchAdmTab('users')\" class='adm-action-btn' style='background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.1);color:var(--text);'>&#128100; Membres</button>";
-  html+="<button onclick=\"switchAdmTab('support')\" class='adm-action-btn' style='background:rgba(255,215,0,0.07);border-color:rgba(255,215,0,0.25);color:var(--amber);position:relative;'>💬 Support (<span id='admOverviewSupportCount'>…</span>)</button>";
+  html+="<button data-adm-action='addPlace' class='adm-action-btn' style='background:rgba(0,255,170,0.08);border-color:rgba(0,255,170,0.3);color:var(--green);'>&#43; Ajouter lieu</button>";
+  html+="<button data-adm-action='payments' class='adm-action-btn' style='background:rgba(255,215,0,0.08);border-color:rgba(255,215,0,0.3);color:var(--amber);'>&#128179; Paiements ("+pending+" att.)</button>";
+  html+="<button data-adm-action='notifs' class='adm-action-btn' style='background:rgba(255,45,155,0.08);border-color:rgba(255,45,155,0.3);color:var(--pink);'>&#128276; Notifs ("+totalNotifs+")</button>";
+  html+="<button data-adm-action='moderation' class='adm-action-btn' style='background:rgba(204,68,255,0.08);border-color:rgba(204,68,255,0.3);color:var(--purple);'>&#128737; Modération</button>";
+  html+="<button data-adm-action='sync' class='adm-action-btn' style='background:rgba(0,229,255,0.08);border-color:rgba(0,229,255,0.3);color:var(--cyan);'>&#8635; Synchroniser Firebase</button>";
+  html+="<button data-adm-action='users' class='adm-action-btn' style='background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.1);color:var(--text);'>&#128100; Membres</button>";
+  html+="<button data-adm-action='support' class='adm-action-btn' style='background:rgba(255,215,0,0.07);border-color:rgba(255,215,0,0.25);color:var(--amber);position:relative;'>💬 Support (<span id='admOverviewSupportCount'>…</span>)</button>";
   html+="</div>";
 
   // Top affluence
@@ -10699,7 +10701,7 @@ function renderAdmOverview(){
   html+="</div>";
 
   // Raccourci Connexions récentes
-  html+="<div onclick=\"switchAdmTab('connexions')\" style='background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:14px;padding:1rem;cursor:pointer;display:flex;align-items:center;gap:0.8rem;transition:all 0.2s;'>";
+  html+="<div data-adm-action='connexions' style='background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:14px;padding:1rem;cursor:pointer;display:flex;align-items:center;gap:0.8rem;transition:all 0.2s;'>";
   html+="<div style='font-size:1.8rem;'>📷</div>";
   html+="<div style='flex:1;'>";
   html+="<div style='font-family:Syne,sans-serif;font-weight:800;color:var(--cyan);font-size:0.88rem;'>Historique des connexions</div>";
@@ -10708,7 +10710,32 @@ function renderAdmOverview(){
   html+="<div style='font-size:1.2rem;color:var(--cyan);'>›</div>";
   html+="</div>";
 
-  document.getElementById("adminOverviewContent").innerHTML=html;
+  var overviewEl = document.getElementById("adminOverviewContent");
+  overviewEl.innerHTML = html;
+
+  // ── Délégation d'événements (remplace les onclick inline bloqués par CSP) ──
+  // On retire l'ancien listener avant d'en ajouter un nouveau (évite l'accumulation
+  // si renderAdmOverview() est appelé plusieurs fois lors des changements d'onglet).
+  function _admOverviewClick(e){
+    var btn = e.target.closest("[data-adm-action]");
+    if(!btn) return;
+    var action = btn.getAttribute("data-adm-action");
+    switch(action){
+      case "addPlace":   openAdminAddModal(); break;
+      case "payments":   switchAdmTab("payments"); break;
+      case "notifs":     switchAdmTab("notifs"); break;
+      case "moderation": switchAdmTab("moderation"); break;
+      case "sync":       loadData(); showToast && showToast("Synchronisation…"); break;
+      case "users":      switchAdmTab("users"); break;
+      case "support":    switchAdmTab("support"); break;
+      case "connexions": switchAdmTab("connexions"); break;
+    }
+  }
+  if(overviewEl._admClickHandler){
+    overviewEl.removeEventListener("click", overviewEl._admClickHandler);
+  }
+  overviewEl._admClickHandler = _admOverviewClick;
+  overviewEl.addEventListener("click", _admOverviewClick);
 }
 
 // ── Établissements admin ───────────────────────────────────────
