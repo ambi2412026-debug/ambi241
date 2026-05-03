@@ -1555,6 +1555,8 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
    ════════════════════════════════════════════════════════════════════ */
 
 .taxi-module{position:fixed;bottom:20px;right:20px;z-index:100;display:flex;flex-direction:column;gap:12px;align-items:flex-end;}
+/* Bouton texte permanent "Commander un taxi" */
+.taxi-cmd-btn{background:linear-gradient(135deg,var(--taxi-gold) 0%,#FF9500 100%);border:none;color:#1a0a00;font-family:'Syne',sans-serif;font-size:14px;font-weight:800;padding:10px 18px;border-radius:30px;cursor:pointer;box-shadow:0 4px 20px rgba(255,184,0,0.45),0 0 12px rgba(255,184,0,0.3);letter-spacing:0.04em;white-space:nowrap;transition:all 0.25s cubic-bezier(0.34,1.56,0.64,1);}
 
 .taxi-btn-main{background:linear-gradient(135deg,var(--taxi-gold) 0%,#FF9500 100%);border:3px solid #FFD700;color:var(--taxi-dark);width:70px;height:70px;border-radius:50%;font-size:32px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px rgba(255,184,0,0.5),0 0 20px rgba(255,184,0,0.4),inset 0 1px 0 rgba(255,255,255,0.3);transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);animation:floatPulse 3s ease-in-out infinite;position:relative;}
 
@@ -1576,7 +1578,7 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 
-.taxi-modal{position:fixed;bottom:0;left:0;right:0;max-height:92vh;background:var(--surface);border:3px solid var(--taxi-gold);border-bottom:none;border-radius:32px 32px 0 0;padding:28px 20px 40px;overflow-y:auto;animation:slideUp 0.4s cubic-bezier(0.34,1.56,0.64,1);z-index:201;box-shadow:0 -8px 32px rgba(255,184,0,0.2);}
+.taxi-modal{display:none;position:fixed;bottom:0;left:0;right:0;max-height:92vh;background:var(--surface);border:3px solid var(--taxi-gold);border-bottom:none;border-radius:32px 32px 0 0;padding:28px 20px 40px;overflow-y:auto;animation:slideUp 0.4s cubic-bezier(0.34,1.56,0.64,1);z-index:201;box-shadow:0 -8px 32px rgba(255,184,0,0.2);}
 
 @keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
 
@@ -13948,7 +13950,10 @@ function getPhotoUrl(placeId,type){
      TAXI MODULE PRO - BOUTON FLOTTANT & INTERFACE
      ════════════════════════════════════════════════════════════════════ -->
 
-<div class="taxi-module" style="display:none;" id="taxiModuleContainer">
+<div class="taxi-module" id="taxiModuleContainer">
+  <button class="taxi-cmd-btn" onclick="openTaxiModal()">
+    🚕 Commander un taxi
+  </button>
   <button class="taxi-btn-main" onclick="openTaxiModal()">
     🚕
     <span class="taxi-badge">PRO</span>
@@ -14076,7 +14081,7 @@ function getPhotoUrl(placeId,type){
 
 let selectedService = 'car';
 let isAdminLoggedIn = false;
-const ADMIN_PASSWORD = 'TAXI2024PRO'; // À changer
+// Mot de passe admin taxi = PIN super-admin du site (hashé via SHA-256)
 
 // CONTACTS PAR DÉFAUT - LIBREVILLE GABON
 const defaultContacts = [
@@ -14165,16 +14170,20 @@ function callTaxi(phone) {
 
 function loginAdmin() {
   const pass = document.getElementById('adminPass').value;
-  if(pass === ADMIN_PASSWORD) {
-    isAdminLoggedIn = true;
-    document.getElementById('adminPanel').style.display = 'block';
-    document.getElementById('adminPass').style.display = 'none';
-    event.target.style.display = 'none';
-    loadAdminContacts();
-    showTaxiNotification('✓ Mode Admin activé');
-  } else {
-    alert('❌ Mot de passe incorrect');
-  }
+  // Vérification via le même hash SHA-256 que le PIN super-admin du site
+  (typeof hashPin === 'function' ? hashPin(pass) : Promise.resolve(null)).then(function(h) {
+    const storedHash = (typeof loadPinHash === 'function') ? loadPinHash() : null;
+    if(storedHash && h === storedHash) {
+      isAdminLoggedIn = true;
+      document.getElementById('adminPanel').style.display = 'block';
+      document.getElementById('adminPass').style.display = 'none';
+      event.target.style.display = 'none';
+      loadAdminContacts();
+      showTaxiNotification('✓ Mode Admin activé');
+    } else {
+      alert('❌ Mot de passe incorrect');
+    }
+  });
 }
 
 function addTaxiContact() {
@@ -14251,34 +14260,133 @@ document.addEventListener('DOMContentLoaded', () => {
   overlay.addEventListener('click', e => {
     if(e.target === overlay) closeTaxiModal();
   });
-  
-  // Long press sur le bouton taxi pour le masquer
+
+  // ══════════════════════════════════════════════════════════════
+  // LOGO TAXI DRAGGABLE + SUPPRESSION APPUI LONG
+  // ══════════════════════════════════════════════════════════════
   const taxiBtn = document.querySelector('.taxi-btn-main');
   const taxiModule = document.getElementById('taxiModuleContainer');
-  let longPressTimer;
-  
-  if(taxiBtn) {
-    taxiBtn.addEventListener('touchstart', (e) => {
-      longPressTimer = setTimeout(() => {
-        taxiModule.style.display = 'none';
-        showTaxiNotification('🚕 Bouton taxi masqué (rechargez la page pour le réafficher)');
-      }, 1500);
-    });
-    
-    taxiBtn.addEventListener('touchend', () => {
+
+  if(taxiBtn && taxiModule) {
+    // Rendre le conteneur positionnable librement
+    taxiModule.style.position = 'fixed';
+    taxiModule.style.zIndex = '999';
+    taxiModule.style.cursor = 'grab';
+    taxiModule.style.userSelect = 'none';
+    taxiModule.style.touchAction = 'none';
+
+    // Restaurer la dernière position sauvegardée
+    const savedPos = JSON.parse(localStorage.getItem('taxiBtnPos') || 'null');
+    if(savedPos) {
+      taxiModule.style.left = savedPos.x + 'px';
+      taxiModule.style.top  = savedPos.y + 'px';
+      taxiModule.style.bottom = 'auto';
+      taxiModule.style.right  = 'auto';
+    }
+
+    let isDragging = false;
+    let startX, startY, origLeft, origTop;
+    let longPressTimer = null;
+    let dragMoved = false;
+    const LONG_PRESS_MS = 1200;
+
+    function getModuleRect() {
+      const r = taxiModule.getBoundingClientRect();
+      return { left: r.left, top: r.top };
+    }
+
+    function startDrag(clientX, clientY) {
+      isDragging = true;
+      dragMoved = false;
+      taxiModule.style.cursor = 'grabbing';
+      const pos = getModuleRect();
+      origLeft = pos.left;
+      origTop  = pos.top;
+      startX = clientX;
+      startY = clientY;
+    }
+
+    function moveDrag(clientX, clientY) {
+      if(!isDragging) return;
+      const dx = clientX - startX;
+      const dy = clientY - startY;
+      if(Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+        dragMoved = true;
+        clearTimeout(longPressTimer); // annuler appui long si on bouge
+      }
+      let newLeft = origLeft + dx;
+      let newTop  = origTop  + dy;
+      // Contraindre dans la fenêtre
+      const W = window.innerWidth  - taxiModule.offsetWidth;
+      const H = window.innerHeight - taxiModule.offsetHeight;
+      newLeft = Math.max(0, Math.min(newLeft, W));
+      newTop  = Math.max(0, Math.min(newTop,  H));
+      taxiModule.style.left   = newLeft + 'px';
+      taxiModule.style.top    = newTop  + 'px';
+      taxiModule.style.bottom = 'auto';
+      taxiModule.style.right  = 'auto';
+    }
+
+    function endDrag() {
+      if(!isDragging) return;
+      isDragging = false;
+      taxiModule.style.cursor = 'grab';
       clearTimeout(longPressTimer);
-    });
-    
-    taxiBtn.addEventListener('mousedown', (e) => {
+      // Sauvegarder la position
+      const pos = getModuleRect();
+      localStorage.setItem('taxiBtnPos', JSON.stringify({ x: pos.left, y: pos.top }));
+    }
+
+    function startLongPress() {
       longPressTimer = setTimeout(() => {
-        taxiModule.style.display = 'none';
-        showTaxiNotification('🚕 Bouton taxi masqué (rechargez la page pour le réafficher)');
-      }, 1500);
+        if(!dragMoved) {
+          // Masquage temporaire uniquement — réapparaît au rechargement de la page
+          taxiModule.style.opacity = '0';
+          taxiModule.style.transition = 'opacity 0.4s ease';
+          setTimeout(() => {
+            taxiModule.style.display = 'none';
+            taxiModule.style.opacity = '';
+            taxiModule.style.transition = '';
+            showTaxiNotification('🚕 Masqué jusqu\'au prochain rechargement');
+          }, 400);
+        }
+      }, LONG_PRESS_MS);
+    }
+
+    // ── TOUCH EVENTS ──
+    taxiModule.addEventListener('touchstart', (e) => {
+      const t = e.touches[0];
+      startDrag(t.clientX, t.clientY);
+      startLongPress();
+    }, { passive: true });
+
+    taxiModule.addEventListener('touchmove', (e) => {
+      const t = e.touches[0];
+      moveDrag(t.clientX, t.clientY);
+    }, { passive: true });
+
+    taxiModule.addEventListener('touchend', () => {
+      endDrag();
     });
-    
-    taxiBtn.addEventListener('mouseup', () => {
-      clearTimeout(longPressTimer);
+
+    // ── MOUSE EVENTS (desktop) ──
+    taxiModule.addEventListener('mousedown', (e) => {
+      startDrag(e.clientX, e.clientY);
+      startLongPress();
     });
+
+    document.addEventListener('mousemove', (e) => {
+      if(isDragging) moveDrag(e.clientX, e.clientY);
+    });
+
+    document.addEventListener('mouseup', () => {
+      endDrag();
+    });
+
+    // Empêcher l'ouverture du modal si on a fait un drag
+    taxiBtn.addEventListener('click', (e) => {
+      if(dragMoved) { e.stopPropagation(); e.preventDefault(); }
+    }, true);
   }
 });
 
