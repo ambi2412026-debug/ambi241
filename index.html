@@ -2317,6 +2317,15 @@ if (document.readyState === 'loading') {
         <button onclick="openEditPseudoModal()" style="flex:1;padding:0.5rem;border-radius:10px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.07);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;">✏️ Modifier pseudo</button>
         <button onclick="triggerAvatarUpload()" style="flex:1;padding:0.5rem;border-radius:10px;border:1px solid rgba(255,45,155,0.3);background:rgba(255,45,155,0.07);color:var(--pink);font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;">📷 Changer photo</button>
       </div>
+      <!-- ── Support membre ── -->
+      <div style="background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:0.75rem;margin-bottom:0.5rem;">
+        <div style="font-family:Syne,sans-serif;font-weight:700;color:var(--amber);font-size:0.75rem;margin-bottom:0.5rem;">🆘 Assistance &amp; Support</div>
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+          <button id="memberSupportBadge" onclick="openSupportRequestModal('reset_password')" style="flex:1;padding:0.45rem 0.5rem;border-radius:9px;border:1px solid rgba(255,215,0,0.3);background:rgba(255,215,0,0.08);color:var(--amber);font-family:DM Sans,sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;">🔑 Réinitialiser mon MDP</button>
+          <button onclick="openSupportRequestModal('autre')" style="flex:1;padding:0.45rem 0.5rem;border-radius:9px;border:1px solid rgba(204,68,255,0.3);background:rgba(204,68,255,0.07);color:var(--purple);font-family:DM Sans,sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;">💬 Contacter support</button>
+        </div>
+        <button onclick="memberViewMyTickets()" style="width:100%;margin-top:0.4rem;padding:0.4rem;border-radius:9px;border:1px solid rgba(0,229,255,0.2);background:rgba(0,229,255,0.05);color:var(--cyan);font-family:DM Sans,sans-serif;font-size:0.72rem;cursor:pointer;">📋 Voir mes demandes en cours</button>
+      </div>
       <div id="avatarUploadStatus" style="font-size:0.72rem;text-align:center;color:var(--muted);min-height:1.2em;"></div>
     </div>
   </div>
@@ -9696,6 +9705,168 @@ function resetEstabPassword(id, name){
 }
 window.resetEstabPassword=resetEstabPassword;
 
+// ── Réinitialisation MDP Membre (SuperAdmin) ──────────────────
+var DEFAULT_MEMBER_PWD = "Ambi@241";
+
+function resetMemberPassword(uid, email, pseudo, fromTicketId){
+  if(!isAdmin){ showToast("Accès refusé - Admin requis"); return; }
+  if(!uid){ showToast("UID membre introuvable"); return; }
+
+  var customPwd = prompt(
+    "🔑 RÉINITIALISATION — " + pseudo + "\n" +
+    "Email : " + email + "\n\n" +
+    "Mot de passe par défaut : " + DEFAULT_MEMBER_PWD + "\n\n" +
+    "Laissez tel quel pour le défaut, ou tapez un mot de passe personnalisé :",
+    DEFAULT_MEMBER_PWD
+  );
+  if(customPwd === null) return; // Annulé
+  var newPwd = (customPwd.trim() || DEFAULT_MEMBER_PWD);
+
+  if(!window.db || !window.fbDoc || !window.fbUpdateDoc){
+    showToast("Firebase non disponible"); return;
+  }
+  showToast("⏳ Réinitialisation en cours...");
+  var docRef = window.fbDoc(window.db, "users", uid);
+  window.fbUpdateDoc(docRef, {
+    password: newPwd,
+    password_reset_date: new Date().toISOString(),
+    password_reset_by_admin: true,
+    must_change_password: true
+  }).then(function(){
+    showToast("✅ MDP réinitialisé pour " + pseudo);
+    addAdminLog("🔑 MDP réinitialisé — " + pseudo + " (" + email + ")", "reset_member_pwd");
+    // Si appelé depuis un ticket support, clore le ticket avec message de confirmation
+    if(fromTicketId){
+      _supportResolveTicket(fromTicketId, email, pseudo, newPwd);
+    } else {
+      // Créer un ticket résolu automatiquement pour traçabilité
+      _supportAutoLog(uid, email, pseudo, newPwd);
+    }
+    // Rafraîchir la liste si on est dans l'onglet users
+    if(_currentAdmTab === "users") renderAdmUsers();
+    if(_currentAdmTab === "support") renderAdmSupport();
+  }).catch(function(err){
+    showToast("Erreur: " + err.message);
+  });
+}
+window.resetMemberPassword = resetMemberPassword;
+
+// ── Crée un log automatique de réinitialisation (sans ticket préalable) ──
+function _supportAutoLog(uid, email, pseudo, newPwd){
+  if(!window.db || !window.fbCollection || !window.fbAddDoc) return;
+  var col = window.fbCollection(window.db, "support_requests");
+  var now = new Date().toISOString();
+  window.fbAddDoc(col, {
+    uid: uid, email: email, pseudo: pseudo,
+    type: "reset_password", status: "resolved",
+    createdAt: now, resolvedAt: now,
+    messages: [
+      { from:"admin", text:"Réinitialisation effectuée par le Super Admin. Nouveau mot de passe : " + newPwd + "\nVeuillez vous connecter et modifier votre mot de passe dès que possible.", ts: now }
+    ]
+  }).catch(function(){});
+}
+
+// ── Résoudre un ticket support + notifier le membre ──
+function _supportResolveTicket(ticketId, email, pseudo, newPwd){
+  if(!window.db || !window.fbDoc || !window.fbUpdateDoc) return;
+  var docRef = window.fbDoc(window.db, "support_requests", ticketId);
+  var now = new Date().toISOString();
+  // On ne peut pas append dans un array via updateDoc simple, on relit d'abord
+  window.fbGetDoc && window.fbGetDoc(docRef).then(function(snap){
+    var data = snap.exists() ? snap.data() : {};
+    var msgs = data.messages || [];
+    msgs.push({
+      from:"admin",
+      text:"✅ Votre mot de passe a été réinitialisé.\n\n🔑 Nouveau mot de passe : " + newPwd + "\n\nConnectez-vous avec ce mot de passe puis modifiez-le immédiatement dans votre profil.",
+      ts: now
+    });
+    window.fbUpdateDoc(docRef, {
+      status: "resolved",
+      resolvedAt: now,
+      messages: msgs
+    }).then(function(){
+      showToast("✅ Ticket résolu — " + pseudo + " notifié");
+      if(_currentAdmTab === "support") renderAdmSupport();
+    }).catch(function(err){ showToast("Err ticket: " + err.message); });
+  }).catch(function(){
+    // Fallback si fbGetDoc absent
+    window.fbUpdateDoc(docRef, {
+      status: "resolved",
+      resolvedAt: now
+    }).catch(function(){});
+  });
+}
+window._supportResolveTicket = _supportResolveTicket;
+
+// ── Membre : soumettre une demande de support ─────────────────
+function memberSubmitSupportRequest(type, message){
+  if(!window.currentUserUid && !window.auth){ showToast("Connectez-vous d'abord"); return; }
+  var uid   = window.currentUserUid || (window.auth && window.auth.currentUser && window.auth.currentUser.uid) || "";
+  var email = window.currentUserEmail || "";
+  var pseudo= (document.getElementById("myProfilePseudo") && document.getElementById("myProfilePseudo").textContent) || email;
+  if(!uid){ showToast("Session expirée, reconnectez-vous"); return; }
+  if(!window.db || !window.fbAddDoc || !window.fbCollection){ showToast("Connexion Firebase requise"); return; }
+  var now = new Date().toISOString();
+  var col = window.fbCollection(window.db, "support_requests");
+  var msg = message || "Demande de réinitialisation de mot de passe";
+  showToast("⏳ Envoi de votre demande...");
+  window.fbAddDoc(col, {
+    uid: uid, email: email, pseudo: pseudo,
+    type: type || "reset_password", status: "open",
+    createdAt: now,
+    messages:[{ from:"user", text: msg, ts: now }]
+  }).then(function(){
+    showToast("✅ Demande envoyée ! L'admin vous répondra bientôt.");
+    closeSupportRequestModal();
+    // Marquer badge support dans le profil
+    var badge = document.getElementById("memberSupportBadge");
+    if(badge) badge.style.display = "none"; // masquer le bouton d'envoi après envoi
+  }).catch(function(err){
+    showToast("Erreur: " + err.message);
+  });
+}
+window.memberSubmitSupportRequest = memberSubmitSupportRequest;
+
+function openSupportRequestModal(prefillType){
+  var existingModal = document.getElementById("supportRequestModal");
+  if(existingModal) existingModal.remove();
+  var overlay = document.createElement("div");
+  overlay.id = "supportRequestModal";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:10000;display:flex;align-items:center;justify-content:center;padding:1rem;";
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border:1px solid rgba(255,45,155,0.35);border-radius:20px;padding:1.4rem;width:min(400px,100%);position:relative;max-height:90vh;overflow-y:auto;">
+      <button onclick="closeSupportRequestModal()" style="position:absolute;top:0.7rem;right:0.7rem;background:rgba(255,68,102,0.12);border:1px solid rgba(255,68,102,0.3);color:var(--red);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:0.9rem;display:flex;align-items:center;justify-content:center;">✕</button>
+      <div style="font-family:Syne,sans-serif;font-weight:800;color:var(--pink);font-size:1rem;margin-bottom:0.3rem;">💬 Contacter le Support</div>
+      <div style="font-size:0.73rem;color:var(--muted);margin-bottom:1.1rem;line-height:1.5;">Un administrateur traitera votre demande et vous répondra dans les meilleurs délais.</div>
+      <div style="margin-bottom:0.8rem;">
+        <label style="font-size:0.72rem;color:var(--muted);display:block;margin-bottom:0.35rem;">Type de demande</label>
+        <select id="supportReqType" style="width:100%;background:var(--surface2);border:1px solid rgba(255,45,155,0.25);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.82rem;">
+          <option value="reset_password" ${prefillType==="reset_password"?"selected":""}>🔑 Réinitialisation de mot de passe</option>
+          <option value="compte_bloque">🔒 Compte bloqué / accès refusé</option>
+          <option value="info_compte">ℹ️ Information sur mon compte</option>
+          <option value="suppression">🗑️ Demande de suppression de compte</option>
+          <option value="autre">📩 Autre demande</option>
+        </select>
+      </div>
+      <div style="margin-bottom:1rem;">
+        <label style="font-size:0.72rem;color:var(--muted);display:block;margin-bottom:0.35rem;">Message (optionnel)</label>
+        <textarea id="supportReqMsg" placeholder="Décrivez votre problème..." maxlength="400" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:var(--text);padding:0.6rem;font-size:0.82rem;resize:vertical;min-height:80px;font-family:'DM Sans',sans-serif;"></textarea>
+      </div>
+      <div style="background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.2);border-radius:10px;padding:0.7rem;margin-bottom:1rem;font-size:0.72rem;color:var(--cyan);line-height:1.5;">
+        ℹ️ Pour une réinitialisation de mot de passe, vous recevrez votre nouveau mot de passe temporaire via ce système. Pensez à le changer après connexion.
+      </div>
+      <button onclick="memberSubmitSupportRequest(document.getElementById('supportReqType').value, document.getElementById('supportReqMsg').value)" style="width:100%;padding:0.75rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;">📤 Envoyer ma demande</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener("click", function(e){ if(e.target===overlay) closeSupportRequestModal(); });
+}
+window.openSupportRequestModal = openSupportRequestModal;
+
+function closeSupportRequestModal(){
+  var m = document.getElementById("supportRequestModal");
+  if(m) m.remove();
+}
+window.closeSupportRequestModal = closeSupportRequestModal;
 
 // ─────────────────────────────────────────────────────────────
 // ── Démarre l'app (attend Firebase si pas encore prêt) ───────
@@ -10332,6 +10503,8 @@ function openAdminDashboard(btn){
   // Marquer actif
   document.querySelectorAll(".nav-item").forEach(function(b){b.classList.remove("active");});
   if(btn)btn.classList.add("active");
+  // Charger badge support (tickets ouverts)
+  setTimeout(function(){ if(typeof _loadSupportBadge==="function") _loadSupportBadge(); }, 800);
 }
 function closeAdminDashboard(){
   document.getElementById("adminDashOverlay").classList.remove("show");
@@ -10346,7 +10519,7 @@ window.closeAdminDashboard=closeAdminDashboard;
 
 function switchAdmTab(tab){
   _currentAdmTab=tab;
-  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement"];
+  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support"];
   tabs.forEach(function(t){
     var btn=document.getElementById("admtab-"+t);
     var panel=document.getElementById("admpanel-"+t);
@@ -10373,6 +10546,7 @@ function switchAdmTab(tab){
   }
   else if(tab==="reservations") renderAdmReservations();
   else if(tab==="classement") renderAdmClassement();
+  else if(tab==="support") renderAdmSupport();
 }
 window.switchAdmTab=switchAdmTab;
 
@@ -10424,6 +10598,7 @@ function renderAdmOverview(){
   html+="<button onclick=\"switchAdmTab('moderation')\" class='adm-action-btn' style='background:rgba(204,68,255,0.08);border-color:rgba(204,68,255,0.3);color:var(--purple);'>&#128737; Modération</button>";
   html+="<button onclick=\"loadData()\" class='adm-action-btn' style='background:rgba(0,229,255,0.08);border-color:rgba(0,229,255,0.3);color:var(--cyan);'>&#8635; Synchroniser Firebase</button>";
   html+="<button onclick=\"switchAdmTab('users')\" class='adm-action-btn' style='background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.1);color:var(--text);'>&#128100; Membres</button>";
+  html+="<button onclick=\"switchAdmTab('support')\" class='adm-action-btn' style='background:rgba(255,215,0,0.07);border-color:rgba(255,215,0,0.25);color:var(--amber);position:relative;'>💬 Support (<span id='admOverviewSupportCount'>…</span>)</button>";
   html+="</div>";
 
   // Top affluence
@@ -10671,6 +10846,8 @@ function renderAdmUsers(){
           if(!myEtab){
             h += "<button onclick=\"openAssignEtabModal('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"')\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,45,155,0.08);border:1px solid rgba(255,45,155,0.25);color:var(--pink);cursor:pointer;font-family:DM Sans,sans-serif;'>🏠 Assigner établissement</button>";
           }
+          // ── Bouton Réinitialiser MDP (SuperAdmin uniquement) ──
+          h += "<button onclick=\"resetMemberPassword('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"',null)\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,215,0,0.09);border:1px solid rgba(255,215,0,0.35);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;'>🔑 Réinitialiser MDP</button>";
           h += "</div>";
         }
 
@@ -10683,6 +10860,295 @@ function renderAdmUsers(){
   }
   _loadMembers(1);
 }
+
+// ── Support / Tchat de réception des demandes ──────────────────
+var _supportFilter = "open"; // open | in_progress | resolved | all
+
+function renderAdmSupport(){
+  var container = document.getElementById("adminSupportContent");
+  if(!container) return;
+
+  var iAmSuper = isAdmin && isSuperAdminUser();
+  var filterBtns = [
+    {k:"open",      l:"🟠 Ouvertes",    c:"var(--red)"},
+    {k:"in_progress",l:"🔵 En cours",   c:"var(--cyan)"},
+    {k:"resolved",  l:"✅ Résolues",     c:"var(--green)"},
+    {k:"all",       l:"📋 Tout",         c:"var(--muted)"}
+  ];
+
+  var h = "";
+  // ── En-tête ──
+  h += "<div style='background:linear-gradient(135deg,rgba(255,45,155,0.1),rgba(204,68,255,0.07));border:1px solid rgba(255,45,155,0.3);border-radius:14px;padding:0.9rem;margin-bottom:1rem;'>";
+  h += "<div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;'>";
+  h += "<div><div style='font-family:Syne,sans-serif;font-weight:800;color:var(--pink);font-size:0.9rem;'>💬 Centre de Support</div>";
+  h += "<div style='font-size:0.7rem;color:var(--muted);margin-top:0.2rem;'>Requêtes membres — réinitialisation MDP & assistance</div></div>";
+  h += "<button onclick='renderAdmSupport()' style='padding:0.35rem 0.7rem;border-radius:8px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.08);color:var(--cyan);font-size:0.72rem;font-weight:700;cursor:pointer;'>↺ Actualiser</button>";
+  h += "</div>";
+  h += "</div>";
+
+  // ── Filtres ──
+  h += "<div style='display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:1rem;'>";
+  filterBtns.forEach(function(f){
+    var isActive = (_supportFilter === f.k);
+    h += "<button onclick=\"_supportFilter='"+f.k+"';renderAdmSupport()\" style='font-size:0.68rem;font-weight:700;padding:0.3rem 0.65rem;border-radius:20px;cursor:pointer;border:1px solid "+(isActive?f.c:"rgba(255,255,255,0.1)")+";background:"+(isActive?"rgba(255,255,255,0.08)":"transparent")+";color:"+(isActive?f.c:"var(--muted)")+";font-family:DM Sans,sans-serif;'>"+f.l+"</button>";
+  });
+  h += "</div>";
+
+  h += "<div id='supportTicketList'><div style='text-align:center;padding:2rem;color:var(--muted);font-size:0.78rem;'>⏳ Chargement des tickets...</div></div>";
+
+  container.innerHTML = h;
+
+  // ── Charger les tickets Firebase ──
+  if(!window.db || !window.fbCollection || !window.fbGetDocs){
+    document.getElementById("supportTicketList").innerHTML = "<div style='text-align:center;padding:2rem;color:var(--red);font-size:0.82rem;'>❌ Firebase non disponible</div>";
+    return;
+  }
+
+  var col = window.fbCollection(window.db, "support_requests");
+  var qArgs = [col];
+
+  // Filtre par statut
+  if(_supportFilter !== "all"){
+    if(window.fbQuery && window.fbWhere){
+      window.fbGetDocs(window.fbQuery(col, window.fbWhere("status","==",_supportFilter))).then(_renderTickets).catch(_supportErr);
+      return;
+    }
+  }
+  window.fbGetDocs(col).then(_renderTickets).catch(_supportErr);
+
+  function _supportErr(err){
+    var tl = document.getElementById("supportTicketList");
+    if(tl) tl.innerHTML = "<div style='color:var(--red);padding:1rem;text-align:center;font-size:0.8rem;'>Erreur: "+err.message+"</div>";
+  }
+
+  function _renderTickets(snap){
+    var tickets = [];
+    snap.forEach(function(d){ tickets.push(Object.assign({_id:d.id}, d.data())); });
+
+    // Filtre côté client si query non disponible
+    if(_supportFilter !== "all"){
+      tickets = tickets.filter(function(t){ return t.status === _supportFilter; });
+    }
+
+    // Tri : plus récents en premier
+    tickets.sort(function(a,b){
+      return new Date(b.createdAt||0) - new Date(a.createdAt||0);
+    });
+
+    var tl = document.getElementById("supportTicketList");
+    if(!tl) return;
+
+    if(!tickets.length){
+      tl.innerHTML = "<div style='text-align:center;padding:3rem 1rem;'><div style='font-size:2.5rem;margin-bottom:0.5rem;'>📭</div><div style='color:var(--muted);font-size:0.82rem;'>Aucun ticket dans cette catégorie</div></div>";
+      return;
+    }
+
+    var typeLabels = {
+      reset_password:"🔑 Réinitialisation MDP",
+      compte_bloque:"🔒 Compte bloqué",
+      info_compte:"ℹ️ Info compte",
+      suppression:"🗑️ Suppression compte",
+      autre:"📩 Autre"
+    };
+    var statusConfig = {
+      open:        {label:"Ouvert",      bg:"rgba(255,68,102,0.12)",  border:"rgba(255,68,102,0.3)",   col:"var(--red)"},
+      in_progress: {label:"En cours",    bg:"rgba(0,229,255,0.08)",   border:"rgba(0,229,255,0.3)",    col:"var(--cyan)"},
+      resolved:    {label:"Résolu",      bg:"rgba(0,255,170,0.07)",   border:"rgba(0,255,170,0.25)",   col:"var(--green)"}
+    };
+
+    var out = "";
+    tickets.forEach(function(t){
+      var sc = statusConfig[t.status] || statusConfig.open;
+      var msgs = t.messages || [];
+      var lastMsg = msgs.length ? msgs[msgs.length-1] : null;
+      var createdFmt = t.createdAt ? new Date(t.createdAt).toLocaleString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "";
+      var resolvedFmt = t.resolvedAt ? new Date(t.resolvedAt).toLocaleString("fr-FR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) : "";
+      var typeLabel = typeLabels[t.type] || "📩 Demande";
+
+      out += "<div style='background:"+sc.bg+";border:1px solid "+sc.border+";border-radius:14px;padding:1rem;margin-bottom:0.8rem;'>";
+
+      // ── Ticket header ──
+      out += "<div style='display:flex;align-items:flex-start;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.6rem;'>";
+      out += "<div style='flex:1;min-width:0;'>";
+      out += "<div style='display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;'>";
+      out += "<div style='width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:0.85rem;flex-shrink:0;'>"+((t.pseudo||t.email||"?")[0]).toUpperCase()+"</div>";
+      out += "<div>";
+      out += "<div style='font-weight:700;font-size:0.82rem;color:var(--text);'>"+escHtml(t.pseudo||"Membre")+"</div>";
+      out += "<div style='font-size:0.63rem;color:var(--muted);'>"+escHtml(t.email||"")+"</div>";
+      out += "</div></div></div>";
+      out += "<div style='text-align:right;flex-shrink:0;'>";
+      out += "<div style='font-size:0.65rem;font-weight:700;color:"+sc.col+";background:"+sc.bg+";border:1px solid "+sc.border+";padding:0.15rem 0.5rem;border-radius:20px;display:inline-block;'>"+sc.label+"</div>";
+      out += "<div style='font-size:0.6rem;color:var(--muted);margin-top:0.2rem;'>"+createdFmt+"</div>";
+      out += "</div></div>";
+
+      // ── Type de demande ──
+      out += "<div style='font-size:0.72rem;color:var(--amber);font-weight:700;margin-bottom:0.5rem;'>"+typeLabel+"</div>";
+
+      // ── Thread messages ──
+      out += "<div style='background:rgba(0,0,0,0.2);border-radius:10px;padding:0.6rem;margin-bottom:0.7rem;max-height:180px;overflow-y:auto;'>";
+      if(!msgs.length){
+        out += "<div style='font-size:0.72rem;color:var(--muted);text-align:center;padding:0.5rem;'>Aucun message</div>";
+      }
+      msgs.forEach(function(m){
+        var isAdmin_ = m.from === "admin";
+        var mTime = m.ts ? new Date(m.ts).toLocaleString("fr-FR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) : "";
+        out += "<div style='margin-bottom:0.5rem;display:flex;flex-direction:column;align-items:"+(isAdmin_?"flex-end":"flex-start")+"'>";
+        out += "<div style='max-width:85%;background:"+(isAdmin_?"rgba(255,45,155,0.15)":"rgba(255,255,255,0.06)")+";border:1px solid "+(isAdmin_?"rgba(255,45,155,0.3)":"rgba(255,255,255,0.1)")+";border-radius:"+(isAdmin_?"12px 12px 2px 12px":"12px 12px 12px 2px")+";padding:0.45rem 0.65rem;'>";
+        out += "<div style='font-size:0.65rem;font-weight:700;color:"+(isAdmin_?"var(--pink)":"var(--cyan)")+";margin-bottom:0.15rem;'>"+(isAdmin_?"👑 Super Admin":"👤 "+escHtml(t.pseudo||"Membre"))+"</div>";
+        out += "<div style='font-size:0.75rem;color:var(--text);white-space:pre-wrap;word-break:break-word;'>"+escHtml(m.text||"")+"</div>";
+        out += "<div style='font-size:0.58rem;color:var(--muted);margin-top:0.15rem;text-align:right;'>"+mTime+"</div>";
+        out += "</div></div>";
+      });
+      out += "</div>";
+
+      // ── Zone réponse admin (tickets non résolus) ──
+      if(t.status !== "resolved" && iAmSuper){
+        var tid = t._id;
+        out += "<div style='margin-bottom:0.5rem;'>";
+        out += "<textarea id='supportReply_"+tid+"' placeholder='Votre réponse au membre...' maxlength='500' style='width:100%;background:var(--surface2);border:1px solid rgba(255,45,155,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.78rem;resize:vertical;min-height:60px;font-family:DM Sans,sans-serif;'></textarea>";
+        out += "</div>";
+        out += "<div style='display:flex;gap:0.4rem;flex-wrap:wrap;'>";
+        out += "<button onclick=\"_supportSendReply('"+tid+"','"+escHtml(t.uid||"")+"','"+escHtml(t.email||"")+"','"+escHtml(t.pseudo||"")+"')\" style='flex:1;font-size:0.7rem;padding:0.38rem 0.6rem;border-radius:8px;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.35);color:var(--pink);cursor:pointer;font-weight:700;font-family:DM Sans,sans-serif;'>📤 Envoyer réponse</button>";
+        if(t.type === "reset_password"){
+          out += "<button onclick=\"resetMemberPassword('"+escHtml(t.uid||"")+"','"+escHtml(t.email||"")+"','"+escHtml(t.pseudo||"")+"','"+tid+"')\" style='flex:1;font-size:0.7rem;padding:0.38rem 0.6rem;border-radius:8px;background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.35);color:var(--amber);cursor:pointer;font-weight:700;font-family:DM Sans,sans-serif;'>🔑 Réinitialiser + Notifier</button>";
+        }
+        out += "<button onclick=\"_supportMarkInProgress('"+tid+"')\" style='font-size:0.7rem;padding:0.38rem 0.6rem;border-radius:8px;background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.25);color:var(--cyan);cursor:pointer;font-family:DM Sans,sans-serif;'>🔵 En cours</button>";
+        out += "<button onclick=\"_supportCloseTicket('"+tid+"')\" style='font-size:0.7rem;padding:0.38rem 0.6rem;border-radius:8px;background:rgba(0,255,170,0.07);border:1px solid rgba(0,255,170,0.25);color:var(--green);cursor:pointer;font-family:DM Sans,sans-serif;'>✅ Clore</button>";
+        out += "</div>";
+      }
+
+      if(t.status === "resolved" && resolvedFmt){
+        out += "<div style='font-size:0.62rem;color:var(--green);margin-top:0.4rem;text-align:right;'>✅ Résolu le "+resolvedFmt+"</div>";
+      }
+
+      out += "</div>"; // fin ticket card
+    });
+
+    tl.innerHTML = out;
+  }
+}
+window.renderAdmSupport = renderAdmSupport;
+
+// ── Envoyer une réponse admin sur un ticket ──
+function _supportSendReply(ticketId, uid, email, pseudo){
+  var ta = document.getElementById("supportReply_"+ticketId);
+  var text = ta ? ta.value.trim() : "";
+  if(!text){ showToast("Rédigez une réponse d'abord"); return; }
+  if(!window.db || !window.fbDoc || !window.fbGetDoc || !window.fbUpdateDoc){ showToast("Firebase requis"); return; }
+  var docRef = window.fbDoc(window.db, "support_requests", ticketId);
+  var now = new Date().toISOString();
+  showToast("⏳ Envoi...");
+  window.fbGetDoc(docRef).then(function(snap){
+    var data = snap.exists() ? snap.data() : {};
+    var msgs = data.messages || [];
+    msgs.push({ from:"admin", text:text, ts:now });
+    return window.fbUpdateDoc(docRef, { messages:msgs, status:"in_progress", lastAdminReply:now });
+  }).then(function(){
+    showToast("✅ Réponse envoyée à "+pseudo);
+    if(ta) ta.value = "";
+    renderAdmSupport();
+  }).catch(function(err){ showToast("Erreur: "+err.message); });
+}
+window._supportSendReply = _supportSendReply;
+
+// ── Marquer "En cours" ──
+function _supportMarkInProgress(ticketId){
+  if(!window.db||!window.fbDoc||!window.fbUpdateDoc) return;
+  window.fbUpdateDoc(window.fbDoc(window.db,"support_requests",ticketId),{status:"in_progress"})
+    .then(function(){ renderAdmSupport(); }).catch(function(err){ showToast(err.message); });
+}
+window._supportMarkInProgress = _supportMarkInProgress;
+
+// ── Clore un ticket ──
+function _supportCloseTicket(ticketId){
+  if(!window.db||!window.fbDoc||!window.fbUpdateDoc) return;
+  window.fbUpdateDoc(window.fbDoc(window.db,"support_requests",ticketId),{status:"resolved",resolvedAt:new Date().toISOString()})
+    .then(function(){ showToast("✅ Ticket clôturé"); renderAdmSupport(); }).catch(function(err){ showToast(err.message); });
+}
+window._supportCloseTicket = _supportCloseTicket;
+
+// ── Badge support dans vue d'ensemble : nb tickets ouverts ──
+function _loadSupportBadge(){
+  if(!window.db||!window.fbCollection||!window.fbGetDocs) return;
+  var col = window.fbCollection(window.db, "support_requests");
+  var q = (window.fbQuery && window.fbWhere) ? window.fbQuery(col, window.fbWhere("status","==","open")) : col;
+  window.fbGetDocs(q).then(function(snap){
+    var n = 0;
+    if(window.fbWhere){ n = snap.size; }
+    else { snap.forEach(function(d){ if(d.data().status==="open") n++; }); }
+    var badge = document.getElementById("admSupportBadge");
+    if(badge){ badge.textContent = n > 0 ? n : ""; badge.style.display = n > 0 ? "inline-flex" : "none"; }
+    // Badge aussi dans overview
+    var ob = document.getElementById("admOverviewSupportCount");
+    if(ob) ob.textContent = n;
+  }).catch(function(){});
+}
+window._loadSupportBadge = _loadSupportBadge;
+
+// ── Membre : voir ses propres tickets de support ──
+function memberViewMyTickets(){
+  var uid = window.currentUserUid || (window.auth && window.auth.currentUser && window.auth.currentUser.uid) || "";
+  var email = window.currentUserEmail || "";
+  if(!uid && !email){ showToast("Connectez-vous d'abord"); return; }
+  if(!window.db||!window.fbCollection||!window.fbGetDocs){ showToast("Firebase requis"); return; }
+
+  var existingModal = document.getElementById("myTicketsModal");
+  if(existingModal) existingModal.remove();
+
+  var overlay = document.createElement("div");
+  overlay.id = "myTicketsModal";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:10000;display:flex;align-items:center;justify-content:center;padding:1rem;";
+
+  var inner = document.createElement("div");
+  inner.style.cssText = "background:var(--surface);border:1px solid rgba(255,45,155,0.3);border-radius:20px;padding:1.4rem;width:min(420px,100%);max-height:90vh;overflow-y:auto;position:relative;";
+  inner.innerHTML = "<button onclick=\"document.getElementById('myTicketsModal').remove()\" style='position:absolute;top:0.7rem;right:0.7rem;background:rgba(255,68,102,0.12);border:1px solid rgba(255,68,102,0.3);color:var(--red);width:30px;height:30px;border-radius:50%;cursor:pointer;'>✕</button><div style='font-family:Syne,sans-serif;font-weight:800;color:var(--pink);font-size:0.95rem;margin-bottom:0.3rem;'>💬 Mes demandes de support</div><div style='font-size:0.72rem;color:var(--muted);margin-bottom:1rem;'>Suivez l'état de vos requêtes</div><div id='myTicketsList'>⏳ Chargement...</div>";
+  overlay.appendChild(inner);
+  document.body.appendChild(overlay);
+  overlay.addEventListener("click", function(e){ if(e.target===overlay) overlay.remove(); });
+
+  var col = window.fbCollection(window.db, "support_requests");
+  var qr = (window.fbQuery && window.fbWhere) ? window.fbQuery(col, window.fbWhere("email","==",email)) : col;
+  window.fbGetDocs(qr).then(function(snap){
+    var tickets = [];
+    snap.forEach(function(d){
+      var data = d.data();
+      if(!window.fbWhere || data.email === email) tickets.push(Object.assign({_id:d.id}, data));
+    });
+    tickets.sort(function(a,b){ return new Date(b.createdAt||0)-new Date(a.createdAt||0); });
+
+    var list = document.getElementById("myTicketsList");
+    if(!list) return;
+    if(!tickets.length){ list.innerHTML = "<div style='text-align:center;padding:2rem;color:var(--muted);'>Aucune demande envoyée</div>"; return; }
+
+    var html = "";
+    var statusIco = {open:"🟠",in_progress:"🔵",resolved:"✅"};
+    var statusLbl = {open:"En attente",in_progress:"En cours",resolved:"Résolu"};
+    tickets.forEach(function(t){
+      html += "<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.8rem;margin-bottom:0.7rem;'>";
+      html += "<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;'>";
+      html += "<div style='font-size:0.75rem;font-weight:700;color:var(--text);'>"+(t.type==="reset_password"?"🔑 Réinitialisation MDP":"📩 "+t.type)+"</div>";
+      html += "<div style='font-size:0.65rem;color:var(--muted);'>"+(statusIco[t.status]||"🟠")+" "+(statusLbl[t.status]||t.status)+"</div>";
+      html += "</div>";
+      var msgs = t.messages || [];
+      msgs.forEach(function(m){
+        var isAdm = m.from==="admin";
+        html += "<div style='background:"+(isAdm?"rgba(255,45,155,0.1)":"rgba(255,255,255,0.04)")+";border-radius:8px;padding:0.4rem 0.6rem;margin-bottom:0.3rem;border-left:2px solid "+(isAdm?"var(--pink)":"var(--cyan)")+";'>";
+        html += "<div style='font-size:0.6rem;font-weight:700;color:"+(isAdm?"var(--pink)":"var(--cyan)")+";margin-bottom:0.1rem;'>"+(isAdm?"👑 Admin":"Vous")+"</div>";
+        html += "<div style='font-size:0.73rem;color:var(--text);white-space:pre-wrap;'>"+escHtml(m.text||"")+"</div>";
+        html += "</div>";
+      });
+      if(t.status === "resolved"){
+        html += "<div style='font-size:0.63rem;color:var(--green);margin-top:0.3rem;'>✅ Résolu</div>";
+      }
+      html += "</div>";
+    });
+    list.innerHTML = html;
+  }).catch(function(err){
+    var list = document.getElementById("myTicketsList");
+    if(list) list.innerHTML = "<div style='color:var(--red);'>Erreur: "+err.message+"</div>";
+  });
+}
+window.memberViewMyTickets = memberViewMyTickets;
 
 // ── Notifications admin — journal complet + modération ─────────
 function renderAdminNotifs(){
@@ -11814,6 +12280,7 @@ window.doAssignEtab = doAssignEtab;
       <button class="adm-tab" id="admtab-settings" onclick="switchAdmTab('settings')">&#9881; Paramètres</button>
       <button class="adm-tab" id="admtab-reservations" onclick="switchAdmTab('reservations')">&#11088; Réserv. VIP</button>
       <button class="adm-tab" id="admtab-classement" onclick="switchAdmTab('classement')">&#127942; Classement</button>
+      <button class="adm-tab" id="admtab-support" onclick="switchAdmTab('support')" style="position:relative;">💬 Support<span id="admSupportBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:#fff;font-size:0.5rem;font-weight:800;width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center;border:1px solid var(--bg);"></span></button>
     </div>
 
     <div style="padding:1rem;">
@@ -11901,6 +12368,11 @@ window.doAssignEtab = doAssignEtab;
       <!-- ── Classement ── -->
       <div id="admpanel-classement" style="display:none;">
         <div id="adminClassementContent">Chargement...</div>
+      </div>
+
+      <!-- ── Support / Tchat ── -->
+      <div id="admpanel-support" style="display:none;">
+        <div id="adminSupportContent">Chargement...</div>
       </div>
 
     </div>
