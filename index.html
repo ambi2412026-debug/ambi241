@@ -2170,7 +2170,7 @@ if (document.readyState === 'loading') {
     <div style="text-align:center;margin-bottom:1rem;">
       <div style="font-size:2rem">&#127968;</div>
       <div class="modal-title">Inscrire mon etablissement</div>
-      <div class="modal-sub">Remplissez ce formulaire. Validation apres paiement.</div>
+      <div class="modal-sub">Remplissez ce formulaire. Validation apres paiement au nom : <strong style="color:var(--pink);">KOZANGUE ESSONO PATRICK BERTIN</strong></div>
     </div>
     <!-- CHOIX ABONNEMENT -->
     <div style="margin-bottom:1.1rem;">
@@ -2691,7 +2691,17 @@ if (document.readyState === 'loading') {
         </div>
       </div>
       <div style="background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.15);border-radius:12px;padding:1rem;text-align:center;">
-        <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.3rem;">Pour vous inscrire, contactez-nous :</div>
+        <div style="font-size:0.68rem;color:var(--amber);margin-bottom:0.5rem;font-weight:700;letter-spacing:0.08em;">&#128179; NOM OFFICIEL VALIDANT LES TRANSACTIONS</div>
+        <div style="font-size:0.85rem;font-weight:800;color:var(--pink);margin-bottom:0.6rem;font-family:'Syne',sans-serif;">KOZANGUE ESSONO PATRICK BERTIN</div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-bottom:0.3rem;">Président et Fondateur de PC-INFORMATIQUE</div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-bottom:0.6rem;">Créateur d'AMBI241</div>
+        <div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:0.6rem;margin-top:0.6rem;font-size:0.65rem;color:var(--green);font-weight:700;">Ce nom s'affichera avant la validation de toutes transactions financières</div>
+      </div>
+      <div style="background:rgba(0,255,170,0.06);border:1px solid rgba(0,255,170,0.15);border-radius:12px;padding:1rem;margin-top:0.8rem;">
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:var(--green);margin-bottom:0.6rem;">&#10003; Contactez-nous pour vous inscrire</div>
+        <div style="font-size:0.8rem;color:var(--muted);line-height:1.8;margin-bottom:0.6rem;">
+          Tous les tarifs incluent une activation sous 24h après paiement et validation du nom officiel.
+        </div>
         <div style="display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap;margin-top:0.5rem;">
           <a href="https://wa.me/24174450924?text=Bonjour%20AMBI241%2C%20je%20veux%20inscrire%20mon%20%C3%A9tablissement." target="_blank" class="cp-action">&#128172; WhatsApp</a>
           <a href="mailto:ambi2412026@gmail.com" class="cp-action">&#9993; Email</a>
@@ -9158,6 +9168,47 @@ function deleteEtablissement(id){
 }
 window.deleteEtablissement=deleteEtablissement;
 
+/* ── RÉINITIALISATION MOT DE PASSE ÉTABLISSEMENT ── */
+function resetEstabPassword(id, name){
+  var etab=etablissements.find(function(x){return x.id===id;});
+  if(!etab){showToast("Établissement introuvable");return;}
+  if(!isAdmin){showToast("Accès refusé - Admin requis");return;}
+  if(!etab.email){showToast("Pas d'email configuré pour cet établissement");return;}
+  
+  var newPassword = "TEMP_" + Math.random().toString(36).substr(2, 8).toUpperCase();
+  
+  if(!confirm("Réinitialiser le mot de passe de \""+name+"\" ?\n\nNouveau mot de passe temporaire : "+newPassword+"\n\nUn email sera envoyé à : "+etab.email)){return;}
+  
+  // Mise à jour Firebase
+  if(!etab._docId){
+    showToast("Document Firebase non trouvé");
+    return;
+  }
+  
+  var docRef=window.fbDoc(window.db,"etablissements",etab._docId);
+  if(window.fbUpdateDoc){
+    showToast("Réinitialisation en cours...");
+    window.fbUpdateDoc(docRef, {
+      password: newPassword,
+      password_reset_date: new Date().toISOString(),
+      password_reset_by_admin: true
+    }).then(function(){
+      etab.password = newPassword;
+      showToast("✅ Mot de passe réinitialisé !\n\nNouveau: "+newPassword+"\nEmail: "+etab.email);
+      // Optionnel : envoyer email via fonction existante si disponible
+      if(typeof sendEmailNotification === "function"){
+        sendEmailNotification(etab.email, "Réinitialisation mot de passe AMBI241", 
+          "Votre nouveau mot de passe temporaire : "+newPassword+"\n\nVeuillez le changer après connexion.");
+      }
+    }).catch(function(err){
+      showToast("Erreur : "+err.message);
+    });
+  } else {
+    showToast("Firebase non disponible pour réinitialisation");
+  }
+}
+window.resetEstabPassword=resetEstabPassword;
+
 
 // ─────────────────────────────────────────────────────────────
 // ── Démarre l'app (attend Firebase si pas encore prêt) ───────
@@ -9318,18 +9369,20 @@ window.loadStatsCommunautaires = function(etabId, callback){
 // ── MODALES LÉGALES (CGU / Confidentialité) ──────────────────
 var CGU_TEXT = "<div class='modal-title' style='margin-bottom:0.6rem'>&#128275; Conditions Générales d'Utilisation</div><div class='modal-sub' style='margin-bottom:1rem'>Dernière mise à jour : Avril 2026</div>"
   + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:0.8rem'><strong style='color:var(--text)'>1. Objet</strong><br>AMBI241 est un annuaire d'ambiance en temps réel des bars, restaurants et discotheques de Libreville, Gabon. L'utilisation de l'application implique l'acceptation des présentes conditions.</p>"
-  + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:0.8rem'><strong style='color:var(--text)'>2. Inscription établissement</strong><br>L'inscription d'un établissement est payante (5 000 XAF/mois). La validation est effectuée par l'équipe AMBI241 après vérification du paiement sous 24h.</p>"
+  + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:0.8rem'><strong style='color:var(--text)'>2. Inscription établissement</strong><br>L'inscription d'un établissement est payante (5 000 XAF/mois). La validation est effectuée par l'équipe AMBI241 après vérification du paiement sous 24h. <strong style='color:var(--amber)'>Nom officiel de l'opérateur : KOZANGUE ESSONO PATRICK BERTIN</strong> - Tous les paiements et transactions financières doivent être validés par ce nom officiel.</p>"
   + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:0.8rem'><strong style='color:var(--text)'>3. Compte utilisateur</strong><br>L'accès à la galerie membres requiert la création d'un compte. Vous êtes responsable de la confidentialité de vos identifiants.</p>"
   + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:0.8rem'><strong style='color:var(--text)'>4. Contenu</strong><br>AMBI241 se réserve le droit de refuser ou supprimer tout contenu inapproprié. Les photos doivent être conformes aux bonnes mœurs et à la réglementation en vigueur.</p>"
   + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:0.8rem'><strong style='color:var(--text)'>5. Responsabilité</strong><br>Les informations d'ambiance sont fournies à titre indicatif. AMBI241 ne peut être tenu responsable d'éventuelles inexactitudes.</p>"
-  + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7'><strong style='color:var(--text)'>6. Contact</strong><br>Pour toute question : <a href='mailto:ambi2412026@gmail.com' style='color:var(--cyan)'>ambi2412026@gmail.com</a></p>";
+  + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:0.8rem'><strong style='color:var(--text)'>6. Propriété et Création</strong><br>AMBI241 a été créée par la PME informatique <strong style='color:var(--cyan)'>PC-INFORMATIQUE</strong>, sous la présidence de <strong style='color:var(--pink)'>KOZANGUE ESSONO PATRICK BERTIN</strong>.</p>"
+  + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7'><strong style='color:var(--text)'>7. Contact</strong><br>Pour toute question : <a href='mailto:ambi2412026@gmail.com' style='color:var(--cyan)'>ambi2412026@gmail.com</a></p>";
 
 var CONF_TEXT = "<div class='modal-title' style='margin-bottom:0.6rem'>&#128274; Politique de Confidentialité</div><div class='modal-sub' style='margin-bottom:1rem'>Dernière mise à jour : Avril 2026</div>"
+  + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:0.8rem'><strong style='color:var(--text)'>Opérateur et Responsabilité</strong><br>AMBI241 est opérée par <strong style='color:var(--pink)'>KOZANGUE ESSONO PATRICK BERTIN</strong>, Président et fondateur de la PME informatique <strong style='color:var(--cyan)'>PC-INFORMATIQUE</strong>. Tout paiement et transaction financière doit être validé au nom officiel de l'opérateur.</p>"
   + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:0.8rem'><strong style='color:var(--text)'>Données collectées</strong><br>Lors de l'inscription, nous collectons : pseudo, prénom, nom, email, téléphone et date de naissance. Ces données sont stockées de manière sécurisée via Firebase (Google).</p>"
   + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:0.8rem'><strong style='color:var(--text)'>Utilisation des données</strong><br>Vos données sont utilisées uniquement pour la gestion de votre compte AMBI241 et ne sont jamais revendues à des tiers.</p>"
   + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:0.8rem'><strong style='color:var(--text)'>Photos</strong><br>Les photos éphémères (10h) sont stockées localement sur votre appareil (localStorage). Les photos permanentes des établissements sont hébergées sur Firebase Storage.</p>"
   + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:0.8rem'><strong style='color:var(--text)'>Vos droits</strong><br>Vous pouvez demander la suppression de votre compte et de vos données à tout moment en nous contactant par email.</p>"
-  + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7'><strong style='color:var(--text)'>Contact DPO</strong><br><a href='mailto:ambi2412026@gmail.com' style='color:var(--cyan)'>ambi2412026@gmail.com</a></p>";
+  + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7'><strong style='color:var(--text)'>Contact DPO</strong><br><a href='mailto:ambi2412026@gmail.com' style='color:var(--cyan)'>ambi2412026@gmail.com</a> ou <strong>KOZANGUE ESSONO PATRICK BERTIN</strong> - Président PC-INFORMATIQUE</p>";
 
 function openLegalModal(type){
   document.getElementById("legalContent").innerHTML = type === "cgu" ? CGU_TEXT : CONF_TEXT;
@@ -9917,15 +9970,40 @@ function renderAdmOverview(){
 // ── Établissements admin ───────────────────────────────────────
 function renderAdmEtabl(){
   var d=etablissements;
-  var html="<div style='margin-bottom:0.8rem;display:flex;justify-content:space-between;align-items:center;'>";
-  html+="<span style='font-size:0.72rem;color:var(--muted);'>"+d.length+" établissements</span>";
+  
+  // TRI : établissements ACTIFS en haut, ARCHIVÉS en bas
+  var actifs = [];
+  var archives = [];
+  d.forEach(function(e){
+    if(e.paiement && (e.paiement.indexOf("Actif")!==-1 || e.paiement.indexOf("Confirme")!==-1)){
+      actifs.push(e);
+    } else {
+      archives.push(e);
+    }
+  });
+  var sorted = actifs.concat(archives);
+  
+  var html="<div style='margin-bottom:0.8rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;'>";
+  html+="<span style='font-size:0.72rem;color:var(--muted);'><strong style='color:var(--green);'>"+actifs.length+" actif(s)</strong> · <strong style='color:var(--red);'>"+archives.length+" archivé(s)</strong> · "+d.length+" total</span>";
   html+="<input id='admSearchEtabl' type='text' placeholder='Rechercher...' oninput='admFilterEtabl()' style='background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);font-size:0.78rem;padding:0.4rem 0.7rem;width:150px;'>";
   html+="</div>";
-  d.forEach(function(e){
+  
+  // HEADER ARCHIVES si existants
+  if(archives.length > 0){
+    html+="<div style='display:flex;align-items:center;gap:0.5rem;margin:1rem 0 0.6rem;padding:0.6rem 0.75rem;background:rgba(255,68,102,0.08);border-left:3px solid var(--red);border-radius:6px;'>";
+    html+="<span style='font-size:1.1rem;'>📦</span>";
+    html+="<span style='font-size:0.75rem;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:0.05em;'>Établissements Archivés</span>";
+    html+="</div>";
+  }
+  
+  sorted.forEach(function(e){
+    var isArchived = !(e.paiement && (e.paiement.indexOf("Actif")!==-1 || e.paiement.indexOf("Confirme")!==-1));
+    var bgStyle = isArchived ? "background:rgba(255,68,102,0.06);border:1px solid rgba(255,68,102,0.15);" : "background:rgba(0,255,170,0.04);border:1px solid rgba(0,255,170,0.12);";
+    
     var sc=e.statut&&e.statut.indexOf("Bonde")!==-1?"var(--red)":e.statut&&e.statut.indexOf("Anime")!==-1?"var(--green)":e.statut&&e.statut.indexOf("Ouvert")!==-1?"var(--amber)":"var(--muted)";
-    html+="<div class='notif-admin-item' data-nom='"+(e.nom||"").toLowerCase()+"'>";
+    html+="<div class='notif-admin-item' data-nom='"+(e.nom||"").toLowerCase()+"' style='"+bgStyle+"border-radius:10px;padding:0.85rem;margin-bottom:0.6rem;'>";
     html+="<div style='display:flex;justify-content:space-between;align-items:flex-start;gap:0.4rem;'>";
-    html+="<div><div style='font-weight:700;font-size:0.85rem;color:var(--text);'>"+e.nom+"</div>";
+    html+="<div><div style='font-weight:700;font-size:0.85rem;color:var(--text);'>"+(isArchived?"🔒 ":"")+e.nom+"</div>";
     html+="<div style='font-size:0.7rem;color:var(--muted);'>"+e.type+" · "+e.quartier+"</div></div>";
     html+="<span style='font-size:0.65rem;font-weight:700;color:"+sc+";white-space:nowrap;'>"+e.statut+"</span></div>";
     html+="<div style='display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem;'>";
@@ -9941,8 +10019,9 @@ function renderAdmEtabl(){
     html+="</div>";
     html+="<input type='number' min='0' max='100' value='"+(e.affluence||0)+"' onchange=\"updateField("+e.id+",{affluence:parseInt(this.value)})\" title='Affluence %' style='width:55px;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:var(--amber);font-size:0.8rem;padding:0.25rem 0.4rem;text-align:center;'>";
     html+="</div>";
-    html+="<div style='display:flex;gap:0.4rem;margin-top:0.4rem;'>";
+    html+="<div style='display:flex;gap:0.4rem;margin-top:0.6rem;flex-wrap:wrap;'>";
     html+="<button onclick=\"deleteEtablissement("+e.id+")\" style='font-size:0.65rem;padding:0.2rem 0.5rem;border-radius:6px;background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.3);color:var(--red);cursor:pointer;'>&#128465; Supprimer</button>";
+    html+="<button onclick=\"resetEstabPassword("+e.id+",'"+escHtml(e.nom)+"')\" style='font-size:0.65rem;padding:0.2rem 0.5rem;border-radius:6px;background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.35);color:var(--cyan);cursor:pointer;font-weight:700;'>🔑 RÉZ. MOT DE PASSE</button>";
     html+="<button onclick=\"showToast('ID: "+e._docId+" · Email: "+(e.email||"N/A")+"')\" style='font-size:0.65rem;padding:0.2rem 0.5rem;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:var(--muted);cursor:pointer;'>&#128065; Infos</button>";
     html+="<span style='margin-left:auto;'>"+renderSubStatusBadge(e)+"</span>";
     html+="</div>";
