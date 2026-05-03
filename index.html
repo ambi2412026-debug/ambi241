@@ -977,6 +977,16 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .card{background:var(--surface);border:1px solid rgba(255,45,155,0.12);border-radius:18px;overflow:hidden;animation:fadeUp 0.4s ease both;transition:border-color 0.2s,box-shadow 0.2s;width:100%;box-sizing:border-box;}
 .card:hover{border-color:rgba(255,45,155,0.3);box-shadow:0 4px 20px rgba(255,45,155,0.1);}
 
+
+/* ── AVATAR UTILISATEUR ── */
+.user-avatar-ring{width:80px;height:80px;border-radius:50%;border:3px solid var(--pink);padding:3px;margin:0 auto 0.7rem;display:block;cursor:pointer;position:relative;}
+.user-avatar-ring img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;}
+.user-avatar-initiale{width:74px;height:74px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-family:Syne,sans-serif;font-weight:800;font-size:1.8rem;color:#fff;}
+.user-avatar-edit-btn{position:absolute;bottom:0;right:0;width:24px;height:24px;border-radius:50%;background:var(--pink);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:0.65rem;cursor:pointer;}
+/* profil visitable */
+.vp-avatar{width:72px;height:72px;border-radius:50%;border:3px solid var(--pink);padding:3px;margin:0 auto 0.5rem;display:block;}
+.vp-avatar img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;}
+.vp-avatar-init{width:66px;height:66px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-family:Syne,sans-serif;font-weight:800;font-size:1.6rem;color:#fff;}
 /* SLOTS MEDIA (vidéo + photo) */
 .card-photos{display:flex;flex-direction:row;gap:2px;background:var(--surface2);width:100%;overflow:hidden;}
 .media-slot{display:flex;flex-direction:column;background:var(--surface2);flex:1;min-width:0;}
@@ -2253,6 +2263,7 @@ if (document.readyState === 'loading') {
     <div class="modal-tabs">
       <button class="modal-tab active" id="tabInscription" onclick="switchUserTab('inscription')">&#128100; S inscrire</button>
       <button class="modal-tab" id="tabConnexion" onclick="switchUserTab('connexion')">&#128274; Se connecter</button>
+      <button class="modal-tab" id="tabMonProfil" onclick="switchUserTab('monprofil')" style="display:none;">&#9728;&#65039; Mon Profil</button>
     </div>
     <!-- INSCRIPTION -->
     <div id="formInscription">
@@ -2284,6 +2295,29 @@ if (document.readyState === 'loading') {
         <button onclick="openForgotModal()" style="background:none;border:none;color:var(--cyan);font-size:0.78rem;cursor:pointer;font-family:'DM Sans',sans-serif;text-decoration:underline;">&#128273; Mot de passe oublié ?</button>
       </div>
       <div id="loginMsg" style="font-size:0.78rem;text-align:center;margin-top:0.5rem;display:none;"></div>
+    </div>
+    <!-- MON PROFIL -->
+    <div id="formMonProfil" style="display:none;">
+      <div style="text-align:center;margin-bottom:1rem;">
+        <div style="position:relative;width:80px;margin:0 auto 0.7rem;cursor:pointer;" onclick="triggerAvatarUpload()" title="Changer ma photo">
+          <div id="myAvatarWrap" class="user-avatar-ring">
+            <div id="myAvatarInner" class="user-avatar-initiale">?</div>
+          </div>
+          <div class="user-avatar-edit-btn">✏️</div>
+        </div>
+        <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="onAvatarFileSelected(this)">
+        <div id="myProfilePseudo" style="font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;color:var(--text);"></div>
+        <div id="myProfileEmail" style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;"></div>
+        <div id="myProfileBadge" style="margin-top:0.4rem;"></div>
+      </div>
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:0.9rem;margin-bottom:1rem;">
+        <div id="myProfileInfoRows"></div>
+      </div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.5rem;">
+        <button onclick="openEditPseudoModal()" style="flex:1;padding:0.5rem;border-radius:10px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.07);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;">✏️ Modifier pseudo</button>
+        <button onclick="triggerAvatarUpload()" style="flex:1;padding:0.5rem;border-radius:10px;border:1px solid rgba(255,45,155,0.3);background:rgba(255,45,155,0.07);color:var(--pink);font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;">📷 Changer photo</button>
+      </div>
+      <div id="avatarUploadStatus" style="font-size:0.72rem;text-align:center;color:var(--muted);min-height:1.2em;"></div>
     </div>
   </div>
 </div>
@@ -3597,8 +3631,6 @@ function _gphotoProcessQueue() {
 
 /* ── Enqueue : tous les établissements, avec ou sans place_id ────────── */
 function _gphotoEnqueue(e) {
-  // Si photo manuelle déjà définie, on skip le fetch Google mais on peut avoir le fallback
-  if (e.photo_exterieur || e.photo_interieur) return;
   // Déjà traité (même si _gphoto_urls est vide, le fallback SVG est là)
   if (e._gphoto_urls !== undefined) return;
   // Sans place_id : générer le fallback SVG directement, sans requête réseau
@@ -3633,18 +3665,21 @@ window.generateFallbackPhoto = generateFallbackPhoto;
 /* ── Résolution finale de la photo pour une carte ────────────────────── *
  * Priorité : profil approuvé > photo manuelle > Google > fallback SVG   */
 function getGooglePhotoUrl(e, type) {
+  // Photo de profil approuvée = priorité absolue
+  if (e._photo_profile_approved) return e._photo_profile_approved;
+  // Photos Google Places réelles = priorité sur photos manuelles
+  if (e._gphoto_urls && e._gphoto_urls.length > 0) {
+    // Pour intérieur on prend la 2e si dispo, sinon la 1re
+    if (type === 'interieur' && e._gphoto_urls.length > 1) return e._gphoto_urls[1];
+    return e._gphoto_urls[0];
+  }
+  // Lancer le fetch Google si pas encore fait
+  if (e._gphoto_urls === undefined) _gphotoEnqueue(e);
+  // Photos manuelles en attente du résultat Google
   if (type === 'exterieur' && e.photo_exterieur) return e.photo_exterieur;
   if (type === 'interieur' && e.photo_interieur) return e.photo_interieur;
-  // Photo de profil approuvée (priorité absolue)
-  if (e._photo_profile_approved) return e._photo_profile_approved;
-  // Photo Google récupérée automatiquement
-  if (e._gphoto_urls && e._gphoto_urls.length > 0) return e._gphoto_urls[0];
-  // Lancer le fetch si pas encore fait
-  if (e._gphoto_urls === undefined) _gphotoEnqueue(e);
-  // Fallback SVG généré (disponible immédiatement pour les sans-place_id,
-  // ou après la réponse Google vide)
+  // Fallback SVG généré
   if (e._fallback_svg) return e._fallback_svg;
-  // Générer à la volée si rien d'autre
   if (!e.place_id && !e._fallback_svg) {
     e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
     return e._fallback_svg;
@@ -5527,9 +5562,169 @@ function renderStatsAdmin(){
 function switchUserTab(tab){
   document.getElementById("tabInscription").classList.toggle("active",tab==="inscription");
   document.getElementById("tabConnexion").classList.toggle("active",tab==="connexion");
+  document.getElementById("tabMonProfil").classList.toggle("active",tab==="monprofil");
   document.getElementById("formInscription").style.display=tab==="inscription"?"block":"none";
   document.getElementById("formConnexion").style.display=tab==="connexion"?"block":"none";
+  document.getElementById("formMonProfil").style.display=tab==="monprofil"?"block":"none";
+  if(tab==="monprofil") _renderMyProfileTab();
 }
+/* ══════════════════════════════════════════════════════════════════
+   PROFIL UTILISATEUR — Mon Profil + Photo + Profil visitable
+   ══════════════════════════════════════════════════════════════════ */
+
+// Cache avatar en mémoire { uid: url }
+var _userAvatarCache = {};
+
+// Charger l'avatar d'un utilisateur depuis Firestore
+function loadUserAvatar(uid, cb){
+  if(!uid){ if(cb) cb(null); return; }
+  if(_userAvatarCache[uid] !== undefined){ if(cb) cb(_userAvatarCache[uid]); return; }
+  if(!window.db){ if(cb) cb(null); return; }
+  window.fbGetDoc(window.fbDoc(window.db,"users",uid)).then(function(snap){
+    var url = snap.exists() ? (snap.data().avatarUrl||null) : null;
+    _userAvatarCache[uid] = url;
+    if(cb) cb(url);
+  }).catch(function(){ _userAvatarCache[uid]=null; if(cb) cb(null); });
+}
+
+// Rendre l'onglet Mon Profil
+function _renderMyProfileTab(){
+  var uid    = window.currentUserUID;
+  var email  = window.currentUserEmail||"";
+  var pseudo = window.currentUserPseudo||"";
+  var initiale = (pseudo||email||"?")[0].toUpperCase();
+
+  // Pseudo & email
+  var el = document.getElementById("myProfilePseudo");
+  if(el) el.textContent = pseudo||email;
+  var el2 = document.getElementById("myProfileEmail");
+  if(el2) el2.textContent = email;
+
+  // Badge admin
+  var badge = document.getElementById("myProfileBadge");
+  if(badge) badge.innerHTML = isAdmin
+    ? '<span style="font-size:0.65rem;font-weight:700;background:rgba(255,215,0,0.15);color:var(--amber);padding:0.15rem 0.5rem;border-radius:6px;border:1px solid rgba(255,215,0,0.3);">🔑 Admin</span>'
+    : '';
+
+  // Infos depuis Firestore
+  if(uid && window.db){
+    window.fbGetDoc(window.fbDoc(window.db,"users",uid)).then(function(snap){
+      var d = snap.exists() ? snap.data() : {};
+      var rows = "";
+      if(d.tel) rows += _profileRow("📞","Téléphone",d.tel);
+      if(d.dob) rows += _profileRow("🎂","Naissance",new Date(d.dob).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}));
+      if(d.createdAt) rows += _profileRow("📅","Membre depuis",new Date(d.createdAt).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}));
+      var etab = etablissements.find(function(e){ return e.responsable_email===email; });
+      if(etab) rows += _profileRow("🏠","Établissement",etab.nom);
+      var infoEl = document.getElementById("myProfileInfoRows");
+      if(infoEl) infoEl.innerHTML = rows||'<div style="font-size:0.78rem;color:var(--muted);text-align:center;">Aucune info supplémentaire</div>';
+    }).catch(function(){});
+  }
+
+  // Avatar
+  _renderMyAvatar(uid, initiale);
+}
+
+function _renderMyAvatar(uid, initiale){
+  var wrap = document.getElementById("myAvatarWrap");
+  if(!wrap) return;
+  loadUserAvatar(uid, function(url){
+    if(url){
+      wrap.innerHTML = '<img src="'+url+'" style="width:74px;height:74px;border-radius:50%;object-fit:cover;display:block;">';
+    } else {
+      wrap.innerHTML = '<div class="user-avatar-initiale">'+escHtml(initiale||"?")+'</div>';
+    }
+    // Mettre à jour aussi le quickbar
+    _refreshQuickbarAvatar(url, initiale);
+  });
+}
+
+function _refreshQuickbarAvatar(url, initiale){
+  var qba = document.getElementById("pubQuickbarAvatar");
+  if(!qba) return;
+  if(url){
+    qba.innerHTML = '<img src="'+url+'" style="width:34px;height:34px;border-radius:50%;object-fit:cover;display:block;">';
+    qba.style.background="none";qba.style.padding="0";
+  } else {
+    qba.textContent = (initiale||"?");
+    qba.style.background="";qba.style.padding="";
+  }
+}
+
+// Déclencher le sélecteur de fichier
+function triggerAvatarUpload(){
+  var inp = document.getElementById("avatarFileInput");
+  if(inp) inp.click();
+}
+window.triggerAvatarUpload = triggerAvatarUpload;
+
+// Upload avatar sélectionné
+function onAvatarFileSelected(input){
+  var file = input.files && input.files[0];
+  if(!file) return;
+  if(file.size > 3*1024*1024){ showToast("Image trop grande (max 3 Mo)"); return; }
+  var uid = window.currentUserUID;
+  if(!uid){ showToast("Connectez-vous d'abord"); return; }
+  var status = document.getElementById("avatarUploadStatus");
+  if(status){ status.style.color="var(--cyan)"; status.textContent="⏳ Upload en cours…"; }
+
+  // Compresser/redimensionner via canvas
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var img = new Image();
+    img.onload = function(){
+      var canvas = document.createElement("canvas");
+      var size = 200;
+      canvas.width = size; canvas.height = size;
+      var ctx2 = canvas.getContext("2d");
+      // Crop carré centré
+      var s = Math.min(img.width, img.height);
+      var sx = (img.width-s)/2, sy = (img.height-s)/2;
+      ctx2.drawImage(img, sx, sy, s, s, 0, 0, size, size);
+      canvas.toBlob(function(blob){
+        var path = "avatars/"+uid+"/avatar.jpg";
+        var storRef = window.fbRef(window.fbStorage, path);
+        window.fbUploadBytes(storRef, blob).then(function(){
+          return window.fbGetDownloadURL(storRef);
+        }).then(function(downloadUrl){
+          // Sauvegarder dans Firestore
+          return window.fbUpdateDoc(window.fbDoc(window.db,"users",uid),{ avatarUrl: downloadUrl })
+            .then(function(){ return downloadUrl; });
+        }).then(function(downloadUrl){
+          _userAvatarCache[uid] = downloadUrl;
+          var pseudo = window.currentUserPseudo||window.currentUserEmail||"?";
+          _renderMyAvatar(uid, (pseudo||"?")[0].toUpperCase());
+          if(status){ status.style.color="var(--green)"; status.textContent="✅ Photo mise à jour !"; }
+          setTimeout(function(){ if(status) status.textContent=""; }, 3000);
+        }).catch(function(e){
+          if(status){ status.style.color="var(--red)"; status.textContent="Erreur : "+e.message; }
+        });
+      }, "image/jpeg", 0.88);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  input.value="";
+}
+window.onAvatarFileSelected = onAvatarFileSelected;
+
+// Modifier le pseudo
+function openEditPseudoModal(){
+  var uid = window.currentUserUID;
+  if(!uid){ showToast("Non connecté"); return; }
+  var cur = window.currentUserPseudo||"";
+  var pseudo = prompt("Nouveau pseudo (max 30 caractères) :", cur);
+  if(!pseudo || pseudo.trim()===cur.trim()) return;
+  pseudo = pseudo.trim().substring(0,30);
+  window.fbUpdateDoc(window.fbDoc(window.db,"users",uid),{ pseudo: pseudo }).then(function(){
+    window.currentUserPseudo = pseudo;
+    updateHeaderUser(pseudo);
+    _renderMyProfileTab();
+    showToast("✅ Pseudo mis à jour !");
+  }).catch(function(e){ showToast("Erreur : "+e.message); });
+}
+window.openEditPseudoModal = openEditPseudoModal;
+
 function closeUserModal(){document.getElementById("userOverlay").classList.remove("show");}
 
 function registerUser(){
@@ -5664,19 +5859,32 @@ function updateHeaderUser(pseudo){
   var greetingName = document.getElementById("greetingName");
   var logoutBtn = document.getElementById("logoutBtn");
   var loginBtn  = document.getElementById("userLoginBtn");
+  var tabMonProfil = document.getElementById("tabMonProfil");
+  var tabInscription = document.getElementById("tabInscription");
+  var tabConnexion = document.getElementById("tabConnexion");
   if(pseudo){
-    // Tronquer si trop long
     var display = pseudo.length > 12 ? pseudo.substring(0,12)+"…" : pseudo;
     var initiale = (pseudo||"?")[0].toUpperCase();
     greetingName.innerHTML = '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:rgba(255,45,155,0.3);font-size:0.6rem;font-weight:800;margin-right:0.15rem;flex-shrink:0;">'+initiale+'</span>'+display;
     greeting.classList.add("show");
     greeting.title = "Mon profil — "+pseudo;
+    // Quand on clique sur le greeting → ouvrir directement "Mon Profil"
+    greeting.onclick = function(){ document.getElementById("userOverlay").classList.add("show"); switchUserTab("monprofil"); };
     logoutBtn.classList.add("show");
     if(loginBtn) loginBtn.style.display = "none";
+    // Afficher onglet Mon Profil, masquer inscription
+    if(tabMonProfil){ tabMonProfil.style.display=""; }
+    if(tabInscription){ tabInscription.style.display="none"; }
+    if(tabConnexion){ tabConnexion.style.display="none"; }
   } else {
     greeting.classList.remove("show");
+    greeting.onclick = function(){ document.getElementById("userOverlay").classList.add("show"); };
     logoutBtn.classList.remove("show");
     if(loginBtn) loginBtn.style.display = "";
+    if(tabMonProfil){ tabMonProfil.style.display="none"; }
+    if(tabInscription){ tabInscription.style.display=""; }
+    if(tabConnexion){ tabConnexion.style.display=""; }
+    switchUserTab("inscription");
   }
 }
 
@@ -11412,32 +11620,30 @@ function openUserProfile(userData){
   var dobStr   = dob ? new Date(dob).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}) : "—";
   var iAmSuper = isAdmin && isSuperAdminUser();
 
+  // Avatar HTML — initiale en attendant le chargement
+  var avatarHtml = '<div class="vp-avatar"><div class="vp-avatar-init" id="_vpAvatarInit">'+escHtml(initiale)+'</div></div>';
+
   var html =
     '<div id="_userProfileOverlay" style="position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:1rem;" onclick="if(event.target===this)closeUserProfile()">' +
     '<div style="background:var(--surface);border:1px solid rgba(255,45,155,0.3);border-radius:24px;padding:1.6rem 1.4rem;width:min(380px,100%);max-height:88vh;overflow-y:auto;box-shadow:0 0 40px rgba(255,45,155,0.2);animation:popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);position:relative;">' +
-
-    // Fermer
     '<button onclick="closeUserProfile()" style="position:absolute;top:1rem;right:1rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--muted);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:0.9rem;display:flex;align-items:center;justify-content:center;">✕</button>' +
 
-    // Avatar + nom
     '<div style="text-align:center;margin-bottom:1.2rem;">' +
-    '<div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-family:Syne,sans-serif;font-weight:800;font-size:1.6rem;color:#fff;margin:0 auto 0.7rem;">'+initiale+'</div>' +
-    '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.05rem;color:var(--text);">'+escHtml(pseudo)+'</div>' +
+    avatarHtml +
+    '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.05rem;color:var(--text);margin-top:0.5rem;">'+escHtml(pseudo)+'</div>' +
     (isAdm ? '<span style="display:inline-block;font-size:0.65rem;font-weight:700;background:rgba(255,215,0,0.15);color:var(--amber);padding:0.15rem 0.5rem;border-radius:6px;border:1px solid rgba(255,215,0,0.3);margin-top:0.3rem;">🔑 Admin secondaire</span>' : '') +
     (etabNom ? '<span style="display:inline-block;font-size:0.65rem;font-weight:700;background:rgba(255,45,155,0.12);color:var(--pink);padding:0.15rem 0.5rem;border-radius:6px;border:1px solid rgba(255,45,155,0.25);margin-top:0.3rem;margin-left:0.3rem;">🏠 '+escHtml(etabNom)+'</span>' : '') +
     '</div>' +
 
-    // Infos
     '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:1rem;margin-bottom:1rem;">' +
-    _profileRow("✉️","Email", email||"—") +
-    _profileRow("📞","Téléphone", tel||"—") +
-    _profileRow("🎂","Date de naissance", dobStr) +
+    (iAmSuper ? _profileRow("✉️","Email", email||"—") : '') +
+    (iAmSuper && tel ? _profileRow("📞","Téléphone", tel) : '') +
+    (dob ? _profileRow("🎂","Date de naissance", dobStr) : '') +
     _profileRow("📅","Membre depuis", dateStr) +
-    _profileRow("🏠","Établissement", etabNom||"Aucun") +
-    _profileRow("🆔","UID Firebase", uid ? uid.substring(0,16)+"…" : "—") +
+    (etabNom ? _profileRow("🏠","Établissement", etabNom) : '') +
+    (iAmSuper ? _profileRow("🆔","UID Firebase", uid ? uid.substring(0,16)+"…" : "—") : '') +
     '</div>' +
 
-    // Actions (SuperAdmin uniquement)
     (iAmSuper && email ? (
       '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;">' +
       (!isAdm ?
@@ -11457,7 +11663,21 @@ function openUserProfile(userData){
   wrap.id = "_userProfileWrap";
   wrap.innerHTML = html;
   document.body.appendChild(wrap);
+
+  // Charger l'avatar réel en asynchrone
+  if(uid){
+    loadUserAvatar(uid, function(url){
+      var initEl = document.getElementById("_vpAvatarInit");
+      if(!initEl) return;
+      var ring = initEl.parentElement;
+      if(url){
+        ring.innerHTML = '<img src="'+url+'" style="width:66px;height:66px;border-radius:50%;object-fit:cover;display:block;">';
+      }
+    });
+  }
 }
+
+
 
 function _profileRow(icon, label, value){
   return '<div style="display:flex;align-items:center;gap:0.7rem;padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.05);">' +
@@ -12292,6 +12512,20 @@ window.doAssignEtab = doAssignEtab;
     list.innerHTML = show.map(function(p){ return buildPubCard(p); }).join("");
     var lm = document.getElementById("pubLoadMore");
     if(lm) lm.style.display = filtered.length > _pubPage ? "block" : "none";
+    // Charger les vrais avatars de manière asynchrone
+    setTimeout(function(){
+      show.forEach(function(p){
+        if(!p.uid) return;
+        loadUserAvatar(p.uid, function(url){
+          if(!url) return;
+          var el = document.getElementById("pav_"+p._id);
+          if(el){
+            el.innerHTML = '<img src="'+url+'" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block;">';
+            el.style.background="none"; el.style.padding="0";
+          }
+        });
+      });
+    }, 0);
   }
 
   function buildPubCard(p){
@@ -12338,7 +12572,7 @@ window.doAssignEtab = doAssignEtab;
 
     return '<div class="pub-card" data-pubid="'+escHtml(p._id)+'">'
       +'<div class="pub-card-head">'
-      +'<div class="pub-avatar" style="cursor:pointer;" onclick="openPubAuthorFilter(\''+escHtml(p.pseudo||p.auteur||'')+'\',\''+escHtml(p._id)+'\')" title="Publications de '+escHtml(p.pseudo||p.auteur||'Anonyme')+'">'+initiale+'</div>'
+      +'<div class="pub-avatar" id="pav_'+escHtml(p._id)+'" style="cursor:pointer;" onclick="openPubAuthorFilter(\''+escHtml(p.pseudo||p.auteur||'')+'\',\''+escHtml(p._id)+'\')" title="Publications de '+escHtml(p.pseudo||p.auteur||'Anonyme')+'">'+initiale+'</div>'
       +'<div class="pub-meta">'
       +'<div class="pub-author" style="cursor:pointer;" onclick="openPubAuthorFilter(\''+escHtml(p.pseudo||p.auteur||'')+'\',\''+escHtml(p._id)+'\')">'+escHtml(p.pseudo||p.auteur||"Anonyme")+'<span class="pub-badge '+roleClass+'">'+roleLabel+'</span></div>'
       +'<div class="pub-time">'+ts+' &nbsp;<span class="pub-type-chip '+typeClass+'">'+typeEmoji+' '+typeLabel+'</span></div>'
