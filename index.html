@@ -978,15 +978,113 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .card:hover{border-color:rgba(255,45,155,0.3);box-shadow:0 4px 20px rgba(255,45,155,0.1);}
 
 
-/* ── AVATAR UTILISATEUR ── */
-.user-avatar-ring{width:80px;height:80px;border-radius:50%;border:3px solid var(--pink);padding:3px;margin:0 auto 0.7rem;display:block;cursor:pointer;position:relative;}
+
+/* ══ AVATAR SYSTÈME COMPLET ══ */
+/* ── Ring profil (overlay Mon Profil) ── */
+.user-avatar-ring{
+  width:96px;height:96px;border-radius:50%;
+  border:3px solid transparent;
+  background:linear-gradient(var(--bg),var(--bg)) padding-box,
+             linear-gradient(135deg,var(--pink),var(--purple),var(--cyan)) border-box;
+  padding:4px;margin:0 auto 0.7rem;display:block;cursor:pointer;position:relative;
+  transition:transform 0.2s,box-shadow 0.2s;
+}
+.user-avatar-ring:hover{transform:scale(1.05);box-shadow:0 0 24px rgba(255,45,155,0.45);}
 .user-avatar-ring img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;}
-.user-avatar-initiale{width:74px;height:74px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-family:Syne,sans-serif;font-weight:800;font-size:1.8rem;color:#fff;}
-.user-avatar-edit-btn{position:absolute;bottom:0;right:0;width:24px;height:24px;border-radius:50%;background:var(--pink);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:0.65rem;cursor:pointer;}
+.user-avatar-initiale{
+  width:84px;height:84px;border-radius:50%;
+  background:linear-gradient(135deg,var(--pink),var(--purple));
+  display:flex;align-items:center;justify-content:center;
+  font-family:Syne,sans-serif;font-weight:800;font-size:2rem;color:#fff;
+  user-select:none;
+}
+/* Overlay caméra au survol/tap */
+.avatar-cam-overlay{
+  position:absolute;inset:0;border-radius:50%;
+  background:rgba(0,0,0,0.52);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:0.12rem;opacity:0;transition:opacity 0.2s;pointer-events:none;
+}
+.user-avatar-ring:hover .avatar-cam-overlay,
+.user-avatar-ring:active .avatar-cam-overlay{ opacity:1; }
+.avatar-cam-overlay span{ font-size:1.4rem;line-height:1; }
+.avatar-cam-overlay small{ font-size:0.5rem;color:#fff;font-weight:800;letter-spacing:0.05em;text-transform:uppercase; }
+/* Badge crayon coin bas-droit */
+.user-avatar-edit-btn{
+  position:absolute;bottom:2px;right:2px;
+  width:26px;height:26px;border-radius:50%;
+  background:linear-gradient(135deg,var(--pink),var(--purple));
+  border:2.5px solid var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  font-size:0.68rem;cursor:pointer;
+  box-shadow:0 2px 10px rgba(255,45,155,0.55);
+  transition:transform 0.15s,box-shadow 0.15s;
+}
+.user-avatar-edit-btn:hover{transform:scale(1.1);box-shadow:0 4px 16px rgba(255,45,155,0.7);}
+.user-avatar-edit-btn:active{transform:scale(0.88);}
+
 /* profil visitable */
 .vp-avatar{width:72px;height:72px;border-radius:50%;border:3px solid var(--pink);padding:3px;margin:0 auto 0.5rem;display:block;}
 .vp-avatar img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;}
 .vp-avatar-init{width:66px;height:66px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-family:Syne,sans-serif;font-weight:800;font-size:1.6rem;color:#fff;}
+
+/* ── Header greeting avec mini-avatar photo ── */
+.user-greeting{
+  display:none;align-items:center;gap:0.3rem;
+  background:rgba(255,45,155,0.08);
+  border:1.5px solid rgba(255,45,155,0.3);
+  padding:0.15rem 0.5rem 0.15rem 0.15rem;
+  border-radius:24px;font-size:0.6rem;font-weight:700;color:var(--pink);
+  white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis;
+  flex-shrink:1;cursor:pointer;transition:border-color 0.2s,background 0.2s;
+  -webkit-tap-highlight-color:transparent;
+}
+.user-greeting.show{display:flex;}
+.user-greeting:hover{border-color:var(--pink);background:rgba(255,45,155,0.14);}
+.user-greeting:active{transform:scale(0.94);}
+/* Miniature avatar dans header */
+#headerAvatarThumb{
+  width:22px;height:22px;border-radius:50%;flex-shrink:0;overflow:hidden;
+  background:linear-gradient(135deg,var(--pink),var(--purple));
+  display:flex;align-items:center;justify-content:center;
+  font-size:0.62rem;font-weight:800;color:#fff;
+  border:1.5px solid rgba(255,45,155,0.5);
+}
+#headerAvatarThumb img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;}
+
+/* ── Zone drag-drop avatar ── */
+.avatar-drop-zone{
+  border:2px dashed rgba(255,45,155,0.3);border-radius:14px;
+  padding:0.6rem 0.5rem;text-align:center;cursor:pointer;
+  transition:border-color 0.2s,background 0.2s;margin-top:0.4rem;
+  font-size:0.68rem;color:var(--muted);
+}
+.avatar-drop-zone:hover,.avatar-drop-zone.drag-over{
+  border-color:var(--pink);background:rgba(255,45,155,0.06);color:var(--pink);
+}
+/* ── Progress upload ── */
+#avatarUploadStatus{
+  display:flex;align-items:center;justify-content:center;gap:0.4rem;
+  min-height:1.4em;font-size:0.72rem;font-weight:700;
+  transition:color 0.2s;text-align:center;
+}
+
+/* ── Comment avatars avec photo ── */
+.pub-comment-avatar{
+  width:30px;height:30px;border-radius:50%;
+  background:linear-gradient(135deg,var(--cyan),var(--purple));
+  display:flex;align-items:center;justify-content:center;
+  font-size:0.65rem;font-weight:800;color:#fff;flex-shrink:0;
+  overflow:hidden;
+}
+.pub-comment-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;}
+.pub-cmt-reply-avatar{
+  width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:0.55rem;font-weight:800;color:#fff;flex-shrink:0;margin-top:0.1rem;
+  background:linear-gradient(135deg,var(--cyan),var(--green));overflow:hidden;
+}
+.pub-cmt-reply-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;}
 /* SLOTS MEDIA (vidéo + photo) */
 .card-photos{display:flex;flex-direction:row;gap:2px;background:var(--surface2);width:100%;overflow:hidden;}
 .media-slot{display:flex;flex-direction:column;background:var(--surface2);flex:1;min-width:0;}
@@ -2298,15 +2396,28 @@ if (document.readyState === 'loading') {
     </div>
     <!-- MON PROFIL -->
     <div id="formMonProfil" style="display:none;">
-      <div style="text-align:center;margin-bottom:1rem;">
-        <div style="position:relative;width:80px;margin:0 auto 0.7rem;cursor:pointer;" onclick="triggerAvatarUpload()" title="Changer ma photo">
-          <div id="myAvatarWrap" class="user-avatar-ring">
-            <div id="myAvatarInner" class="user-avatar-initiale">?</div>
+      <div style="text-align:center;margin-bottom:0.9rem;">
+
+        <!-- ── Zone avatar cliquable + drag-drop ── -->
+        <div id="avatarDropArea" class="avatar-drop-zone" onclick="triggerAvatarUpload()" title="Changer ma photo de profil"
+          style="border:none;padding:0;display:inline-block;background:none;">
+          <div style="position:relative;width:96px;margin:0 auto 0.5rem;">
+            <div id="myAvatarWrap" class="user-avatar-ring">
+              <div id="myAvatarInner" class="user-avatar-initiale">?</div>
+            </div>
+            <!-- Overlay caméra -->
+            <div class="avatar-cam-overlay">
+              <span>📷</span>
+              <small>Modifier</small>
+            </div>
+            <!-- Badge crayon -->
+            <div class="user-avatar-edit-btn">✏️</div>
           </div>
-          <div class="user-avatar-edit-btn">✏️</div>
+          <div style="font-size:0.62rem;color:var(--muted);margin-top:0.1rem;">Appuyer pour changer · Glisser une photo ici</div>
         </div>
+
         <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="onAvatarFileSelected(this)">
-        <div id="myProfilePseudo" style="font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;color:var(--text);"></div>
+        <div id="myProfilePseudo" style="font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;color:var(--text);margin-top:0.5rem;"></div>
         <div id="myProfileEmail" style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;"></div>
         <div id="myProfileBadge" style="margin-top:0.4rem;"></div>
       </div>
@@ -2314,8 +2425,8 @@ if (document.readyState === 'loading') {
         <div id="myProfileInfoRows"></div>
       </div>
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.5rem;">
-        <button onclick="openEditPseudoModal()" style="flex:1;padding:0.5rem;border-radius:10px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.07);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;">✏️ Modifier pseudo</button>
-        <button onclick="triggerAvatarUpload()" style="flex:1;padding:0.5rem;border-radius:10px;border:1px solid rgba(255,45,155,0.3);background:rgba(255,45,155,0.07);color:var(--pink);font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;">📷 Changer photo</button>
+        <button onclick="openEditPseudoModal()" style="flex:1;padding:0.5rem;border-radius:10px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.07);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;transition:background 0.15s;">✏️ Modifier pseudo</button>
+        <button onclick="triggerAvatarUpload()" style="flex:1;padding:0.5rem;border-radius:10px;border:1px solid rgba(255,45,155,0.3);background:rgba(255,45,155,0.07);color:var(--pink);font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;transition:background 0.15s;">📷 Changer photo</button>
       </div>
       <!-- ── Support membre ── -->
       <div style="background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:0.75rem;margin-bottom:0.5rem;">
@@ -2326,7 +2437,7 @@ if (document.readyState === 'loading') {
         </div>
         <button onclick="memberViewMyTickets()" style="width:100%;margin-top:0.4rem;padding:0.4rem;border-radius:9px;border:1px solid rgba(0,229,255,0.2);background:rgba(0,229,255,0.05);color:var(--cyan);font-family:DM Sans,sans-serif;font-size:0.72rem;cursor:pointer;">📋 Voir mes demandes en cours</button>
       </div>
-      <div id="avatarUploadStatus" style="font-size:0.72rem;text-align:center;color:var(--muted);min-height:1.2em;"></div>
+      <div id="avatarUploadStatus"></div>
     </div>
   </div>
 </div>
@@ -2505,7 +2616,7 @@ if (document.readyState === 'loading') {
   <div class="header-right">
     <div class="live-pill"><div class="live-dot"></div>Live</div>
     <!-- Salutation membre connecté -->
-    <div class="user-greeting" id="userGreeting" onclick="document.getElementById('userOverlay').classList.add('show')" style="cursor:pointer;" title="Mon profil">&#128100; <span id="greetingName"></span></div>
+    <div class="user-greeting" id="userGreeting" onclick="document.getElementById('userOverlay').classList.add('show')" style="cursor:pointer;" title="Mon profil"><div id="headerAvatarThumb">?</div><span id="greetingName"></span></div>
     <!-- Bouton déconnexion -->
     <button class="logout-btn" id="logoutBtn" onclick="logoutUser()" title="Se déconnecter">&#128682; Quitter</button>
     <!-- Cloche notifications -->
@@ -5661,15 +5772,19 @@ function _renderMyAvatar(uid, initiale){
 }
 
 function _refreshQuickbarAvatar(url, initiale){
+  // 1. Quickbar (barre de publication)
   var qba = document.getElementById("pubQuickbarAvatar");
-  if(!qba) return;
-  if(url){
-    qba.innerHTML = '<img src="'+url+'" style="width:34px;height:34px;border-radius:50%;object-fit:cover;display:block;">';
-    qba.style.background="none";qba.style.padding="0";
-  } else {
-    qba.textContent = (initiale||"?");
-    qba.style.background="";qba.style.padding="";
+  if(qba){
+    if(url){
+      qba.innerHTML = '<img src="'+url+'" style="width:34px;height:34px;border-radius:50%;object-fit:cover;display:block;">';
+      qba.style.background="none"; qba.style.padding="0";
+    } else {
+      qba.textContent = (initiale||"?");
+      qba.style.background=""; qba.style.padding="";
+    }
   }
+  // 2. Mini-avatar header
+  _updateHeaderThumb(url, initiale);
 }
 
 // Déclencher le sélecteur de fichier
@@ -5682,23 +5797,29 @@ window.triggerAvatarUpload = triggerAvatarUpload;
 // Upload avatar sélectionné
 function onAvatarFileSelected(input){
   var file = input.files && input.files[0];
-  if(!file) return;
-  if(file.size > 3*1024*1024){ showToast("Image trop grande (max 3 Mo)"); return; }
-  var uid = window.currentUserUID;
-  if(!uid){ showToast("Connectez-vous d'abord"); return; }
-  var status = document.getElementById("avatarUploadStatus");
-  if(status){ status.style.color="var(--cyan)"; status.textContent="⏳ Upload en cours…"; }
+  if(file) _processAvatarFile(file);
+  input.value = "";
+}
+window.onAvatarFileSelected = onAvatarFileSelected;
 
-  // Compresser/redimensionner via canvas
+// Traitement fichier avatar (commun upload + drag-drop)
+function _processAvatarFile(file){
+  if(!file) return;
+  var allowedTypes = ["image/jpeg","image/png","image/webp","image/gif"];
+  if(allowedTypes.indexOf(file.type) === -1){ _setAvatarStatus("error","❌ Format non supporté (JPG, PNG, WEBP)"); return; }
+  if(file.size > 5*1024*1024){ _setAvatarStatus("error","❌ Image trop grande (max 5 Mo)"); return; }
+  var uid = window.currentUserUID;
+  if(!uid){ _setAvatarStatus("error","❌ Connectez-vous d'abord"); return; }
+  _setAvatarStatus("uploading","⏳ Upload en cours…");
+
   var reader = new FileReader();
   reader.onload = function(ev){
     var img = new Image();
     img.onload = function(){
       var canvas = document.createElement("canvas");
-      var size = 200;
+      var size = 240;
       canvas.width = size; canvas.height = size;
       var ctx2 = canvas.getContext("2d");
-      // Crop carré centré
       var s = Math.min(img.width, img.height);
       var sx = (img.width-s)/2, sy = (img.height-s)/2;
       ctx2.drawImage(img, sx, sy, s, s, 0, 0, size, size);
@@ -5708,26 +5829,55 @@ function onAvatarFileSelected(input){
         window.fbUploadBytes(storRef, blob).then(function(){
           return window.fbGetDownloadURL(storRef);
         }).then(function(downloadUrl){
-          // Sauvegarder dans Firestore
           return window.fbUpdateDoc(window.fbDoc(window.db,"users",uid),{ avatarUrl: downloadUrl })
             .then(function(){ return downloadUrl; });
         }).then(function(downloadUrl){
           _userAvatarCache[uid] = downloadUrl;
           var pseudo = window.currentUserPseudo||window.currentUserEmail||"?";
-          _renderMyAvatar(uid, (pseudo||"?")[0].toUpperCase());
-          if(status){ status.style.color="var(--green)"; status.textContent="✅ Photo mise à jour !"; }
-          setTimeout(function(){ if(status) status.textContent=""; }, 3000);
+          var initiale = (pseudo||"?")[0].toUpperCase();
+          _renderMyAvatar(uid, initiale);
+          _setAvatarStatus("success","✅ Photo mise à jour !");
+          setTimeout(function(){ _setAvatarStatus("",""); }, 3500);
+          showToast("📷 Photo de profil mise à jour !");
         }).catch(function(e){
-          if(status){ status.style.color="var(--red)"; status.textContent="Erreur : "+e.message; }
+          _setAvatarStatus("error","❌ Erreur : "+(e.message||""));
         });
       }, "image/jpeg", 0.88);
     };
     img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
-  input.value="";
 }
-window.onAvatarFileSelected = onAvatarFileSelected;
+window._processAvatarFile = _processAvatarFile;
+
+// Afficher le statut upload
+function _setAvatarStatus(type, msg){
+  var el = document.getElementById("avatarUploadStatus");
+  if(!el) return;
+  el.textContent = msg;
+  el.style.color = type==="error" ? "var(--red)" : type==="success" ? "var(--green)" : "var(--cyan)";
+}
+
+// Initialiser drag-and-drop sur la zone avatar
+(function initAvatarDragDrop(){
+  document.addEventListener("DOMContentLoaded", function(){
+    var zone = document.getElementById("avatarDropArea");
+    if(!zone) return;
+    zone.addEventListener("dragover", function(e){
+      e.preventDefault();
+      zone.classList.add("drag-over");
+    });
+    zone.addEventListener("dragleave", function(){
+      zone.classList.remove("drag-over");
+    });
+    zone.addEventListener("drop", function(e){
+      e.preventDefault();
+      zone.classList.remove("drag-over");
+      var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if(file) _processAvatarFile(file);
+    });
+  });
+})();
 
 // Modifier le pseudo
 function openEditPseudoModal(){
@@ -5878,6 +6028,7 @@ function checkPendingUserNotifications(uid, email){
 function updateHeaderUser(pseudo){
   var greeting = document.getElementById("userGreeting");
   var greetingName = document.getElementById("greetingName");
+  var headerThumb = document.getElementById("headerAvatarThumb");
   var logoutBtn = document.getElementById("logoutBtn");
   var loginBtn  = document.getElementById("userLoginBtn");
   var tabMonProfil = document.getElementById("tabMonProfil");
@@ -5886,19 +6037,27 @@ function updateHeaderUser(pseudo){
   if(pseudo){
     var display = pseudo.length > 12 ? pseudo.substring(0,12)+"…" : pseudo;
     var initiale = (pseudo||"?")[0].toUpperCase();
-    greetingName.innerHTML = '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:rgba(255,45,155,0.3);font-size:0.6rem;font-weight:800;margin-right:0.15rem;flex-shrink:0;">'+initiale+'</span>'+display;
+    greetingName.textContent = display;
+    // Afficher l'initiale par défaut dans le thumb
+    if(headerThumb) headerThumb.textContent = initiale;
+    // Charger la vraie photo si dispo
+    var uid = window.currentUserUID;
+    if(uid){
+      loadUserAvatar(uid, function(url){
+        _updateHeaderThumb(url, initiale);
+      });
+    }
     greeting.classList.add("show");
     greeting.title = "Mon profil — "+pseudo;
-    // Quand on clique sur le greeting → ouvrir directement "Mon Profil"
     greeting.onclick = function(){ document.getElementById("userOverlay").classList.add("show"); switchUserTab("monprofil"); };
     logoutBtn.classList.add("show");
     if(loginBtn) loginBtn.style.display = "none";
-    // Afficher onglet Mon Profil, masquer inscription
     if(tabMonProfil){ tabMonProfil.style.display=""; }
     if(tabInscription){ tabInscription.style.display="none"; }
     if(tabConnexion){ tabConnexion.style.display="none"; }
   } else {
     greeting.classList.remove("show");
+    if(headerThumb){ headerThumb.textContent="?"; }
     greeting.onclick = function(){ document.getElementById("userOverlay").classList.add("show"); };
     logoutBtn.classList.remove("show");
     if(loginBtn) loginBtn.style.display = "";
@@ -5906,6 +6065,21 @@ function updateHeaderUser(pseudo){
     if(tabInscription){ tabInscription.style.display=""; }
     if(tabConnexion){ tabConnexion.style.display=""; }
     switchUserTab("inscription");
+  }
+}
+
+// Met à jour le mini-avatar dans le header
+function _updateHeaderThumb(url, initiale){
+  var thumb = document.getElementById("headerAvatarThumb");
+  if(!thumb) return;
+  if(url){
+    thumb.innerHTML = '<img src="'+url+'" alt="">';
+    thumb.style.background = "none";
+    thumb.style.fontSize = "0";
+  } else {
+    thumb.textContent = initiale || "?";
+    thumb.style.background = "";
+    thumb.style.fontSize = "";
   }
 }
 
@@ -13127,6 +13301,17 @@ window.doAssignEtab = doAssignEtab;
           }
         });
       });
+      // Avatar de l'utilisateur connecté dans les zones de commentaire
+      if(window.currentUserUID){
+        loadUserAvatar(window.currentUserUID, function(url){
+          if(!url) return;
+          document.querySelectorAll('[id^="myCommentAvatar_"]').forEach(function(el){
+            el.innerHTML = '<img src="'+url+'" alt="">';
+            el.style.background = "none";
+            el.style.fontSize = "0";
+          });
+        });
+      }
     }, 0);
   }
 
@@ -13194,9 +13379,16 @@ window.doAssignEtab = doAssignEtab;
   }
 
   function buildCommentsSection(pubId, count){
+    var userAvatarHtml = "";
+    if(window.currentUserUID){
+      var initiale = (window.currentUserPseudo||window.currentUserEmail||"?")[0].toUpperCase();
+      userAvatarHtml = '<div id="myCommentAvatar_'+pubId+'" class="pub-comment-avatar" style="flex-shrink:0;width:28px;height:28px;">'+initiale+'</div>';
+      // On chargera la vraie photo après
+    }
     var inputHtml = window.currentUserUID
-      ? '<div class="pub-comment-input-row">'
-        +'<textarea class="pub-comment-textarea" id="pubCmtTxt_'+pubId+'" placeholder="Votre commentaire..." maxlength="300" rows="1"></textarea>'
+      ? '<div class="pub-comment-input-row" style="display:flex;align-items:flex-start;gap:0.4rem;">'
+        + userAvatarHtml
+        +'<textarea class="pub-comment-textarea" id="pubCmtTxt_'+pubId+'" placeholder="Votre commentaire..." maxlength="300" rows="1" style="flex:1;"></textarea>'
         +'<button class="pub-comment-send" onclick="sendPubComment(\''+pubId+'\')">Envoyer</button>'
         +'</div>'
       : '<div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.4rem 0;">Connectez-vous pour commenter</div>';
@@ -13327,7 +13519,7 @@ window.doAssignEtab = doAssignEtab;
         }
 
         html += '<div class="pub-comment-item" id="pubCmt_'+doc.id+'">' 
-          +'<div class="pub-comment-avatar">'+escHtml(initiale)+'</div>' 
+          +'<div class="pub-comment-avatar" id="cmtav_'+doc.id+'">'+escHtml(initiale)+'</div>' 
           +'<div class="pub-comment-body">' 
           +'<div class="pub-comment-meta"><span class="pub-comment-author">'+escHtml(c.pseudo||"Anonyme")+'</span>' 
           +'<span class="pub-comment-time">'+ctime+'</span>'+delBtn+'</div>' 
@@ -13336,6 +13528,25 @@ window.doAssignEtab = doAssignEtab;
           +'</div></div>';
       });
       listEl.innerHTML = html;
+
+      // ── Charger les photos de profil des auteurs de commentaires ──
+      var cmtDocs = [];
+      snap.forEach(function(doc){ cmtDocs.push({id: doc.id, data: doc.data()}); });
+      setTimeout(function(){
+        cmtDocs.forEach(function(item){
+          var c = item.data;
+          if(!c.uid) return;
+          loadUserAvatar(c.uid, function(url){
+            if(!url) return;
+            var el = document.getElementById("cmtav_"+item.id);
+            if(el){
+              el.innerHTML = '<img src="'+url+'" alt="">';
+              el.style.background = "none";
+              el.style.fontSize = "0";
+            }
+          });
+        });
+      }, 0);
     }).catch(function(){
       listEl.innerHTML = '<div class="pub-comments-empty">Erreur de chargement.</div>';
     });
