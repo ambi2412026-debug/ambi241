@@ -3398,19 +3398,91 @@ function lsDel(key){
 function lsGetJSON(key,def){ try{ var v=lsGet(key); return v?JSON.parse(v):(def!==undefined?def:null); }catch(e){ return def!==undefined?def:null; } }
 function lsSetJSON(key,obj){ try{ lsSet(key,JSON.stringify(obj)); }catch(e){} }
 
-// ── GOOGLE PHOTO URL FALLBACK ──────────────────────────────────
-/* ══════════════════════════════════════════════════════════════
-   AUTO-FETCH PHOTOS GOOGLE PLACES — AMBI241
-   Récupère automatiquement la meilleure photo de chaque
-   établissement via Google Places API (New) grâce au place_id.
-   Cache localStorage 7 jours. Re-render réactif à l'arrivée.
-   ══════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════
+   AUTO-FETCH PHOTOS — AMBI241 v3
+   PRIORITÉ : photo_profile_approved > photo_interieur/exterieur >
+              Google Places API (place_id) > Fallback SVG par type
+   • Tous les établissements obtiennent une image, même sans place_id
+   • Cache localStorage 7 jours pour les photos Google
+   • Re-render réactif dès réception
+   ══════════════════════════════════════════════════════════════════════ */
 var GPLACES_API_KEY = "AIzaSyCx3hD28Lb9EtUrawHbTnM-6vmXdgO1ABw";
 var GPHOTO_CACHE_PREFIX = "ambi241_gphoto_";
 var GPHOTO_CACHE_TTL = 7 * 24 * 3600 * 1000;
 var _gphotoFetchQueue = [];
 var _gphotoFetchBusy = false;
 
+/* ── FALLBACK SVG GÉNÉRÉ PAR TYPE D'ÉTABLISSEMENT ─────────────────── */
+function generateFallbackPhoto(type, nom) {
+  var t = (type || "").toLowerCase();
+  var n = (nom || "").substring(0, 2).toUpperCase();
+
+  // Palette + icône par type
+  var cfg = {
+    disco:    { g1:"#1a0028", g2:"#3d0066", ic:"&#9835;", label:"DISCOTH\u00c8QUE", c1:"#cc44ff", c2:"#ff2d9b" },
+    bar:      { g1:"#0d1a00", g2:"#1a3300", ic:"&#127866;", label:"BAR",         c1:"#00ffaa", c2:"#00e5ff" },
+    resto:    { g1:"#1a0d00", g2:"#331a00", ic:"&#127374;", label:"RESTAURANT",  c1:"#ffd700", c2:"#ff9500" },
+    lounge:   { g1:"#0d001a", g2:"#1a0033", ic:"&#127870;", label:"LOUNGE",      c1:"#cc44ff", c2:"#00e5ff" },
+    snack:    { g1:"#001a0d", g2:"#003320", ic:"&#127828;", label:"SNACK-BAR",   c1:"#00ffaa", c2:"#ffd700" },
+    default:  { g1:"#0d0014", g2:"#1a0028", ic:"&#127968;", label:"\u00c9TABLISSEMENT",c1:"#ff2d9b", c2:"#cc44ff" }
+  };
+
+  var v;
+  if(t.includes("disco") || t.includes("night") || t.includes("club")) v = cfg.disco;
+  else if(t.includes("snack"))                                           v = cfg.snack;
+  else if(t.includes("lounge"))                                          v = cfg.lounge;
+  else if(t.includes("restaurant") || t.includes("resto"))               v = cfg.resto;
+  else if(t.includes("bar"))                                             v = cfg.bar;
+  else                                                                   v = cfg.default;
+
+  // SVG inline encodé en data-URI (160×280, proportions card)
+  var svg = [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="560" height="320" viewBox="0 0 560 320">',
+    '<defs>',
+    '<linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">',
+    '<stop offset="0%" stop-color="',v.g1,'"/>',
+    '<stop offset="100%" stop-color="',v.g2,'"/>',
+    '</linearGradient>',
+    '<linearGradient id="ac" x1="0%" y1="0%" x2="100%" y2="0%">',
+    '<stop offset="0%" stop-color="',v.c1,'" stop-opacity="0.6"/>',
+    '<stop offset="100%" stop-color="',v.c2,'" stop-opacity="0.6"/>',
+    '</linearGradient>',
+    '<radialGradient id="gl" cx="50%" cy="40%" r="55%">',
+    '<stop offset="0%" stop-color="',v.c1,'" stop-opacity="0.25"/>',
+    '<stop offset="100%" stop-color="transparent"/>',
+    '</radialGradient>',
+    '</defs>',
+    // Fond
+    '<rect width="560" height="320" fill="url(#bg)"/>',
+    '<rect width="560" height="320" fill="url(#gl)"/>',
+    // Grille déco légère
+    '<line x1="0" y1="80" x2="560" y2="80" stroke="',v.c1,'" stroke-opacity="0.07" stroke-width="1"/>',
+    '<line x1="0" y1="160" x2="560" y2="160" stroke="',v.c1,'" stroke-opacity="0.07" stroke-width="1"/>',
+    '<line x1="0" y1="240" x2="560" y2="240" stroke="',v.c1,'" stroke-opacity="0.07" stroke-width="1"/>',
+    '<line x1="140" y1="0" x2="140" y2="320" stroke="',v.c1,'" stroke-opacity="0.05" stroke-width="1"/>',
+    '<line x1="280" y1="0" x2="280" y2="320" stroke="',v.c1,'" stroke-opacity="0.05" stroke-width="1"/>',
+    '<line x1="420" y1="0" x2="420" y2="320" stroke="',v.c1,'" stroke-opacity="0.05" stroke-width="1"/>',
+    // Cercle glow central
+    '<circle cx="280" cy="145" r="90" fill="',v.c1,'" fill-opacity="0.06"/>',
+    '<circle cx="280" cy="145" r="60" fill="',v.c1,'" fill-opacity="0.07"/>',
+    // Icône type
+    '<text x="280" y="160" font-size="72" text-anchor="middle" dominant-baseline="middle">',v.ic,'</text>',
+    // Bande accent bas
+    '<rect x="0" y="260" width="560" height="60" fill="url(#ac)"/>',
+    // Initiales établissement
+    '<text x="40" y="298" font-family="Arial Black,sans-serif" font-size="22" font-weight="900" fill="white" fill-opacity="0.95">',String(n||"").replace(/[<>&"]/g,function(c){return{"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]||c;}),'</text>',
+    // Label type
+    '<text x="280" y="294" font-family="Arial,sans-serif" font-size="13" font-weight="800" fill="white" fill-opacity="0.8" text-anchor="middle" letter-spacing="3">',v.label,'</text>',
+    // Badge "AUTO"
+    '<rect x="460" y="268" width="80" height="22" rx="11" fill="',v.c2,'" fill-opacity="0.3"/>',
+    '<text x="500" y="283" font-family="Arial,sans-serif" font-size="10" font-weight="700" fill="white" fill-opacity="0.8" text-anchor="middle" letter-spacing="1">AUTO</text>',
+    '</svg>'
+  ].join("");
+
+  return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+}
+
+/* ── Cache ──────────────────────────────────────────────────────────── */
 function _gphotoReadCache(placeId) {
   try {
     var raw = localStorage.getItem(GPHOTO_CACHE_PREFIX + placeId);
@@ -3435,11 +3507,22 @@ function _gphotoMakeUrl(photoName) {
     + "/media?maxHeightPx=800&maxWidthPx=1200&key=" + GPLACES_API_KEY;
 }
 
+/* ── Fetch Google Places pour UN établissement ──────────────────────── */
 function _gphotoFetchOne(e, callback) {
-  if (!e.place_id) { if(callback) callback(null); return; }
+  if (!e.place_id) {
+    // Pas de place_id → fallback SVG immédiat
+    if (!e._gphoto_urls || e._gphoto_urls.length === 0) {
+      e._gphoto_urls = [];
+      e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+    }
+    if(callback) callback(null);
+    return;
+  }
   var cached = _gphotoReadCache(e.place_id);
   if (cached !== null) {
     e._gphoto_urls = cached;
+    // Si Google n'avait rien renvoyé → fallback SVG
+    if (cached.length === 0 && !e._fallback_svg) e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
     if(callback) callback(cached.length > 0 ? cached[0] : null);
     return;
   }
@@ -3457,35 +3540,51 @@ function _gphotoFetchOne(e, callback) {
         if (photos.length === 0) {
           _gphotoWriteCache(e.place_id, []);
           e._gphoto_urls = [];
+          // Aucune photo Google → générer le fallback SVG
+          e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
           if(callback) callback(null);
           return;
         }
+        // Trier par résolution décroissante, garder les 5 meilleures
         var sorted = photos.slice().sort(function(a,b){
           return ((b.widthPx||0)*(b.heightPx||0)) - ((a.widthPx||0)*(a.heightPx||0));
         });
-        var urls = sorted.slice(0, 3).map(function(p){ return _gphotoMakeUrl(p.name); });
+        var urls = sorted.slice(0, 5).map(function(p){ return _gphotoMakeUrl(p.name); });
         _gphotoWriteCache(e.place_id, urls);
         e._gphoto_urls = urls;
+        e._fallback_svg = null; // photo réelle disponible, pas de fallback
         if(callback) callback(urls[0]);
       } else {
         e._gphoto_urls = [];
+        e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
         if(callback) callback(null);
       }
     } catch(err) {
       e._gphoto_urls = [];
+      e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
       if(callback) callback(null);
     }
   };
-  xhr.onerror = function() { e._gphoto_urls = []; if(callback) callback(null); };
-  try { xhr.send(); } catch(err) { e._gphoto_urls = []; if(callback) callback(null); }
+  xhr.onerror = function() {
+    e._gphoto_urls = [];
+    e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+    if(callback) callback(null);
+  };
+  try { xhr.send(); } catch(err) {
+    e._gphoto_urls = [];
+    e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+    if(callback) callback(null);
+  }
 }
 
+/* ── File d'attente (throttle réseau) ───────────────────────────────── */
 function _gphotoProcessQueue() {
   if (_gphotoFetchBusy || _gphotoFetchQueue.length === 0) return;
   _gphotoFetchBusy = true;
   var item = _gphotoFetchQueue.shift();
   _gphotoFetchOne(item.e, function(url) {
     _gphotoFetchBusy = false;
+    // Re-render si une nouvelle photo réelle est arrivée
     if (url) {
       setTimeout(function(){
         if(typeof renderAll === "function") renderAll();
@@ -3496,16 +3595,31 @@ function _gphotoProcessQueue() {
   });
 }
 
+/* ── Enqueue : tous les établissements, avec ou sans place_id ────────── */
 function _gphotoEnqueue(e) {
-  if (!e.place_id) return;
+  // Si photo manuelle déjà définie, on skip le fetch Google mais on peut avoir le fallback
   if (e.photo_exterieur || e.photo_interieur) return;
+  // Déjà traité (même si _gphoto_urls est vide, le fallback SVG est là)
   if (e._gphoto_urls !== undefined) return;
+  // Sans place_id : générer le fallback SVG directement, sans requête réseau
+  if (!e.place_id) {
+    e._gphoto_urls = [];
+    e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+    return;
+  }
+  // Avec place_id : vérifier le cache d'abord
   var cached = _gphotoReadCache(e.place_id);
-  if (cached !== null) { e._gphoto_urls = cached; return; }
+  if (cached !== null) {
+    e._gphoto_urls = cached;
+    if (cached.length === 0) e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+    return;
+  }
+  // Sinon : mettre en file d'attente
   var already = _gphotoFetchQueue.some(function(i){ return i.e.place_id === e.place_id; });
   if (!already) _gphotoFetchQueue.push({ e: e });
 }
 
+/* ── Lancer le fetch pour tous les établissements ────────────────────── */
 function autoFetchAllGooglePhotos() {
   if (!etablissements || !etablissements.length) return;
   etablissements.forEach(function(e){ _gphotoEnqueue(e); });
@@ -3514,14 +3628,27 @@ function autoFetchAllGooglePhotos() {
 
 window.autoFetchAllGooglePhotos = autoFetchAllGooglePhotos;
 window._gphotoEnqueue = _gphotoEnqueue;
+window.generateFallbackPhoto = generateFallbackPhoto;
 
+/* ── Résolution finale de la photo pour une carte ────────────────────── *
+ * Priorité : profil approuvé > photo manuelle > Google > fallback SVG   */
 function getGooglePhotoUrl(e, type) {
   if (type === 'exterieur' && e.photo_exterieur) return e.photo_exterieur;
   if (type === 'interieur' && e.photo_interieur) return e.photo_interieur;
-  // ── Photo de profil approuvée (priorité absolue) ──
+  // Photo de profil approuvée (priorité absolue)
   if (e._photo_profile_approved) return e._photo_profile_approved;
+  // Photo Google récupérée automatiquement
   if (e._gphoto_urls && e._gphoto_urls.length > 0) return e._gphoto_urls[0];
-  if (e.place_id && e._gphoto_urls === undefined) _gphotoEnqueue(e);
+  // Lancer le fetch si pas encore fait
+  if (e._gphoto_urls === undefined) _gphotoEnqueue(e);
+  // Fallback SVG généré (disponible immédiatement pour les sans-place_id,
+  // ou après la réponse Google vide)
+  if (e._fallback_svg) return e._fallback_svg;
+  // Générer à la volée si rien d'autre
+  if (!e.place_id && !e._fallback_svg) {
+    e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+    return e._fallback_svg;
+  }
   return null;
 }
 
@@ -6318,10 +6445,12 @@ function buildCard(e,delay,compact,rank){
 
   // ── PHOTOS ──
   var slotPhotos=loadSlotPhotos(e.id);
-  // ── Photo de profil : approuvée > Google auto (visible par TOUS) ──
+  // ── Photo principale : approved > manuelle > Google > fallback SVG ──
   var permPhoto = e._photo_profile_approved || e.photo_interieur || e.photo_exterieur || getGooglePhotoUrl(e,'exterieur') || "";
   var isProfileApproved = !!e._photo_profile_approved;
-  var isGoogleAuto = !isProfileApproved && !!permPhoto && !e.photo_interieur && !e.photo_exterieur;
+  var isManual = !isProfileApproved && (!!e.photo_interieur || !!e.photo_exterieur);
+  var isGoogleAuto = !isProfileApproved && !isManual && !!permPhoto && (e._gphoto_urls && e._gphoto_urls.length > 0);
+  var isFallbackSvg = !isProfileApproved && !isManual && !isGoogleAuto && !!e._fallback_svg && permPhoto === e._fallback_svg;
   var canManage = isAdmin || isResponsable(e.id);
 
   var photosHtml = "<div style='width:100%;'>";
@@ -6329,24 +6458,40 @@ function buildCard(e,delay,compact,rank){
   // ── 1. PHOTO DE PRÉSENTATION — visible par TOUS ──────────────
   if (permPhoto) {
     photosHtml += "<div style='position:relative;overflow:hidden;'>";
-    photosHtml += "<img src='"+permPhoto+"' style='width:100%;height:160px;object-fit:cover;display:block;cursor:zoom-in;' onclick=\"openFullscreenPhoto('"+permPhoto.replace(/'/g,"\\'")+"',"+e.id+",'profile','"+((e.nom||"").replace(/'/g,"\\'"))+"')\">";
-    // Badge source (tout le monde voit)
+    var imgStyle = isFallbackSvg
+      ? "width:100%;height:160px;object-fit:cover;display:block;"
+      : "width:100%;height:160px;object-fit:cover;display:block;cursor:zoom-in;";
+    var imgClick = isFallbackSvg ? "" : " onclick=\"openFullscreenPhoto('"+permPhoto.replace(/'/g,"\\'")+"',"+e.id+",'profile','"+((e.nom||"").replace(/'/g,"\\'"))+"')\"";
+    photosHtml += "<img src='"+permPhoto+"' style='"+imgStyle+"'"+imgClick+" loading='lazy' onerror=\"this.src='"+generateFallbackPhoto(e.type,e.nom).replace(/'/g,"\\'")+"'\">";
+
+    // Badge source
     if (isProfileApproved) {
-      photosHtml += "<span style='position:absolute;top:6px;left:6px;font-size:0.5rem;font-weight:800;color:#fff;background:rgba(0,255,170,0.85);border-radius:5px;padding:0.1rem 0.35rem;letter-spacing:0.04em;pointer-events:none;'>✅ Photo officielle</span>";
+      photosHtml += "<span style='position:absolute;top:6px;left:6px;font-size:0.5rem;font-weight:800;color:#fff;background:rgba(0,255,170,0.88);border-radius:5px;padding:0.1rem 0.35rem;letter-spacing:0.04em;pointer-events:none;'>✅ Photo officielle</span>";
     } else if (isGoogleAuto) {
-      photosHtml += "<span style='position:absolute;top:6px;left:6px;font-size:0.5rem;font-weight:800;color:#fff;background:rgba(66,133,244,0.85);border-radius:5px;padding:0.1rem 0.35rem;letter-spacing:0.04em;pointer-events:none;'>🗺 Google Maps</span>";
+      photosHtml += "<span style='position:absolute;top:6px;left:6px;font-size:0.5rem;font-weight:800;color:#fff;background:rgba(66,133,244,0.88);border-radius:5px;padding:0.1rem 0.35rem;letter-spacing:0.04em;pointer-events:none;'>🗺 Google Maps</span>";
+      // Mini-galerie Google si plusieurs photos dispo
+      if (e._gphoto_urls && e._gphoto_urls.length > 1) {
+        photosHtml += "<div style='position:absolute;bottom:6px;left:6px;display:flex;gap:4px;'>";
+        e._gphoto_urls.slice(0,4).forEach(function(u,i){
+          if(i===0) return; // la 1ère est déjà affichée en grand
+          photosHtml += "<img src='"+u+"' style='width:36px;height:36px;object-fit:cover;border-radius:4px;border:1.5px solid rgba(255,255,255,0.4);cursor:pointer;' onclick=\"event.stopPropagation();openFullscreenPhoto('"+u.replace(/'/g,"\\'")+"',"+e.id+",'profile','"+((e.nom||"").replace(/'/g,"\\'"))+"')\" loading='lazy'>";
+        });
+        photosHtml += "</div>";
+      }
+    } else if (isFallbackSvg) {
+      photosHtml += "<span style='position:absolute;top:6px;left:6px;font-size:0.5rem;font-weight:800;color:rgba(255,255,255,0.7);background:rgba(255,255,255,0.12);border-radius:5px;padding:0.1rem 0.35rem;letter-spacing:0.04em;pointer-events:none;border:1px solid rgba(255,255,255,0.15);'>🎨 Visuel auto</span>";
     }
+
     // Bouton gestion photo — UNIQUEMENT responsable/admin
     if (canManage) {
       photosHtml += "<button onclick=\"event.stopPropagation();proposeGooglePhotoProfile("+e.id+")\" style='position:absolute;top:6px;right:6px;font-size:0.55rem;font-weight:800;background:rgba(255,45,155,0.85);border:none;color:#fff;border-radius:6px;padding:0.2rem 0.45rem;cursor:pointer;z-index:5;'>🖼️ Modifier</button>";
     }
     photosHtml += "</div>";
   } else {
-    // Pas de photo du tout
+    // En cours de chargement (place_id présent mais fetch pas encore terminé)
     photosHtml += "<div style='width:100%;height:70px;display:flex;align-items:center;justify-content:center;gap:0.6rem;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.04);'>";
-    photosHtml += "<span style='font-size:1.4rem;opacity:0.25;'>🏠</span>";
-    photosHtml += "<span style='font-size:0.58rem;color:var(--muted);'>Aucune photo de présentation</span>";
-    // Bouton ajouter — UNIQUEMENT responsable/admin
+    photosHtml += "<span style='font-size:1.4rem;opacity:0.25;'>⏳</span>";
+    photosHtml += "<span style='font-size:0.58rem;color:var(--muted);'>Chargement de la photo…</span>";
     if (canManage) {
       photosHtml += "<button onclick=\"proposeGooglePhotoProfile("+e.id+")\" style='font-size:0.6rem;font-weight:700;color:var(--cyan);cursor:pointer;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);padding:0.2rem 0.5rem;border-radius:6px;'>🗺️ Importer Google</button>";
     }
@@ -13804,24 +13949,6 @@ document.addEventListener('keydown',function(e){
 </script>
 
 
-<script>
-function getStoredPhoto(key){
-  try{return localStorage.getItem(key)||"";}catch(e){return "";}
-}
-function setStoredPhoto(key,base64){
-  try{localStorage.setItem(key,base64);}catch(e){}
-}
-function getPhotoUrl(placeId,type){
-  const key=`photo_${type}_${placeId}`;
-  const stored=getStoredPhoto(key);
-  if(stored)return stored;
-  return type==="interieur"
-    ?"https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800"
-    :"https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800";
-}
-</script>
-
-
 <!-- ══ FIREWORKS ÉTOILES DORÉES ══ -->
 <canvas id="fireworksCanvas" style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999;"></canvas>
 
@@ -14388,7 +14515,5 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 console.log('%c🚕 TAXI PRO MODULE CHARGÉ', 'color:#FFB800;font-size:16px;font-weight:bold;');
-</script>
-
 </script>
 </html>
