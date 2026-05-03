@@ -140,6 +140,7 @@ header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0
 .live-pill{display:flex;align-items:center;gap:0.2rem;background:rgba(0,255,170,0.1);border:1px solid rgba(0,255,170,0.3);color:var(--green);font-size:0.5rem;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;padding:0.18rem 0.3rem;border-radius:100px;white-space:nowrap;flex-shrink:0;}
 .live-dot{width:4px;height:4px;background:var(--green);border-radius:50%;animation:pulse 2s infinite;flex-shrink:0;}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .user-btn{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.85rem;font-weight:700;padding:0;width:28px;height:28px;min-width:28px;border-radius:50%;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .user-btn:active{transform:scale(0.92);}
 .admin-btn{background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);color:var(--amber);font-size:0.85rem;font-weight:700;padding:0;width:28px;height:28px;min-width:28px;border-radius:50%;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
@@ -11235,6 +11236,15 @@ window.doAssignEtab = doAssignEtab;
     // ── Photos ──
     var photosHtml = "";
     var photos = Array.isArray(p.photos) ? p.photos : [];
+
+    // ── État d'upload en cours ──
+    var uploadingBanner = "";
+    if(p.uploading){
+      uploadingBanner = '<div style="display:flex;align-items:center;gap:0.5rem;padding:0.55rem 0.75rem;background:rgba(0,229,255,0.07);border-top:1px solid rgba(0,229,255,0.15);font-size:0.72rem;color:var(--cyan);">'
+        +'<span style="animation:spin 1s linear infinite;display:inline-block;">⏳</span>'
+        +'<span>Médias en cours d\'upload… ils apparaîtront dans quelques instants.</span>'
+        +'</div>';
+    }
     if(photos.length){
       var cnt = Math.min(photos.length, 5);
       var countClass = "count-"+cnt;
@@ -11270,6 +11280,7 @@ window.doAssignEtab = doAssignEtab;
       +'</div>'
       +photosHtml
       +videoHtml
+      +uploadingBanner
       +'<div class="pub-footer">'
       +'<button class="pub-action-btn" onclick="likePub(\''+p._id+'\',this)">&#10084;&#65039; <span>'+likes+'</span></button>'
       +'<button class="pub-action-btn" onclick="togglePubComments(\''+p._id+'\',this)">&#128172; <span>'+comments+'</span></button>'
@@ -11592,19 +11603,55 @@ window.doAssignEtab = doAssignEtab;
     if(!file) return;
     if(!file.type.startsWith("video/")){ showVideoErr("Format non supporté (vidéo uniquement)."); return; }
 
+    // Vérification taille max : 50MB
+    if(file.size > 50 * 1024 * 1024){
+      showVideoErr("Fichier trop lourd (max 50 MB). Choisissez une vidéo plus courte.");
+      return;
+    }
+
+    showVideoInfo("⏳ Analyse de la vidéo...");
+
     var objUrl = URL.createObjectURL(file);
     var tmpVid = document.createElement("video");
     tmpVid.preload = "metadata";
     tmpVid.muted = true;
     tmpVid.playsInline = true;
+    tmpVid.setAttribute("playsinline", "");
+
+    // Timeout sécurité : si metadata pas chargée en 8s → accepter le fichier tel quel
+    var metaTimeout = setTimeout(function(){
+      URL.revokeObjectURL(objUrl);
+      hideVideoInfo();
+      _pubVideo = { file: file, dataUrl: null, duration: 0, skippedCheck: true };
+      // Lire dataUrl quand même
+      var reader = new FileReader();
+      reader.onload = function(ev){
+        _pubVideo.dataUrl = ev.target.result;
+        renderPubVideoPreview();
+      };
+      reader.readAsDataURL(file);
+    }, 8000);
 
     tmpVid.onloadedmetadata = function(){
+      clearTimeout(metaTimeout);
       var realDur = tmpVid.duration;
-      var targetDur = Math.min(realDur, 10);
+      URL.revokeObjectURL(objUrl);
+
+      if(!isFinite(realDur) || realDur <= 0){
+        // Durée non lisible (format exotique) → accepter directement
+        hideVideoInfo();
+        var r = new FileReader();
+        r.onload = function(ev){
+          _pubVideo = { file: file, dataUrl: ev.target.result, duration: 0, skippedCheck: true };
+          renderPubVideoPreview();
+        };
+        r.readAsDataURL(file);
+        return;
+      }
 
       if(realDur <= 10){
-        // Vidéo OK, utiliser directement
-        URL.revokeObjectURL(objUrl);
+        // Vidéo OK, lire dataUrl directement
+        hideVideoInfo();
         var reader = new FileReader();
         reader.onload = function(e){
           _pubVideo = { file: file, dataUrl: e.target.result, duration: Math.round(realDur) };
@@ -11614,75 +11661,23 @@ window.doAssignEtab = doAssignEtab;
         return;
       }
 
-      // Vidéo trop longue → découpage automatique à 10s via MediaRecorder
-      showVideoInfo("✂️ Vidéo trop longue — découpage automatique à 10s en cours...");
-
-      var canvas = document.createElement("canvas");
-      tmpVid.onloadeddata = function(){
-        canvas.width  = tmpVid.videoWidth  || 640;
-        canvas.height = tmpVid.videoHeight || 360;
-        var ctx = canvas.getContext("2d");
-
-        var mimeType = "video/webm;codecs=vp8";
-        if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = "video/webm";
-        if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = "";
-
-        var stream = canvas.captureStream(30);
-        // Ajouter l'audio si disponible
-        try{
-          var audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-          var src = audioCtx.createMediaElementSource(tmpVid);
-          var dest = audioCtx.createMediaStreamDestination();
-          src.connect(dest);
-          dest.stream.getAudioTracks().forEach(function(t){ stream.addTrack(t); });
-        }catch(e){}
-
-        var recorder = new MediaRecorder(stream, mimeType ? {mimeType: mimeType} : {});
-        var chunks = [];
-        recorder.ondataavailable = function(e){ if(e.data && e.data.size>0) chunks.push(e.data); };
-        recorder.onstop = function(){
-          URL.revokeObjectURL(objUrl);
-          var blob = new Blob(chunks, {type: mimeType||"video/webm"});
-          var trimmedFile = new File([blob], "video_trim.webm", {type: blob.type});
-          var reader = new FileReader();
-          reader.onload = function(e){
-            _pubVideo = { file: trimmedFile, dataUrl: e.target.result, duration: 10, trimmed: true };
-            renderPubVideoPreview();
-            showVideoInfo("✅ Vidéo découpée à 10s avec succès !");
-            setTimeout(function(){ hideVideoInfo(); }, 2500);
-          };
-          reader.readAsDataURL(blob);
-        };
-
-        // Dessiner chaque frame sur le canvas
-        var stopped = false;
-        function drawFrame(){
-          if(stopped) return;
-          ctx.drawImage(tmpVid, 0, 0, canvas.width, canvas.height);
-          requestAnimationFrame(drawFrame);
-        }
-
-        tmpVid.currentTime = 0;
-        tmpVid.onplay = function(){
-          drawFrame();
-          recorder.start();
-          setTimeout(function(){
-            stopped = true;
-            tmpVid.pause();
-            recorder.stop();
-          }, 10000);
-        };
-        tmpVid.play().catch(function(){
-          // fallback si autoplay bloqué
-          showVideoErr("Impossible de découper automatiquement. Choisissez une vidéo ≤ 10s.");
-          URL.revokeObjectURL(objUrl);
-        });
-      };
-      tmpVid.src = objUrl;
-      tmpVid.load();
+      // Vidéo trop longue → avertir l'utilisateur (on ne tente plus le découpage canvas sur mobile)
+      showVideoErr("⚠️ Vidéo trop longue (" + Math.round(realDur) + "s). Choisissez une vidéo ≤ 10 secondes.");
     };
 
-    tmpVid.onerror = function(){ URL.revokeObjectURL(objUrl); showVideoErr("Impossible de lire ce fichier vidéo."); };
+    tmpVid.onerror = function(){
+      clearTimeout(metaTimeout);
+      URL.revokeObjectURL(objUrl);
+      // Erreur lecture metadata → accepter le fichier tel quel sans vérification
+      hideVideoInfo();
+      var reader = new FileReader();
+      reader.onload = function(e){
+        _pubVideo = { file: file, dataUrl: e.target.result, duration: 0, skippedCheck: true };
+        renderPubVideoPreview();
+      };
+      reader.readAsDataURL(file);
+    };
+
     tmpVid.src = objUrl;
   };
 
@@ -11732,10 +11727,30 @@ window.doAssignEtab = doAssignEtab;
 
   async function uploadPubVideo(pubId){
     if(!_pubVideo) return null;
-    var path = "publications/"+pubId+"/video_"+Date.now()+".mp4";
+    var storageOk = window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL;
+    if(!storageOk){
+      // Fallback : retourner la dataUrl directement (vidéo légère)
+      return _pubVideo.dataUrl || null;
+    }
+    var btn = document.getElementById("pubSubmitBtn");
+    if(btn) btn.textContent = "⬆ Vidéo...";
+    var ext = (_pubVideo.file.type.indexOf("mp4") !== -1) ? "mp4" : "webm";
+    var path = "publications/"+pubId+"/video_"+Date.now()+"."+ext;
     var storRef = window.fbRef(window.fbStorage, path);
-    var snap = await window.fbUploadBytes(storRef, _pubVideo.file);
-    return await window.fbGetDownloadURL(snap.ref);
+    var timeoutPromise = new Promise(function(_, reject){
+      setTimeout(function(){ reject(new Error("Timeout upload vidéo")); }, 60000);
+    });
+    try {
+      var result = await Promise.race([
+        window.fbUploadBytes(storRef, _pubVideo.file).then(function(snap){ return window.fbGetDownloadURL(snap.ref); }),
+        timeoutPromise
+      ]);
+      return result;
+    } catch(e) {
+      console.warn("Video upload failed:", e.message);
+      // Fallback : dataUrl (peut être trop lourd pour Firestore, on ignore)
+      return null;
+    }
   }
 
   // ── Compteur publications du jour (localStorage) ──
@@ -11770,18 +11785,62 @@ window.doAssignEtab = doAssignEtab;
     if(btn) btn.classList.toggle("has-new", !!hasNew);
   };
 
+  // ── Upload photos en parallèle avec timeout + fallback dataUrl ──
   async function uploadPubPhotos(pubId){
     if(!_pubPhotos.length) return [];
-    var urls = [];
-    for(var i = 0; i < _pubPhotos.length; i++){
-      var item = _pubPhotos[i];
-      var path = "publications/"+pubId+"/photo_"+Date.now()+"_"+i+".jpg";
+    var storageOk = window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL;
+    var btn = document.getElementById("pubSubmitBtn");
+
+    // Fallback : si pas de Storage, stocker les dataUrl directement (Firestore 1MB limit → on redimensionne)
+    if(!storageOk){
+      return _pubPhotos.map(function(item){ return item.dataUrl; });
+    }
+
+    var total = _pubPhotos.length;
+    var uploadOne = function(item, idx){
+      if(btn) btn.textContent = "⬆ Photo "+(idx+1)+"/"+total+"...";
+      var path = "publications/"+pubId+"/photo_"+Date.now()+"_"+idx+".jpg";
       var storRef = window.fbRef(window.fbStorage, path);
-      var snap = await window.fbUploadBytes(storRef, item.file);
-      var url = await window.fbGetDownloadURL(snap.ref);
-      urls.push(url);
+      // Timeout 30s par photo
+      var timeoutPromise = new Promise(function(_, reject){
+        setTimeout(function(){ reject(new Error("Timeout upload photo "+(idx+1))); }, 30000);
+      });
+      var uploadPromise = window.fbUploadBytes(storRef, item.file)
+        .then(function(snap){ return window.fbGetDownloadURL(snap.ref); });
+      return Promise.race([uploadPromise, timeoutPromise])
+        .catch(function(err){
+          console.warn("Photo upload failed, using dataUrl fallback:", err.message);
+          // fallback : dataUrl compressée
+          return compressToDataUrl(item.dataUrl, 0.6);
+        });
+    };
+
+    // Uploader en parallèle (max 3 à la fois)
+    var urls = [];
+    for(var i = 0; i < total; i += 3){
+      var batch = _pubPhotos.slice(i, i+3).map(function(item, j){ return uploadOne(item, i+j); });
+      var batchUrls = await Promise.all(batch);
+      urls = urls.concat(batchUrls);
     }
     return urls;
+  }
+
+  // ── Compression image dataUrl (pour fallback) ──
+  function compressToDataUrl(dataUrl, quality){
+    return new Promise(function(resolve){
+      var img = new Image();
+      img.onload = function(){
+        var canvas = document.createElement("canvas");
+        var maxW = 800;
+        var scale = img.width > maxW ? maxW / img.width : 1;
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", quality || 0.65));
+      };
+      img.onerror = function(){ resolve(dataUrl); };
+      img.src = dataUrl;
+    });
   }
 
   function escHtml(s){ return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
@@ -11846,12 +11905,22 @@ window.doAssignEtab = doAssignEtab;
     var texte = document.getElementById("pubTextInput").value.trim();
     var etab  = document.getElementById("pubEtabSelect").value;
     if(!titre || !texte){ showToast("Titre et message requis"); return; }
+
     var btn = document.getElementById("pubSubmitBtn");
     var msg = document.getElementById("pubMsg");
     btn.disabled = true;
-    var hasMedia = _pubPhotos.length || _pubVideo;
-    btn.textContent = hasMedia ? "⬆ Upload médias..." : "⏳ Envoi...";
+    btn.textContent = "⏳ Envoi...";
+
+    // Snapshot des médias AVANT fermeture
+    var photosToUpload = _pubPhotos.slice();
+    var videoToUpload  = _pubVideo;
+    var hasMedia = photosToUpload.length || videoToUpload;
+
     try {
+      if(!window.db || !window.fbAddDoc || !window.fbCollection){
+        throw new Error("Firebase non disponible");
+      }
+
       var data = {
         pseudo: window.currentUserPseudo || window.currentUserEmail || "Anonyme",
         uid: window.currentUserUID,
@@ -11862,35 +11931,60 @@ window.doAssignEtab = doAssignEtab;
         etab: etab || "",
         likes: 0,
         comments: 0,
+        photos: [],
+        video: null,
+        uploading: hasMedia ? true : false,
         createdAt: window.fbServerTimestamp()
       };
+
+      // 1. Créer le doc immédiatement
       var docRef = await window.fbAddDoc(window.fbCollection(window.db, "publications"), data);
-      var updates = {};
-      // Upload photos si présentes
-      if(_pubPhotos.length){
-        btn.textContent = "⬆ Photos "+1+"/"+_pubPhotos.length+"...";
-        var photoUrls = await uploadPubPhotos(docRef.id);
-        if(photoUrls.length){ updates.photos = photoUrls; }
-      }
-      // Upload vidéo si présente
-      if(_pubVideo){
-        btn.textContent = "⬆ Vidéo...";
-        var videoUrl = await uploadPubVideo(docRef.id);
-        if(videoUrl){ updates.video = videoUrl; updates.videoDuration = _pubVideo.duration; }
-      }
-      if(Object.keys(updates).length){
-        await window.fbUpdateDoc(window.fbDoc(window.db, "publications", docRef.id), updates);
-      }
-      // Incrémenter compteur journalier
+
+      // 2. Incrémenter compteur + fermer modal TOUT DE SUITE → expérience fluide
       incTodayPubCount(window.currentUserUID);
       btn.disabled = false;
       btn.textContent = "🚀 Publier";
       window.closePubCompose();
-      showToast("Publication envoyée ✓");
+      showToast(hasMedia ? "✓ Publication créée — médias en cours d'upload..." : "✓ Publication envoyée !");
+
+      // 3. Upload médias EN ARRIÈRE-PLAN si nécessaire
+      if(hasMedia){
+        var updates = {};
+        var progressToast = function(t){ showToast(t); };
+
+        if(photosToUpload.length){
+          progressToast("📸 Upload photos "+photosToUpload.length+"...");
+          // Patcher _pubPhotos temporairement pour uploadPubPhotos
+          var savedPhotos = _pubPhotos;
+          _pubPhotos = photosToUpload;
+          var photoUrls = await uploadPubPhotos(docRef.id);
+          _pubPhotos = savedPhotos;
+          if(photoUrls.length){ updates.photos = photoUrls; }
+        }
+
+        if(videoToUpload){
+          progressToast("🎬 Upload vidéo...");
+          var savedVideo = _pubVideo;
+          _pubVideo = videoToUpload;
+          var videoUrl = await uploadPubVideo(docRef.id);
+          _pubVideo = savedVideo;
+          if(videoUrl){ updates.video = videoUrl; updates.videoDuration = videoToUpload.duration; }
+        }
+
+        updates.uploading = false;
+
+        if(window.fbUpdateDoc && window.fbDoc){
+          await window.fbUpdateDoc(window.fbDoc(window.db, "publications", docRef.id), updates);
+        }
+        showToast("✅ Médias uploadés avec succès !");
+      }
+
     } catch(e) {
       btn.disabled = false;
       btn.textContent = "🚀 Publier";
-      if(msg){ msg.textContent = "Erreur : "+e.message; msg.style.display="block"; msg.style.color="var(--red)"; }
+      var errMsg = e.message || "Erreur inconnue";
+      if(msg){ msg.textContent = "Erreur : "+errMsg; msg.style.display="block"; msg.style.color="var(--red)"; }
+      showToast("❌ Erreur : "+errMsg);
     }
   };
 
