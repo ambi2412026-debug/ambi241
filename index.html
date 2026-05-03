@@ -5639,12 +5639,24 @@ function _renderMyAvatar(uid, initiale){
   if(!wrap) return;
   loadUserAvatar(uid, function(url){
     if(url){
-      wrap.innerHTML = '<img src="'+url+'" style="width:74px;height:74px;border-radius:50%;object-fit:cover;display:block;">';
+      var safeInit = escHtml(initiale||"?");
+      var img = new Image();
+      img.onload = function(){
+        wrap.innerHTML = '<img src="'+url+'" style="width:74px;height:74px;border-radius:50%;object-fit:cover;display:block;">';
+        _refreshQuickbarAvatar(url, initiale);
+      };
+      img.onerror = function(){
+        // URL invalide ou expirée → fallback initiales + vider le cache
+        _userAvatarCache[uid] = null;
+        wrap.innerHTML = '<div class="user-avatar-initiale">'+safeInit+'</div>';
+        _refreshQuickbarAvatar(null, initiale);
+      };
+      img.src = url;
     } else {
       wrap.innerHTML = '<div class="user-avatar-initiale">'+escHtml(initiale||"?")+'</div>';
+      // Mettre à jour aussi le quickbar
+      _refreshQuickbarAvatar(null, initiale);
     }
-    // Mettre à jour aussi le quickbar
-    _refreshQuickbarAvatar(url, initiale);
   });
 }
 
@@ -9587,6 +9599,58 @@ function openAdminAddModal(){
 function closeAdminAddModal(){
   document.getElementById("adminAddOverlay").classList.remove("show");
 }
+// Aperçu photo dans le formulaire admin ajout
+function aaPreviewPhoto(input, previewDivId, nameSpanId) {
+  var file = input.files && input.files[0];
+  var nameEl = document.getElementById(nameSpanId);
+  var previewDiv = document.getElementById(previewDivId);
+  if (!file) { if(nameEl) nameEl.textContent = "Aucun fichier"; if(previewDiv) previewDiv.style.display="none"; return; }
+  if (nameEl) nameEl.textContent = file.name.length > 28 ? file.name.substring(0,25)+"..." : file.name;
+  if (previewDiv) {
+    var img = previewDiv.querySelector("img");
+    var reader = new FileReader();
+    reader.onload = function(ev){ if(img){ img.src = ev.target.result; previewDiv.style.display="block"; } };
+    reader.readAsDataURL(file);
+  }
+}
+window.aaPreviewPhoto = aaPreviewPhoto;
+
+// Upload une image vers Firebase Storage et retourne l'URL, ou "" si pas de fichier
+function aaUploadPhotoIfNeeded(fileInputId, storagePath) {
+  return new Promise(function(resolve) {
+    var inp = document.getElementById(fileInputId);
+    var file = inp && inp.files && inp.files[0];
+    if (!file) { resolve(""); return; }
+    if (!window.fbRef || !window.fbStorage || !window.fbUploadBytes || !window.fbGetDownloadURL) { resolve(""); return; }
+    // Compresser via canvas (max 800px)
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var img = new Image();
+      img.onload = function() {
+        var maxDim = 800;
+        var w = img.width, h = img.height;
+        if (w > maxDim || h > maxDim) {
+          var ratio = Math.min(maxDim/w, maxDim/h);
+          w = Math.round(w*ratio); h = Math.round(h*ratio);
+        }
+        var canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        canvas.toBlob(function(blob) {
+          var storRef = window.fbRef(window.fbStorage, storagePath);
+          window.fbUploadBytes(storRef, blob).then(function(){
+            return window.fbGetDownloadURL(storRef);
+          }).then(function(url){ resolve(url); }).catch(function(){ resolve(""); });
+        }, "image/jpeg", 0.85);
+      };
+      img.onerror = function(){ resolve(""); };
+      img.src = ev.target.result;
+    };
+    reader.onerror = function(){ resolve(""); };
+    reader.readAsDataURL(file);
+  });
+}
+
 function adminAddFirebase(){
   var nom = document.getElementById("aaNom").value.trim();
   var type = document.getElementById("aaType").value;
@@ -9597,30 +9661,43 @@ function adminAddFirebase(){
     msg.textContent="Veuillez remplir les champs obligatoires (nom, type, quartier).";return;
   }
   var btn=document.getElementById("aaFirebaseBtn");
+  var statusEl = document.getElementById("aaPhotoUploadStatus");
   btn.disabled=true;btn.textContent="Ajout en cours...";
   // Générer un nouvel ID (max id + 1)
   var maxId = etablissements.reduce(function(m,e){return Math.max(m,e.id||0);},0);
   var newId = maxId + 1;
   var docId = "etab_" + String(newId).padStart(3,"0");
-  var newEtab = {
-    id: newId,
-    nom: nom,
-    type: type,
-    quartier: quartier,
-    description: document.getElementById("aaDesc").value.trim(),
-    contact: document.getElementById("aaTel").value.trim(),
-    email: document.getElementById("aaEmail").value.trim(),
-    ouverture: document.getElementById("aaOuv").value.trim()||"18h00",
-    fermeture: document.getElementById("aaFerm").value.trim()||"02h00",
-    statut: document.getElementById("aaStatut").value,
-    affluence: parseInt(document.getElementById("aaAff").value)||50,
-    note: 0, avis: 0, paiement: "Actif (Admin)",
-    ambiance: "Festif", maps_url: "",
-    photo_interieur: (document.getElementById("aaPhotoInt")||{}).value||"",
-    photo_exterieur: (document.getElementById("aaPhotoExt")||{}).value||""
-  };
-  var docRef = window.fbDoc(window.db, "etablissements", docId);
-  window.fbSetDoc(docRef, newEtab).then(function(){
+
+  // Upload photos si sélectionnées
+  var hasInt = document.getElementById("aaPhotoIntFile") && document.getElementById("aaPhotoIntFile").files && document.getElementById("aaPhotoIntFile").files[0];
+  var hasExt = document.getElementById("aaPhotoExtFile") && document.getElementById("aaPhotoExtFile").files && document.getElementById("aaPhotoExtFile").files[0];
+  if ((hasInt || hasExt) && statusEl) { statusEl.style.display="block"; statusEl.textContent="⏳ Upload des photos..."; }
+
+  Promise.all([
+    aaUploadPhotoIfNeeded("aaPhotoIntFile", "etablissements/"+docId+"/photo_interieur.jpg"),
+    aaUploadPhotoIfNeeded("aaPhotoExtFile", "etablissements/"+docId+"/photo_exterieur.jpg")
+  ]).then(function(urls) {
+    if (statusEl) { statusEl.style.display="none"; }
+    var newEtab = {
+      id: newId,
+      nom: nom,
+      type: type,
+      quartier: quartier,
+      description: document.getElementById("aaDesc").value.trim(),
+      contact: document.getElementById("aaTel").value.trim(),
+      email: document.getElementById("aaEmail").value.trim(),
+      ouverture: document.getElementById("aaOuv").value.trim()||"18h00",
+      fermeture: document.getElementById("aaFerm").value.trim()||"02h00",
+      statut: document.getElementById("aaStatut").value,
+      affluence: parseInt(document.getElementById("aaAff").value)||50,
+      note: 0, avis: 0, paiement: "Actif (Admin)",
+      ambiance: "Festif", maps_url: "",
+      photo_interieur: urls[0]||"",
+      photo_exterieur: urls[1]||""
+    };
+    var docRef = window.fbDoc(window.db, "etablissements", docId);
+    return window.fbSetDoc(docRef, newEtab);
+  }).then(function(){
     msg.style.display="block";msg.style.color="var(--green)";
     msg.textContent="✅ Établissement ajouté avec succès !";
     btn.disabled=false;btn.textContent="⚡ Ajouter maintenant";
@@ -9629,10 +9706,15 @@ function adminAddFirebase(){
       var el=document.getElementById(id); if(el)el.value="";
     });
     document.getElementById("aaAff").value="50";
+    // Reset photos
+    ["aaPhotoIntFile","aaPhotoExtFile"].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=""; });
+    ["aaPreviewInt","aaPreviewExt"].forEach(function(id){ var el=document.getElementById(id); if(el) el.style.display="none"; });
+    ["aaPhotoIntName","aaPhotoExtName"].forEach(function(id){ var el=document.getElementById(id); if(el) el.textContent="Aucun fichier"; });
     loadData();
     setTimeout(function(){closeAdminAddModal();},1500);
   }).catch(function(err){
     btn.disabled=false;btn.textContent="⚡ Ajouter maintenant";
+    if (statusEl) statusEl.style.display="none";
     msg.style.display="block";msg.style.color="var(--red)";
     msg.textContent="Erreur: "+err.message;
   });
@@ -12450,8 +12532,29 @@ window.doAssignEtab = doAssignEtab;
       <div class="field"><label>Affluence initiale (%)</label><input type="number" id="aaAff" placeholder="50" min="0" max="100" value="50"></div>
       <div style="background:rgba(255,45,155,0.05);border:1px solid rgba(255,45,155,0.2);border-radius:12px;padding:0.9rem;margin-bottom:0.8rem;">
         <div style="font-size:0.72rem;font-weight:800;color:var(--pink);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.6rem;">📸 Photos (optionnel)</div>
-        <div class="field" style="margin-bottom:0.5rem;"><label>🏠 URL Photo Intérieur</label><input type="url" id="aaPhotoInt" placeholder="https://... (Google Maps, Facebook...)"></div>
-        <div class="field" style="margin-bottom:0;"><label>🌍 URL Photo Extérieur</label><input type="url" id="aaPhotoExt" placeholder="https://... (Google Maps, Facebook...)"></div>
+
+        <!-- Photo Intérieur -->
+        <div class="field" style="margin-bottom:0.7rem;">
+          <label>🏠 Photo Intérieur</label>
+          <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+            <label for="aaPhotoIntFile" style="flex:1;min-width:120px;padding:0.45rem 0.7rem;border-radius:8px;border:1.5px dashed rgba(255,45,155,0.4);background:rgba(255,45,155,0.06);color:var(--pink);font-size:0.75rem;font-weight:700;cursor:pointer;text-align:center;box-sizing:border-box;">📁 Depuis la galerie</label>
+            <input type="file" id="aaPhotoIntFile" accept="image/*" style="display:none" onchange="aaPreviewPhoto(this,'aaPreviewInt','aaPhotoIntName')">
+            <span id="aaPhotoIntName" style="font-size:0.65rem;color:var(--muted);flex:2;min-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Aucun fichier</span>
+          </div>
+          <div id="aaPreviewInt" style="margin-top:0.5rem;display:none;"><img style="width:100%;max-height:110px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,45,155,0.3);"></div>
+        </div>
+
+        <!-- Photo Extérieur -->
+        <div class="field" style="margin-bottom:0;">
+          <label>🌍 Photo Extérieur</label>
+          <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+            <label for="aaPhotoExtFile" style="flex:1;min-width:120px;padding:0.45rem 0.7rem;border-radius:8px;border:1.5px dashed rgba(0,229,255,0.4);background:rgba(0,229,255,0.06);color:var(--cyan);font-size:0.75rem;font-weight:700;cursor:pointer;text-align:center;box-sizing:border-box;">📁 Depuis la galerie</label>
+            <input type="file" id="aaPhotoExtFile" accept="image/*" style="display:none" onchange="aaPreviewPhoto(this,'aaPreviewExt','aaPhotoExtName')">
+            <span id="aaPhotoExtName" style="font-size:0.65rem;color:var(--muted);flex:2;min-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Aucun fichier</span>
+          </div>
+          <div id="aaPreviewExt" style="margin-top:0.5rem;display:none;"><img style="width:100%;max-height:110px;object-fit:cover;border-radius:8px;border:1px solid rgba(0,229,255,0.3);"></div>
+        </div>
+        <div id="aaPhotoUploadStatus" style="font-size:0.72rem;text-align:center;color:var(--cyan);margin-top:0.5rem;display:none;"></div>
       </div>
       <button onclick="adminAddFirebase()" class="modal-btn" id="aaFirebaseBtn">&#9889; Ajouter maintenant</button>
       <div id="aaFirebaseMsg" style="font-size:0.78rem;text-align:center;margin-top:0.5rem;display:none;"></div>
