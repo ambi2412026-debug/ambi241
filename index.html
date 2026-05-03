@@ -126,6 +126,157 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .notif-toast{position:fixed;top:72px;left:50%;transform:translateX(-50%) translateY(-20px);background:rgba(255,45,155,0.95);color:#fff;font-size:0.8rem;font-weight:700;padding:0.55rem 1.1rem;border-radius:30px;opacity:0;transition:all 0.3s;z-index:400;pointer-events:none;white-space:nowrap;box-shadow:0 4px 20px rgba(255,45,155,0.4);}
 .notif-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
+/* ══════════════════════════════════════════════════════
+   ══ SYSTÈME DISPONIBILITÉS LIVE (GÉRANT PRO)        ══
+   ══════════════════════════════════════════════════════ */
+
+/* ── Affichage public sur la carte ── */
+.dispo-live-strip{
+  display:flex;flex-wrap:wrap;gap:0.35rem;
+  padding:0.55rem 0.75rem;
+  background:rgba(0,0,0,0.25);
+  border-top:1px solid rgba(255,255,255,0.05);
+  border-bottom:1px solid rgba(255,255,255,0.05);
+}
+.dispo-chip{
+  display:inline-flex;align-items:center;gap:0.3rem;
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:20px;padding:0.22rem 0.55rem;
+  font-size:0.65rem;font-weight:700;
+  color:var(--text);white-space:nowrap;
+  transition:all 0.2s;
+}
+.dispo-chip.ok{background:rgba(0,255,170,0.1);border-color:rgba(0,255,170,0.3);color:var(--green);}
+.dispo-chip.low{background:rgba(255,215,0,0.1);border-color:rgba(255,215,0,0.35);color:var(--amber);}
+.dispo-chip.empty{background:rgba(255,68,102,0.1);border-color:rgba(255,68,102,0.3);color:var(--red);}
+.dispo-chip-icon{font-size:0.85rem;line-height:1;}
+.dispo-chip-val{font-family:'Syne',sans-serif;font-size:0.72rem;font-weight:800;}
+.dispo-chip-label{font-size:0.58rem;color:inherit;opacity:0.8;}
+.dispo-updated{font-size:0.55rem;color:var(--muted);padding:0 0.75rem 0.35rem;display:flex;align-items:center;gap:0.3rem;}
+.dispo-updated-dot{width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;flex-shrink:0;}
+
+/* ── Panneau gérant (dans edit-panel) ── */
+.dispo-manager-panel{
+  margin-top:0.8rem;padding-top:0.8rem;
+  border-top:1px solid rgba(0,229,255,0.18);
+}
+.dispo-manager-title{
+  font-family:'Syne',sans-serif;font-size:0.75rem;font-weight:800;
+  color:var(--cyan);text-transform:uppercase;letter-spacing:0.08em;
+  margin-bottom:0.65rem;display:flex;align-items:center;gap:0.4rem;
+}
+.dispo-manager-title::after{content:'';flex:1;height:1px;background:rgba(0,229,255,0.15);}
+.dispo-item-row{
+  display:grid;grid-template-columns:1fr auto;
+  align-items:center;gap:0.5rem;
+  background:rgba(255,255,255,0.03);
+  border:1px solid rgba(255,255,255,0.07);
+  border-radius:11px;padding:0.5rem 0.65rem;
+  margin-bottom:0.4rem;transition:border-color 0.2s;
+}
+.dispo-item-row:focus-within{border-color:rgba(0,229,255,0.35);}
+.dispo-item-left{display:flex;align-items:center;gap:0.45rem;min-width:0;}
+.dispo-item-icon{font-size:1.05rem;flex-shrink:0;}
+.dispo-item-name{font-size:0.75rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dispo-item-sublabel{font-size:0.58rem;color:var(--muted);margin-top:0.05rem;}
+.dispo-item-controls{display:flex;align-items:center;gap:0.3rem;flex-shrink:0;}
+.dispo-minus,.dispo-plus{
+  width:26px;height:26px;border-radius:50%;border:none;
+  font-size:1rem;font-weight:800;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all 0.15s;user-select:none;-webkit-tap-highlight-color:transparent;
+}
+.dispo-minus{background:rgba(255,68,102,0.15);color:var(--red);}
+.dispo-minus:active{background:rgba(255,68,102,0.35);transform:scale(0.9);}
+.dispo-plus{background:rgba(0,255,170,0.15);color:var(--green);}
+.dispo-plus:active{background:rgba(0,255,170,0.35);transform:scale(0.9);}
+.dispo-val-display{
+  font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;
+  min-width:32px;text-align:center;
+  color:var(--text);line-height:1;
+}
+.dispo-val-display.val-ok{color:var(--green);}
+.dispo-val-display.val-low{color:var(--amber);}
+.dispo-val-display.val-empty{color:var(--red);}
+.dispo-status-dot{
+  width:7px;height:7px;border-radius:50%;flex-shrink:0;
+  transition:background 0.3s;
+}
+.dispo-status-dot.ok{background:var(--green);box-shadow:0 0 6px rgba(0,255,170,0.6);}
+.dispo-status-dot.low{background:var(--amber);box-shadow:0 0 6px rgba(255,215,0,0.6);}
+.dispo-status-dot.empty{background:var(--red);box-shadow:0 0 6px rgba(255,68,102,0.6);}
+
+/* ── Toggle activer/désactiver un item ── */
+.dispo-toggle-row{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:0.45rem;
+}
+.dispo-toggle-label{font-size:0.68rem;color:var(--muted);}
+.dispo-add-item-btn{
+  width:100%;padding:0.48rem;border-radius:9px;
+  background:rgba(0,229,255,0.06);border:1.5px dashed rgba(0,229,255,0.3);
+  color:var(--cyan);font-size:0.72rem;font-weight:700;
+  cursor:pointer;font-family:'DM Sans',sans-serif;
+  transition:all 0.2s;margin-top:0.35rem;
+}
+.dispo-add-item-btn:active{background:rgba(0,229,255,0.12);}
+
+/* ── Modal ajout item custom ── */
+.dispo-modal-wrap{
+  background:var(--surface);border:1px solid rgba(0,229,255,0.3);
+  border-radius:22px;padding:1.5rem 1.3rem;
+  width:min(360px,100%);position:relative;
+  animation:popIn 0.25s cubic-bezier(0.34,1.56,0.64,1);
+}
+.dispo-modal-title{
+  font-family:'Syne',sans-serif;font-size:0.95rem;font-weight:800;
+  color:var(--cyan);margin-bottom:0.2rem;
+}
+.dispo-modal-sub{font-size:0.75rem;color:var(--muted);margin-bottom:1.1rem;}
+.dispo-emoji-grid{
+  display:grid;grid-template-columns:repeat(6,1fr);gap:0.3rem;
+  margin-bottom:0.9rem;
+}
+.dispo-emoji-opt{
+  padding:0.4rem;border-radius:8px;border:2px solid transparent;
+  background:rgba(255,255,255,0.04);font-size:1.2rem;text-align:center;
+  cursor:pointer;transition:all 0.15s;user-select:none;
+}
+.dispo-emoji-opt.sel{border-color:var(--cyan);background:rgba(0,229,255,0.1);}
+.dispo-emoji-opt:active{transform:scale(0.92);}
+
+/* ── Preset rapides (modal) ── */
+.dispo-preset-chips{display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.9rem;}
+.dispo-preset-chip{
+  padding:0.28rem 0.6rem;border-radius:100px;
+  background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);
+  font-size:0.68rem;font-weight:700;color:var(--muted);cursor:pointer;
+  transition:all 0.15s;
+}
+.dispo-preset-chip:active{background:rgba(0,229,255,0.12);border-color:var(--cyan);color:var(--cyan);}
+
+/* ── Chip type dans modal ── */
+.dispo-type-row{display:flex;gap:0.35rem;margin-bottom:0.9rem;}
+.dispo-type-btn{
+  flex:1;padding:0.45rem 0.3rem;border-radius:9px;
+  border:1.5px solid rgba(255,255,255,0.1);
+  background:rgba(255,255,255,0.03);
+  color:var(--muted);font-size:0.65rem;font-weight:700;
+  cursor:pointer;font-family:'DM Sans',sans-serif;text-align:center;
+  transition:all 0.2s;
+}
+.dispo-type-btn.active{border-color:var(--cyan);background:rgba(0,229,255,0.1);color:var(--cyan);}
+
+/* ── Synthèse dispo (histo) ── */
+.dispo-history-bar{
+  display:flex;align-items:flex-end;gap:2px;height:28px;margin-top:0.35rem;
+}
+.dispo-hbar{
+  flex:1;border-radius:2px 2px 0 0;
+  background:rgba(0,255,170,0.5);min-height:4px;transition:height 0.3s;
+}
+
 /* HEADER */
 header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0.96);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,45,155,0.2);padding:0;width:100%;max-width:100vw;box-sizing:border-box;overflow:visible;display:flex;flex-direction:column;}
 .header-top{display:flex;align-items:center;justify-content:space-between;padding:0 0.5rem;height:56px;width:100%;}
@@ -140,7 +291,6 @@ header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0
 .live-pill{display:flex;align-items:center;gap:0.2rem;background:rgba(0,255,170,0.1);border:1px solid rgba(0,255,170,0.3);color:var(--green);font-size:0.5rem;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;padding:0.18rem 0.3rem;border-radius:100px;white-space:nowrap;flex-shrink:0;}
 .live-dot{width:4px;height:4px;background:var(--green);border-radius:50%;animation:pulse 2s infinite;flex-shrink:0;}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
-@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .user-btn{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.85rem;font-weight:700;padding:0;width:28px;height:28px;min-width:28px;border-radius:50%;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .user-btn:active{transform:scale(0.92);}
 .admin-btn{background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);color:var(--amber);font-size:0.85rem;font-weight:700;padding:0;width:28px;height:28px;min-width:28px;border-radius:50%;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
@@ -5572,6 +5722,379 @@ function logContactClick(etabId, etabNom, channel){
 }
 window.logContactClick = logContactClick;
 
+// ══════════════════════════════════════════════════════════════════
+// ══  SYSTÈME DISPONIBILITÉS EN TEMPS RÉEL — GÉRANT PRO         ══
+// ══════════════════════════════════════════════════════════════════
+
+// ── Presets par catégorie ─────────────────────────────────────────
+var DISPO_PRESETS = {
+  Bar:          [{icon:"🍺",name:"Bières pression",val:20,type:"nombre"},{icon:"🍾",name:"Bouteilles VIP",val:10,type:"nombre"},{icon:"🛋️",name:"Tables libres",val:5,type:"nombre"},{icon:"🎵",name:"Musique live",val:1,type:"oui_non"}],
+  Discotheque:  [{icon:"💃",name:"Places danse",val:30,type:"nombre"},{icon:"🛋️",name:"Tables VIP",val:8,type:"nombre"},{icon:"🍾",name:"Bouteilles",val:15,type:"nombre"},{icon:"🎤",name:"Soirée DJ",val:1,type:"oui_non"}],
+  Restaurant:   [{icon:"🍽️",name:"Tables libres",val:10,type:"nombre"},{icon:"🥩",name:"Plat du jour",val:1,type:"oui_non"},{icon:"🐟",name:"Poisson frais",val:8,type:"nombre"},{icon:"🍰",name:"Desserts",val:12,type:"nombre"},{icon:"🍷",name:"Vin en cave",val:20,type:"nombre"}],
+  "Bar Terrasse":[{icon:"☂️",name:"Places terrasse",val:15,type:"nombre"},{icon:"🍹",name:"Cocktails spéciaux",val:1,type:"oui_non"},{icon:"🌅",name:"Vue disponible",val:1,type:"oui_non"},{icon:"🍺",name:"Bières",val:30,type:"nombre"}],
+  Snack:        [{icon:"🍔",name:"Burgers",val:20,type:"nombre"},{icon:"🍟",name:"Frites",val:1,type:"oui_non"},{icon:"🥤",name:"Boissons fraîches",val:50,type:"nombre"},{icon:"🌮",name:"Plats chauds",val:15,type:"nombre"}],
+  Hotel:        [{icon:"🛏️",name:"Chambres libres",val:5,type:"nombre"},{icon:"🅿️",name:"Places parking",val:10,type:"nombre"},{icon:"🏊",name:"Piscine",val:1,type:"oui_non"},{icon:"🍳",name:"Petit-déjeuner",val:1,type:"oui_non"},{icon:"🧖",name:"Spa",val:1,type:"oui_non"},{icon:"💼",name:"Salle de conf.",val:1,type:"oui_non"}]
+};
+
+var DISPO_EMOJIS = ["🍺","🍾","🍷","🍹","🍸","🥂","🥃","🍔","🍟","🌮","🍕","🥩","🐟","🍽️","🍰","🎂","🛏️","🛋️","🪑","☂️","🅿️","🚿","🏊","🧖","🎵","🎤","💃","🎮","🏋️","💼","📍","⭐","✅","🎁","🥤","🧃"];
+
+// État local des dispos
+var _dispoState = {}; // { [etabId]: [{id, icon, name, val, type, active}] }
+var _dispoModal = { etabId: null, emoji: "🍽️", dtype: "nombre" };
+
+// ── Charger les dispos depuis Firebase (ou cache local) ──────────
+function loadDispoState(etabId, callback) {
+  var key = "ambi241_dispo_" + etabId;
+  // D'abord cache local
+  try {
+    var cached = JSON.parse(localStorage.getItem(key) || "null");
+    if (cached) { _dispoState[etabId] = cached; if (callback) callback(cached); }
+  } catch(e) {}
+
+  // Puis Firebase (source of truth)
+  if (!window.db || !window.fbDoc || !window.fbGetDoc) return;
+  window.fbGetDoc(window.fbDoc(window.db, "etablissements_dispo", String(etabId)))
+    .then(function(snap) {
+      if (snap.exists()) {
+        var d = snap.data();
+        var items = d.items || [];
+        _dispoState[etabId] = items;
+        try { localStorage.setItem(key, JSON.stringify(items)); } catch(e) {}
+        if (callback) callback(items);
+        // Re-render la bande publique sur la carte
+        refreshDispoPublicOnCard(etabId);
+        // Re-render le panneau gérant si visible
+        refreshDispoManagerOnCard(etabId);
+      }
+    }).catch(function() {});
+}
+
+// ── Écouter les changements temps réel ──────────────────────────
+var _dispoUnsubs = {};
+function subscribeDispoLive(etabId) {
+  if (_dispoUnsubs[etabId]) return; // déjà subscrit
+  if (!window.db || !window.fbDoc || !window.fbOnSnapshot) return;
+  var docRef = window.fbDoc(window.db, "etablissements_dispo", String(etabId));
+  _dispoUnsubs[etabId] = window.fbOnSnapshot(docRef, function(snap) {
+    if (snap.exists()) {
+      var items = snap.data().items || [];
+      _dispoState[etabId] = items;
+      try { localStorage.setItem("ambi241_dispo_" + etabId, JSON.stringify(items)); } catch(e) {}
+      refreshDispoPublicOnCard(etabId);
+      refreshDispoManagerOnCard(etabId);
+    }
+  }, function() {});
+}
+
+// ── Sauvegarder les dispos dans Firebase ────────────────────────
+function saveDispoState(etabId) {
+  var items = _dispoState[etabId] || [];
+  try { localStorage.setItem("ambi241_dispo_" + etabId, JSON.stringify(items)); } catch(e) {}
+  if (!window.db || !window.fbDoc || !window.fbSetDoc) return;
+  window.fbSetDoc(window.fbDoc(window.db, "etablissements_dispo", String(etabId)), {
+    items: items,
+    etabId: String(etabId),
+    updatedAt: Date.now()
+  }, { merge: true }).catch(function(err) { console.warn("dispo save:", err); });
+}
+
+// ── Modifier la valeur d'un item ────────────────────────────────
+window.dispoAdjust = function(etabId, itemId, delta) {
+  var items = _dispoState[etabId] || [];
+  var item = items.find(function(x) { return x.id === itemId; });
+  if (!item) return;
+  if (item.type === "oui_non") {
+    item.val = item.val ? 0 : 1;
+  } else {
+    item.val = Math.max(0, Math.min(9999, (item.val || 0) + delta));
+  }
+  item.updatedAt = Date.now();
+  saveDispoState(etabId);
+  refreshDispoManagerOnCard(etabId);
+  refreshDispoPublicOnCard(etabId);
+};
+
+// ── Supprimer un item ───────────────────────────────────────────
+window.dispoRemoveItem = function(etabId, itemId) {
+  var items = _dispoState[etabId] || [];
+  _dispoState[etabId] = items.filter(function(x) { return x.id !== itemId; });
+  saveDispoState(etabId);
+  refreshDispoManagerOnCard(etabId);
+  refreshDispoPublicOnCard(etabId);
+  showToast("Indicateur supprimé");
+};
+
+// ── Toggle actif/inactif ─────────────────────────────────────────
+window.dispoToggleActive = function(etabId, itemId) {
+  var items = _dispoState[etabId] || [];
+  var item = items.find(function(x) { return x.id === itemId; });
+  if (!item) return;
+  item.active = item.active === false ? true : false;
+  item.updatedAt = Date.now();
+  saveDispoState(etabId);
+  refreshDispoManagerOnCard(etabId);
+  refreshDispoPublicOnCard(etabId);
+};
+
+// ── Construire le panneau gérant HTML ───────────────────────────
+function buildDispoManagerGrid(e) {
+  var etabId = e.id;
+  var items = _dispoState[etabId];
+  if (!items) {
+    // Charger et abonner au live
+    loadDispoState(etabId, function() { refreshDispoManagerOnCard(etabId); });
+    subscribeDispoLive(etabId);
+    return "<div style='font-size:0.72rem;color:var(--muted);text-align:center;padding:0.6rem;'>⏳ Chargement...</div>";
+  }
+  subscribeDispoLive(etabId);
+  if (!items.length) {
+    return "<div style='font-size:0.72rem;color:var(--muted);text-align:center;padding:0.7rem 0;'>Aucun indicateur — ajoutez-en un ci-dessous.</div>";
+  }
+  var html = "";
+  items.forEach(function(item) {
+    var isActive = item.active !== false;
+    var dotCls = !isActive ? "" : item.type === "oui_non" ? (item.val ? "ok" : "empty") : item.val > 5 ? "ok" : item.val > 0 ? "low" : "empty";
+    var valCls = !isActive ? "" : item.type === "oui_non" ? (item.val ? "val-ok" : "val-empty") : item.val > 5 ? "val-ok" : item.val > 0 ? "val-low" : "val-empty";
+    var dispVal = item.type === "oui_non" ? (item.val ? "✅" : "❌") : item.type === "texte" ? (item.textVal || "—") : String(item.val || 0);
+
+    html += "<div class='dispo-item-row' style='" + (!isActive ? "opacity:0.45;" : "") + "'>";
+    html += "<div class='dispo-item-left'>";
+    html += "<div class='dispo-status-dot " + dotCls + "'></div>";
+    html += "<div class='dispo-item-icon'>" + (item.icon || "📍") + "</div>";
+    html += "<div><div class='dispo-item-name'>" + escHtml(item.name || "") + "</div>";
+    html += "<div class='dispo-item-sublabel'>" + (isActive ? "Visible" : "Masqué") + " · appuyer pour modifier</div></div>";
+    html += "</div>";
+    html += "<div class='dispo-item-controls'>";
+    if (item.type === "texte") {
+      html += "<input type='text' value='" + escHtml(item.textVal || "") + "' maxlength='20' style='width:90px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:7px;color:var(--text);font-size:0.78rem;padding:0.25rem 0.4rem;' onchange=\"dispoSetText(" + etabId + ",'" + item.id + "',this.value)\">";
+    } else if (item.type === "oui_non") {
+      html += "<button class='dispo-minus' onclick=\"dispoAdjust(" + etabId + ",'" + item.id + "',-1)\">" + (item.val ? "✕" : "✓") + "</button>";
+      html += "<div class='dispo-val-display " + valCls + "'>" + dispVal + "</div>";
+      html += "<button class='dispo-plus' onclick=\"dispoAdjust(" + etabId + ",'" + item.id + "',1)\">" + (item.val ? "✓" : "✕") + "</button>";
+    } else {
+      html += "<button class='dispo-minus' onclick=\"dispoAdjust(" + etabId + ",'" + item.id + "',-1)\">−</button>";
+      html += "<div class='dispo-val-display " + valCls + "'>" + dispVal + "</div>";
+      html += "<button class='dispo-plus' onclick=\"dispoAdjust(" + etabId + ",'" + item.id + "',1)\">+</button>";
+    }
+    html += "<button onclick=\"dispoToggleActive(" + etabId + ",'" + item.id + "')\" title='" + (isActive ? "Masquer" : "Afficher") + "' style='margin-left:0.1rem;background:none;border:none;font-size:0.9rem;cursor:pointer;opacity:0.7;'>" + (isActive ? "👁️" : "🙈") + "</button>";
+    html += "<button onclick=\"dispoRemoveItem(" + etabId + ",'" + item.id + "')\" title='Supprimer' style='background:none;border:none;font-size:0.75rem;cursor:pointer;color:var(--red);opacity:0.6;'>🗑</button>";
+    html += "</div></div>";
+  });
+  return html;
+}
+
+// ── Construire la bande publique HTML ────────────────────────────
+function buildDispoPublicStrip(e) {
+  var etabId = e.id;
+  var items = _dispoState[etabId];
+  if (!items) {
+    loadDispoState(etabId, function() { refreshDispoPublicOnCard(etabId); });
+    return ""; // ne rien afficher au 1er render, la bande apparaît dès que les données arrivent
+  }
+  var active = (items || []).filter(function(x) { return x.active !== false; });
+  if (!active.length) return "";
+
+  var now = Date.now();
+  var lastUpd = Math.min.apply(null, active.map(function(x) { return x.updatedAt || now; }).concat([now]));
+  var minAgo = Math.round((now - lastUpd) / 60000);
+  var updStr = lastUpd === now ? "À l'instant" : minAgo < 60 ? "il y a " + minAgo + " min" : "il y a " + Math.round(minAgo/60) + "h";
+
+  var chips = active.map(function(item) {
+    var val = item.type === "oui_non" ? (item.val ? "Oui" : "Non") : item.type === "texte" ? (item.textVal || "—") : String(item.val || 0);
+    var cls = item.type === "oui_non" ? (item.val ? "ok" : "empty") : item.val > 5 ? "ok" : item.val > 0 ? "low" : "empty";
+    return "<div class='dispo-chip " + cls + "'><span class='dispo-chip-icon'>" + (item.icon || "📍") + "</span><span class='dispo-chip-val'>" + escHtml(val) + "</span><span class='dispo-chip-label'>" + escHtml(item.name || "") + "</span></div>";
+  }).join("");
+
+  return "<div class='dispo-live-strip'>" + chips + "</div>"
+    + "<div class='dispo-updated'><div class='dispo-updated-dot'></div>Mis à jour " + updStr + "</div>";
+}
+
+// ── Rafraîchir en DOM direct (sans re-render la carte entière) ──
+function refreshDispoPublicOnCard(etabId) {
+  // La bande publique est dans .dispo-live-strip et .dispo-updated
+  // On re-render juste la portion du card si trouvée
+  var cards = document.querySelectorAll(".card");
+  cards.forEach(function(card) {
+    // Chercher l'identifiant dans les boutons du panneau
+    var hasId = card.innerHTML.indexOf("dispoAdjust(" + etabId) !== -1
+             || card.innerHTML.indexOf("\"dispoManagerGrid_" + etabId) !== -1
+             || card.innerHTML.indexOf("dispoManagerGrid_" + etabId) !== -1;
+    if (!hasId) return;
+    // Trouver la strip existante
+    var strip = card.querySelector(".dispo-live-strip");
+    var updEl = card.querySelector(".dispo-updated");
+    var etab = etablissements.find(function(x) { return x.id === etabId; });
+    if (!etab) return;
+    var newStrip = buildDispoPublicStrip(etab);
+    if (!newStrip) { if (strip) strip.remove(); if (updEl) updEl.remove(); return; }
+    var tmp = document.createElement("div");
+    tmp.innerHTML = newStrip;
+    if (strip) {
+      strip.replaceWith(tmp.firstChild);
+      if (updEl) { var newUpd = tmp.firstChild; card.querySelector(".dispo-updated") ? card.querySelector(".dispo-updated").replaceWith(newUpd) : null; }
+    }
+  });
+}
+
+function refreshDispoManagerOnCard(etabId) {
+  var grid = document.getElementById("dispoManagerGrid_" + etabId);
+  if (!grid) return;
+  var etab = etablissements.find(function(x) { return x.id === etabId; });
+  if (!etab) return;
+  grid.innerHTML = buildDispoManagerGrid(etab);
+}
+
+// ── Texte libre ─────────────────────────────────────────────────
+window.dispoSetText = function(etabId, itemId, text) {
+  var items = _dispoState[etabId] || [];
+  var item = items.find(function(x) { return x.id === itemId; });
+  if (!item) return;
+  item.textVal = text.trim();
+  item.updatedAt = Date.now();
+  saveDispoState(etabId);
+  refreshDispoPublicOnCard(etabId);
+};
+
+// ── Modal ajout item ──────────────────────────────────────────────
+window.openDispoItemModal = function(etabId) {
+  _dispoModal.etabId = etabId;
+  _dispoModal.emoji = "🍽️";
+  _dispoModal.dtype = "nombre";
+
+  // Déterminer catégorie pour presets
+  var etab = etablissements.find(function(x) { return x.id === etabId; });
+  var cat = etab ? getCategory(etab.type) : "Bar";
+  var presets = DISPO_PRESETS[cat] || DISPO_PRESETS["Bar"];
+
+  // Render presets
+  var phtml = "";
+  presets.forEach(function(p) {
+    phtml += "<div class='dispo-preset-chip' onclick=\"applyDispoPreset('" + escHtml(p.icon) + "','" + escHtml(p.name) + "'," + p.val + ",'" + p.type + "')\">" + p.icon + " " + escHtml(p.name) + "</div>";
+  });
+  document.getElementById("dispoPresetChips").innerHTML = phtml;
+
+  // Render emojis
+  var ehtml = "";
+  DISPO_EMOJIS.forEach(function(em) {
+    ehtml += "<div class='dispo-emoji-opt" + (em === _dispoModal.emoji ? " sel" : "") + "' onclick=\"selectDispoEmoji('" + em + "',this)\">" + em + "</div>";
+  });
+  document.getElementById("dispoEmojiGrid").innerHTML = ehtml;
+
+  // Reset fields
+  document.getElementById("dispoItemName").value = "";
+  document.getElementById("dispoItemVal").value = "10";
+  document.getElementById("dispoItemTextVal").value = "";
+  selectDispoType("nombre", document.querySelector(".dispo-type-btn[data-dtype='nombre']"));
+
+  document.getElementById("dispoItemOverlay").classList.add("show");
+};
+
+window.closeDispoItemModal = function() {
+  document.getElementById("dispoItemOverlay").classList.remove("show");
+};
+
+window.applyDispoPreset = function(icon, name, val, type) {
+  selectDispoEmoji(icon, null);
+  document.getElementById("dispoItemName").value = name;
+  document.getElementById("dispoItemVal").value = val;
+  selectDispoType(type, document.querySelector(".dispo-type-btn[data-dtype='" + type + "']"));
+};
+
+window.selectDispoEmoji = function(em, el) {
+  _dispoModal.emoji = em;
+  document.querySelectorAll(".dispo-emoji-opt").forEach(function(x) { x.classList.remove("sel"); });
+  if (el) el.classList.add("sel");
+  else {
+    document.querySelectorAll(".dispo-emoji-opt").forEach(function(x) {
+      if (x.textContent === em) x.classList.add("sel");
+    });
+  }
+};
+
+window.selectDispoType = function(dtype, btn) {
+  _dispoModal.dtype = dtype;
+  document.querySelectorAll(".dispo-type-btn").forEach(function(x) { x.classList.remove("active"); });
+  if (btn) btn.classList.add("active");
+  var nf = document.getElementById("dispoValField");
+  var tf = document.getElementById("dispoTextValField");
+  if (dtype === "texte") { if(nf) nf.style.display = "none"; if(tf) tf.style.display = "block"; }
+  else { if(nf) nf.style.display = "block"; if(tf) tf.style.display = "none"; }
+  if (dtype === "oui_non" && nf) {
+    var inp = nf.querySelector("input");
+    if (inp) { inp.type = "text"; inp.value = "1"; inp.placeholder = "1 = Oui, 0 = Non"; }
+  } else if (dtype === "nombre" && nf) {
+    var inp2 = nf.querySelector("input");
+    if (inp2) { inp2.type = "number"; inp2.placeholder = "Ex: 10"; }
+  }
+};
+
+window.confirmAddDispoItem = function() {
+  var etabId = _dispoModal.etabId;
+  var name = (document.getElementById("dispoItemName").value || "").trim();
+  var dtype = _dispoModal.dtype;
+  if (!name) { showToast("Donnez un nom à l'indicateur"); return; }
+
+  var val = 0, textVal = "";
+  if (dtype === "nombre" || dtype === "oui_non") {
+    val = parseInt(document.getElementById("dispoItemVal").value || "0") || 0;
+  } else {
+    textVal = (document.getElementById("dispoItemTextVal").value || "").trim();
+  }
+
+  if (!_dispoState[etabId]) _dispoState[etabId] = [];
+
+  // Vérifier doublon
+  var already = _dispoState[etabId].find(function(x) { return x.name.toLowerCase() === name.toLowerCase(); });
+  if (already) { showToast("Cet indicateur existe déjà"); return; }
+
+  _dispoState[etabId].push({
+    id: "dispo_" + Date.now() + "_" + Math.random().toString(36).slice(2,6),
+    icon: _dispoModal.emoji,
+    name: name,
+    val: val,
+    textVal: textVal,
+    type: dtype,
+    active: true,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  });
+
+  saveDispoState(etabId);
+  refreshDispoManagerOnCard(etabId);
+  refreshDispoPublicOnCard(etabId);
+  closeDispoItemModal();
+  showToast("✅ " + name + " ajouté en direct !");
+};
+
+// ── Auto-initialisation : charger les dispos de tous les étabs ──
+(function initAllDispos() {
+  function _tryInit() {
+    if (!window.etablissements || !window.etablissements.length) {
+      setTimeout(_tryInit, 600);
+      return;
+    }
+    // Charger les dispos de tous les étabs en arrière-plan
+    window.etablissements.forEach(function(e) {
+      loadDispoState(e.id, function() {
+        refreshDispoPublicOnCard(e.id);
+      });
+      subscribeDispoLive(e.id);
+    });
+  }
+  _tryInit();
+})();
+
+window.dispoAdjust = window.dispoAdjust;
+window.dispoRemoveItem = window.dispoRemoveItem;
+window.dispoToggleActive = window.dispoToggleActive;
+window.dispoSetText = window.dispoSetText;
+window.openDispoItemModal = window.openDispoItemModal;
+window.closeDispoItemModal = window.closeDispoItemModal;
+window.applyDispoPreset = window.applyDispoPreset;
+window.selectDispoEmoji = window.selectDispoEmoji;
+window.selectDispoType = window.selectDispoType;
+window.confirmAddDispoItem = window.confirmAddDispoItem;
+
 function buildCard(e,delay,compact,rank){
   delay=delay||0;compact=compact||false;
   var sc=statusClass(e.statut);
@@ -5812,6 +6335,12 @@ function buildCard(e,delay,compact,rank){
     ep+="<div class=\"edit-row\" style=\"margin-top:0.5rem;border-top:1px solid rgba(255,68,102,0.2);padding-top:0.7rem;\">";
     ep+="<button onclick=\"deleteEtablissement("+e.id+")\" style=\"width:100%;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,68,102,0.4);background:rgba(255,68,102,0.08);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;\">&#128465; Supprimer mon établissement</button>";
     ep+="</div>";
+    // ── PANNEAU DISPONIBILITÉS LIVE ──
+    ep+="<div class=\"dispo-manager-panel\">";
+    ep+="<div class=\"dispo-manager-title\">&#128202; Disponibilités en direct</div>";
+    ep+="<div id=\"dispoManagerGrid_"+e.id+"\">"+buildDispoManagerGrid(e)+"</div>";
+    ep+="<button class=\"dispo-add-item-btn\" onclick=\"openDispoItemModal("+e.id+")\">&#43; Ajouter un indicateur (plat, chambre, place...)</button>";
+    ep+="</div>";
     ep+="</div>";
   }
 
@@ -5871,6 +6400,7 @@ function buildCard(e,delay,compact,rank){
     "<div style=\"font-size:0.7rem;color:var(--muted);margin-top:0.2rem\">&#128205; "+e.quartier+"</div>"+
     "</div><span class=\"status-pill "+sc+"\">"+e.statut+"</span></div>"+
     affBar+
+    buildDispoPublicStrip(e)+
     "<div class=\"card-ambiance\"><span class=\"lbl\">Ambiance</span><span class=\"val\">"+e.ambiance+"</span></div>"+
     (e.description && getCategory(e.type)==="Hotel" ? "<div style=\"font-size:0.72rem;color:var(--muted);line-height:1.5;padding:0.4rem 0.7rem;background:rgba(0,229,255,0.04);border-radius:8px;margin:0.4rem 0;border-left:2px solid rgba(0,229,255,0.3);\">&#127968; "+e.description+"</div>" : "")+
     (getCategory(e.type)==="Terrasse" || (e.type||"").toLowerCase().indexOf("terrasse")!==-1 ? "<div style=\"padding:0.3rem 0.7rem 0;\"><span class='meteo-terrasse-badge' style='font-size:0.65rem;font-weight:700;'>🌡️ Météo chargement...</span></div>" : "")+
@@ -10837,6 +11367,51 @@ window.doAssignEtab = doAssignEtab;
 .svc-note{font-size:0.65rem;color:var(--muted);text-align:center;margin-top:0.4rem;line-height:1.4;}
 </style>
 
+<!-- ══ MODAL AJOUT DISPONIBILITÉ CUSTOM ══ -->
+<div class="overlay" id="dispoItemOverlay" onclick="if(event.target===this)closeDispoItemModal()">
+  <div class="dispo-modal-wrap">
+    <button class="modal-close" onclick="closeDispoItemModal()">&#10005;</button>
+    <div class="dispo-modal-title">&#43; Ajouter un indicateur</div>
+    <div class="dispo-modal-sub">Visible en temps réel par tous les clients</div>
+
+    <!-- Presets rapides -->
+    <div style="font-size:0.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.4rem;">Sélection rapide</div>
+    <div class="dispo-preset-chips" id="dispoPresetChips"></div>
+
+    <div class="divider"><span>ou personnaliser</span></div>
+
+    <!-- Emoji -->
+    <div style="font-size:0.68rem;font-weight:700;color:var(--muted);margin-bottom:0.4rem;">Icône</div>
+    <div class="dispo-emoji-grid" id="dispoEmojiGrid"></div>
+
+    <!-- Nom -->
+    <div class="field" style="margin-bottom:0.7rem;">
+      <label>Nom de l'indicateur <span class="req">*</span></label>
+      <input type="text" id="dispoItemName" placeholder="Ex: Grillades, Places VIP, Chambres..." maxlength="30">
+    </div>
+
+    <!-- Type -->
+    <div style="font-size:0.68rem;font-weight:700;color:var(--muted);margin-bottom:0.4rem;">Type de valeur</div>
+    <div class="dispo-type-row">
+      <button class="dispo-type-btn active" data-dtype="nombre" onclick="selectDispoType('nombre',this)">&#128290; Nombre</button>
+      <button class="dispo-type-btn" data-dtype="oui_non" onclick="selectDispoType('oui_non',this)">&#9989; Oui/Non</button>
+      <button class="dispo-type-btn" data-dtype="texte" onclick="selectDispoType('texte',this)">&#128196; Texte</button>
+    </div>
+
+    <!-- Valeur initiale -->
+    <div class="field" style="margin-bottom:0.5rem;" id="dispoValField">
+      <label>Quantité initiale</label>
+      <input type="number" id="dispoItemVal" placeholder="Ex: 10" min="0" max="9999" value="10">
+    </div>
+    <div class="field" style="display:none;margin-bottom:0.5rem;" id="dispoTextValField">
+      <label>Texte affiché</label>
+      <input type="text" id="dispoItemTextVal" placeholder="Ex: Disponible, Sur demande..." maxlength="30">
+    </div>
+
+    <button onclick="confirmAddDispoItem()" class="modal-btn" style="background:linear-gradient(135deg,var(--cyan),var(--green));color:#000;margin-top:0.6rem;">&#43; Ajouter cet indicateur</button>
+  </div>
+</div>
+
 <!-- MODAL RESERVATION VIP -->
 <div class="overlay" id="reservationOverlay" onclick="if(event.target===this)closeReservationModal()">
   <div class="modal" style="position:relative;">
@@ -11236,15 +11811,6 @@ window.doAssignEtab = doAssignEtab;
     // ── Photos ──
     var photosHtml = "";
     var photos = Array.isArray(p.photos) ? p.photos : [];
-
-    // ── État d'upload en cours ──
-    var uploadingBanner = "";
-    if(p.uploading){
-      uploadingBanner = '<div style="display:flex;align-items:center;gap:0.5rem;padding:0.55rem 0.75rem;background:rgba(0,229,255,0.07);border-top:1px solid rgba(0,229,255,0.15);font-size:0.72rem;color:var(--cyan);">'
-        +'<span style="animation:spin 1s linear infinite;display:inline-block;">⏳</span>'
-        +'<span>Médias en cours d\'upload… ils apparaîtront dans quelques instants.</span>'
-        +'</div>';
-    }
     if(photos.length){
       var cnt = Math.min(photos.length, 5);
       var countClass = "count-"+cnt;
@@ -11280,7 +11846,6 @@ window.doAssignEtab = doAssignEtab;
       +'</div>'
       +photosHtml
       +videoHtml
-      +uploadingBanner
       +'<div class="pub-footer">'
       +'<button class="pub-action-btn" onclick="likePub(\''+p._id+'\',this)">&#10084;&#65039; <span>'+likes+'</span></button>'
       +'<button class="pub-action-btn" onclick="togglePubComments(\''+p._id+'\',this)">&#128172; <span>'+comments+'</span></button>'
@@ -11603,55 +12168,19 @@ window.doAssignEtab = doAssignEtab;
     if(!file) return;
     if(!file.type.startsWith("video/")){ showVideoErr("Format non supporté (vidéo uniquement)."); return; }
 
-    // Vérification taille max : 50MB
-    if(file.size > 50 * 1024 * 1024){
-      showVideoErr("Fichier trop lourd (max 50 MB). Choisissez une vidéo plus courte.");
-      return;
-    }
-
-    showVideoInfo("⏳ Analyse de la vidéo...");
-
     var objUrl = URL.createObjectURL(file);
     var tmpVid = document.createElement("video");
     tmpVid.preload = "metadata";
     tmpVid.muted = true;
     tmpVid.playsInline = true;
-    tmpVid.setAttribute("playsinline", "");
-
-    // Timeout sécurité : si metadata pas chargée en 8s → accepter le fichier tel quel
-    var metaTimeout = setTimeout(function(){
-      URL.revokeObjectURL(objUrl);
-      hideVideoInfo();
-      _pubVideo = { file: file, dataUrl: null, duration: 0, skippedCheck: true };
-      // Lire dataUrl quand même
-      var reader = new FileReader();
-      reader.onload = function(ev){
-        _pubVideo.dataUrl = ev.target.result;
-        renderPubVideoPreview();
-      };
-      reader.readAsDataURL(file);
-    }, 8000);
 
     tmpVid.onloadedmetadata = function(){
-      clearTimeout(metaTimeout);
       var realDur = tmpVid.duration;
-      URL.revokeObjectURL(objUrl);
-
-      if(!isFinite(realDur) || realDur <= 0){
-        // Durée non lisible (format exotique) → accepter directement
-        hideVideoInfo();
-        var r = new FileReader();
-        r.onload = function(ev){
-          _pubVideo = { file: file, dataUrl: ev.target.result, duration: 0, skippedCheck: true };
-          renderPubVideoPreview();
-        };
-        r.readAsDataURL(file);
-        return;
-      }
+      var targetDur = Math.min(realDur, 10);
 
       if(realDur <= 10){
-        // Vidéo OK, lire dataUrl directement
-        hideVideoInfo();
+        // Vidéo OK, utiliser directement
+        URL.revokeObjectURL(objUrl);
         var reader = new FileReader();
         reader.onload = function(e){
           _pubVideo = { file: file, dataUrl: e.target.result, duration: Math.round(realDur) };
@@ -11661,23 +12190,75 @@ window.doAssignEtab = doAssignEtab;
         return;
       }
 
-      // Vidéo trop longue → avertir l'utilisateur (on ne tente plus le découpage canvas sur mobile)
-      showVideoErr("⚠️ Vidéo trop longue (" + Math.round(realDur) + "s). Choisissez une vidéo ≤ 10 secondes.");
-    };
+      // Vidéo trop longue → découpage automatique à 10s via MediaRecorder
+      showVideoInfo("✂️ Vidéo trop longue — découpage automatique à 10s en cours...");
 
-    tmpVid.onerror = function(){
-      clearTimeout(metaTimeout);
-      URL.revokeObjectURL(objUrl);
-      // Erreur lecture metadata → accepter le fichier tel quel sans vérification
-      hideVideoInfo();
-      var reader = new FileReader();
-      reader.onload = function(e){
-        _pubVideo = { file: file, dataUrl: e.target.result, duration: 0, skippedCheck: true };
-        renderPubVideoPreview();
+      var canvas = document.createElement("canvas");
+      tmpVid.onloadeddata = function(){
+        canvas.width  = tmpVid.videoWidth  || 640;
+        canvas.height = tmpVid.videoHeight || 360;
+        var ctx = canvas.getContext("2d");
+
+        var mimeType = "video/webm;codecs=vp8";
+        if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = "video/webm";
+        if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = "";
+
+        var stream = canvas.captureStream(30);
+        // Ajouter l'audio si disponible
+        try{
+          var audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+          var src = audioCtx.createMediaElementSource(tmpVid);
+          var dest = audioCtx.createMediaStreamDestination();
+          src.connect(dest);
+          dest.stream.getAudioTracks().forEach(function(t){ stream.addTrack(t); });
+        }catch(e){}
+
+        var recorder = new MediaRecorder(stream, mimeType ? {mimeType: mimeType} : {});
+        var chunks = [];
+        recorder.ondataavailable = function(e){ if(e.data && e.data.size>0) chunks.push(e.data); };
+        recorder.onstop = function(){
+          URL.revokeObjectURL(objUrl);
+          var blob = new Blob(chunks, {type: mimeType||"video/webm"});
+          var trimmedFile = new File([blob], "video_trim.webm", {type: blob.type});
+          var reader = new FileReader();
+          reader.onload = function(e){
+            _pubVideo = { file: trimmedFile, dataUrl: e.target.result, duration: 10, trimmed: true };
+            renderPubVideoPreview();
+            showVideoInfo("✅ Vidéo découpée à 10s avec succès !");
+            setTimeout(function(){ hideVideoInfo(); }, 2500);
+          };
+          reader.readAsDataURL(blob);
+        };
+
+        // Dessiner chaque frame sur le canvas
+        var stopped = false;
+        function drawFrame(){
+          if(stopped) return;
+          ctx.drawImage(tmpVid, 0, 0, canvas.width, canvas.height);
+          requestAnimationFrame(drawFrame);
+        }
+
+        tmpVid.currentTime = 0;
+        tmpVid.onplay = function(){
+          drawFrame();
+          recorder.start();
+          setTimeout(function(){
+            stopped = true;
+            tmpVid.pause();
+            recorder.stop();
+          }, 10000);
+        };
+        tmpVid.play().catch(function(){
+          // fallback si autoplay bloqué
+          showVideoErr("Impossible de découper automatiquement. Choisissez une vidéo ≤ 10s.");
+          URL.revokeObjectURL(objUrl);
+        });
       };
-      reader.readAsDataURL(file);
+      tmpVid.src = objUrl;
+      tmpVid.load();
     };
 
+    tmpVid.onerror = function(){ URL.revokeObjectURL(objUrl); showVideoErr("Impossible de lire ce fichier vidéo."); };
     tmpVid.src = objUrl;
   };
 
@@ -11727,30 +12308,10 @@ window.doAssignEtab = doAssignEtab;
 
   async function uploadPubVideo(pubId){
     if(!_pubVideo) return null;
-    var storageOk = window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL;
-    if(!storageOk){
-      // Fallback : retourner la dataUrl directement (vidéo légère)
-      return _pubVideo.dataUrl || null;
-    }
-    var btn = document.getElementById("pubSubmitBtn");
-    if(btn) btn.textContent = "⬆ Vidéo...";
-    var ext = (_pubVideo.file.type.indexOf("mp4") !== -1) ? "mp4" : "webm";
-    var path = "publications/"+pubId+"/video_"+Date.now()+"."+ext;
+    var path = "publications/"+pubId+"/video_"+Date.now()+".mp4";
     var storRef = window.fbRef(window.fbStorage, path);
-    var timeoutPromise = new Promise(function(_, reject){
-      setTimeout(function(){ reject(new Error("Timeout upload vidéo")); }, 60000);
-    });
-    try {
-      var result = await Promise.race([
-        window.fbUploadBytes(storRef, _pubVideo.file).then(function(snap){ return window.fbGetDownloadURL(snap.ref); }),
-        timeoutPromise
-      ]);
-      return result;
-    } catch(e) {
-      console.warn("Video upload failed:", e.message);
-      // Fallback : dataUrl (peut être trop lourd pour Firestore, on ignore)
-      return null;
-    }
+    var snap = await window.fbUploadBytes(storRef, _pubVideo.file);
+    return await window.fbGetDownloadURL(snap.ref);
   }
 
   // ── Compteur publications du jour (localStorage) ──
@@ -11785,62 +12346,18 @@ window.doAssignEtab = doAssignEtab;
     if(btn) btn.classList.toggle("has-new", !!hasNew);
   };
 
-  // ── Upload photos en parallèle avec timeout + fallback dataUrl ──
   async function uploadPubPhotos(pubId){
     if(!_pubPhotos.length) return [];
-    var storageOk = window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL;
-    var btn = document.getElementById("pubSubmitBtn");
-
-    // Fallback : si pas de Storage, stocker les dataUrl directement (Firestore 1MB limit → on redimensionne)
-    if(!storageOk){
-      return _pubPhotos.map(function(item){ return item.dataUrl; });
-    }
-
-    var total = _pubPhotos.length;
-    var uploadOne = function(item, idx){
-      if(btn) btn.textContent = "⬆ Photo "+(idx+1)+"/"+total+"...";
-      var path = "publications/"+pubId+"/photo_"+Date.now()+"_"+idx+".jpg";
-      var storRef = window.fbRef(window.fbStorage, path);
-      // Timeout 30s par photo
-      var timeoutPromise = new Promise(function(_, reject){
-        setTimeout(function(){ reject(new Error("Timeout upload photo "+(idx+1))); }, 30000);
-      });
-      var uploadPromise = window.fbUploadBytes(storRef, item.file)
-        .then(function(snap){ return window.fbGetDownloadURL(snap.ref); });
-      return Promise.race([uploadPromise, timeoutPromise])
-        .catch(function(err){
-          console.warn("Photo upload failed, using dataUrl fallback:", err.message);
-          // fallback : dataUrl compressée
-          return compressToDataUrl(item.dataUrl, 0.6);
-        });
-    };
-
-    // Uploader en parallèle (max 3 à la fois)
     var urls = [];
-    for(var i = 0; i < total; i += 3){
-      var batch = _pubPhotos.slice(i, i+3).map(function(item, j){ return uploadOne(item, i+j); });
-      var batchUrls = await Promise.all(batch);
-      urls = urls.concat(batchUrls);
+    for(var i = 0; i < _pubPhotos.length; i++){
+      var item = _pubPhotos[i];
+      var path = "publications/"+pubId+"/photo_"+Date.now()+"_"+i+".jpg";
+      var storRef = window.fbRef(window.fbStorage, path);
+      var snap = await window.fbUploadBytes(storRef, item.file);
+      var url = await window.fbGetDownloadURL(snap.ref);
+      urls.push(url);
     }
     return urls;
-  }
-
-  // ── Compression image dataUrl (pour fallback) ──
-  function compressToDataUrl(dataUrl, quality){
-    return new Promise(function(resolve){
-      var img = new Image();
-      img.onload = function(){
-        var canvas = document.createElement("canvas");
-        var maxW = 800;
-        var scale = img.width > maxW ? maxW / img.width : 1;
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", quality || 0.65));
-      };
-      img.onerror = function(){ resolve(dataUrl); };
-      img.src = dataUrl;
-    });
   }
 
   function escHtml(s){ return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
@@ -11905,22 +12422,12 @@ window.doAssignEtab = doAssignEtab;
     var texte = document.getElementById("pubTextInput").value.trim();
     var etab  = document.getElementById("pubEtabSelect").value;
     if(!titre || !texte){ showToast("Titre et message requis"); return; }
-
     var btn = document.getElementById("pubSubmitBtn");
     var msg = document.getElementById("pubMsg");
     btn.disabled = true;
-    btn.textContent = "⏳ Envoi...";
-
-    // Snapshot des médias AVANT fermeture
-    var photosToUpload = _pubPhotos.slice();
-    var videoToUpload  = _pubVideo;
-    var hasMedia = photosToUpload.length || videoToUpload;
-
+    var hasMedia = _pubPhotos.length || _pubVideo;
+    btn.textContent = hasMedia ? "⬆ Upload médias..." : "⏳ Envoi...";
     try {
-      if(!window.db || !window.fbAddDoc || !window.fbCollection){
-        throw new Error("Firebase non disponible");
-      }
-
       var data = {
         pseudo: window.currentUserPseudo || window.currentUserEmail || "Anonyme",
         uid: window.currentUserUID,
@@ -11931,60 +12438,35 @@ window.doAssignEtab = doAssignEtab;
         etab: etab || "",
         likes: 0,
         comments: 0,
-        photos: [],
-        video: null,
-        uploading: hasMedia ? true : false,
         createdAt: window.fbServerTimestamp()
       };
-
-      // 1. Créer le doc immédiatement
       var docRef = await window.fbAddDoc(window.fbCollection(window.db, "publications"), data);
-
-      // 2. Incrémenter compteur + fermer modal TOUT DE SUITE → expérience fluide
+      var updates = {};
+      // Upload photos si présentes
+      if(_pubPhotos.length){
+        btn.textContent = "⬆ Photos "+1+"/"+_pubPhotos.length+"...";
+        var photoUrls = await uploadPubPhotos(docRef.id);
+        if(photoUrls.length){ updates.photos = photoUrls; }
+      }
+      // Upload vidéo si présente
+      if(_pubVideo){
+        btn.textContent = "⬆ Vidéo...";
+        var videoUrl = await uploadPubVideo(docRef.id);
+        if(videoUrl){ updates.video = videoUrl; updates.videoDuration = _pubVideo.duration; }
+      }
+      if(Object.keys(updates).length){
+        await window.fbUpdateDoc(window.fbDoc(window.db, "publications", docRef.id), updates);
+      }
+      // Incrémenter compteur journalier
       incTodayPubCount(window.currentUserUID);
       btn.disabled = false;
       btn.textContent = "🚀 Publier";
       window.closePubCompose();
-      showToast(hasMedia ? "✓ Publication créée — médias en cours d'upload..." : "✓ Publication envoyée !");
-
-      // 3. Upload médias EN ARRIÈRE-PLAN si nécessaire
-      if(hasMedia){
-        var updates = {};
-        var progressToast = function(t){ showToast(t); };
-
-        if(photosToUpload.length){
-          progressToast("📸 Upload photos "+photosToUpload.length+"...");
-          // Patcher _pubPhotos temporairement pour uploadPubPhotos
-          var savedPhotos = _pubPhotos;
-          _pubPhotos = photosToUpload;
-          var photoUrls = await uploadPubPhotos(docRef.id);
-          _pubPhotos = savedPhotos;
-          if(photoUrls.length){ updates.photos = photoUrls; }
-        }
-
-        if(videoToUpload){
-          progressToast("🎬 Upload vidéo...");
-          var savedVideo = _pubVideo;
-          _pubVideo = videoToUpload;
-          var videoUrl = await uploadPubVideo(docRef.id);
-          _pubVideo = savedVideo;
-          if(videoUrl){ updates.video = videoUrl; updates.videoDuration = videoToUpload.duration; }
-        }
-
-        updates.uploading = false;
-
-        if(window.fbUpdateDoc && window.fbDoc){
-          await window.fbUpdateDoc(window.fbDoc(window.db, "publications", docRef.id), updates);
-        }
-        showToast("✅ Médias uploadés avec succès !");
-      }
-
+      showToast("Publication envoyée ✓");
     } catch(e) {
       btn.disabled = false;
       btn.textContent = "🚀 Publier";
-      var errMsg = e.message || "Erreur inconnue";
-      if(msg){ msg.textContent = "Erreur : "+errMsg; msg.style.display="block"; msg.style.color="var(--red)"; }
-      showToast("❌ Erreur : "+errMsg);
+      if(msg){ msg.textContent = "Erreur : "+e.message; msg.style.display="block"; msg.style.color="var(--red)"; }
     }
   };
 
