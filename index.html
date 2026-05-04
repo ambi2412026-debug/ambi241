@@ -3579,6 +3579,25 @@ if (document.readyState === 'loading') {
     <button onclick="closeSlotLightbox()" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);font-size:0.75rem;padding:0.3rem 0.7rem;border-radius:8px;cursor:pointer;">Fermer</button>
   </div>
 </div>
+
+<!-- ══ MODAL GESTIONNAIRE DE PHOTOS ══ -->
+<div id="photoManagerModal" class="overlay" onclick="if(event.target===this)closePhotoManager()">
+  <div class="modal" style="max-width:480px;max-height:85vh;overflow-y:auto;position:relative;">
+    <div id="photoManagerContent"></div>
+  </div>
+</div>
+
+<!-- ══ LIGHTBOX PHOTO VISIONNEUSE ══ -->
+<div id="photoViewer" style="display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,0.95);align-items:center;justify-content:center;flex-direction:column;" onclick="if(event.target===this)closePhotoViewer()">
+  <div style="position:relative;max-width:95vw;max-height:80vh;display:flex;align-items:center;justify-content:center;">
+    <img src="" alt="" style="max-width:95vw;max-height:78vh;object-fit:contain;border-radius:10px;display:block;">
+  </div>
+  <div style="display:flex;align-items:center;gap:0.8rem;margin-top:0.8rem;flex-wrap:wrap;justify-content:center;">
+    <button style="background:rgba(255,68,102,0.15);border:1px solid rgba(255,68,102,0.4);color:#ff6680;font-size:0.75rem;font-weight:700;padding:0.3rem 0.7rem;border-radius:8px;cursor:pointer;align-items:center;gap:0.3rem;display:none;">✕ Supprimer</button>
+    <button onclick="closePhotoViewer()" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);font-size:0.75rem;padding:0.3rem 0.7rem;border-radius:8px;cursor:pointer;">Fermer</button>
+  </div>
+</div>
+
 <div class="overlay" id="invitOverlay" onclick="if(event.target===this)closeInvit()">
   <div class="modal" style="text-align:center;position:relative;">
     <button class="modal-close" onclick="closeInvit()">&#10005;</button>
@@ -5372,7 +5391,7 @@ var MAX_SLOT=5;
 function loadSlotPhotos(eid){
   var stored=lsGetJSON("ambi241_slot_photos", {});
   var now=Date.now();
-  return (stored[eid]||[]).filter(function(p){return(now-p.ts)<36000000;});
+  return (stored[eid]||[]).filter(function(p){return(now-p.ts)<0;});
 }
 // ── PAIEMENTS : chargés depuis Firebase, pas de base hardcodée fictive ──
 var _paiementsBase=[];  // sera alimenté exclusivement par Firebase + établissements réels
@@ -5537,7 +5556,7 @@ function loadSoireePhotos(){
   var now=Date.now();
   var cleaned={};
   Object.keys(stored).forEach(function(id){
-    var p=stored[id].filter(function(x){return(now-x.ts)<36000000;});
+    var p=stored[id].filter(function(x){return(now-x.ts)<0;});
     if(p.length>0)cleaned[id]=p;
   });
   lsSetJSON("ambi241_soiree", cleaned);
@@ -5551,7 +5570,7 @@ function saveSoireePhoto(eid,dataUrl){
   soireePhotos=stored;
 }
 function getTimeLeft(ts){
-  var left=36000000-(Date.now()-ts);
+  var left=0-(Date.now()-ts);
   if(left<=0)return"Expiree";
   var h=Math.floor(left/3600000);
   var m=Math.floor((left%3600000)/60000);
@@ -5853,6 +5872,118 @@ function canEditPhotos(e){
   // Un etablissement peut modifier ses propres photos si son email correspond
   var etablEmail=(e.email||"").toLowerCase().trim();
   return etablEmail&&etablEmail===currentUserEmail.toLowerCase().trim();
+}
+
+// ══════════════════════════════════════════════════════════════
+// ══ GESTION DES PHOTOS — MODIFICATION ET SUPPRESSION          ══
+// ══════════════════════════════════════════════════════════════
+
+var _photoManagerEid=null;
+var _photoManagerType=null; // 'slot', 'exterieur', 'interieur'
+
+function openPhotoManager(eid, photoType){
+  var etab=etablissements.find(function(x){return x.id===eid;})||{};
+  if(!canEditPhotos(etab)){showToast("Accès refusé");return;}
+  
+  _photoManagerEid=eid;
+  _photoManagerType=photoType;
+  renderPhotoManager();
+  
+  var modal=document.getElementById("photoManagerModal");
+  if(modal) modal.style.display="flex";
+}
+
+function closePhotoManager(){
+  var modal=document.getElementById("photoManagerModal");
+  if(modal) modal.style.display="none";
+  _photoManagerEid=null;
+  _photoManagerType=null;
+}
+
+function renderPhotoManager(){
+  if(!_photoManagerEid)return;
+  
+  var etab=etablissements.find(function(x){return x.id===_photoManagerEid;})||{};
+  var title="";
+  var currentPhotos=[];
+  
+  if(_photoManagerType==="slot"){
+    title="Photos ce soir";
+    currentPhotos=loadSlotPhotos(_photoManagerEid);
+  } else if(_photoManagerType==="exterieur"){
+    title="Photo Extérieur";
+    currentPhotos=etab.photo_exterieur?[{url:etab.photo_exterieur,ts:0}]:[];
+  } else if(_photoManagerType==="interieur"){
+    title="Photo Intérieur";
+    currentPhotos=etab.photo_interieur?[{url:etab.photo_interieur,ts:0}]:[];
+  }
+  
+  var container=document.getElementById("photoManagerContent");
+  if(!container)return;
+  
+  var html="<div style='padding:1.2rem;'>";
+  html+="<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;'>";
+  html+="<h2 style='font-family:Syne,sans-serif;font-size:1rem;font-weight:800;color:var(--pink);margin:0;'>"+title+"</h2>";
+  html+="<button onclick='closePhotoManager()' style='background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;'>✕</button>";
+  html+="</div>";
+  
+  if(currentPhotos.length===0){
+    html+="<div style='text-align:center;padding:2rem 1rem;color:var(--muted);font-size:0.9rem;'>Aucune photo</div>";
+  } else {
+    html+="<div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.8rem;margin-bottom:1rem;'>";
+    currentPhotos.forEach(function(p,idx){
+      html+="<div style='position:relative;border-radius:12px;overflow:hidden;aspect-ratio:1;background:rgba(255,255,255,0.05);cursor:pointer;' onclick='openPhotoViewer(\""+_photoManagerEid+"\",\""+_photoManagerType+"\","+idx+")'>";
+      html+="<img src='"+p.url+"' style='width:100%;height:100%;object-fit:cover;' onerror=\"this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22><rect fill=%22%23333%22 width=%22100%22 height=%22100%22/></svg>'>";
+      if(canEditPhotos(etab)){
+        html+="<button onclick='event.stopPropagation();deletePhotoConfirm(\""+_photoManagerEid+"\",\""+_photoManagerType+"\","+idx+")' style='position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;background:rgba(255,68,102,0.9);border:none;color:#fff;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;' title='Supprimer'>✕</button>";
+      }
+      html+="</div>";
+    });
+    html+="</div>";
+  }
+  
+  if(_photoManagerType==="slot" && currentPhotos.length<5){
+    html+="<button onclick='triggerPhotoSlotUpload()' style='width:100%;padding:0.75rem;background:rgba(255,45,155,0.15);border:1.5px dashed rgba(255,45,155,0.4);border-radius:8px;color:var(--pink);font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.9rem;'>+ Ajouter une photo</button>";
+  } else if(_photoManagerType==="exterieur" || _photoManagerType==="interieur"){
+    html+="<button onclick='triggerPhotoPermUpload()' style='width:100%;padding:0.75rem;background:rgba(255,45,155,0.15);border:1.5px dashed rgba(255,45,155,0.4);border-radius:8px;color:var(--pink);font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.9rem;'>Changer la photo</button>";
+  }
+  
+  html+="</div>";
+  container.innerHTML=html;
+}
+
+function deletePhotoConfirm(eid, type, idx){
+  if(!confirm("Supprimer cette photo ?"))return;
+  deletePhoto(eid, type, idx);
+  renderPhotoManager();
+  showToast("Photo supprimée");
+}
+
+function deletePhoto(eid, type, idx){
+  if(type==="slot"){
+    deleteSlotPhoto(eid, idx);
+  } else if(type==="exterieur"){
+    var obj={}; obj.photo_exterieur="";
+    updateField(eid, obj);
+  } else if(type==="interieur"){
+    var obj={}; obj.photo_interieur="";
+    updateField(eid, obj);
+  }
+  renderAll();
+  renderHome();
+}
+
+function triggerPhotoSlotUpload(){
+  window.__slotUploadEid=_photoManagerEid;
+  var inp=document.getElementById("__fileSlotPhoto");
+  if(inp) inp.click();
+}
+
+function triggerPhotoPermUpload(){
+  window.__permPhotoEid=_photoManagerEid;
+  window.__permPhotoType=_photoManagerType;
+  var inp=document.getElementById("__filePermPhoto");
+  if(inp) inp.click();
 }
 
 function loadData(){
@@ -8121,10 +8252,9 @@ function buildCard(e,delay,compact,rank){
   if(slotPhotos.length>0){
     photosHtml += "<img src='"+slotPhotos[0].url+"' style='width:100%;height:100%;object-fit:cover;display:block;' onclick='openSlotLightbox("+e.id+",0)'>";
     photosHtml += "<span style='position:absolute;bottom:4px;left:4px;font-size:0.52rem;font-weight:700;color:#fff;background:rgba(0,0,0,0.6);padding:0.1rem 0.3rem;border-radius:4px;'>📸 "+slotPhotos.length+"/"+MAX_SLOT+"</span>";
-    photosHtml += "<span style='position:absolute;bottom:4px;right:4px;font-size:0.5rem;color:rgba(255,255,255,0.8);background:rgba(0,0,0,0.5);padding:0.08rem 0.28rem;border-radius:4px;'>"+getTimeLeft(slotPhotos[0].ts)+"</span>";
-    // Bouton ajout/suppression — UNIQUEMENT responsable/admin
-    if(canManage && slotPhotos.length<MAX_SLOT){
-      photosHtml += "<label for='__fileSlotPhoto' style='position:absolute;top:4px;right:4px;font-size:0.55rem;font-weight:700;color:#fff;background:rgba(255,45,155,0.75);border-radius:5px;padding:0.15rem 0.4rem;cursor:pointer;z-index:5;' onclick='window.__slotUploadEid="+e.id+"'>+ Ajouter</label>";
+    // Bouton gestion photos — UNIQUEMENT responsable/admin
+    if(canManage){
+      photosHtml += "<button onclick='event.stopPropagation();openPhotoManager("+e.id+",\"slot\")' style='position:absolute;top:4px;right:4px;font-size:0.55rem;font-weight:700;color:#fff;background:rgba(255,45,155,0.75);border-radius:5px;padding:0.15rem 0.4rem;cursor:pointer;z-index:5;border:none;'>📸 Gérer</button>";
     }
   } else {
     photosHtml += "<div style='height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.25rem;'>";
@@ -8132,7 +8262,7 @@ function buildCard(e,delay,compact,rank){
     photosHtml += "<span style='font-size:0.55rem;color:var(--muted);'>Galerie ce soir</span>";
     // Bouton ajouter — UNIQUEMENT responsable/admin
     if(canManage){
-      photosHtml += "<label for='__fileSlotPhoto' style='font-size:0.6rem;font-weight:700;color:var(--pink);cursor:pointer;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.3);padding:0.2rem 0.5rem;border-radius:6px;margin-top:0.2rem;' onclick='window.__slotUploadEid="+e.id+"'>+ Ajouter</label>";
+      photosHtml += "<button onclick='openPhotoManager("+e.id+",\"slot\")' style='font-size:0.6rem;font-weight:700;color:var(--pink);cursor:pointer;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.3);padding:0.2rem 0.5rem;border-radius:6px;margin-top:0.2rem;'>+ Ajouter</button>";
     }
     photosHtml += "</div>";
   }
@@ -8198,12 +8328,12 @@ function buildCard(e,delay,compact,rank){
     ep+="<button class=\"opt-btn "+(e.paiement==="Actif"?"sel-pay":"")+"\" data-id=\""+e.id+"\" data-field=\"paiement\" data-val=\"Actif\">Actif</button>";
     ep+="<button class=\"opt-btn "+(e.paiement==="En attente"?"sel-paywait":"")+"\" data-id=\""+e.id+"\" data-field=\"paiement\" data-val=\"En attente\">En attente</button>";
     ep+="</div></div>";
-    ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#128248; Photos ce soir (10h &bull; max "+MAX_SLOT+")</div>";
+    ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#128248; Photos ce soir (illimitées &bull; max "+MAX_SLOT+")</div>";
     var slotNow=loadSlotPhotos(e.id);
     ep+="<div style=\"display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;\">";
     if(slotNow.length>0){
-      ep+="<span style=\"font-size:0.7rem;color:var(--green);padding:0.3rem 0;\">&#9679; "+slotNow.length+"/"+MAX_SLOT+" &bull; "+getTimeLeft(slotNow[0].ts)+"</span>";
-      ep+="<button onclick=\"openSlotLightbox("+e.id+",0)\" style=\"background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#128269; Voir / Suppr.</button>";
+      ep+="<span style=\"font-size:0.7rem;color:var(--green);padding:0.3rem 0;\">&#9679; "+slotNow.length+"/"+MAX_SLOT+"</span>";
+      ep+="<button onclick=\"openPhotoManager("+e.id+",'slot')\" style=\"background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#128269; Gérer photos</button>";
     }
     if(slotNow.length<MAX_SLOT){
       ep+="<label for=\"__fileSlotPhoto\" class=\"mab-btn mab-upload\" style=\"padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;display:inline-block;\" onclick=\"window.__slotUploadEid="+e.id+"\">&#43; Ajouter photo</label>";
@@ -8213,8 +8343,8 @@ function buildCard(e,delay,compact,rank){
     ep+="</div></div>";
     ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">📸 Photos permanentes</div>";
     ep+="<div style=\"display:flex;gap:0.4rem;flex-wrap:wrap;\">";
-    ep+="<button onclick=\"openPhotoModal("+e.id+",'interieur')\" style=\"flex:1;background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);font-size:0.72rem;font-weight:700;padding:0.45rem 0.7rem;border-radius:8px;cursor:pointer;\">"+(e.photo_interieur?"✅":"➕")+" 🏠 Intérieur</button>";
-    ep+="<button onclick=\"openPhotoModal("+e.id+",'exterieur')\" style=\"flex:1;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.45rem 0.7rem;border-radius:8px;cursor:pointer;\">"+(e.photo_exterieur?"✅":"➕")+" 🌍 Extérieur</button>";
+    ep+="<button onclick=\"openPhotoManager("+e.id+",'interieur')\" style=\"flex:1;background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);font-size:0.72rem;font-weight:700;padding:0.45rem 0.7rem;border-radius:8px;cursor:pointer;\">"+(e.photo_interieur?"✅":"➕")+" 🏠 Intérieur</button>";
+    ep+="<button onclick=\"openPhotoManager("+e.id+",'exterieur')\" style=\"flex:1;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.45rem 0.7rem;border-radius:8px;cursor:pointer;\">"+(e.photo_exterieur?"✅":"➕")+" 🌍 Extérieur</button>";
     ep+="</div></div>";
     ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#128205; Lien Maps</div>";
     ep+="<div style=\"display:flex;gap:0.4rem;align-items:center\">";
@@ -8434,12 +8564,12 @@ function buildCard(e,delay,compact,rank){
     // ════ ONGLET MÉDIAS ════
     ep += "<div class='pro-tab-pane pro-pane-hidden' id='proPane-"+e.id+"-medias'>";
 
-    ep += "<div class='pro-sec'>📸 Photos ce soir (10h · max "+MAX_SLOT+")</div>";
+    ep += "<div class='pro-sec'>📸 Photos ce soir (illimitées · max "+MAX_SLOT+")</div>";
     var slotNow2 = loadSlotPhotos(e.id);
     ep += "<div style='display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;margin-bottom:0.8rem;'>";
     if(slotNow2.length>0){
-      ep += "<span style='font-size:0.68rem;color:var(--green);padding:0.28rem 0;'>● "+slotNow2.length+"/"+MAX_SLOT+" · "+getTimeLeft(slotNow2[0].ts)+"</span>"
-        +"<button onclick='openSlotLightbox("+e.id+",0)' style='background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.28);color:var(--cyan);font-size:0.7rem;font-weight:700;padding:0.38rem 0.65rem;border-radius:7px;cursor:pointer;'>👁 Voir / Suppr.</button>";
+      ep += "<span style='font-size:0.68rem;color:var(--green);padding:0.28rem 0;'>● "+slotNow2.length+"/"+MAX_SLOT+"</span>"
+        +"<button onclick='openPhotoManager("+e.id+",\"slot\")' style='background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.28);color:var(--cyan);font-size:0.7rem;font-weight:700;padding:0.38rem 0.65rem;border-radius:7px;cursor:pointer;'>👁 Gérer photos</button>";
     }
     if(slotNow2.length<MAX_SLOT){
       ep += "<label for='__fileSlotPhoto' class='mab-btn mab-upload' style='padding:0.38rem 0.7rem;border-radius:7px;cursor:pointer;display:inline-block;' onclick='window.__slotUploadEid="+e.id+";'>+ Photo ce soir</label>";
@@ -8454,8 +8584,8 @@ function buildCard(e,delay,compact,rank){
 
     ep += "<div class='pro-sec'>🎥 Galerie permanente</div>"
       +"<div style='display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.8rem;'>"
-      +"<button onclick='openPhotoModal("+e.id+",\"interieur\")' style='flex:1;background:rgba(255,45,155,0.09);border:1px solid rgba(255,45,155,0.28);color:var(--pink);font-size:0.72rem;font-weight:700;padding:0.46rem 0.65rem;border-radius:8px;cursor:pointer;'>"+(e.photo_interieur?"✅":"➕")+" 🏠 Intérieur</button>"
-      +"<button onclick='openPhotoModal("+e.id+",\"exterieur\")' style='flex:1;background:rgba(0,229,255,0.09);border:1px solid rgba(0,229,255,0.28);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.46rem 0.65rem;border-radius:8px;cursor:pointer;'>"+(e.photo_exterieur?"✅":"➕")+" 🌍 Extérieur</button>"
+      +"<button onclick='openPhotoManager("+e.id+",\"interieur\")' style='flex:1;background:rgba(255,45,155,0.09);border:1px solid rgba(255,45,155,0.28);color:var(--pink);font-size:0.72rem;font-weight:700;padding:0.46rem 0.65rem;border-radius:8px;cursor:pointer;'>"+(e.photo_interieur?"✅":"➕")+" 🏠 Intérieur</button>"
+      +"<button onclick='openPhotoManager("+e.id+",\"exterieur\")' style='flex:1;background:rgba(0,229,255,0.09);border:1px solid rgba(0,229,255,0.28);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.46rem 0.65rem;border-radius:8px;cursor:pointer;'>"+(e.photo_exterieur?"✅":"➕")+" 🌍 Extérieur</button>"
       +"</div>";
 
     ep += "</div>"; // fin onglet médias
@@ -10236,7 +10366,7 @@ function onSlotPhotoSelected(inp){
     saveSlotPhoto(eid,dataUrl);
     inp.value="";
     renderAll();renderHome();
-    showToast("Photo ajoutee (10h) !");
+    showToast("Photo ajoutée (illimitée) !");
   });
 }
 
@@ -10456,7 +10586,7 @@ function openPhotoUpload(eid){
     reader.onload=function(ev){
       saveSoireePhoto(eid,ev.target.result);
       renderAll();renderHome();
-      showToast("Photo ajoutee (10h)");
+      showToast("Photo ajoutée (illimitée)");
     };
     reader.readAsDataURL(file);
   };
@@ -10468,7 +10598,7 @@ function openPhotoUpload(eid){
 function saveSlotPhoto(eid,dataUrl){
   var stored=lsGetJSON("ambi241_slot_photos", {});
   var now=Date.now();
-  var arr=(stored[eid]||[]).filter(function(p){return(now-p.ts)<36000000;});
+  var arr=(stored[eid]||[]).filter(function(p){return(now-p.ts)<0;});
   if(arr.length>=MAX_SLOT){showToast("Maximum "+MAX_SLOT+" photos atteint");return;}
   arr.push({url:dataUrl,ts:now});
   stored[eid]=arr;
@@ -10479,7 +10609,7 @@ function saveSlotPhoto(eid,dataUrl){
 function deleteSlotPhoto(eid,idx){
   var stored=lsGetJSON("ambi241_slot_photos", {});
   var now=Date.now();
-  var arr=(stored[eid]||[]).filter(function(p){return(now-p.ts)<36000000;});
+  var arr=(stored[eid]||[]).filter(function(p){return(now-p.ts)<0;});
   arr.splice(idx,1);
   stored[eid]=arr;
   lsSetJSON("ambi241_slot_photos", stored);
