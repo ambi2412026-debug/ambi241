@@ -19,7 +19,10 @@
 html{overflow-x:hidden;max-width:100vw;}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;padding-bottom:80px;padding-top:96px;max-width:100vw;}
-body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(255,45,155,0.12) 0%,transparent 50%),radial-gradient(ellipse at 90% 30%,rgba(0,229,255,0.10) 0%,transparent 50%),radial-gradient(ellipse at 50% 90%,rgba(204,68,255,0.08) 0%,transparent 50%);pointer-events:none;z-index:0;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(255,45,155,0.12) 0%,transparent 50%),radial-gradient(ellipse at 90% 30%,rgba(0,229,255,0.10) 0%,transparent 50%),radial-gradient(ellipse at 50% 90%,rgba(204,68,255,0.08) 0%,transparent 50%);pointer-events:none;z-index:0;will-change:transform;}
+/* Optimisation GPU pour les éléments animés */
+.live-dot,.heb-dot,.dispo-updated-dot,.cef-live,.hero-eyebrow-dot{will-change:opacity,transform;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
 
 /* ══════════════════════════════════════════════════════════════
    ══ OPTION 1 — FLASH ÉVÉNEMENT (bandeau dans la carte)       ══
@@ -290,7 +293,6 @@ header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0
 .header-right{display:flex;align-items:center;gap:0.22rem;flex-shrink:0;overflow:visible;flex-wrap:nowrap;}
 .live-pill{display:flex;align-items:center;gap:0.2rem;background:rgba(0,255,170,0.1);border:1px solid rgba(0,255,170,0.3);color:var(--green);font-size:0.5rem;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;padding:0.18rem 0.3rem;border-radius:100px;white-space:nowrap;flex-shrink:0;}
 .live-dot{width:4px;height:4px;background:var(--green);border-radius:50%;animation:pulse 2s infinite;flex-shrink:0;}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
 .user-btn{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.85rem;font-weight:700;padding:0;width:28px;height:28px;min-width:28px;border-radius:50%;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .user-btn:active{transform:scale(0.92);}
 .admin-btn{background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);color:var(--amber);font-size:0.85rem;font-weight:700;padding:0;width:28px;height:28px;min-width:28px;border-radius:50%;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
@@ -1013,7 +1015,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 
 /* CARDS */
 .cards-list{display:flex;flex-direction:column;gap:0.9rem;}
-.card{background:var(--surface);border:1px solid rgba(255,45,155,0.12);border-radius:18px;overflow:hidden;animation:fadeUp 0.4s ease both;transition:border-color 0.2s,box-shadow 0.2s;width:100%;box-sizing:border-box;}
+.card{background:var(--surface);border:1px solid rgba(255,45,155,0.12);border-radius:18px;overflow:hidden;animation:fadeUp 0.4s ease both;transition:border-color 0.2s,box-shadow 0.2s;width:100%;box-sizing:border-box;contain:layout style;}
 .card:hover{border-color:rgba(255,45,155,0.3);box-shadow:0 4px 20px rgba(255,45,155,0.1);}
 
 
@@ -5966,8 +5968,14 @@ function updateSyncTime(){
   document.getElementById("syncTime").textContent=new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
 }
 
-// RENDER HOME
+// RENDER HOME — avec debounce
+var _renderHomeTimer = null;
+var _renderHomeOrig = null;
 function renderHome(){
+  if(_renderHomeTimer) clearTimeout(_renderHomeTimer);
+  _renderHomeTimer = setTimeout(renderHomeImmediate, 16);
+}
+function renderHomeImmediate(){
   var d = etablissements;
 
   /* ── OPTION 2 : Bandeau événement accueil ── */
@@ -9320,16 +9328,24 @@ function computeRealAffluence(e, presData, voteData){
   return result;
 }
 
-/* ── Classement en temps réel basé sur affluence réelle ── */
-function buildRankBadge(eid){
-  if(!etablissements || !etablissements.length) return "";
-  // Calculer l'affluence réelle de tous les étabs
+/* ── Cache des rankings (recalculé UNE SEULE fois par renderAll) ── */
+var _rankCache = null; // { eid -> position }
+
+function _buildRankCache(){
+  if(!etablissements || !etablissements.length){ _rankCache = {}; return; }
   var ranked = etablissements.map(function(e){
     var pd = getPresenceData(e.id) || { count: 0, list: [] };
     var vd = getVoteData(e.id) || { pos: 0, neg: 0 };
     return { id: e.id, score: computeRealAffluence(e, pd, vd) };
   }).sort(function(a,b){ return b.score - a.score; });
-  var pos = ranked.findIndex(function(r){ return r.id === eid; }) + 1;
+  _rankCache = {};
+  ranked.forEach(function(r, i){ _rankCache[r.id] = i + 1; });
+}
+
+/* ── Classement en temps réel basé sur affluence réelle ── */
+function buildRankBadge(eid){
+  if(!_rankCache) _buildRankCache();
+  var pos = _rankCache[eid] || 99;
   if(pos===1) return "<span class=\"ranking-badge rank-1\">🏆 N°1</span>";
   if(pos===2) return "<span class=\"ranking-badge rank-2\">🥈 N°2</span>";
   if(pos===3) return "<span class=\"ranking-badge rank-3\">🥉 N°3</span>";
@@ -9489,8 +9505,18 @@ window.submitRating     = submitRating;
 
 
 
-// RENDER ALL
+// RENDER ALL — avec debounce pour éviter les appels multiples consécutifs
+var _renderAllTimer = null;
+var _renderAllPending = false;
+var _renderAllOrig = renderAllImmediate;
+
 function renderAll(){
+  if(_renderAllTimer) clearTimeout(_renderAllTimer);
+  _renderAllTimer = setTimeout(renderAllImmediate, 16); // 1 frame ~16ms
+}
+
+function renderAllImmediate(){
+  _rankCache = null; // invalider le cache rankings
   loadSoireePhotos();
 
   // ── Bandeau "Mon établissement" (membres propriétaires uniquement) ──
@@ -9558,7 +9584,7 @@ function renderAll(){
   var html=gpsBannerHtml;
   if(currentView==="liste"){
     html+="<div class=\"cards-list\">";
-    data.forEach(function(e,i){html+=buildCard(e,i*0.04,false,i+1);});
+    data.forEach(function(e,i){html+=buildCard(e,i*0.02,false,i+1);}); // délai réduit 0.04→0.02
     html+="</div>";
   } else {
     var groups={};
@@ -9636,7 +9662,6 @@ function toggleConfirme(index){
     var docRef=window.fbDoc(window.db,"paiements",p.id);
     window.fbUpdateDoc(docRef,{statut:newStatut}).then(function(){
       paiements[index].statut=newStatut;
-      renderPayments();
       renderPayments();renderAll();renderHome();
       showToast(newStatut==="Confirme"?"✅ Paiement confirmé — abonnement activé":"⏳ Remis en attente — établissement archivé");
     }).catch(function(){
