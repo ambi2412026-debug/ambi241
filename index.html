@@ -623,6 +623,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 /* ══ RUBRIQUE TYPES D'ÉTABLISSEMENTS ══ */
 .home-types-section{
   margin: 0.8rem 0 1.4rem;
+  padding: 0 1rem;
   animation: fadeUp 0.6s 0.15s ease both;
 }
 .home-section-label{
@@ -723,6 +724,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .home-top6-section{
   margin-bottom:0.9rem;
   animation:fadeUp 0.6s 0.25s ease both;
+  padding:0 1rem;
 }
 .top6-header{
   display:flex;align-items:center;justify-content:space-between;
@@ -859,6 +861,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .home-stats-strip{
   display:grid;grid-template-columns:repeat(4,1fr);gap:0.5rem;
   margin-bottom:1.2rem;
+  padding:0 1rem;
   animation:fadeUp 0.6s 0.1s ease both;
 }
 .hss-chip{
@@ -4613,7 +4616,7 @@ function _showMapsLinkInputModal(eid, etab) {
     '<div style="background:#1a0028;border:1px solid rgba(255,45,155,0.4);border-radius:20px;padding:1.4rem 1.2rem;width:min(380px,100%);max-height:90vh;overflow-y:auto;">',
     '<div style="font-family:Syne,sans-serif;font-size:1rem;font-weight:800;color:#ff2d9b;margin-bottom:0.25rem;">🗺️ Importer une photo</div>',
     '<div style="font-size:0.72rem;color:#b088c0;margin-bottom:1rem;line-height:1.5;">',
-      'Colle un lien Google Maps <em>ou</em> une URL d'image directe.<br>',
+      'Colle un lien Google Maps <em>ou</em> une URL d\'image directe.<br>',
       '<span style="color:#00e5ff;">Ex : https://maps.app.goo.gl/... &nbsp;|&nbsp; https://exemple.com/photo.jpg</span>',
     '</div>',
     '<input id="_mapsLinkInput" type="url" placeholder="https://maps.app.goo.gl/..." ',
@@ -5482,7 +5485,7 @@ function getCategory(type){
   if(t.indexOf("hotel")!==-1||t.indexOf("h\u00f4tel")!==-1||t.indexOf("motel")!==-1||t.indexOf("residence")!==-1||t.indexOf("r\u00e9sidence")!==-1||t.indexOf("lodge")!==-1||t.indexOf("inn")!==-1||t.indexOf("suites")!==-1)return "Hotel";
   if(t.indexOf("disco")!==-1||t.indexOf("nightclub")!==-1||t.indexOf("night club")!==-1)return "Discotheque";
   if(t.indexOf("snack")!==-1)return "Snack";
-  if(t.indexOf("bar-terrasse")!==-1)return "Bar Terrasse";
+  if(t.indexOf("bar-terrasse")!==-1||t.indexOf("bar terrasse")!==-1||t.indexOf("terrasse")!==-1)return "Bar Terrasse";
   if(t.indexOf("patisserie")!==-1||t.indexOf("patisserie")!==-1)return "Restaurant";
   if(t.indexOf("resto")!==-1||t.indexOf("restaurant")!==-1)return "Restaurant";
   if(t.indexOf("cafe")!==-1||t.indexOf("caf")!==-1)return "Restaurant";
@@ -6052,7 +6055,9 @@ function renderHome(){
       var base      = e.affluence || 0;
       var presBonus = Math.min(lp.count * 3, 30);
       var voteBonus = (lv.pos * 2) - (lv.neg * 3);
-      var score     = Math.max(0, Math.min(100, base + presBonus + voteBonus));
+      // Inclure la note comme tiebreaker (×10 pour peser dans le score)
+      var noteBonus = (e.note || 0) * 10;
+      var score     = Math.max(0, Math.min(200, base + presBonus + voteBonus + noteBonus));
       return Object.assign({}, e, { _score: score });
     });
 
@@ -6063,6 +6068,7 @@ function renderHome(){
 
     scored.forEach(function(e){
       var cat = getCategory(e.type);
+      if(categories.indexOf(cat) === -1) return; // ignorer catégories non gérées
       if(!categoryMap[cat] || e._score > categoryMap[cat]._score){
         categoryMap[cat] = e;
       }
@@ -6070,8 +6076,18 @@ function renderHome(){
 
     var topSix = categories.map(function(cat){ return categoryMap[cat]; }).filter(function(x){ return x != null; });
 
+    // Fallback : si moins de 3 catégories représentées, compléter avec les meilleurs tous types confondus
+    if(topSix.length < 3){
+      var usedIds = topSix.map(function(e){ return e.id; });
+      var extras = scored
+        .filter(function(e){ return usedIds.indexOf(e.id) === -1; })
+        .sort(function(a,b){ return b._score - a._score; })
+        .slice(0, 6 - topSix.length);
+      topSix = topSix.concat(extras);
+    }
+
     if(!topSix.length){
-      topEl.innerHTML = '<div style="text-align:center;padding:1.5rem 1rem;color:var(--muted);font-size:0.75rem;">⏳ Meilleurs lieux...</div>';
+      topEl.innerHTML = '<div style="text-align:center;padding:1.5rem 1rem;color:var(--muted);font-size:0.75rem;">Aucun établissement disponible pour le moment.</div>';
       return;
     }
 
