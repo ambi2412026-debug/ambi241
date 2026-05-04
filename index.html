@@ -1804,6 +1804,19 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 
 .taxi-contact-action:hover{background:rgba(255,184,0,0.4);border-color:var(--taxi-gold);box-shadow:0 4px 12px rgba(255,184,0,0.3);}
 
+/* ── TAXI CARD V2 : numéro + WhatsApp + photo chauffeur ── */
+.taxi-card-v2{align-items:center;}
+.taxi-phone-row{display:flex;align-items:center;gap:6px;margin-top:5px;}
+.taxi-phone-num{font-size:11px;color:var(--taxi-gold);font-weight:600;letter-spacing:0.02em;opacity:0.85;}
+.taxi-action-col{display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex-shrink:0;}
+.taxi-wa-btn{background:rgba(37,211,102,0.18);border:1.5px solid rgba(37,211,102,0.5);color:#25d366;width:36px;height:28px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;flex-shrink:0;}
+.taxi-wa-btn:hover{background:rgba(37,211,102,0.3);box-shadow:0 3px 10px rgba(37,211,102,0.3);}
+.taxi-wa-btn:active{transform:scale(0.92);}
+.taxi-call-wrap{position:relative;display:flex;align-items:center;}
+.taxi-driver-avatar{width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid var(--taxi-gold);position:absolute;left:-14px;top:50%;transform:translateY(-50%);box-shadow:0 2px 8px rgba(0,0,0,0.5);z-index:1;}
+.taxi-driver-initials{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--taxi-gold),#FF9500);border:2px solid rgba(255,255,255,0.3);position:absolute;left:-14px;top:50%;transform:translateY(-50%);box-shadow:0 2px 8px rgba(0,0,0,0.5);z-index:1;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:var(--taxi-dark);}
+.taxi-call-wrap .taxi-contact-action{padding-left:18px;}
+
 .taxi-admin-form{background:linear-gradient(135deg,rgba(255,184,0,0.12),rgba(255,184,0,0.06));border:2px solid rgba(255,184,0,0.25);border-radius:12px;padding:16px;margin-bottom:18px;backdrop-filter:blur(10px);}
 
 .taxi-admin-btn{width:100%;padding:13px;background:rgba(255,184,0,0.2);border:1.5px solid rgba(255,184,0,0.4);color:var(--taxi-gold);border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;transition:all 0.25s ease;font-family:'DM Sans',sans-serif;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.03em;}
@@ -10900,13 +10913,13 @@ function renderAdmOverview(){
   // Actions rapides
   html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--amber);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.7rem;'>⚡ Actions rapides</div>";
   html+="<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:1rem;'>";
-  html+="<button data-adm-action='addPlace' class='adm-action-btn' style='background:rgba(0,255,170,0.08);border-color:rgba(0,255,170,0.3);color:var(--green);'>&#43; Ajouter lieu</button>";
-  html+="<button data-adm-action='payments' class='adm-action-btn' style='background:rgba(255,215,0,0.08);border-color:rgba(255,215,0,0.3);color:var(--amber);'>&#128179; Paiements ("+pending+" att.)</button>";
-  html+="<button data-adm-action='notifs' class='adm-action-btn' style='background:rgba(255,45,155,0.08);border-color:rgba(255,45,155,0.3);color:var(--pink);'>&#128276; Notifs ("+totalNotifs+")</button>";
-  html+="<button data-adm-action='moderation' class='adm-action-btn' style='background:rgba(204,68,255,0.08);border-color:rgba(204,68,255,0.3);color:var(--purple);'>&#128737; Modération</button>";
-  html+="<button data-adm-action='sync' class='adm-action-btn' style='background:rgba(0,229,255,0.08);border-color:rgba(0,229,255,0.3);color:var(--cyan);'>&#8635; Synchroniser Firebase</button>";
-  html+="<button data-adm-action='users' class='adm-action-btn' style='background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.1);color:var(--text);'>&#128100; Membres</button>";
-  html+="<button data-adm-action='support' class='adm-action-btn' style='background:rgba(255,215,0,0.07);border-color:rgba(255,215,0,0.25);color:var(--amber);position:relative;'>💬 Support (<span id='admOverviewSupportCount'>…</span>)</button>";
+  html+="<button data-adm-action='addPlace' class='adm-action-btn' onclick='openAdminAddModal()' style='background:rgba(0,255,170,0.08);border-color:rgba(0,255,170,0.3);color:var(--green);'>&#43; Ajouter lieu</button>";
+  html+="<button data-adm-action='payments' class='adm-action-btn' onclick='switchAdmTab(\"payments\")' style='background:rgba(255,215,0,0.08);border-color:rgba(255,215,0,0.3);color:var(--amber);'>&#128179; Paiements ("+pending+" att.)</button>";
+  html+="<button data-adm-action='notifs' class='adm-action-btn' onclick='switchAdmTab(\"notifs\")' style='background:rgba(255,45,155,0.08);border-color:rgba(255,45,155,0.3);color:var(--pink);'>&#128276; Notifs ("+totalNotifs+")</button>";
+  html+="<button data-adm-action='moderation' class='adm-action-btn' onclick='switchAdmTab(\"moderation\")' style='background:rgba(204,68,255,0.08);border-color:rgba(204,68,255,0.3);color:var(--purple);'>&#128737; Modération</button>";
+  html+="<button data-adm-action='sync' class='adm-action-btn' onclick='loadData();showToast&&showToast(\"Synchronisation…\")' style='background:rgba(0,229,255,0.08);border-color:rgba(0,229,255,0.3);color:var(--cyan);'>&#8635; Synchroniser Firebase</button>";
+  html+="<button data-adm-action='users' class='adm-action-btn' onclick='switchAdmTab(\"users\")' style='background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.1);color:var(--text);'>&#128100; Membres</button>";
+  html+="<button data-adm-action='support' class='adm-action-btn' onclick='switchAdmTab(\"support\")' style='background:rgba(255,215,0,0.07);border-color:rgba(255,215,0,0.25);color:var(--amber);position:relative;'>💬 Support (<span id='admOverviewSupportCount'>…</span>)</button>";
   html+="</div>";
 
   // Top affluence
@@ -10925,7 +10938,7 @@ function renderAdmOverview(){
   html+="</div>";
 
   // Raccourci Connexions récentes
-  html+="<div data-adm-action='connexions' style='background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:14px;padding:1rem;cursor:pointer;display:flex;align-items:center;gap:0.8rem;transition:all 0.2s;'>";
+  html+="<div data-adm-action='connexions' onclick='switchAdmTab(\"connexions\")' style='background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:14px;padding:1rem;cursor:pointer;display:flex;align-items:center;gap:0.8rem;transition:all 0.2s;'>";
   html+="<div style='font-size:1.8rem;'>📷</div>";
   html+="<div style='flex:1;'>";
   html+="<div style='font-family:Syne,sans-serif;font-weight:800;color:var(--cyan);font-size:0.88rem;'>Historique des connexions</div>";
@@ -15309,11 +15322,12 @@ let isAdminLoggedIn = false;
 
 // CONTACTS PAR DÉFAUT - LIBREVILLE GABON
 const defaultContacts = [
-  { name: 'GOZEM GABON', phone: '+241 76 51 90 44', type: '🚗 Service Voiture', active: true, hours: '24H/24' },
-  { name: 'Gozem Moto', phone: '+241 76 51 90 44', type: '🏍️ Moto-Taxi', active: true, hours: '24H/24' },
-  { name: 'Gozem Premium', phone: '+241 76 51 90 44', type: '👑 VIP', active: true, hours: '24H/24' },
-  { name: 'TaxiGab+', phone: '+241 77 XX XX XX', type: '🚗 Service Voiture', active: true, hours: '24H/24' },
-  { name: 'SOGATRA', phone: '+241 XX XX XX XX', type: '🚗 Service Voiture', active: false, hours: '06H-22H' }
+  { name: 'Gozem Moto',       phone: '+241 76 51 90 44', whatsapp: '+24176519044', type: '🏍️ Moto-Taxi',       active: true,  hours: '24H/24', isEnterprise: true  },
+  { name: 'Gozem Premium',    phone: '+241 76 51 90 44', whatsapp: '+24176519044', type: '👑 VIP',              active: true,  hours: '24H/24', isEnterprise: true  },
+  { name: 'TaxiGab+',         phone: '+241 77 00 10 10', whatsapp: '+24177001010', type: '🚗 Service Voiture', active: true,  hours: '24H/24', isEnterprise: true  },
+  { name: 'Wilcovic Jeremy',  phone: '+241 06 00 00 01', whatsapp: '+24106000001', type: '🚗 Taxi Particulier', active: true,  hours: '24H/24', isEnterprise: false, photo: '' },
+  { name: 'M. BEDRICK ESSONO',phone: '+241 07 00 00 02', whatsapp: '+24107000002', type: '👑 Taxi Particulier', active: true,  hours: '24H/24', isEnterprise: false, photo: '' },
+  { name: 'SOGATRA',          phone: '+241 01 00 00 03', whatsapp: '+24101000003', type: '🚗 Service Voiture', active: false, hours: '06H-22H', isEnterprise: true  }
 ];
 
 function openTaxiModal() {
@@ -15373,18 +15387,46 @@ function loadTaxiContacts() {
   list.innerHTML = '';
 
   contacts.filter(c => c.active).forEach(contact => {
+    const isIndividual = contact.isEnterprise === false;
+    const initials = contact.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+
+    // Avatar: photo if available, else initials circle
+    const avatarHtml = isIndividual
+      ? (contact.photo
+          ? `<img src="${contact.photo}" class="taxi-driver-avatar" alt="${contact.name}" onerror="this.style.display='none';this.nextSibling.style.display='flex'"><span class="taxi-driver-initials" style="display:none">${initials}</span>`
+          : `<span class="taxi-driver-initials">${initials}</span>`)
+      : '';
+
     const html = `
-      <div class="taxi-contact-card">
+      <div class="taxi-contact-card taxi-card-v2">
         <div class="taxi-contact-icon">${contact.type.split(' ')[0]}</div>
         <div class="taxi-contact-info">
           <div class="taxi-contact-name">${contact.name}</div>
           <div class="taxi-contact-status">${contact.hours || '24H/24'}</div>
+          <div class="taxi-phone-row">
+            <span class="taxi-phone-num">${contact.phone}</span>
+          </div>
         </div>
-        <button class="taxi-contact-action" onclick="callTaxi('${contact.phone}')">APPELER</button>
+        <div class="taxi-action-col">
+          <button class="taxi-wa-btn" onclick="openWhatsApp('${contact.whatsapp||contact.phone}','${contact.name}')" title="WhatsApp">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          </button>
+          <div class="taxi-call-wrap">
+            ${avatarHtml}
+            <button class="taxi-contact-action" onclick="callTaxi('${contact.phone}')">APPELER</button>
+          </div>
+        </div>
       </div>
     `;
     list.innerHTML += html;
   });
+}
+
+function openWhatsApp(phone, name) {
+  const clean = phone.replace(/\s|\+/g, '');
+  const msg = encodeURIComponent('Bonjour ' + name + ', je cherche un taxi. Êtes-vous disponible ?');
+  window.open('https://wa.me/' + clean + '?text=' + msg, '_blank');
+  showTaxiNotification('💬 WhatsApp ouvert...');
 }
 
 function callTaxi(phone) {
@@ -15424,9 +15466,12 @@ function addTaxiContact() {
   contacts.push({
     name: name,
     phone: phone,
+    whatsapp: phone.replace(/\s/g,'').replace('+',''),
     type: type,
     active: true,
-    hours: '24H/24'
+    hours: '24H/24',
+    isEnterprise: document.getElementById('adminTypeEnt') ? document.getElementById('adminTypeEnt').checked : false,
+    photo: ''
   });
 
   localStorage.setItem('taxiContacts', JSON.stringify(contacts));
@@ -15454,12 +15499,25 @@ function loadAdminContacts() {
   list.innerHTML = '';
 
   contacts.forEach((contact, idx) => {
+    const isIndividual = contact.isEnterprise === false;
+    const initials = contact.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    const photoBlock = isIndividual ? `
+      <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+        ${contact.photo
+          ? `<img src="${contact.photo}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;border:1.5px solid var(--taxi-gold);" alt="photo">`
+          : `<div style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--taxi-gold),#FF9500);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#1a0018;">${initials}</div>`}
+        <label style="font-size:11px;color:var(--cyan);cursor:pointer;">📷 Photo
+          <input type="file" accept="image/*" style="display:none;" onchange="uploadDriverPhoto(${idx},this)">
+        </label>
+      </div>` : '';
     const html = `
       <div class="taxi-contact-card" style="margin-bottom:8px;">
         <div class="taxi-contact-icon">${contact.type.split(' ')[0]}</div>
         <div class="taxi-contact-info">
           <div class="taxi-contact-name">${contact.name}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px;">${contact.phone}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${contact.phone}</div>
+          <div style="font-size:10px;color:${isIndividual?'var(--cyan)':'var(--amber)'};margin-top:2px;">${isIndividual?'👤 Particulier':'🏢 Entreprise'}</div>
+          ${photoBlock}
         </div>
         <button class="taxi-admin-btn delete" onclick="deleteContact(${idx})" style="width:auto;padding:6px 10px;margin:0;">
           ✕ Supprimer
@@ -15468,6 +15526,23 @@ function loadAdminContacts() {
     `;
     list.innerHTML += html;
   });
+}
+
+function uploadDriverPhoto(idx, input) {
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    let contacts = JSON.parse(localStorage.getItem('taxiContacts') || JSON.stringify(defaultContacts));
+    if(contacts[idx]) {
+      contacts[idx].photo = e.target.result;
+      localStorage.setItem('taxiContacts', JSON.stringify(contacts));
+      loadAdminContacts();
+      loadTaxiContacts();
+      showTaxiNotification('✓ Photo chauffeur mise à jour');
+    }
+  };
+  reader.readAsDataURL(file);
 }
 
 function showTaxiNotification(msg) {
