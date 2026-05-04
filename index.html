@@ -7652,7 +7652,282 @@ window.selectDispoEmoji = window.selectDispoEmoji;
 window.selectDispoType = window.selectDispoType;
 window.confirmAddDispoItem = window.confirmAddDispoItem;
 
-// ── Bande infos statiques : capacité, musique, âge, dress code ──
+// ══════════════════════════════════════════════════════════════
+// ══  ESPACE GÉRANT PRO — FONCTIONS JAVASCRIPT               ══
+// ══════════════════════════════════════════════════════════════
+
+// ── Switcher d'onglet ─────────────────────────────────────────
+window.proTab = function(eid, name, btn) {
+  ["dispo","statut","medias","stats"].forEach(function(t) {
+    var p = document.getElementById("proPane-"+eid+"-"+t);
+    if(p) p.className = "pro-tab-pane" + (t === name ? "" : " pro-pane-hidden");
+  });
+  var tabs = document.getElementById("proTabs-"+eid);
+  if(tabs) tabs.querySelectorAll(".pro-tab").forEach(function(b){ b.classList.remove("pro-tab-active"); });
+  if(btn) btn.classList.add("pro-tab-active");
+  if(name === "stats") { proLoadResa(eid); proLoadAvis(eid); }
+};
+
+// ── Helper : sauver dans pro_data (sous-collection Firebase) ─
+function _proSave(eid, fields) {
+  var e = etablissements.find(function(x){ return x.id == eid; });
+  if(!e){ showToast("Établissement introuvable"); return; }
+  if(!e.pro_data) e.pro_data = {};
+  Object.keys(fields).forEach(function(k){ e.pro_data[k] = fields[k]; });
+  if(!e._docId || !window.db || !window.fbUpdateDoc || !window.fbDoc){ showToast("💾 Sauvegardé localement"); return; }
+  var fbFields = {};
+  Object.keys(fields).forEach(function(k){ fbFields["pro_data."+k] = fields[k]; });
+  window.fbUpdateDoc(window.fbDoc(window.db,"etablissements",e._docId), fbFields)
+    .then(function(){ showToast("✅ Mis à jour en direct !"); })
+    .catch(function(err){ showToast("Erreur : "+err.message); });
+}
+
+// ── Statut / Ambiance ──────────────────────────────────────────
+window.proStat = function(eid, statut) {
+  updateField(eid, { statut: statut, _adminOverride: true });
+  // Mettre à jour le pill du panneau Pro
+  var pill = document.querySelector("#proPan-"+eid+" .pro-status-pill");
+  var isOpen = statut.indexOf("Ouvert") !== -1;
+  if(pill){
+    pill.className = "pro-status-pill " + (isOpen ? "pro-pill-open" : "pro-pill-closed");
+    pill.textContent = isOpen ? "🟢 Ouvert" : "🔴 Fermé";
+  }
+  // Désactiver tous les boutons statut et activer le bon
+  document.querySelectorAll("#proPan-"+eid+" .pro-stat-btn").forEach(function(b){ b.className="pro-stat-btn"; });
+  var map = {"Ouvert - Anime":"psb-open","Ferme":"psb-closed","Ouvert - Bonde":"psb-full","Ouvert - Calme":"psb-calm"};
+  document.querySelectorAll("#proPan-"+eid+" .pro-stat-btn").forEach(function(b){
+    if(b.textContent.trim().indexOf(statut.replace("Ouvert - ","")) !== -1 && map[statut]){
+      b.classList.add(map[statut]);
+    }
+  });
+  showToast(isOpen ? "🟢 Ouvert — "+statut.replace("Ouvert - ","") : "🔴 Fermé");
+};
+
+// ── Affluence slider ───────────────────────────────────────────
+window.proAff = function(eid, val) {
+  updateField(eid, { affluence: val });
+};
+
+// ── File d'attente ─────────────────────────────────────────────
+window.proFile = function(eid, delta) {
+  var e = etablissements.find(function(x){ return x.id == eid; });
+  if(!e) return;
+  if(!e.pro_data) e.pro_data = {};
+  var d = e.pro_data.dispo || {};
+  var v = Math.max(0, (d.file_attente||0) + delta);
+  d.file_attente = v;
+  _proSave(eid, { dispo: d });
+  var el = document.getElementById("proFile-"+eid);
+  if(el) el.textContent = v;
+};
+window.proFileZero = function(eid) {
+  var e = etablissements.find(function(x){ return x.id == eid; });
+  if(!e || !e.pro_data) return;
+  var d = e.pro_data.dispo || {};
+  d.file_attente = 0;
+  _proSave(eid, { dispo: d });
+  var el = document.getElementById("proFile-"+eid);
+  if(el) el.textContent = 0;
+  showToast("File d'attente vidée ✓");
+};
+
+// ── Disponibilités numérotées ──────────────────────────────────
+window.proAdj = function(eid, key, delta) {
+  var e = etablissements.find(function(x){ return x.id == eid; });
+  if(!e) return;
+  if(!e.pro_data) e.pro_data = {};
+  var d = e.pro_data.dispo || {};
+  var v = Math.max(0, (d[key]||0) + delta);
+  d[key] = v;
+  _proSave(eid, { dispo: d });
+  _proDispoUpdateDOM(eid, key, v);
+};
+window.proSet = function(eid, key) {
+  var inp = document.getElementById("pds-"+eid+"-"+key);
+  if(!inp || inp.value === "") return;
+  var v = Math.max(0, parseInt(inp.value)||0);
+  inp.value = "";
+  var e = etablissements.find(function(x){ return x.id == eid; });
+  if(!e) return;
+  if(!e.pro_data) e.pro_data = {};
+  var d = e.pro_data.dispo || {};
+  d[key] = v;
+  _proSave(eid, { dispo: d });
+  _proDispoUpdateDOM(eid, key, v);
+};
+function _proDispoUpdateDOM(eid, key, v) {
+  var el = document.getElementById("pdn-"+eid+"-"+key);
+  if(el){
+    el.textContent = v;
+    el.className = "pro-dispo-num" + (v===0?" pdn-zero":v<=2?" pdn-low":"");
+  }
+  var card = document.getElementById("pdc-"+eid+"-"+key);
+  if(card) card.style.borderColor = v===0?"rgba(255,68,102,0.4)":v<=2?"rgba(255,215,0,0.4)":"rgba(255,255,255,0.065)";
+}
+
+// ── Promo du jour ──────────────────────────────────────────────
+window.proSavePromo = function(eid) {
+  var inp = document.getElementById("proPromo-"+eid);
+  if(!inp) return;
+  var val = (inp.value||"").trim();
+  _proSave(eid, { promo_jour: val });
+  // Mettre à jour le bandeau public dans la fiche
+  var bar = document.getElementById("pubPromoBar-"+eid);
+  if(bar){
+    if(val){ bar.style.display="flex"; var t=bar.querySelector(".pub-promo-txt"); if(t)t.textContent=val; }
+    else bar.style.display="none";
+  }
+  showToast(val ? "🏷️ Offre publiée en direct !" : "🏷️ Offre retirée");
+};
+
+// ── Message d'ambiance ─────────────────────────────────────────
+window.proSaveMsg = function(eid) {
+  var inp = document.getElementById("proMsg-"+eid);
+  if(!inp) return;
+  var val = (inp.value||"").trim();
+  _proSave(eid, { msg_ambiance: val });
+  var el = document.getElementById("pubMsgAmb-"+eid);
+  if(el){
+    if(val){ el.style.display="flex"; var t=el.querySelector(".pub-msg-amb-txt"); if(t)t.textContent="📢 "+val; }
+    else el.style.display="none";
+  }
+  showToast(val ? "📢 Message publié !" : "📢 Message retiré");
+};
+
+// ── Menu du jour ───────────────────────────────────────────────
+window.proSaveMenu = function(eid) {
+  var inp = document.getElementById("proMenu-"+eid);
+  if(!inp) return;
+  var val = (inp.value||"").trim();
+  _proSave(eid, { menu_jour: val });
+  var el = document.getElementById("pubMenuBanner-"+eid);
+  if(el){
+    if(val){ el.style.display="block"; var t=el.querySelector(".pub-menu-txt"); if(t)t.textContent=val; }
+    else el.style.display="none";
+  }
+  showToast(val ? "🍽️ Menu publié en direct !" : "🍽️ Menu retiré");
+};
+
+// ── Horaires ───────────────────────────────────────────────────
+window.proSaveHoraires = function(eid) {
+  var ouv  = (document.getElementById("proHOuv-"+eid)||{}).value||"";
+  var ferm = (document.getElementById("proHFerm-"+eid)||{}).value||"";
+  if(!ouv||!ferm){ showToast("Renseignez l'ouverture ET la fermeture"); return; }
+  updateField(eid, { ouverture: ouv, fermeture: ferm });
+  showToast("🕒 Horaires mis à jour : "+ouv+" → "+ferm);
+};
+
+// ── Réservations en attente ────────────────────────────────────
+window.proLoadResa = function(eid) {
+  var container = document.getElementById("proResaList-"+eid);
+  if(!container) return;
+  if(!window.db||!window.fbCollection||!window.fbGetDocs||!window.fbQuery||!window.fbWhere){
+    container.innerHTML="<div style='font-size:0.72rem;color:var(--muted);text-align:center;padding:0.7rem;'>Firebase non disponible</div>";
+    return;
+  }
+  container.innerHTML="<div style='font-size:0.72rem;color:var(--muted);text-align:center;padding:0.7rem;'>⏳ Chargement…</div>";
+  var q = window.fbQuery(
+    window.fbCollection(window.db,"reservations"),
+    window.fbWhere("etablissementId","==",String(eid)),
+    window.fbWhere("statut","==","en_attente")
+  );
+  window.fbGetDocs(q).then(function(snap){
+    var list=[];
+    snap.forEach(function(d){ list.push(Object.assign({_docId:d.id},d.data())); });
+    // Mettre à jour KPI
+    var kpi = document.getElementById("proKpiResa-"+eid);
+    if(kpi) kpi.textContent = list.length;
+    if(!list.length){
+      container.innerHTML="<div style='font-size:0.72rem;color:var(--green);text-align:center;padding:0.7rem;'>✅ Aucune réservation en attente</div>";
+      return;
+    }
+    var html="";
+    list.forEach(function(r){
+      var did=(r._docId||"").replace(/"/g,"");
+      var eidStr=String(eid);
+      html+="<div class='pro-resa-item'>"
+        +"<div><div class='pro-resa-nom'>"+escHtml(r.userNom||r.pseudo||"Client")+" · "+escHtml(String(r.nbPersonnes||1))+" pers.</div>"
+        +"<div class='pro-resa-dtl'>"+escHtml(r.userTel||r.telephone||"")+(r.message?" · "+escHtml((r.message||"").substring(0,30)):"")+"</div>"
+        +(r.services?"<div class='pro-resa-dtl' style='color:var(--amber);'>📦 "+escHtml((r.services||"").substring(0,40))+"</div>":"")
+        +"</div>"
+        +"<div style='display:flex;flex-direction:column;gap:0.22rem;flex-shrink:0;'>"
+        +"<button class='pro-resa-ok' onclick='repondreReservation(\""+did+"\",\"confirmée\",\""+eidStr+"\")'>✅ Confirmer</button>"
+        +"<button class='pro-resa-ko' onclick='repondreReservation(\""+did+"\",\"refusée\",\""+eidStr+"\")'>✕ Refuser</button>"
+        +"</div></div>";
+    });
+    container.innerHTML=html;
+  }).catch(function(err){
+    container.innerHTML="<div style='font-size:0.72rem;color:var(--red);text-align:center;padding:0.7rem;'>Erreur : "+escHtml(err.message)+"</div>";
+  });
+};
+
+// ── Derniers avis ──────────────────────────────────────────────
+window.proLoadAvis = function(eid) {
+  var container = document.getElementById("proAvisList-"+eid);
+  if(!container) return;
+  if(!window.db||!window.fbCollection||!window.fbGetDocs||!window.fbQuery){
+    container.innerHTML="<div style='font-size:0.72rem;color:var(--muted);text-align:center;padding:0.7rem;'>Firebase non disponible</div>";
+    return;
+  }
+  container.innerHTML="<div style='font-size:0.72rem;color:var(--muted);text-align:center;padding:0.7rem;'>⏳ Chargement…</div>";
+  var buildQ = function(){
+    try {
+      if(window.fbOrderBy) return window.fbQuery(window.fbCollection(window.db,"etablissements",String(eid),"commentaires"),window.fbOrderBy("ts","desc"));
+    } catch(e){}
+    return window.fbCollection(window.db,"etablissements",String(eid),"commentaires");
+  };
+  window.fbGetDocs(buildQ()).then(function(snap){
+    var list=[];
+    snap.forEach(function(d){ list.push(d.data()); });
+    if(!list.length){
+      container.innerHTML="<div style='font-size:0.72rem;color:var(--muted);text-align:center;padding:0.7rem;'>Aucun avis pour l'instant</div>";
+      return;
+    }
+    var html="";
+    list.slice(0,6).forEach(function(c){
+      var stars="";
+      if(c.note){ for(var i=0;i<5;i++) stars+=i<Math.round(c.note)?"★":"☆"; }
+      html+="<div class='pro-avis-item'>"
+        +"<div class='pro-avis-author'>"+escHtml(c.pseudo||"Membre")+"</div>"
+        +"<div class='pro-avis-txt'>"+escHtml((c.text||"").substring(0,100))+"</div>"
+        +(stars?"<div class='pro-avis-note'>"+stars+"</div>":"")
+        +"</div>";
+    });
+    container.innerHTML=html;
+  }).catch(function(){
+    container.innerHTML="<div style='font-size:0.72rem;color:var(--muted);text-align:center;'>Aucun avis.</div>";
+  });
+};
+
+// ── Charger stats contacts (contacts_clics Firebase) ──────────
+window.proLoadContacts = function(eid) {
+  if(!window.db||!window.fbCollection||!window.fbGetDocs||!window.fbQuery||!window.fbWhere) return;
+  var q = window.fbQuery(window.fbCollection(window.db,"contact_clicks"), window.fbWhere("etabId","==",String(eid)));
+  window.fbGetDocs(q).then(function(snap){
+    var el = document.getElementById("proKpiContacts-"+eid);
+    if(el) el.textContent = snap.size||0;
+  }).catch(function(){});
+};
+
+// ── Auto-init : charger les stats quand un onglet stats est ouvert ─
+// (proLoadResa et proLoadAvis appelés depuis proTab)
+
+// ── Expose publiquement ─────────────────────────────────────────
+window.proTab          = window.proTab;
+window.proStat         = window.proStat;
+window.proAff          = window.proAff;
+window.proFile         = window.proFile;
+window.proFileZero     = window.proFileZero;
+window.proAdj          = window.proAdj;
+window.proSet          = window.proSet;
+window.proSavePromo    = window.proSavePromo;
+window.proSaveMsg      = window.proSaveMsg;
+window.proSaveMenu     = window.proSaveMenu;
+window.proSaveHoraires = window.proSaveHoraires;
+window.proLoadResa     = window.proLoadResa;
+window.proLoadAvis     = window.proLoadAvis;
+window.proLoadContacts = window.proLoadContacts;
+// ══ fin Espace Gérant Pro JS ══
 function buildEtabInfoStrip(e){
   var chips = [];
   if(e.capacite_totale && e.capacite_totale > 0)
@@ -7943,87 +8218,255 @@ function buildCard(e,delay,compact,rank){
     ep+="</div>";
     ep+="</div></div>";
   } else if(!isAdmin && canEditPhotos(e) && !compact) {
-    // Etablissement connecté : peut supprimer son propre établissement (mais pas modifier le statut admin)
-    ep="<div class=\"edit-panel show\" style=\"margin-top:0.6rem;\">";
-    ep+="<div class=\"edit-title\">Gérer — "+e.nom+"</div>";
-    ep+="<div class=\"edit-row\"><div class=\"edit-lbl\">&#128248; Photos ce soir (10h &bull; max "+MAX_SLOT+")</div>";
-    var slotNow2=loadSlotPhotos(e.id);
-    ep+="<div style=\"display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;\">";
-    if(slotNow2.length>0){
-      ep+="<span style=\"font-size:0.7rem;color:var(--green);padding:0.3rem 0;\">&#9679; "+slotNow2.length+"/"+MAX_SLOT+" &bull; "+getTimeLeft(slotNow2[0].ts)+"</span>";
-      ep+="<button onclick=\"openSlotLightbox("+e.id+",0)\" style=\"background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;\">&#128269; Voir / Suppr.</button>";
-    }
-    if(slotNow2.length<MAX_SLOT){
-      ep+="<label for=\"__fileSlotPhoto\" class=\"mab-btn mab-upload\" style=\"padding:0.4rem 0.7rem;border-radius:8px;cursor:pointer;display:inline-block;\" onclick=\"window.__slotUploadEid="+e.id+"\">&#43; Ajouter photo</label>";
-    } else {
-      ep+="<span style=\"font-size:0.7rem;color:var(--amber);\">Maximum atteint</span>";
-    }
-    ep+="</div></div>";
-    // ── Bouton Annoncer un événement (Option 1+2) ──
+    // ══════════════════════════════════════════════════
+    // ══  ESPACE GÉRANT PRO — Panneau complet         ══
+    // ══════════════════════════════════════════════════
+    var cat = getCategory(e.type);
+    var isHotel = cat === "Hotel";
+    var isResto = cat === "Restaurant" || cat === "Snack";
+    var isBar   = cat === "Bar" || cat === "Bar Terrasse" || cat === "Discotheque";
+    var pd = (e.pro_data) || {};
+    var pdDispo = pd.dispo || {};
+    var isOpen = (e.statut||"").indexOf("Ouvert") !== -1;
     var evtActif = e.event_flash && e.event_flash.texte && (Date.now() < (e.event_flash.expire || (e.event_flash.ts + (e.event_flash.duree||6)*3600000)));
-    ep+="<div class=\"edit-row\" style=\"margin-top:0.5rem;border-top:1px solid rgba(255,45,155,0.15);padding-top:0.7rem;\">";
-    ep+="<div class=\"edit-lbl\" style=\"color:var(--pink);\">📣 Événement ce soir</div>";
-    if(evtActif){
-      ep+="<div style=\"display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;margin-top:0.3rem;\">";
-      ep+="<span style=\"font-size:0.72rem;color:var(--green);\">✅ Actif : "+escHtml((e.event_flash.texte||"").substring(0,40))+"</span>";
-      ep+="<button onclick=\"clearEventFlash("+e.id+")\" style=\"background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);color:var(--red);font-size:0.65rem;font-weight:700;padding:0.28rem 0.6rem;border-radius:7px;cursor:pointer;font-family:DM Sans,sans-serif;\">✕ Supprimer l'annonce</button>";
-      ep+="</div>";
-    } else {
-      ep+="<button onclick=\"openEventFlashModal("+e.id+")\" style=\"width:100%;margin-top:0.3rem;padding:0.55rem;border-radius:10px;border:1.5px solid rgba(255,45,155,0.45);background:linear-gradient(135deg,rgba(255,45,155,0.14),rgba(204,68,255,0.08));color:var(--pink);font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;\">📣 Annoncer un événement ce soir</button>";
-    }
-    ep+="</div>";
-    ep+="<div class=\"edit-row\" style=\"margin-top:0.5rem;border-top:1px solid rgba(255,68,102,0.2);padding-top:0.7rem;\">";
-    ep+="<button onclick=\"deleteEtablissement("+e.id+")\" style=\"width:100%;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,68,102,0.4);background:rgba(255,68,102,0.08);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;\">&#128465; Supprimer mon établissement</button>";
-    ep+="</div>";
-    // ── PANNEAU DISPONIBILITÉS LIVE ──
-    ep+="<div class=\"dispo-manager-panel\">";
-    ep+="<div class=\"dispo-manager-title\">&#128202; Disponibilités en direct</div>";
-    ep+="<div id=\"dispoManagerGrid_"+e.id+"\">"+buildDispoManagerGrid(e)+"</div>";
-    ep+="<button class=\"dispo-add-item-btn\" onclick=\"openDispoItemModal("+e.id+")\">&#43; Ajouter un indicateur (plat, chambre, place...)</button>";
-    ep+="</div>";
-    // ── GESTION LIVE CAPACITÉ / AMBIANCE ──
-    ep+="<div style='background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.18);border-radius:14px;padding:0.85rem;margin-top:0.7rem;'>";
-    ep+="<div style='font-family:Syne,sans-serif;font-weight:800;color:var(--cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.7rem;'>📡 Mise à jour live</div>";
 
-    // Tendance affluence
+    // ── Helper : carte dispo individuelle ──
+    function proDispoCard(key, icon, label, max) {
+      var v = pdDispo[key];
+      var numCls = (v === undefined || v === null) ? "" : v === 0 ? " pdn-zero" : v <= 2 ? " pdn-low" : "";
+      var display = (v !== undefined && v !== null) ? v : "—";
+      var borderStyle = v === 0 ? "border-color:rgba(255,68,102,0.38);" : v !== undefined && v <= 2 ? "border-color:rgba(255,215,0,0.38);" : "";
+      return "<div class='pro-dispo-card' id='pdc-"+e.id+"-"+key+"' style='"+borderStyle+"'>"
+        +"<div class='pro-dispo-icon'>"+icon+"</div>"
+        +"<div class='pro-dispo-lbl'>"+label+"</div>"
+        +"<div class='pro-dispo-ctrl'>"
+        +"<button onclick='proAdj("+e.id+",\""+key+"\",-1)'>−</button>"
+        +"<span class='pro-dispo-num"+numCls+"' id='pdn-"+e.id+"-"+key+"'>"+display+"</span>"
+        +"<button onclick='proAdj("+e.id+",\""+key+"\",1)'>+</button>"
+        +"</div>"
+        +"<div class='pro-dispo-setrow'>"
+        +"<input class='pro-dispo-setinp' type='number' min='0' max='"+max+"' placeholder='Total' id='pds-"+e.id+"-"+key+"'>"
+        +"<button class='pro-set-btn' onclick='proSet("+e.id+",\""+key+"\")'>Définir</button>"
+        +"</div>"
+        +"</div>";
+    }
+
+    ep = "<div class='pro-panel' id='proPan-"+e.id+"'>";
+
+    // ── Header ──
+    ep += "<div class='pro-panel-header'>"
+      +"<div class='pro-panel-logo'>🏪</div>"
+      +"<div class='pro-panel-title-col'>"
+      +"<div class='pro-panel-title'>Espace Gérant Pro</div>"
+      +"<div class='pro-panel-sub'>"+escHtml(e.nom)+" · "+escHtml(e.quartier||"")+"</div>"
+      +"</div>"
+      +"<div class='pro-status-pill "+(isOpen?"pro-pill-open":"pro-pill-closed")+"'>"+(isOpen?"🟢 Ouvert":"🔴 Fermé")+"</div>"
+      +"</div>";
+
+    // ── Onglets ──
+    ep += "<div class='pro-tabs' id='proTabs-"+e.id+"'>"
+      +"<button class='pro-tab pro-tab-active' onclick='proTab("+e.id+",\"dispo\",this)'>📦 Dispos</button>"
+      +"<button class='pro-tab' onclick='proTab("+e.id+",\"statut\",this)'>⚡ Statut</button>"
+      +"<button class='pro-tab' onclick='proTab("+e.id+",\"medias\",this)'>📸 Médias</button>"
+      +"<button class='pro-tab' onclick='proTab("+e.id+",\"stats\",this)'>📊 Stats</button>"
+      +"</div>";
+
+    // ════ ONGLET DISPOS ════
+    ep += "<div class='pro-tab-pane' id='proPane-"+e.id+"-dispo'>";
+
+    // Statut rapide
+    ep += "<div class='pro-sec'>⚡ Statut en direct</div>";
+    ep += "<div class='pro-stat-row'>"
+      +"<button class='pro-stat-btn "+(isOpen&&e.statut==="Ouvert - Anime"?"psb-open":"")+"' onclick='proStat("+e.id+",\"Ouvert - Anime\")'>🟢 Ouvert</button>"
+      +"<button class='pro-stat-btn "+(!isOpen?"psb-closed":"")+"' onclick='proStat("+e.id+",\"Ferme\")'>🔴 Fermé</button>"
+      +"<button class='pro-stat-btn "+(e.statut==="Ouvert - Bonde"?"psb-full":"")+"' onclick='proStat("+e.id+",\"Ouvert - Bonde\")'>🔥 Bondé</button>"
+      +"<button class='pro-stat-btn "+(e.statut==="Ouvert - Calme"?"psb-calm":"")+"' onclick='proStat("+e.id+",\"Ouvert - Calme\")'>🟡 Calme</button>"
+      +"</div>";
+
+    // Affluence slider
+    ep += "<div class='pro-slider-row'>"
+      +"<span class='pro-slider-lbl'>Affluence</span>"
+      +"<input type='range' min='0' max='100' value='"+(e.affluence||0)+"' class='pro-slider' "
+      +"oninput='this.nextElementSibling.textContent=this.value+\"%\"' "
+      +"onchange='proAff("+e.id+",parseInt(this.value))'>"
+      +"<span class='pro-slider-val'>"+(e.affluence||0)+"%</span>"
+      +"</div>";
+
+    // File d'attente
+    ep += "<div class='pro-sec'>🕐 File d'attente</div>"
+      +"<div class='pro-file-row'>"
+      +"<button class='pro-cnt-btn' onclick='proFile("+e.id+",-1)'>−</button>"
+      +"<span class='pro-cnt-val' id='proFile-"+e.id+"'>"+(pdDispo.file_attente||0)+"</span>"
+      +"<span class='pro-cnt-unit'>pers. en attente</span>"
+      +"<button class='pro-cnt-btn' onclick='proFile("+e.id+",1)'>+</button>"
+      +"<button class='pro-cnt-zero' onclick='proFileZero("+e.id+")'>Vider</button>"
+      +"</div>";
+
+    // Grille disponibilités par type
+    ep += "<div class='pro-sec'>📦 Disponibilités live</div>"
+      +"<div class='pro-dispo-grid'>";
+    ep += proDispoCard("places",     "🪑", "Places assises", 999);
+    ep += proDispoCard("tables_vip", "🛋️", "Tables VIP", 99);
+    if(isHotel) {
+      ep += proDispoCard("chambres", "🛏️", "Chambres libres", 999);
+      ep += proDispoCard("suites",   "🏨", "Suites / VIP", 99);
+    }
+    if(isResto || isHotel) {
+      ep += proDispoCard("plats",    "🍽️", "Plats dispo", 999);
+    }
+    if(isBar || isResto || isHotel) {
+      ep += proDispoCard("boissons", "🍾", "Stock bouteilles", 9999);
+      ep += proDispoCard("cocktails","🍹", "Cocktails", 999);
+    }
+    ep += "</div>"; // fin grille
+
+    // Indicateurs libres (système existant)
+    ep += "<div class='pro-sec'>🔧 Indicateurs personnalisés</div>"
+      +"<div id='dispoManagerGrid_"+e.id+"'>"+buildDispoManagerGrid(e)+"</div>"
+      +"<button class='dispo-add-item-btn' onclick='openDispoItemModal("+e.id+")'>+ Ajouter un indicateur (plat, chambre, place…)</button>";
+
+    // Promo du jour
+    ep += "<div class='pro-sec' style='margin-top:0.85rem;'>🏷️ Offre spéciale du jour</div>"
+      +"<div style='display:flex;gap:0.4rem;align-items:flex-start;'>"
+      +"<textarea id='proPromo-"+e.id+"' placeholder='Ex: Happy hour 18h-20h | 2 cocktails = 1 offert | Menu à 5000 XAF…' maxlength='120' rows='2' "
+      +"style='flex:1;background:rgba(255,215,0,0.04);border:1px solid rgba(255,215,0,0.18);border-radius:9px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.76rem;padding:0.5rem 0.65rem;resize:none;outline:none;'>"+escHtml(pd.promo_jour||"")+"</textarea>"
+      +"<button onclick='proSavePromo("+e.id+")' style='background:linear-gradient(135deg,rgba(255,215,0,0.2),rgba(255,45,155,0.12));border:1.5px solid rgba(255,215,0,0.42);color:var(--amber);font-family:Syne,sans-serif;font-weight:800;font-size:0.7rem;padding:0.55rem 0.65rem;border-radius:9px;cursor:pointer;white-space:nowrap;'>💾 Publier</button>"
+      +"</div>"
+      +(pd.promo_jour?"<div style='font-size:0.62rem;color:var(--green);margin-top:0.28rem;'>✅ En ligne : "+escHtml((pd.promo_jour||"").substring(0,55))+"…</div>":"");
+
+    ep += "</div>"; // fin onglet dispo
+
+    // ════ ONGLET STATUT ════
+    ep += "<div class='pro-tab-pane pro-pane-hidden' id='proPane-"+e.id+"-statut'>";
+
+    // Horaires
+    ep += "<div class='pro-sec'>🕒 Horaires du jour</div>"
+      +"<div style='display:flex;gap:0.45rem;align-items:center;flex-wrap:wrap;margin-bottom:0.8rem;'>"
+      +"<input type='time' id='proHOuv-"+e.id+"' value='"+(e.ouverture||"18:00")+"' style='background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.18);border-radius:8px;color:var(--text);font-size:0.8rem;padding:0.38rem 0.5rem;'>"
+      +"<span style='color:var(--muted);font-size:0.78rem;'>→</span>"
+      +"<input type='time' id='proHFerm-"+e.id+"' value='"+(e.fermeture||"02:00")+"' style='background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.18);border-radius:8px;color:var(--text);font-size:0.8rem;padding:0.38rem 0.5rem;'>"
+      +"<button onclick='proSaveHoraires("+e.id+")' style='background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.28);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.72rem;padding:0.4rem 0.75rem;border-radius:8px;cursor:pointer;'>💾 Sauver</button>"
+      +"</div>";
+
+    // Événement ce soir
+    ep += "<div class='pro-sec'>📣 Événement ce soir</div>";
+    if(evtActif){
+      ep += "<div style='background:rgba(255,45,155,0.07);border:1px solid rgba(255,45,155,0.28);border-radius:9px;padding:0.55rem 0.75rem;display:flex;align-items:center;gap:0.45rem;margin-bottom:0.7rem;'>"
+        +"<span style='font-size:0.73rem;color:var(--green);flex:1;'>✅ "+escHtml((e.event_flash.texte||"").substring(0,50))+"</span>"
+        +"<button onclick='clearEventFlash("+e.id+")' style='background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.28);color:var(--red);font-size:0.62rem;font-weight:700;padding:0.18rem 0.5rem;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;'>✕ Retirer</button>"
+        +"</div>";
+    } else {
+      ep += "<button onclick='openEventFlashModal("+e.id+")' style='width:100%;margin-bottom:0.7rem;padding:0.58rem;border-radius:10px;border:1.5px solid rgba(255,45,155,0.42);background:linear-gradient(135deg,rgba(255,45,155,0.12),rgba(204,68,255,0.07));color:var(--pink);font-family:Syne,sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer;'>📣 Annoncer un événement ce soir</button>";
+    }
+
+    // Message d'ambiance
+    ep += "<div class='pro-sec'>💬 Message d'ambiance</div>"
+      +"<div style='display:flex;gap:0.4rem;align-items:center;margin-bottom:0.7rem;'>"
+      +"<input type='text' id='proMsg-"+e.id+"' maxlength='80' value='"+escHtml(pd.msg_ambiance||"")+"' placeholder='Ex : DJ set à 22h 🎧 | Terrasse ouverte | Cuisine jusqu'à minuit…' style='flex:1;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.09);border-radius:9px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.78rem;padding:0.5rem 0.65rem;outline:none;'>"
+      +"<button onclick='proSaveMsg("+e.id+")' style='background:rgba(255,45,155,0.1);border:1.5px solid rgba(255,45,155,0.35);color:var(--pink);font-family:Syne,sans-serif;font-weight:800;font-size:0.7rem;padding:0.52rem 0.65rem;border-radius:9px;cursor:pointer;white-space:nowrap;'>📢 Publier</button>"
+      +"</div>"
+      +(pd.msg_ambiance?"<div style='font-size:0.62rem;color:var(--cyan);margin-top:-0.4rem;margin-bottom:0.5rem;'>📢 En ligne : "+escHtml(pd.msg_ambiance)+"</div>":"");
+
+    // Menu / Carte du jour
+    ep += "<div class='pro-sec'>🍽️ Menu / Carte du jour</div>"
+      +"<div style='display:flex;gap:0.4rem;align-items:flex-start;margin-bottom:0.7rem;'>"
+      +"<textarea id='proMenu-"+e.id+"' placeholder='Ex: Entrée : Salade | Plat : Poulet DG | Dessert : Gâteau maison | Boisson incluse' maxlength='300' rows='3' "
+      +"style='flex:1;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.09);border-radius:9px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.76rem;padding:0.5rem 0.65rem;resize:none;outline:none;'>"+escHtml(pd.menu_jour||"")+"</textarea>"
+      +"<button onclick='proSaveMenu("+e.id+")' style='background:rgba(0,255,170,0.09);border:1.5px solid rgba(0,255,170,0.28);color:var(--green);font-family:Syne,sans-serif;font-weight:800;font-size:0.7rem;padding:0.52rem 0.65rem;border-radius:9px;cursor:pointer;white-space:nowrap;'>📋 Publier</button>"
+      +"</div>"
+      +(pd.menu_jour?"<div style='font-size:0.62rem;color:var(--green);margin-top:-0.3rem;margin-bottom:0.5rem;'>🍽️ Actif : "+escHtml((pd.menu_jour||"").substring(0,55))+"…</div>":"");
+
+    // Musique ce soir (système existant)
+    var curMusiSoir = e.musique_soir || "";
+    ep += "<div class='pro-sec'>🎵 Musique ce soir</div>"
+      +"<div style='display:flex;gap:0.4rem;margin-bottom:0.7rem;'>"
+      +"<input type='text' id='musiSoirInput_"+e.id+"' value='"+escHtml(curMusiSoir)+"' placeholder='Ex: DJ Set · Afrobeats & Coupé-Décalé' maxlength='80' style='flex:1;background:var(--surface2);border:1px solid rgba(255,45,155,0.2);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.78rem;font-family:DM Sans,sans-serif;outline:none;'>"
+      +"<button onclick='var v=(document.getElementById(\"musiSoirInput_"+e.id+"\").value||\"\").trim();updateField("+e.id+",{musique_soir:v});showToast(\"✅ Musique mise à jour\")' style='padding:0.45rem 0.8rem;border-radius:8px;background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);font-size:0.72rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap;'>OK</button>"
+      +"</div>";
+
+    // Tendance affluence (système existant)
     var curTend = e.affluence_tendance || "Stable";
-    ep+="<div style='margin-bottom:0.7rem;'>";
-    ep+="<div style='font-size:0.68rem;color:var(--muted);margin-bottom:0.4rem;font-weight:700;'>📈 Tendance affluence</div>";
-    ep+="<div style='display:flex;gap:0.3rem;flex-wrap:wrap;'>";
+    ep += "<div class='pro-sec'>📈 Tendance affluence</div>"
+      +"<div style='display:flex;gap:0.3rem;flex-wrap:wrap;margin-bottom:0.7rem;'>";
     var tends = [
-      {v:"En hausse",  l:"↗ En hausse", cls:"tend-up"},
-      {v:"Stable",     l:"→ Stable",    cls:"tend-stab"},
-      {v:"En baisse",  l:"↘ Se libère", cls:"tend-down"},
-      {v:"Saturé",     l:"🔴 Saturé",   cls:"tend-full"}
+      {v:"En hausse",l:"↗ En hausse",cls:"tend-up"},
+      {v:"Stable",   l:"→ Stable",   cls:"tend-stab"},
+      {v:"En baisse",l:"↘ Se libère",cls:"tend-down"},
+      {v:"Saturé",   l:"🔴 Saturé",  cls:"tend-full"}
     ];
     tends.forEach(function(t){
-      ep+="<button class='tend-btn "+t.cls+(curTend===t.v?" active-tend":"")+"' onclick=\"updateField("+e.id+",{affluence_tendance:'"+t.v+"'});document.querySelectorAll('#card-etab-"+e.id+" .tend-btn').forEach(function(b){b.classList.remove('active-tend')});this.classList.add('active-tend')\">"+t.l+"</button>";
+      ep += "<button class='tend-btn "+t.cls+(curTend===t.v?" active-tend":"")+"' onclick=\"updateField("+e.id+",{affluence_tendance:'"+t.v+"'});document.querySelectorAll('#card-etab-"+e.id+" .tend-btn').forEach(function(b){b.classList.remove('active-tend')});this.classList.add('active-tend')\">"+t.l+"</button>";
     });
-    ep+="</div></div>";
+    ep += "</div>";
 
-    // Places disponibles
-    var curDispo = (e.places_dispo !== undefined && e.places_dispo !== null) ? e.places_dispo : "";
-    ep+="<div style='margin-bottom:0.7rem;'>";
-    ep+="<div style='font-size:0.68rem;color:var(--muted);margin-bottom:0.4rem;font-weight:700;'>🪑 Places disponibles en ce moment</div>";
-    ep+="<div style='display:flex;gap:0.4rem;align-items:center;'>";
-    ep+="<input type='number' id='placesDispoInput_"+e.id+"' min='0' max='"+(e.capacite_totale||999)+"' value='"+curDispo+"' placeholder='Ex: 45' style='flex:1;background:var(--surface2);border:1px solid rgba(0,229,255,0.25);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.82rem;font-family:DM Sans,sans-serif;'>";
-    ep+="<button onclick=\"var v=parseInt(document.getElementById('placesDispoInput_"+e.id+"').value)||0;updateField("+e.id+",{places_dispo:v});showToast('✅ Places mises à jour')\" style='padding:0.45rem 0.8rem;border-radius:8px;background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.72rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap;'>Enregistrer</button>";
-    if(e.capacite_totale > 0){
-      ep+="<span style='font-size:0.6rem;color:var(--muted);white-space:nowrap;'>/ "+e.capacite_totale+" total</span>";
+    // Places dispo (système existant)
+    var curPlacesDispo = (e.places_dispo !== undefined && e.places_dispo !== null) ? e.places_dispo : "";
+    ep += "<div class='pro-sec'>🪑 Places dispo maintenant</div>"
+      +"<div style='display:flex;gap:0.4rem;align-items:center;margin-bottom:0.7rem;'>"
+      +"<input type='number' id='placesDispoInput_"+e.id+"' min='0' max='"+(e.capacite_totale||999)+"' value='"+curPlacesDispo+"' placeholder='Ex: 45' style='flex:1;background:var(--surface2);border:1px solid rgba(0,229,255,0.22);border-radius:8px;color:var(--text);padding:0.43rem 0.6rem;font-size:0.8rem;font-family:DM Sans,sans-serif;outline:none;'>"
+      +"<button onclick='var v=parseInt(document.getElementById(\"placesDispoInput_"+e.id+"\").value)||0;updateField("+e.id+",{places_dispo:v});showToast(\"✅ Places mises à jour\")' style='padding:0.43rem 0.75rem;border-radius:8px;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.28);color:var(--cyan);font-size:0.7rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap;'>Enregistrer</button>"
+      +(e.capacite_totale>0?"<span style='font-size:0.58rem;color:var(--muted);white-space:nowrap;'>/ "+e.capacite_totale+" total</span>":"")
+      +"</div>";
+
+    ep += "</div>"; // fin onglet statut
+
+    // ════ ONGLET MÉDIAS ════
+    ep += "<div class='pro-tab-pane pro-pane-hidden' id='proPane-"+e.id+"-medias'>";
+
+    ep += "<div class='pro-sec'>📸 Photos ce soir (10h · max "+MAX_SLOT+")</div>";
+    var slotNow2 = loadSlotPhotos(e.id);
+    ep += "<div style='display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;margin-bottom:0.8rem;'>";
+    if(slotNow2.length>0){
+      ep += "<span style='font-size:0.68rem;color:var(--green);padding:0.28rem 0;'>● "+slotNow2.length+"/"+MAX_SLOT+" · "+getTimeLeft(slotNow2[0].ts)+"</span>"
+        +"<button onclick='openSlotLightbox("+e.id+",0)' style='background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.28);color:var(--cyan);font-size:0.7rem;font-weight:700;padding:0.38rem 0.65rem;border-radius:7px;cursor:pointer;'>👁 Voir / Suppr.</button>";
     }
-    ep+="</div></div>";
+    if(slotNow2.length<MAX_SLOT){
+      ep += "<label for='__fileSlotPhoto' class='mab-btn mab-upload' style='padding:0.38rem 0.7rem;border-radius:7px;cursor:pointer;display:inline-block;' onclick='window.__slotUploadEid="+e.id+";'>+ Photo ce soir</label>";
+    } else {
+      ep += "<span style='font-size:0.68rem;color:var(--amber);'>Maximum "+MAX_SLOT+"/"+MAX_SLOT+" atteint</span>";
+    }
+    ep += "</div>";
 
-    // Musique ce soir
-    var curMusiSoir = e.musique_soir || "";
-    ep+="<div>";
-    ep+="<div style='font-size:0.68rem;color:var(--muted);margin-bottom:0.4rem;font-weight:700;'>🎵 Musique programmée ce soir</div>";
-    ep+="<div style='display:flex;gap:0.4rem;'>";
-    ep+="<input type='text' id='musiSoirInput_"+e.id+"' value='"+escHtml(curMusiSoir)+"' placeholder='Ex: DJ Set · Afrobeats & Coupé-Décalé' maxlength='80' style='flex:1;background:var(--surface2);border:1px solid rgba(255,45,155,0.2);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.78rem;font-family:DM Sans,sans-serif;'>";
-    ep+="<button onclick=\"var v=(document.getElementById('musiSoirInput_"+e.id+"').value||'').trim();updateField("+e.id+",{musique_soir:v});showToast('✅ Musique mise à jour')\" style='padding:0.45rem 0.8rem;border-radius:8px;background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);font-size:0.72rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap;'>OK</button>";
-    ep+="</div>";
-    ep+="</div>";
-    ep+="</div>"; // fin section live
-    ep+="</div>";
+    ep += "<div class='pro-sec'>🖼️ Photo officielle</div>"
+      +"<button onclick='proposeGooglePhotoProfile("+e.id+")' style='width:100%;margin-bottom:0.8rem;background:rgba(255,45,155,0.09);border:1px solid rgba(255,45,155,0.28);color:var(--pink);font-size:0.73rem;font-weight:700;padding:0.48rem 0.7rem;border-radius:8px;cursor:pointer;'>"
+      +(e._photo_profile_approved||e.photo_interieur?"✅ Modifier la photo de présentation":"➕ Ajouter une photo de présentation")+"</button>";
+
+    ep += "<div class='pro-sec'>🎥 Galerie permanente</div>"
+      +"<div style='display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.8rem;'>"
+      +"<button onclick='openPhotoModal("+e.id+",\"interieur\")' style='flex:1;background:rgba(255,45,155,0.09);border:1px solid rgba(255,45,155,0.28);color:var(--pink);font-size:0.72rem;font-weight:700;padding:0.46rem 0.65rem;border-radius:8px;cursor:pointer;'>"+(e.photo_interieur?"✅":"➕")+" 🏠 Intérieur</button>"
+      +"<button onclick='openPhotoModal("+e.id+",\"exterieur\")' style='flex:1;background:rgba(0,229,255,0.09);border:1px solid rgba(0,229,255,0.28);color:var(--cyan);font-size:0.72rem;font-weight:700;padding:0.46rem 0.65rem;border-radius:8px;cursor:pointer;'>"+(e.photo_exterieur?"✅":"➕")+" 🌍 Extérieur</button>"
+      +"</div>";
+
+    ep += "</div>"; // fin onglet médias
+
+    // ════ ONGLET STATS ════
+    ep += "<div class='pro-tab-pane pro-pane-hidden' id='proPane-"+e.id+"-stats'>";
+
+    ep += "<div class='pro-kpi-grid'>"
+      +"<div class='pro-kpi'><div class='pro-kpi-val kv-amber' id='proKpiResa-"+e.id+"'>—</div><div class='pro-kpi-lbl'>Résas en attente</div></div>"
+      +"<div class='pro-kpi'><div class='pro-kpi-val kv-cyan' id='proKpiContacts-"+e.id+"'>—</div><div class='pro-kpi-lbl'>Contacts reçus</div></div>"
+      +"<div class='pro-kpi'><div class='pro-kpi-val kv-green'>"+(e.affluence||0)+"%</div><div class='pro-kpi-lbl'>Affluence actuelle</div></div>"
+      +"<div class='pro-kpi'><div class='pro-kpi-val kv-pink'>"+(e.note?e.note.toFixed(1)+"★":"—")+"</div><div class='pro-kpi-lbl'>Note moy.</div></div>"
+      +"</div>";
+
+    // Réservations en attente
+    ep += "<div class='pro-sec'>⭐ Réservations VIP en attente</div>"
+      +"<div id='proResaList-"+e.id+"' style='margin-bottom:0.5rem;'><div style='font-size:0.72rem;color:var(--muted);text-align:center;padding:0.7rem;'>Appuyer sur Actualiser ↓</div></div>"
+      +"<button onclick='proLoadResa("+e.id+")' style='width:100%;margin-bottom:0.8rem;background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.22);color:var(--amber);font-family:Syne,sans-serif;font-weight:700;font-size:0.72rem;padding:0.42rem;border-radius:8px;cursor:pointer;'>🔄 Actualiser les réservations</button>";
+
+    // Derniers avis
+    ep += "<div class='pro-sec'>💬 Derniers avis clients</div>"
+      +"<div id='proAvisList-"+e.id+"' style='margin-bottom:0.5rem;'><div style='font-size:0.72rem;color:var(--muted);text-align:center;padding:0.7rem;'>Appuyer sur Actualiser ↓</div></div>"
+      +"<button onclick='proLoadAvis("+e.id+")' style='width:100%;margin-bottom:0.5rem;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.18);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.72rem;padding:0.42rem;border-radius:8px;cursor:pointer;'>🔄 Actualiser les avis</button>";
+
+    ep += "</div>"; // fin onglet stats
+
+    // ── Danger zone ──
+    ep += "<div class='pro-danger-row'>"
+      +"<button onclick='deleteEtablissement("+e.id+")' class='pro-danger-btn'>🗑️ Supprimer mon établissement</button>"
+      +"</div>";
+
+    ep += "</div>"; // fin pro-panel
   }
 
   var commentsHtml = compact ? "" : buildCommentsSection(e);
@@ -8085,6 +8528,39 @@ function buildCard(e,delay,compact,rank){
     buildDispoPublicStrip(e)+
     buildEtabInfoStrip(e)+
     buildLiveDispoBar(e, canManage)+
+    // ── Bandeau Offre spéciale du jour (pro_data.promo_jour) ──
+    (function(){
+      var pd = e.pro_data || {};
+      var html = "";
+      if(pd.promo_jour){
+        html += "<div class='pub-promo-bar' id='pubPromoBar-"+e.id+"'>"
+          +"<span class='pub-promo-tag'>🏷️ Offre</span>"
+          +"<span class='pub-promo-txt'>"+escHtml(pd.promo_jour)+"</span>"
+          +"</div>";
+      } else {
+        html += "<div class='pub-promo-bar' id='pubPromoBar-"+e.id+"' style='display:none;'>"
+          +"<span class='pub-promo-tag'>🏷️ Offre</span><span class='pub-promo-txt'></span></div>";
+      }
+      if(pd.msg_ambiance){
+        html += "<div class='pub-msg-amb' id='pubMsgAmb-"+e.id+"'>"
+          +"<span style='font-size:0.85rem;flex-shrink:0;'>📢</span>"
+          +"<span class='pub-msg-amb-txt'>"+escHtml(pd.msg_ambiance)+"</span>"
+          +"</div>";
+      } else {
+        html += "<div class='pub-msg-amb' id='pubMsgAmb-"+e.id+"' style='display:none;'>"
+          +"<span style='font-size:0.85rem;flex-shrink:0;'>📢</span><span class='pub-msg-amb-txt'></span></div>";
+      }
+      if(pd.menu_jour){
+        html += "<div class='pub-menu-banner' id='pubMenuBanner-"+e.id+"'>"
+          +"<div class='pub-menu-title'>🍽️ Menu du jour</div>"
+          +"<div class='pub-menu-txt'>"+escHtml(pd.menu_jour)+"</div>"
+          +"</div>";
+      } else {
+        html += "<div class='pub-menu-banner' id='pubMenuBanner-"+e.id+"' style='display:none;'>"
+          +"<div class='pub-menu-title'>🍽️ Menu du jour</div><div class='pub-menu-txt'></div></div>";
+      }
+      return html;
+    })()+
     "<div class=\"card-ambiance\"><span class=\"lbl\">Ambiance</span><span class=\"val\">"+e.ambiance+"</span></div>"+
     (e.description && getCategory(e.type)==="Hotel" ? "<div style=\"font-size:0.72rem;color:var(--muted);line-height:1.5;padding:0.4rem 0.7rem;background:rgba(0,229,255,0.04);border-radius:8px;margin:0.4rem 0;border-left:2px solid rgba(0,229,255,0.3);\">&#127968; "+e.description+"</div>" : "")+
     (getCategory(e.type)==="Terrasse" || (e.type||"").toLowerCase().indexOf("terrasse")!==-1 ? "<div style=\"padding:0.3rem 0.7rem 0;\"><span class='meteo-terrasse-badge' style='font-size:0.65rem;font-weight:700;'>🌡️ Météo chargement...</span></div>" : "")+
@@ -13742,6 +14218,99 @@ window.doAssignEtab = doAssignEtab;
 /* Section capacité dans formulaire */
 .cap-section{background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.2);border-radius:14px;padding:1rem;margin-bottom:0.9rem;}
 .cap-section-title{font-size:0.68rem;color:var(--cyan);font-weight:800;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.75rem;}
+
+/* ══════════════════════════════════════
+   ESPACE GÉRANT PRO — CSS COMPLET
+   ══════════════════════════════════════ */
+.pro-panel{background:linear-gradient(145deg,rgba(14,0,26,0.99),rgba(8,0,16,0.99));border:1.5px solid rgba(255,215,0,0.32);border-radius:18px;margin:0.7rem 0;overflow:hidden;box-shadow:0 4px 32px rgba(255,215,0,0.07);}
+.pro-panel-header{display:flex;align-items:center;gap:0.6rem;padding:0.85rem 1rem 0.7rem;background:linear-gradient(90deg,rgba(255,215,0,0.1),rgba(255,45,155,0.05));border-bottom:1px solid rgba(255,215,0,0.13);}
+.pro-panel-logo{font-size:1.4rem;flex-shrink:0;}
+.pro-panel-title-col{flex:1;min-width:0;}
+.pro-panel-title{font-family:'Syne',sans-serif;font-weight:800;font-size:0.82rem;color:var(--amber);letter-spacing:0.03em;}
+.pro-panel-sub{font-size:0.6rem;color:var(--muted);margin-top:0.08rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pro-status-pill{font-size:0.62rem;font-weight:800;padding:0.2rem 0.55rem;border-radius:100px;white-space:nowrap;flex-shrink:0;}
+.pro-pill-open{background:rgba(0,255,170,0.15);color:var(--green);border:1px solid rgba(0,255,170,0.4);}
+.pro-pill-closed{background:rgba(255,68,102,0.15);color:var(--red);border:1px solid rgba(255,68,102,0.4);}
+/* Tabs */
+.pro-tabs{display:flex;border-bottom:1px solid rgba(255,215,0,0.11);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.pro-tabs::-webkit-scrollbar{display:none;}
+.pro-tab{flex-shrink:0;padding:0.58rem 0.85rem;border:none;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:0.7rem;font-weight:600;cursor:pointer;border-bottom:2.5px solid transparent;transition:all 0.18s;white-space:nowrap;}
+.pro-tab.pro-tab-active{color:var(--amber);border-bottom-color:var(--amber);background:rgba(255,215,0,0.04);}
+.pro-tab:active{opacity:0.65;}
+.pro-tab-pane{padding:0.8rem 0.85rem;}
+.pro-tab-pane.pro-pane-hidden{display:none;}
+/* Section labels */
+.pro-sec{font-family:'Syne',sans-serif;font-weight:800;font-size:0.68rem;color:var(--amber);text-transform:uppercase;letter-spacing:0.08em;display:flex;align-items:center;gap:0.3rem;margin-bottom:0.45rem;}
+.pro-sec::after{content:'';flex:1;height:1px;background:rgba(255,215,0,0.14);}
+/* Status buttons */
+.pro-stat-row{display:flex;gap:0.3rem;flex-wrap:wrap;margin-bottom:0.7rem;}
+.pro-stat-btn{flex:1;min-width:68px;padding:0.42rem 0.25rem;border-radius:9px;border:1px solid rgba(255,255,255,0.09);background:rgba(255,255,255,0.03);color:var(--muted);font-size:0.68rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.18s;text-align:center;}
+.pro-stat-btn:active{transform:scale(0.94);}
+.psb-open{border-color:rgba(0,255,170,0.4)!important;background:rgba(0,255,170,0.12)!important;color:var(--green)!important;}
+.psb-closed{border-color:rgba(255,68,102,0.4)!important;background:rgba(255,68,102,0.12)!important;color:var(--red)!important;}
+.psb-full{border-color:rgba(255,45,155,0.4)!important;background:rgba(255,45,155,0.12)!important;color:var(--pink)!important;}
+.psb-calm{border-color:rgba(255,215,0,0.4)!important;background:rgba(255,215,0,0.1)!important;color:var(--amber)!important;}
+/* Slider affluence */
+.pro-slider-row{display:flex;align-items:center;gap:0.55rem;margin-bottom:0.8rem;}
+.pro-slider-lbl{font-size:0.68rem;color:var(--muted);white-space:nowrap;}
+.pro-slider{flex:1;-webkit-appearance:none;height:4px;border-radius:3px;background:rgba(255,215,0,0.14);outline:none;}
+.pro-slider::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;background:var(--amber);cursor:pointer;box-shadow:0 0 7px rgba(255,215,0,0.45);}
+.pro-slider-val{font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;color:var(--amber);min-width:34px;text-align:right;}
+/* File d'attente */
+.pro-file-row{display:flex;align-items:center;gap:0.45rem;padding:0.5rem 0.65rem;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);border-radius:10px;margin-bottom:0.8rem;}
+.pro-cnt-btn{width:28px;height:28px;border-radius:7px;border:1px solid rgba(255,255,255,0.11);background:rgba(255,255,255,0.05);color:var(--text);font-size:0.95rem;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.pro-cnt-btn:active{transform:scale(0.88);}
+.pro-cnt-val{font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem;color:var(--amber);min-width:32px;text-align:center;}
+.pro-cnt-unit{font-size:0.68rem;color:var(--muted);}
+.pro-cnt-zero{font-size:0.62rem;font-weight:700;color:var(--red);background:rgba(255,68,102,0.09);border:1px solid rgba(255,68,102,0.22);padding:0.18rem 0.45rem;border-radius:6px;cursor:pointer;margin-left:auto;}
+.pro-cnt-zero:active{opacity:0.65;}
+/* Grille dispo custom */
+.pro-dispo-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.45rem;margin-bottom:0.75rem;}
+.pro-dispo-card{background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.065);border-radius:11px;padding:0.6rem 0.55rem;transition:border-color 0.2s;}
+.pro-dispo-icon{font-size:1.15rem;margin-bottom:0.15rem;}
+.pro-dispo-lbl{font-size:0.62rem;color:var(--muted);margin-bottom:0.3rem;font-weight:600;}
+.pro-dispo-ctrl{display:flex;align-items:center;gap:0.35rem;margin-bottom:0.3rem;}
+.pro-dispo-ctrl button{width:24px;height:24px;border-radius:6px;border:1px solid rgba(255,255,255,0.09);background:rgba(255,255,255,0.04);color:var(--text);font-size:0.85rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.pro-dispo-ctrl button:active{transform:scale(0.85);}
+.pro-dispo-num{font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;color:var(--green);min-width:26px;text-align:center;}
+.pro-dispo-num.pdn-zero{color:var(--red)!important;}
+.pro-dispo-num.pdn-low{color:var(--amber)!important;}
+.pro-dispo-setrow{display:flex;align-items:center;gap:0.28rem;}
+.pro-dispo-setinp{width:52px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:5px;color:var(--text);font-size:0.72rem;padding:0.18rem 0.3rem;text-align:center;}
+.pro-set-btn{background:rgba(255,215,0,0.09);border:1px solid rgba(255,215,0,0.28);color:var(--amber);font-size:0.6rem;font-weight:700;padding:0.15rem 0.38rem;border-radius:5px;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;}
+.pro-set-btn:active{opacity:0.65;}
+/* KPI */
+.pro-kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.45rem;margin-bottom:0.8rem;}
+.pro-kpi{background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.065);border-radius:11px;padding:0.75rem;text-align:center;}
+.pro-kpi-val{font-family:'Syne',sans-serif;font-weight:800;font-size:1.35rem;}
+.pro-kpi-lbl{font-size:0.6rem;color:var(--muted);margin-top:0.12rem;}
+.kv-amber{color:var(--amber);}.kv-cyan{color:var(--cyan);}.kv-green{color:var(--green);}.kv-pink{color:var(--pink);}
+/* Resa items */
+.pro-resa-item{background:rgba(255,215,0,0.035);border:1px solid rgba(255,215,0,0.13);border-radius:9px;padding:0.55rem 0.7rem;margin-bottom:0.35rem;display:flex;align-items:center;gap:0.45rem;}
+.pro-resa-nom{font-size:0.75rem;font-weight:700;color:var(--text);flex:1;}
+.pro-resa-dtl{font-size:0.62rem;color:var(--muted);}
+.pro-resa-ok{background:rgba(0,255,170,0.09);border:1px solid rgba(0,255,170,0.28);color:var(--green);font-size:0.6rem;font-weight:700;padding:0.15rem 0.38rem;border-radius:5px;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.pro-resa-ko{background:rgba(255,68,102,0.09);border:1px solid rgba(255,68,102,0.28);color:var(--red);font-size:0.6rem;font-weight:700;padding:0.15rem 0.38rem;border-radius:5px;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.pro-resa-ok:active,.pro-resa-ko:active{opacity:0.65;}
+/* Avis */
+.pro-avis-item{background:rgba(255,255,255,0.018);border:1px solid rgba(255,255,255,0.055);border-radius:9px;padding:0.5rem 0.7rem;margin-bottom:0.3rem;}
+.pro-avis-author{font-size:0.7rem;font-weight:700;color:var(--cyan);}
+.pro-avis-txt{font-size:0.7rem;color:var(--muted);margin-top:0.12rem;line-height:1.4;}
+.pro-avis-note{font-size:0.62rem;color:var(--amber);margin-top:0.08rem;}
+/* Danger */
+.pro-danger-row{padding:0.6rem 0.85rem;border-top:1px solid rgba(255,68,102,0.13);}
+.pro-danger-btn{width:100%;padding:0.52rem;border-radius:9px;border:1px solid rgba(255,68,102,0.32);background:rgba(255,68,102,0.06);color:var(--red);font-family:'Syne',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;}
+.pro-danger-btn:active{opacity:0.65;}
+/* Bandeaux publics sur les fiches */
+.pub-promo-bar{display:flex;align-items:center;gap:0.45rem;padding:0.42rem 0.75rem;background:rgba(255,215,0,0.065);border-top:1px solid rgba(255,215,0,0.18);}
+.pub-promo-tag{font-size:0.52rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--amber);white-space:nowrap;flex-shrink:0;background:rgba(255,215,0,0.15);padding:0.1rem 0.35rem;border-radius:4px;}
+.pub-promo-txt{font-size:0.7rem;color:var(--text);flex:1;line-height:1.35;}
+.pub-msg-amb{display:flex;align-items:center;gap:0.38rem;padding:0.36rem 0.75rem;background:rgba(255,45,155,0.045);border-top:1px solid rgba(255,45,155,0.1);}
+.pub-msg-amb-txt{font-size:0.7rem;color:var(--muted);font-style:italic;flex:1;}
+.pub-menu-banner{padding:0.52rem 0.75rem;background:rgba(0,255,170,0.035);border-top:1px solid rgba(0,255,170,0.1);}
+.pub-menu-title{font-size:0.58rem;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.2rem;}
+.pub-menu-txt{font-size:0.7rem;color:var(--muted);line-height:1.45;}
+/* ── fin Pro Panel CSS ── */
 </style>
 
 <!-- MODAL LEGAL (CGU / Confidentialite) -->
