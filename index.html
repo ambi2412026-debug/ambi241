@@ -4352,16 +4352,131 @@ function _gphotoProcessQueue() {
   });
 }
 
+/* ── Extraction du place_id depuis un maps_url ───────────────────────── *
+ * Gère :                                                                  *
+ *   • ?q=place_id:ChIJ...                                                 *
+ *   • /place/Nom/@lat,lng,z/data=...0x<hex>                               *
+ *   • Liens courts maps.app.goo.gl  → Text Search API                    *
+ *   • /search/Nom... → Text Search API (fallback)                         */
+var _placeIdResolveCache = {};
+var _placeIdResolvePending = {};
+
+function _extractPlaceIdFromUrl(url) {
+  if (!url) return null;
+  // Cas 1 : q=place_id:ChIJ...
+  var m1 = url.match(/[?&]q=place_id:(ChIJ[^&\s]+)/);
+  if (m1) return m1[1];
+  // Cas 2 : /data=...!1s0x... → hex cid (non utilisable directement, skip)
+  // Cas 3 : place_id= direct dans l'url
+  var m3 = url.match(/place_id=(ChIJ[^&\s]+)/);
+  if (m3) return m3[1];
+  return null;
+}
+
+function _resolveTextSearch(query, callback) {
+  var cacheKey = 'ts_' + query;
+  if (_placeIdResolveCache[cacheKey]) { callback(_placeIdResolveCache[cacheKey]); return; }
+  if (_placeIdResolvePending[cacheKey]) { _placeIdResolvePending[cacheKey].push(callback); return; }
+  _placeIdResolvePending[cacheKey] = [callback];
+  var url = 'https://places.googleapis.com/v1/places:searchText'
+    + '?key=' + GPLACES_API_KEY;
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', url, true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.setRequestHeader('X-Goog-FieldMask', 'places.id,places.displayName');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    var pid = null;
+    try {
+      if (xhr.status === 200) {
+        var d = JSON.parse(xhr.responseText);
+        if (d.places && d.places.length > 0) pid = d.places[0].id;
+      }
+    } catch(err) {}
+    _placeIdResolveCache[cacheKey] = pid;
+    var cbs = _placeIdResolvePending[cacheKey] || [];
+    delete _placeIdResolvePending[cacheKey];
+    cbs.forEach(function(cb){ cb(pid); });
+  };
+  xhr.onerror = function() {
+    _placeIdResolveCache[cacheKey] = null;
+    var cbs = _placeIdResolvePending[cacheKey] || [];
+    delete _placeIdResolvePending[cacheKey];
+    cbs.forEach(function(cb){ cb(null); });
+  };
+  try {
+    xhr.send(JSON.stringify({ textQuery: query, languageCode: 'fr', maxResultCount: 1 }));
+  } catch(err) {
+    var cbs = _placeIdResolvePending[cacheKey] || [];
+    delete _placeIdResolvePending[cacheKey];
+    cbs.forEach(function(cb){ cb(null); });
+  }
+}
+
+function _buildSearchQuery(e) {
+  // Extraire le nom de recherche depuis maps_url si possible
+  var url = e.maps_url || '';
+  var m = url.match(/\/search\/([^/?@]+)/);
+  if (m) return decodeURIComponent(m[1].replace(/\+/g, ' ')) + ' Libreville';
+  m = url.match(/[?&]q=([^&]+)/);
+  if (m) return decodeURIComponent(m[1].replace(/\+/g, ' '));
+  // Fallback : nom + quartier + ville
+  return (e.nom || '') + ' ' + (e.quartier ? e.quartier + ' ' : '') + 'Libreville Gabon';
+}
+
 /* ── Enqueue : tous les établissements, avec ou sans place_id ────────── */
 function _gphotoEnqueue(e) {
   // Déjà traité (même si _gphoto_urls est vide, le fallback SVG est là)
   if (e._gphoto_urls !== undefined) return;
-  // Sans place_id : générer le fallback SVG directement, sans requête réseau
+
+  // Sans place_id : tenter de le résoudre via maps_url ou Text Search
   if (!e.place_id) {
-    e._gphoto_urls = [];
-    e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
-    return;
+    // Tentative 1 : extraire directement depuis maps_url
+    var extracted = _extractPlaceIdFromUrl(e.maps_url);
+    if (extracted) {
+      e.place_id = extracted;
+      // Continuer normalement (tombera dans la section "avec place_id" ci-dessous)
+    } else {
+      // Tentative 2 : Text Search API Google (si maps_url ou nom disponible)
+      if (e.maps_url || e.nom) {
+        // Marquer en cours de résolution pour éviter double enqueue
+        e._gphoto_urls = undefined;
+        e._gphoto_resolving = true;
+        var query = _buildSearchQuery(e);
+        _resolveTextSearch(query, function(pid) {
+          e._gphoto_resolving = false;
+          if (pid) {
+            e.place_id = pid;
+            // Relancer l'enqueue maintenant qu'on a le place_id
+            e._gphoto_urls = undefined;
+            _gphotoEnqueue(e);
+            // Re-render
+            setTimeout(function(){
+              if(typeof renderAll === 'function') renderAll();
+              if(typeof renderHome === 'function') renderHome();
+            }, 0);
+          } else {
+            // Aucun résultat → fallback SVG
+            e._gphoto_urls = [];
+            e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+            setTimeout(function(){
+              if(typeof renderAll === 'function') renderAll();
+              if(typeof renderHome === 'function') renderHome();
+            }, 0);
+          }
+        });
+        // En attendant la résolution, afficher le fallback temporairement
+        e._gphoto_urls = [];
+        e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+        return;
+      }
+      // Vraiment rien disponible → fallback SVG
+      e._gphoto_urls = [];
+      e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+      return;
+    }
   }
+
   // Avec place_id : vérifier le cache d'abord
   var cached = _gphotoReadCache(e.place_id);
   if (cached !== null) {
@@ -4468,20 +4583,137 @@ window.loadAllPhotoProfiles = loadAllPhotoProfiles;
 
 // Proposer la meilleure photo Google comme photo de profil (en attente de modération)
 function proposeGooglePhotoProfile(eid) {
-  if (!window.db) { showToast("Firebase requis"); return; }
   var eidStr = String(eid);
   var etab = etablissements.find(function(x){ return String(x.id) === eidStr; });
   if (!etab) { showToast("Établissement introuvable"); return; }
-  if (!etab.place_id) { showToast("Pas de place_id pour cet établissement"); return; }
 
-  _gphotoFetchOne(etab, function(url){
-    if (!url) { showToast("Aucune photo Google trouvée"); return; }
-    var allUrls = etab._gphoto_urls || (url ? [url] : []);
-    // Afficher les photos Google disponibles pour choisir
-    openPhotoModerationModal(eid, allUrls);
-  });
+  // Si place_id déjà connu → aller directement chercher les photos
+  if (etab.place_id) {
+    _showPhotoImportModal(eid, etab);
+    return;
+  }
+
+  // Sinon : ouvrir le modal de saisie du lien Google Maps / URL image
+  _showMapsLinkInputModal(eid, etab);
 }
 window.proposeGooglePhotoProfile = proposeGooglePhotoProfile;
+
+/* Modal de saisie d'un lien Google Maps ou d'une URL image directe */
+function _showMapsLinkInputModal(eid, etab) {
+  var eidStr = String(eid);
+  // Supprimer un modal précédent si présent
+  var old = document.getElementById('_mapsLinkModal');
+  if (old) old.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = '_mapsLinkModal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+
+  overlay.innerHTML = [
+    '<div style="background:#1a0028;border:1px solid rgba(255,45,155,0.4);border-radius:20px;padding:1.4rem 1.2rem;width:min(380px,100%);max-height:90vh;overflow-y:auto;">',
+    '<div style="font-family:Syne,sans-serif;font-size:1rem;font-weight:800;color:#ff2d9b;margin-bottom:0.25rem;">🗺️ Importer une photo</div>',
+    '<div style="font-size:0.72rem;color:#b088c0;margin-bottom:1rem;line-height:1.5;">',
+      'Colle un lien Google Maps <em>ou</em> une URL d'image directe.<br>',
+      '<span style="color:#00e5ff;">Ex : https://maps.app.goo.gl/... &nbsp;|&nbsp; https://exemple.com/photo.jpg</span>',
+    '</div>',
+    '<input id="_mapsLinkInput" type="url" placeholder="https://maps.app.goo.gl/..." ',
+      'style="width:100%;padding:0.75rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,45,155,0.4);border-radius:8px;color:#fff0f8;font-size:0.82rem;font-family:DM Sans,sans-serif;margin-bottom:0.7rem;" ',
+      'value="' + (etab.maps_url || '') + '">',
+    '<div id="_mapsLinkStatus" style="font-size:0.7rem;color:#b088c0;min-height:1.2rem;margin-bottom:0.8rem;"></div>',
+    '<div style="display:flex;gap:0.6rem;">',
+      '<button onclick="document.getElementById(\'_mapsLinkModal\').remove()" ',
+        'style="flex:1;padding:0.6rem;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#b088c0;font-family:DM Sans,sans-serif;font-size:0.8rem;cursor:pointer;">Annuler</button>',
+      '<button id="_mapsLinkConfirm" onclick="_resolveMapsLinkAndImport(\'' + eidStr + '\')" ',
+        'style="flex:2;padding:0.6rem;border-radius:10px;border:none;background:linear-gradient(135deg,#ff2d9b,#cc44ff);color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;">Charger →</button>',
+    '</div>',
+    '</div>'
+  ].join('');
+
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', function(ev){ if(ev.target===overlay) overlay.remove(); });
+  setTimeout(function(){ var inp = document.getElementById('_mapsLinkInput'); if(inp) inp.focus(); }, 80);
+}
+window._showMapsLinkInputModal = _showMapsLinkInputModal;
+
+/* Résolution du lien saisi : place_id → photos Google OU URL directe → photo immédiate */
+function _resolveMapsLinkAndImport(eidStr) {
+  var inp = document.getElementById('_mapsLinkInput');
+  var statusEl = document.getElementById('_mapsLinkStatus');
+  var btn = document.getElementById('_mapsLinkConfirm');
+  if (!inp) return;
+  var val = (inp.value || '').trim();
+  if (!val) { if(statusEl) statusEl.textContent = '⚠️ Champ vide'; return; }
+
+  var etab = etablissements.find(function(x){ return String(x.id) === eidStr; });
+  if (!etab) return;
+
+  // Cas 1 : URL d'image directe (jpg/png/webp/jpeg/gif)
+  if (/\.(jpe?g|png|webp|gif|bmp)(\?.*)?$/i.test(val) || val.includes('googleusercontent') || val.includes('fbcdn') || val.includes('cloudinary') || val.includes('imgur')) {
+    if(btn) btn.disabled = true;
+    if(statusEl) statusEl.innerHTML = '<span style="color:#00e5ff;">⏳ Vérification de l\'image…</span>';
+    var testImg = new Image();
+    testImg.onload = function() {
+      document.getElementById('_mapsLinkModal') && document.getElementById('_mapsLinkModal').remove();
+      savePhotoProfile(etab.id, val, 'url_directe');
+    };
+    testImg.onerror = function() {
+      if(btn) btn.disabled = false;
+      if(statusEl) statusEl.innerHTML = '<span style="color:#ff4466;">❌ URL image inaccessible</span>';
+    };
+    testImg.src = val;
+    return;
+  }
+
+  // Cas 2 : Lien Google Maps — tenter d'en extraire le place_id
+  if(btn) btn.disabled = true;
+  if(statusEl) statusEl.innerHTML = '<span style="color:#00e5ff;">⏳ Recherche de la fiche Google…</span>';
+
+  // Mise à jour du maps_url sur l'objet local
+  etab.maps_url = val;
+
+  // Tentative extraction directe
+  var extracted = _extractPlaceIdFromUrl(val);
+  if (extracted) {
+    etab.place_id = extracted;
+    etab._gphoto_urls = undefined; // reset pour forcer refetch
+    document.getElementById('_mapsLinkModal') && document.getElementById('_mapsLinkModal').remove();
+    _showPhotoImportModal(etab.id, etab);
+    return;
+  }
+
+  // Text Search sur le nom de recherche dans l'URL ou le nom de l'établissement
+  var query = _buildSearchQuery(etab);
+  _resolveTextSearch(query, function(pid) {
+    if (pid) {
+      etab.place_id = pid;
+      etab._gphoto_urls = undefined;
+      document.getElementById('_mapsLinkModal') && document.getElementById('_mapsLinkModal').remove();
+      _showPhotoImportModal(etab.id, etab);
+    } else {
+      if(btn) btn.disabled = false;
+      if(statusEl) statusEl.innerHTML = '<span style="color:#ff4466;">❌ Établissement introuvable sur Google. Essaie une URL d\'image directe.</span>';
+    }
+  });
+}
+window._resolveMapsLinkAndImport = _resolveMapsLinkAndImport;
+
+/* Affichage du sélecteur de photos Google après résolution */
+function _showPhotoImportModal(eid, etab) {
+  if (etab._gphoto_urls && etab._gphoto_urls.length > 0) {
+    openPhotoModerationModal(eid, etab._gphoto_urls);
+    return;
+  }
+  // Fetch frais
+  etab._gphoto_urls = undefined;
+  _gphotoFetchOne(etab, function(url){
+    if (!url || !etab._gphoto_urls || etab._gphoto_urls.length === 0) {
+      showToast("Aucune photo Google trouvée pour cet établissement");
+      return;
+    }
+    openPhotoModerationModal(eid, etab._gphoto_urls);
+  });
+}
+window._showPhotoImportModal = _showPhotoImportModal;
 
 // Sauvegarder la photo de profil choisie (status: pending → admin/responsable valide)
 function savePhotoProfile(eid, url, source) {
