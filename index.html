@@ -6456,8 +6456,9 @@ function renderPhotoManager(){
     html+="</div>";
   }
   
-  if(_photoManagerType==="slot" && currentPhotos.length<5){
-    html+="<button onclick='triggerPhotoSlotUpload()' style='width:100%;padding:0.75rem;background:rgba(255,45,155,0.15);border:1.5px dashed rgba(255,45,155,0.4);border-radius:8px;color:var(--pink);font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.9rem;'>+ Ajouter une photo</button>";
+  if(_photoManagerType==="slot" && currentPhotos.length<MAX_SLOT){
+    // Utiliser un <label> pour déclencher le sélecteur de fichier nativement (fiable Android)
+    html+="<label for='__fileSlotPhoto' onclick='window.__slotUploadEid=_photoManagerEid;' style='display:block;width:100%;padding:0.75rem;background:rgba(255,45,155,0.15);border:1.5px dashed rgba(255,45,155,0.4);border-radius:8px;color:var(--pink);font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.9rem;text-align:center;box-sizing:border-box;'>+ Ajouter une photo</label>";
   } else if(_photoManagerType==="exterieur" || _photoManagerType==="interieur"){
     html+="<button onclick='triggerPhotoPermUpload()' style='width:100%;padding:0.75rem;background:rgba(255,45,155,0.15);border:1.5px dashed rgba(255,45,155,0.4);border-radius:8px;color:var(--pink);font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.9rem;'>Changer la photo</button>";
   }
@@ -10918,7 +10919,10 @@ function onSlotPhotoSelected(inp){
     saveSlotPhoto(eid,dataUrl);
     inp.value="";
     renderAll();renderHome();
-    showToast("Photo ajoutée (illimitée) !");
+    // Rafraîchir le modal gestionnaire de photos si ouvert
+    var modal=document.getElementById("photoManagerModal");
+    if(modal && modal.style.display==="flex") renderPhotoManager();
+    showToast("Photo ajoutée !");
   });
 }
 
