@@ -17824,8 +17824,8 @@ document.addEventListener('keydown',function(e){
      ═══════════════════════════════════════════════════════════════════ -->
 
 <!-- MODAL PRINCIPALE COMMANDE TAXI PRO -->
-<div id="taxiProCommandModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;display:none;align-items:center;justify-content:flex-end;padding:10px;animation:fadeIn 0.3s;">
-  <div class="taxi-modal" style="position:relative;width:100%;max-width:420px;max-height:90vh;border-radius:20px 20px 0 0;bottom:0;">
+<div id="taxiProCommandModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:900;display:none;align-items:flex-end;justify-content:center;animation:fadeIn 0.3s;">
+  <div class="taxi-modal" style="position:relative;width:100%;max-width:480px;max-height:90vh;border-radius:20px 20px 0 0;display:block;overflow-y:auto;">
     <div class="taxi-modal-handle"></div>
     
     <div class="taxi-modal-header">
@@ -17949,7 +17949,7 @@ document.addEventListener('keydown',function(e){
   <div class="taxi-tracking-title">✅ Commande Acceptée</div>
   <div class="taxi-tracking-status">
     <div class="taxi-tracking-dot"></div>
-    <span>Taxi en route vers votre position</span>
+    <span>Taxi en route — Arrivée estimée : <strong id="taxiProETA">~8 min</strong></span>
   </div>
   <div class="taxi-tracking-driver">
     Chauffeur: <strong id="taxiProDriverName">...</strong>
@@ -18464,23 +18464,27 @@ function tdbRefreshKPIs() {
 }
 
 function tdbSimulateRequest() {
-  if(!tdbOnDuty || tdbMissionActive) return;
+  // Si hors service, activer automatiquement
+  if(!tdbOnDuty) {
+    const chk = document.getElementById('tdbToggleService');
+    if(chk) { chk.checked = true; toggleDriverService(chk); }
+  }
+  if(tdbMissionActive) { showTaxiNotification('⚠️ Terminez la course en cours d\'abord'); return; }
   const demos = [
     { from:'Quartier Louis', to:'Aéroport Léon MBA', price:'4 500 XAF', dist:'12 km • ~18 min', client:'M. Essono Bi', avatar:'👨' },
     { from:'Centre-Ville', to:'Hôtel Radisson Blu', price:'2 200 XAF', dist:'5 km • ~8 min', client:'Mme. Nkoghe', avatar:'👩' },
     { from:'Glass', to:'Angondjé Mall', price:'3 100 XAF', dist:'8 km • ~12 min', client:'M. Mba Obame', avatar:'👨' },
     { from:'Owendo', to:'Akanda Beach', price:'6 800 XAF', dist:'18 km • ~25 min', client:'Mme. Biyoghe', avatar:'👩' },
+    { from:'Nzeng-Ayong', to:'Port-Môle', price:'3 800 XAF', dist:'10 km • ~15 min', client:'M. Ondo', avatar:'👨' },
   ];
   const r = demos[Math.floor(Math.random()*demos.length)];
-  document.getElementById('tdbReqFrom').textContent = r.from;
-  document.getElementById('tdbReqTo').textContent = r.to;
+  document.getElementById('tdbReqFrom').textContent  = r.from;
+  document.getElementById('tdbReqTo').textContent    = r.to;
   document.getElementById('tdbReqPrice').textContent = r.price;
-  document.getElementById('tdbReqDist').textContent = r.dist;
-  // Store for accept
+  document.getElementById('tdbReqDist').textContent  = r.dist;
   window._tdbPendingReq = r;
   const card = document.getElementById('tdbRequestCard');
   card.style.display = 'block';
-  // Countdown
   tdbReqSec = 30;
   document.getElementById('tdbReqCountdown').textContent = tdbReqSec + 's';
   clearInterval(tdbReqCountdownInterval);
@@ -18490,11 +18494,12 @@ function tdbSimulateRequest() {
     if(el) el.textContent = tdbReqSec + 's';
     if(tdbReqSec <= 0) {
       clearInterval(tdbReqCountdownInterval);
-      card.style.display = 'none';
+      if(card) card.style.display = 'none';
       showTaxiNotification('⏰ Demande expirée — nouvelle demande dans 10s');
       setTimeout(() => { if(tdbOnDuty && !tdbMissionActive) tdbSimulateRequest(); }, 10000);
     }
   }, 1000);
+  showTaxiNotification('🔔 Nouvelle demande reçue !');
 }
 
 function tdbAcceptRequest() {
@@ -18577,27 +18582,97 @@ function tdbCallClient() {
 
 function tdbNavigation() {
   const r = window._tdbPendingReq || {};
-  const dest = encodeURIComponent((r.to||'Libreville, Gabon'));
-  window.open('https://www.google.com/maps/dir/?api=1&destination=' + dest, '_blank');
+  const dest = r.to || 'Libreville, Gabon';
+  const origin = r.from || '';
+  let url = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(dest);
+  if(origin) url += '&origin=' + encodeURIComponent(origin);
+  showTaxiNotification('🗺️ Ouverture navigation vers ' + dest);
+  window.open(url, '_blank');
 }
 
 function tdbShowEarnings() {
   const d = tdbData[tdbRole];
-  alert('💰 GAINS DU JOUR\n\n' +
-    'Courses : ' + d.courses + '\n' +
-    'Total : ' + d.gains.toLocaleString('fr-FR') + ' XAF\n' +
-    'Distance : ' + d.km + ' km\n' +
-    'Note moy. : ' + d.note.toFixed(1) + ' ⭐\n\n' +
-    '📊 Objectif journalier : 50 000 XAF');
+  const avg = d.courses > 0 ? Math.round(d.gains/d.courses) : 0;
+  const html = `
+    <div style="position:fixed;inset:0;z-index:950;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:1rem;" onclick="if(event.target===this)this.remove()">
+      <div style="background:var(--surface);border:1.5px solid rgba(255,215,0,0.3);border-radius:20px;padding:1.5rem;width:min(360px,100%);box-shadow:0 0 40px rgba(255,215,0,0.15);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem;">
+          <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1rem;color:var(--amber);">💰 Gains du jour</div>
+          <button onclick="this.closest('[style*=fixed]').remove()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--muted);width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.9rem;">✕</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;margin-bottom:1rem;">
+          <div style="background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:0.9rem;text-align:center;">
+            <div style="font-size:1.5rem;font-weight:800;color:var(--amber);">${d.courses}</div>
+            <div style="font-size:0.65rem;color:var(--muted);margin-top:0.2rem;">COURSES</div>
+          </div>
+          <div style="background:rgba(0,255,170,0.08);border:1px solid rgba(0,255,170,0.2);border-radius:12px;padding:0.9rem;text-align:center;">
+            <div style="font-size:1.2rem;font-weight:800;color:var(--green);">${d.gains.toLocaleString('fr-FR')}</div>
+            <div style="font-size:0.65rem;color:var(--muted);margin-top:0.2rem;">XAF TOTAL</div>
+          </div>
+          <div style="background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);border-radius:12px;padding:0.9rem;text-align:center;">
+            <div style="font-size:1.3rem;font-weight:800;color:var(--cyan);">${d.km} km</div>
+            <div style="font-size:0.65rem;color:var(--muted);margin-top:0.2rem;">PARCOURUS</div>
+          </div>
+          <div style="background:rgba(255,45,155,0.08);border:1px solid rgba(255,45,155,0.2);border-radius:12px;padding:0.9rem;text-align:center;">
+            <div style="font-size:1.3rem;font-weight:800;color:var(--pink);">${avg.toLocaleString('fr-FR')}</div>
+            <div style="font-size:0.65rem;color:var(--muted);margin-top:0.2rem;">XAF MOY./COURSE</div>
+          </div>
+        </div>
+        <div style="background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.15);border-radius:10px;padding:0.8rem;font-size:0.75rem;color:var(--muted);">
+          📊 Objectif journalier : <strong style="color:var(--amber);">50 000 XAF</strong>
+          <div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;margin-top:0.5rem;">
+            <div style="height:100%;width:${Math.min(100,Math.round(d.gains/500))}%;background:linear-gradient(90deg,var(--amber),var(--green));border-radius:3px;transition:width 0.5s;"></div>
+          </div>
+          <div style="margin-top:0.3rem;">${Math.min(100,Math.round(d.gains/500))}% atteint</div>
+        </div>
+      </div>
+    </div>`;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap.firstElementChild);
 }
 
 function tdbShowStats() {
   const d = tdbData[tdbRole];
-  alert('📈 STATISTIQUES\n\n' +
-    '🕐 Heure de pointe : 18h-22h\n' +
-    '📍 Zone la + lucrative : Louis\n' +
-    '💰 Gain moyen/course : ' + (d.courses>0?Math.round(d.gains/d.courses):'-') + ' XAF\n' +
-    '⭐ Note : ' + d.note.toFixed(1) + '/5.0');
+  const avg = d.courses > 0 ? Math.round(d.gains/d.courses) : 0;
+  const html = `
+    <div style="position:fixed;inset:0;z-index:950;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:1rem;" onclick="if(event.target===this)this.remove()">
+      <div style="background:var(--surface);border:1.5px solid rgba(255,45,155,0.3);border-radius:20px;padding:1.5rem;width:min(360px,100%);box-shadow:0 0 40px rgba(255,45,155,0.1);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem;">
+          <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1rem;color:var(--pink);">📈 Statistiques</div>
+          <button onclick="this.closest('[style*=fixed]').remove()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--muted);width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.9rem;">✕</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0.6rem;">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0.8rem;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+            <span style="font-size:0.8rem;color:var(--muted);">🕐 Heure de pointe</span>
+            <span style="font-size:0.8rem;font-weight:700;color:var(--text);">18h – 22h</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0.8rem;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+            <span style="font-size:0.8rem;color:var(--muted);">📍 Zone la + lucrative</span>
+            <span style="font-size:0.8rem;font-weight:700;color:var(--amber);">Louis 🔴</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0.8rem;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+            <span style="font-size:0.8rem;color:var(--muted);">💰 Gain moy./course</span>
+            <span style="font-size:0.8rem;font-weight:700;color:var(--green);">${avg.toLocaleString('fr-FR')} XAF</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0.8rem;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+            <span style="font-size:0.8rem;color:var(--muted);">⭐ Note chauffeur</span>
+            <span style="font-size:0.8rem;font-weight:700;color:var(--amber);">${d.note.toFixed(1)} / 5.0</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0.8rem;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+            <span style="font-size:0.8rem;color:var(--muted);">🚗 Distance totale</span>
+            <span style="font-size:0.8rem;font-weight:700;color:var(--cyan);">${d.km} km</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0.8rem;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+            <span style="font-size:0.8rem;color:var(--muted);">✅ Taux d'acceptation</span>
+            <span style="font-size:0.8rem;font-weight:700;color:var(--green);">87%</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap.firstElementChild);
 }
 
 // Conducteur
@@ -18678,6 +18753,51 @@ switchTaxiTab = function(tab) {
   }
 };
 
+// ── Exposer TOUTES les fonctions taxi sur window (portée module isolée) ──
+window.taxiProOpenCommandModal    = taxiProOpenCommandModal;
+window.taxiProCloseCommandModal   = taxiProCloseCommandModal;
+window.taxiProNextStep            = taxiProNextStep;
+window.taxiProPrevStep            = taxiProPrevStep;
+window.taxiProSelectVehicle       = taxiProSelectVehicle;
+window.taxiProSelectGPS           = taxiProSelectGPS;
+window.taxiProSelectCurrency      = taxiProSelectCurrency;
+window.taxiProUpdatePriceDisplay  = taxiProUpdatePriceDisplay;
+window.taxiProRenderDriversList   = taxiProRenderDriversList;
+window.taxiProSelectDriver        = taxiProSelectDriver;
+window.taxiProSubmitOrder         = taxiProSubmitOrder;
+window.taxiProShowDriverResponseModal = taxiProShowDriverResponseModal;
+window.taxiProHideDriverResponseModal = taxiProHideDriverResponseModal;
+window.taxiProSimulateDriverResponse  = taxiProSimulateDriverResponse;
+window.taxiProAcceptOrder         = taxiProAcceptOrder;
+window.taxiProAcceptCounter       = taxiProAcceptCounter;
+window.taxiProProposeCounter      = taxiProProposeCounter;
+window.taxiProCancelOrder         = taxiProCancelOrder;
+window.taxiProCallDriver          = taxiProCallDriver;
+window.taxiProShowToast           = taxiProShowToast;
+window.switchDriverRole           = switchDriverRole;
+window.toggleDriverService        = toggleDriverService;
+window.tdbRefreshKPIs             = tdbRefreshKPIs;
+window.tdbSimulateRequest         = tdbSimulateRequest;
+window.tdbAcceptRequest           = tdbAcceptRequest;
+window.tdbDeclineRequest          = tdbDeclineRequest;
+window.tdbStartMission            = tdbStartMission;
+window.tdbEndMission              = tdbEndMission;
+window.tdbReportIssue             = tdbReportIssue;
+window.tdbCallClient              = tdbCallClient;
+window.tdbNavigation              = tdbNavigation;
+window.tdbShowEarnings            = tdbShowEarnings;
+window.tdbShowStats               = tdbShowStats;
+window.tdbMonterPassager          = tdbMonterPassager;
+window.tdbDescendrePassager       = tdbDescendrePassager;
+window.tdbArretUrgence            = tdbArretUrgence;
+window.tdbChangerLigne            = tdbChangerLigne;
+window.tdbDelivered               = tdbDelivered;
+window.tdbScanColis               = tdbScanColis;
+window.tdbEchecLivraison          = tdbEchecLivraison;
+window.tdbContactClient           = tdbContactClient;
+window.tdbRapportFin              = tdbRapportFin;
+window.tdbLoadMoreHistory         = tdbLoadMoreHistory;
+
 /* ════════════════════════════════════════════════════════════════════
    TAXI PRO PROFESSIONNEL - SYSTÈME DE COMMANDE AVANCÉ
    ════════════════════════════════════════════════════════════════════ */
@@ -18703,11 +18823,31 @@ const taxiProDrivers = [
 
 function taxiProOpenCommandModal() {
   const modal = document.getElementById('taxiProCommandModal');
-  if(modal) {
-    modal.style.display = 'flex';
-    taxiProRenderDriversList();
-    document.body.style.overflow = 'hidden';
-  }
+  if(!modal) return;
+  // Reset état
+  taxiProState.currentStep = 1;
+  taxiProState.vehicleType = null;
+  taxiProState.selectedDriver = null;
+  // Revenir à l'étape 1
+  document.querySelectorAll('.taxi-pro-command-step').forEach(el => el.classList.remove('active'));
+  const step1 = document.getElementById('taxiProStep1');
+  if(step1) step1.classList.add('active');
+  const ind = document.getElementById('taxiProStepIndicator');
+  if(ind) ind.textContent = 'Étape 1 / 5 - Véhicule';
+  document.querySelectorAll('.taxi-vehicle-card').forEach(el => el.classList.remove('selected'));
+  // Pré-remplir depuis formulaire principal
+  const dest = document.getElementById('taxiTo') ? document.getElementById('taxiTo').value : '';
+  const from = document.getElementById('taxiFrom') ? document.getElementById('taxiFrom').value : '';
+  const time = document.getElementById('taxiTime') ? document.getElementById('taxiTime').value : '';
+  setTimeout(function(){
+    if(dest && document.getElementById('taxiProDestination')) document.getElementById('taxiProDestination').value = dest;
+    if(from && document.getElementById('taxiProGPS')) document.getElementById('taxiProGPS').value = from;
+    if(time && document.getElementById('taxiProTime')) document.getElementById('taxiProTime').value = time;
+  }, 50);
+  // Afficher
+  modal.style.display = 'flex';
+  taxiProRenderDriversList();
+  document.body.style.overflow = 'hidden';
 }
 
 function taxiProCloseCommandModal() {
@@ -18772,16 +18912,40 @@ function taxiProSelectDriver(id) {
 }
 
 function taxiProNextStep(step) {
+  // Validation avant avancer
+  const cur = taxiProState.currentStep;
+  if(step > cur) {
+    if(cur === 1 && !taxiProState.vehicleType) {
+      taxiProShowToast('⚠️ Sélectionnez un type de véhicule'); return;
+    }
+    if(cur === 2) {
+      const fn = document.getElementById('taxiProFirstName');
+      if(!fn || !fn.value.trim()) { taxiProShowToast('⚠️ Entrez votre prénom'); return; }
+    }
+    if(cur === 3) {
+      const dest = document.getElementById('taxiProDestination');
+      if(!dest || !dest.value.trim()) { taxiProShowToast('⚠️ Entrez votre destination'); return; }
+    }
+    if(cur === 4) {
+      const price = document.getElementById('taxiProPrice');
+      if(!price || !price.value || parseFloat(price.value) <= 0) { taxiProShowToast('⚠️ Entrez un montant'); return; }
+    }
+    if(cur === 5 && !taxiProState.selectedDriver) {
+      taxiProShowToast('⚠️ Sélectionnez un chauffeur'); return;
+    }
+  }
   taxiProState.currentStep = step;
   document.querySelectorAll('.taxi-pro-command-step').forEach(el => el.classList.remove('active'));
   const stepEl = document.getElementById('taxiProStep' + step);
   if(stepEl) {
     stepEl.classList.add('active');
-    const steps = ['Véhicule', 'Position GPS', 'Destination', 'Montant', 'Chauffeur'];
+    const steps = ['Véhicule', 'Informations', 'Destination', 'Montant', 'Chauffeur'];
     const indicator = document.getElementById('taxiProStepIndicator');
-    if(indicator) indicator.textContent = `Étape ${step} / 5 - ${steps[step-1] || ''}`;
+    if(indicator) indicator.textContent = `Étape ${step} / 5 — ${steps[step-1] || ''}`;
   }
-  document.querySelector('.taxi-modal').scrollTop = 0;
+  // Scroll haut du modal
+  const modal = document.querySelector('#taxiProCommandModal .taxi-modal');
+  if(modal) modal.scrollTop = 0;
 }
 
 function taxiProPrevStep(step) {
@@ -18789,37 +18953,76 @@ function taxiProPrevStep(step) {
 }
 
 function taxiProSubmitOrder() {
-  const firstName = document.getElementById('taxiProFirstName').value;
-  const destination = document.getElementById('taxiProDestination').value;
-  const time = document.getElementById('taxiProTime').value;
-  const price = document.getElementById('taxiProPrice').value;
-  
-  if(!taxiProState.vehicleType || !firstName || !destination || !price || !taxiProState.selectedDriver) {
-    alert('⚠️ Veuillez compléter tous les champs requis');
-    return;
-  }
-  
+  const firstName   = (document.getElementById('taxiProFirstName')?.value || '').trim();
+  const gpsVal      = (document.getElementById('taxiProGPS')?.value || '').trim();
+  const destination = (document.getElementById('taxiProDestination')?.value || '').trim();
+  const time        = document.getElementById('taxiProTime')?.value || '';
+  const price       = (document.getElementById('taxiProPrice')?.value || '').trim();
+
+  if(!taxiProState.vehicleType) { taxiProShowToast('⚠️ Sélectionnez un véhicule'); taxiProNextStep(1); return; }
+  if(!firstName)                 { taxiProShowToast('⚠️ Entrez votre prénom');       taxiProNextStep(2); return; }
+  if(!destination)               { taxiProShowToast('⚠️ Entrez la destination');     taxiProNextStep(3); return; }
+  if(!price || parseFloat(price)<=0) { taxiProShowToast('⚠️ Entrez un montant');     taxiProNextStep(4); return; }
+  if(!taxiProState.selectedDriver)   { taxiProShowToast('⚠️ Sélectionnez un chauffeur'); return; }
+
+  const driver = taxiProDrivers.find(d => d.id === taxiProState.selectedDriver);
+  const orderId = 'ORD-' + Date.now();
+  const vehicleLabels = { sedan:'Berline', minibus:'Minibus', suv:'SUV', van:'Van' };
+
   const clientData = {
-    id: 'ORD-' + Date.now(),
-    firstName: firstName,
-    destination: destination,
-    time: time,
-    price: price,
+    id: orderId,
+    firstName, destination, time, price,
+    gps: gpsVal,
     currency: taxiProState.currency,
     vehicleType: taxiProState.vehicleType,
+    vehicleLabel: vehicleLabels[taxiProState.vehicleType] || taxiProState.vehicleType,
     driverId: taxiProState.selectedDriver,
+    driverName: driver ? driver.name : '?',
     status: 'pending',
     createdAt: new Date()
   };
-  
+
   taxiProState.clientData = clientData;
+
+  // Fermer modal et afficher attente réponse chauffeur
   taxiProCloseCommandModal();
+
+  // Préparer modal réponse : état "en attente"
+  const icon    = document.getElementById('taxiProResponseIcon');
+  const title   = document.getElementById('taxiProResponseTitle');
+  const msg     = document.getElementById('taxiProResponseMsg');
+  const actions = document.getElementById('taxiProResponseActions');
+  if(icon)    icon.textContent    = '⏳';
+  if(title)   title.textContent   = 'Demande envoyée…';
+  if(msg)     msg.textContent     = `${driver ? driver.name : 'Le chauffeur'} reçoit votre demande. Veuillez patienter.`;
+  if(actions) actions.innerHTML   = `<div style="font-size:0.75rem;color:var(--muted);text-align:center;">Réponse dans quelques secondes…</div>`;
+
   taxiProShowDriverResponseModal();
-  
-  // Simulation réponse chauffeur
-  setTimeout(() => {
-    taxiProSimulateDriverResponse(clientData);
-  }, 2500 + Math.random() * 3000);
+
+  // Notification WhatsApp optionnelle (ouvre wa.me)
+  if(driver) {
+    const waMsg = encodeURIComponent(
+      `🚕 *DEMANDE TAXI PRO AMBI241*\n`+
+      `📋 Réf: ${orderId}\n`+
+      `👤 Client: ${firstName}\n`+
+      `📍 Départ: ${gpsVal || 'À préciser'}\n`+
+      `🎯 Destination: ${destination}\n`+
+      `🚗 Véhicule: ${vehicleLabels[taxiProState.vehicleType]}\n`+
+      `💰 Offre: ${parseFloat(price).toLocaleString('fr-FR')} ${taxiProState.currency}\n`+
+      `🕐 Heure: ${time || 'Immédiat'}\n\n`+
+      `Répondez OUI pour accepter, NON pour refuser.`
+    );
+    // Ouvre WhatsApp vers le chauffeur (numéro fictif — à remplacer par numéro réel)
+    const driverWA = driver.whatsapp || '241060000000';
+    setTimeout(() => {
+      if(confirm(`Envoyer la demande à ${driver.name} via WhatsApp ?`)) {
+        window.open(`https://wa.me/${driverWA}?text=${waMsg}`, '_blank');
+      }
+    }, 300);
+  }
+
+  // Simuler réponse chauffeur
+  setTimeout(() => taxiProSimulateDriverResponse(clientData), 3000 + Math.random() * 2000);
 }
 
 function taxiProShowDriverResponseModal() {
@@ -18875,17 +19078,25 @@ function taxiProSimulateDriverResponse(order) {
 function taxiProAcceptOrder(driverId) {
   const driver = taxiProDrivers.find(d => d.id === driverId);
   taxiProHideDriverResponseModal();
-  
+
   const tracking = document.getElementById('taxiProTrackingActive');
   if(tracking) {
-    document.getElementById('taxiProDriverName').textContent = driver.name;
+    const nameEl = document.getElementById('taxiProDriverName');
+    if(nameEl) nameEl.textContent = driver ? driver.name : '?';
+    // Ajouter ETA dynamique
+    let eta = 8;
+    const etaEl = document.getElementById('taxiProETA');
+    if(etaEl) {
+      etaEl.textContent = eta + ' min';
+      const etaInterval = setInterval(() => {
+        eta--;
+        if(etaEl) etaEl.textContent = eta > 0 ? eta + ' min' : '🚗 Arrivé !';
+        if(eta <= 0) clearInterval(etaInterval);
+      }, 60000);
+    }
     tracking.classList.add('show');
   }
-  
-  taxiProShowToast(`✅ Taxi en route! ${driver.name} arrive dans ~8 minutes`);
-  
-  // Simuler notification WhatsApp
-  console.log(`📱 WhatsApp: Commande ${taxiProState.clientData.id} acceptée par ${driver.name}`);
+  taxiProShowToast(`✅ ${driver ? driver.name : 'Chauffeur'} en route ! Arrivée dans ~8 min`);
 }
 
 function taxiProAcceptCounter(driverId, newPrice) {
