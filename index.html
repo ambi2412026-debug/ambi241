@@ -8331,13 +8331,14 @@ window.confirmAddDispoItem = window.confirmAddDispoItem;
 
 // ── Switcher d'onglet ─────────────────────────────────────────
 window.proTab = function(eid, name, btn) {
-  ["dispo","statut","medias","stats"].forEach(function(t) {
+  ["dispo","statut","medias","calendar","stats"].forEach(function(t) {
     var p = document.getElementById("proPane-"+eid+"-"+t);
     if(p) p.className = "pro-tab-pane" + (t === name ? "" : " pro-pane-hidden");
   });
   var tabs = document.getElementById("proTabs-"+eid);
   if(tabs) tabs.querySelectorAll(".pro-tab").forEach(function(b){ b.classList.remove("pro-tab-active"); });
   if(btn) btn.classList.add("pro-tab-active");
+  if(name === "calendar") loadCalendar(eid, function() {});
   if(name === "stats") { proLoadResa(eid); proLoadAvis(eid); }
 };
 
@@ -8918,6 +8919,7 @@ function buildCard(e,delay,compact,rank){
       +"<button class='pro-tab pro-tab-active' onclick='proTab("+e.id+",\"dispo\",this)'>📦 Dispos</button>"
       +"<button class='pro-tab' onclick='proTab("+e.id+",\"statut\",this)'>⚡ Statut</button>"
       +"<button class='pro-tab' onclick='proTab("+e.id+",\"medias\",this)'>📸 Médias</button>"
+      +"<button class='pro-tab' onclick='proTab("+e.id+",\"calendar\",this)'>📅 Calendrier</button>"
       +"<button class='pro-tab' onclick='proTab("+e.id+",\"stats\",this)'>📊 Stats</button>"
       +"</div>";
 
@@ -9088,6 +9090,31 @@ function buildCard(e,delay,compact,rank){
       +"</div>";
 
     ep += "</div>"; // fin onglet médias
+
+    // ════ ONGLET CALENDRIER ════
+    ep += "<div class='pro-tab-pane pro-pane-hidden' id='proPane-"+e.id+"-calendar'>";
+
+    ep += "<div class='pro-sec'>📅 Disponibilité de la semaine prochaine</div>";
+    ep += "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:0.4rem;margin-top:0.6rem;'>";
+    
+    for(var d=0; d<14; d++) {
+      var date = new Date();
+      date.setDate(date.getDate() + d);
+      var dateStr = date.toISOString().split('T')[0];
+      var avail = pdDispo && pdDispo[dateStr];
+      var dow = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'][date.getDay()];
+      var dom = date.getDate();
+      
+      ep += "<button style='background:"+(avail?"rgba(0,255,170,0.15)":"rgba(255,255,255,0.03)")+";border:1px solid "+(avail?"rgba(0,255,170,0.4)":"rgba(255,255,255,0.1)")+";border-radius:8px;padding:0.5rem;font-size:0.68rem;color:"+(avail?"var(--green)":"var(--muted)")+";font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;' "
+        +"onclick='toggleDateDispo("+e.id+",\""+dateStr+"\",this)'>"
+        +dow+"<br>"+dom
+        +"</button>";
+    }
+    
+    ep += "</div>";
+    ep += "<div style='font-size:0.62rem;color:var(--muted);margin-top:0.5rem;'>💚 Vert = disponible | ⚪ Gris = indisponible (clients voient cela en réservant)</div>";
+
+    ep += "</div>"; // fin onglet calendrier
 
     // ════ ONGLET STATS ════
     ep += "<div class='pro-tab-pane pro-pane-hidden' id='proPane-"+e.id+"-stats'>";
@@ -14267,6 +14294,18 @@ function openReservationModal(etabId, etabNom, affluence) {
   document.getElementById('reservFeedback').style.display = 'none';
   var btn = document.getElementById('reservBtn');
   if (btn) { btn.disabled = false; btn.textContent = 'Envoyer ma demande VIP'; }
+  
+  // Charger le calendrier de disponibilité
+  loadCalendar(etabId, function() {
+    // Afficher calendrier après chargement
+    var calWidget = buildCalendarWidget(etabId);
+    var calPlaceholder = document.getElementById('reservCalendarWidget');
+    if(calPlaceholder) calPlaceholder.innerHTML = calWidget;
+  });
+  
+  // Réinitialiser le devis
+  updateDevis();
+  
   document.getElementById('reservationOverlay').classList.add('show');
 }
 function closeReservationModal() {
@@ -14480,6 +14519,128 @@ window.envoyerReservation = envoyerReservation;
 
 window.toggleService = toggleService;
 // -----------------------------------------------------------------
+
+// ══════════════════════════════════════════════════════════════════
+// ══  PREFERENCES CLIENT & DEVIS REALTIME                          ══
+// ══════════════════════════════════════════════════════════════════
+
+var _selectedGateuColor = null;
+
+window.selectGateau = function(color, btn) {
+  _selectedGateuColor = color;
+  document.querySelectorAll(".gateau-btn").forEach(function(b){ b.style.borderColor="rgba(255,255,255,0.3)"; b.style.boxShadow="none"; });
+  if(btn) { btn.style.borderColor="var(--amber)"; btn.style.boxShadow="0 0 8px rgba(255,215,0,0.5)"; }
+  updateDevis();
+};
+
+function updateDevis() {
+  // Collecter les services sélectionnés
+  var services = Object.keys(_selectedServices || {}).map(function(k){ return _selectedServices[k]; });
+  var totalServices = services.reduce(function(sum, s){ return sum + (s.price||0); }, 0);
+
+  // Construire le devis détaillé
+  var details = '';
+  if(services.length > 0) {
+    details += services.map(function(s){ 
+      return '<div style="display:flex;justify-content:space-between;"><span>' + escHtml(s.name) + '</span><span style="color:var(--amber);">' + (s.price||0).toLocaleString('fr-FR') + ' XAF</span></div>'; 
+    }).join('');
+  }
+
+  // Affichage devis
+  var devisEl = document.getElementById('devisDetails');
+  if(devisEl) {
+    devisEl.innerHTML = (details ? details : '<div style="display:flex;justify-content:space-between;"><span>Base de la reservation</span><span style="color:var(--muted);">—</span></div>');
+  }
+
+  var totalEl = document.getElementById('devisTotal');
+  if(totalEl) {
+    totalEl.textContent = totalServices.toLocaleString('fr-FR') + ' XAF';
+  }
+}
+
+// Mettre à jour devis quand on change les services
+var _origToggleService = window.toggleService || function(){};
+window.toggleService = function(svcId) {
+  _origToggleService(svcId);
+  updateDevis();
+  // Afficher/masquer la section couleur gateau si anniversaire sélectionné
+  var hasAnniv = _selectedServices && _selectedServices['anniversaire'];
+  var gateauSec = document.getElementById('reservGateauColors');
+  if(gateauSec) gateauSec.style.display = hasAnniv ? 'block' : 'none';
+};
+
+// ══════════════════════════════════════════════════════════════════
+// ══  CALENDRIER DE DISPONIBILITÉ                                  ══
+// ══════════════════════════════════════════════════════════════════
+
+var _calendarState = {}; // { etabId: { date: boolean } }
+
+// Charger calendar depuis Firebase 
+function loadCalendar(etabId, callback) {
+  if(!window.db || !window.fbDoc || !window.fbGetDoc) return;
+  window.fbGetDoc(window.fbDoc(window.db, "etablissements_calendar", String(etabId)))
+    .then(function(snap) {
+      if(snap.exists()) {
+        _calendarState[etabId] = snap.data().dates || {};
+      }
+      if(callback) callback();
+    }).catch(function() { if(callback) callback(); });
+}
+
+// Sauver calendar 
+function saveCalendar(etabId) {
+  if(!window.db || !window.fbSetDoc || !window.fbDoc) return;
+  window.fbSetDoc(window.fbDoc(window.db, "etablissements_calendar", String(etabId)), {
+    dates: _calendarState[etabId] || {},
+    etabId: String(etabId),
+    updatedAt: Date.now()
+  }, { merge: true }).catch(function() {});
+}
+
+// Toggler dispo pour une date (pour gérant dans le panneau Pro)
+window.toggleDateDispo = function(etabId, dateStr, el) {
+  if(!_calendarState[etabId]) _calendarState[etabId] = {};
+  _calendarState[etabId][dateStr] = !_calendarState[etabId][dateStr];
+  saveCalendar(etabId);
+  if(el) {
+    el.style.backgroundColor = _calendarState[etabId][dateStr] ? 'rgba(0,255,170,0.25)' : 'rgba(255,255,255,0.03)';
+    el.style.borderColor = _calendarState[etabId][dateStr] ? 'var(--green)' : 'rgba(255,255,255,0.1)';
+  }
+};
+
+// Afficher calendrier mini (pour client dans modal resa)
+function buildCalendarWidget(etabId) {
+  var html = '<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.7rem;margin-top:0.6rem;">';
+  html += '<div style="font-size:0.65rem;color:var(--muted);font-weight:700;margin-bottom:0.4rem;">Prochains 7 jours disponibles</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:0.3rem;">';
+  
+  for(var i=0; i<7; i++) {
+    var d = new Date();
+    d.setDate(d.getDate() + i);
+    var ds = d.toISOString().split('T')[0];
+    var avail = _calendarState[etabId] && _calendarState[etabId][ds];
+    var dow = ['D','L','M','M','J','V','S'][d.getDay()];
+    var dom = d.getDate();
+    
+    html += '<button style="'
+      + 'background:' + (avail ? 'rgba(0,255,170,0.15)' : 'rgba(255,68,102,0.1)') + ';'
+      + 'border:1px solid ' + (avail ? 'rgba(0,255,170,0.4)' : 'rgba(255,68,102,0.25)') + ';'
+      + 'border-radius:8px;'
+      + 'padding:0.4rem;'
+      + 'font-size:0.65rem;'
+      + 'color:' + (avail ? 'var(--green)' : 'var(--red)') + ';'
+      + 'font-weight:700;'
+      + 'cursor:default;'
+      + '">'
+      + dow + ' ' + dom
+      + '</button>';
+  }
+  
+  html += '</div></div>';
+  return html;
+}
+
+// ═══════════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════════════
 // ══  FONCTIONS COMPLÉMENTAIRES : Assignation d'établissements & Successeur
@@ -15322,6 +15483,11 @@ window.doAssignEtab = doAssignEtab;
         <option value="5+">5+ personnes</option>
       </select>
     </div>
+
+    <!-- ══ CALENDRIER DISPONIBILITÉS ══ -->
+    <div id="reservCalendarWidget" style="margin-top:0.5rem;"></div>
+    <!-- ══ END CALENDRIER ══ -->
+
     <div class="field"><label>Message (optionnel)</label>
       <textarea id="reservMsg" placeholder="Occasion sp&#233;ciale, pr&#233;f&#233;rences..." maxlength="200" rows="3"></textarea>
     </div>
@@ -15345,7 +15511,55 @@ window.doAssignEtab = doAssignEtab;
     </div>
     <!-- ══ END SERVICES PANEL ══ -->
 
-    <button onclick="envoyerReservation()" class="modal-btn" id="reservBtn" style="background:linear-gradient(135deg,var(--amber),var(--pink));color:#000;">&#11088; Envoyer ma demande VIP</button>
+    <!-- ══ PREFERENCES CLIENT ══ -->
+    <div style="background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.15);border-radius:13px;padding:0.85rem 0.9rem;margin-top:0.85rem;">
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;color:var(--cyan);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.55rem;">Mes preferences</div>
+      <div class="field" style="margin-bottom:0.45rem;">
+        <label style="font-size:0.7rem;">Regime alimentaire</label>
+        <div style="display:flex;gap:0.3rem;flex-wrap:wrap;margin-top:0.25rem;">
+          <label style="display:flex;align-items:center;gap:0.2rem;cursor:pointer;font-size:0.7rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:0.28rem 0.45rem;"><input type="checkbox" id="regimeNormal" checked> Normal</label>
+          <label style="display:flex;align-items:center;gap:0.2rem;cursor:pointer;font-size:0.7rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:0.28rem 0.45rem;"><input type="checkbox" id="regimeVege"> Vegetarien</label>
+          <label style="display:flex;align-items:center;gap:0.2rem;cursor:pointer;font-size:0.7rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:0.28rem 0.45rem;"><input type="checkbox" id="regimeVegan"> Vegan</label>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:0.45rem;">
+        <label style="font-size:0.7rem;">Allergies / Intolerances</label>
+        <input type="text" id="reservAllergies" placeholder="Ex: Cacahuetes, fruits de mer..." maxlength="100" style="font-size:0.75rem;padding:0.4rem 0.55rem;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);border-radius:7px;color:var(--text);margin-top:0.2rem;width:100%;box-sizing:border-box;outline:none;">
+      </div>
+      <div class="field" id="reservGateauColors" style="display:none;margin-bottom:0.45rem;">
+        <label style="font-size:0.7rem;">Couleur gateau</label>
+        <div style="display:flex;gap:0.25rem;flex-wrap:wrap;margin-top:0.2rem;align-items:center;">
+          <button style="width:32px;height:32px;border-radius:50%;background:#fff;border:2px solid rgba(255,255,255,0.3);cursor:pointer;" onclick="selectGateau('white',this)" title="Blanc"></button>
+          <button style="width:32px;height:32px;border-radius:50%;background:#6b4423;border:2px solid rgba(255,255,255,0.3);cursor:pointer;" onclick="selectGateau('chocolate',this)" title="Chocolat"></button>
+          <button style="width:32px;height:32px;border-radius:50%;background:#ffb6d9;border:2px solid rgba(255,255,255,0.3);cursor:pointer;" onclick="selectGateau('rose',this)" title="Rose"></button>
+          <button style="width:32px;height:32px;border-radius:50%;background:#4da6ff;border:2px solid rgba(255,255,255,0.3);cursor:pointer;" onclick="selectGateau('blue',this)" title="Bleu"></button>
+        </div>
+      </div>
+      <div class="field">
+        <label style="font-size:0.7rem;">Ambiance musicale</label>
+        <div style="display:flex;gap:0.3rem;flex-wrap:wrap;margin-top:0.25rem;">
+          <label style="display:flex;align-items:center;gap:0.2rem;cursor:pointer;font-size:0.7rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:0.28rem 0.45rem;"><input type="checkbox" id="ambianceChill"> Chill</label>
+          <label style="display:flex;align-items:center;gap:0.2rem;cursor:pointer;font-size:0.7rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:0.28rem 0.45rem;"><input type="checkbox" id="ambianceAfro"> Afrobeats</label>
+          <label style="display:flex;align-items:center;gap:0.2rem;cursor:pointer;font-size:0.7rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:0.28rem 0.45rem;"><input type="checkbox" id="ambianceLive"> Live</label>
+        </div>
+      </div>
+    </div>
+    <!-- ══ END PREFERENCES ══ -->
+
+    <!-- ══ DEVIS REALTIME ══ -->
+    <div style="background:linear-gradient(135deg,rgba(255,215,0,0.08),rgba(255,45,155,0.06));border:1.5px solid rgba(255,215,0,0.25);border-radius:13px;padding:0.9rem;margin-top:0.85rem;">
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;color:var(--amber);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.55rem;">Devis estime</div>
+      <div id="devisDetails" style="font-size:0.72rem;color:var(--text);line-height:1.75;margin-bottom:0.4rem;">
+        <div style="display:flex;justify-content:space-between;"><span>Base</span><span style="color:var(--muted);">—</span></div>
+      </div>
+      <div style="border-top:1.5px solid rgba(255,215,0,0.2);padding-top:0.45rem;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-family:'Syne',sans-serif;font-weight:800;color:var(--text);font-size:0.8rem;">TOTAL</span>
+        <span style="font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:var(--amber);" id="devisTotal">0 XAF</span>
+      </div>
+    </div>
+    <!-- ══ END DEVIS ══ -->
+
+    <button onclick="envoyerReservation()" class="modal-btn" id="reservBtn" style="background:linear-gradient(135deg,var(--amber),var(--pink));color:#000;margin-top:0.85rem;">Envoyer ma demande VIP</button>
     <div id="reservFeedback" style="font-size:0.8rem;text-align:center;margin-top:0.7rem;display:none;padding:0.7rem;border-radius:10px;"></div>
   </div>
 </div>
