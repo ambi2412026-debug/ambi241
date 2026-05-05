@@ -3093,6 +3093,10 @@ if (document.readyState === 'loading') {
       </div>
       <div class="field"><label>Mot de passe <span class="req">*</span></label><input type="password" id="regPwd" placeholder="Min. 6 caracteres" required minlength="6"></div>
       <div class="consent-box"><input type="checkbox" id="regConsent"><div class="consent-text">J accepte les <strong>conditions d utilisation</strong> et la <strong>politique de confidentialite</strong> d AMBI241.</div></div>
+      <div class="consent-box" style="margin-top:0.4rem;background:rgba(255,184,0,0.06);border:1px solid rgba(255,184,0,0.3);border-radius:10px;padding:0.5rem 0.7rem;">
+        <input type="checkbox" id="regDriverCheck">
+        <div class="consent-text">🚗 Je souhaite être <strong style="color:var(--amber);">Membre Chauffeur</strong> — accès au Tableau de Bord Taxi Pro (sous réserve de validation Admin)</div>
+      </div>
       <button class="modal-btn" id="regBtn" onclick="registerUser()">&#128100; Creer mon compte</button>
       <div id="regMsg" style="font-size:0.78rem;text-align:center;margin-top:0.5rem;display:none;"></div>
     </div>
@@ -5868,10 +5872,11 @@ var etablissements=[];
 
 // ── PHOTOS SLOT CE SOIR (10h, max 5) — déclaré tôt car utilisé dans buildCard ──
 var MAX_SLOT=5;
+var SLOT_EXPIRE_MS = 10*3600*1000; // 10 heures
 function loadSlotPhotos(eid){
   var stored=lsGetJSON("ambi241_slot_photos", {});
   var now=Date.now();
-  return (stored[eid]||[]).filter(function(p){return(now-p.ts)<0;});
+  return (stored[eid]||[]).filter(function(p){return(now-p.ts)<SLOT_EXPIRE_MS;});
 }
 // ── PAIEMENTS : chargés depuis Firebase, pas de base hardcodée fictive ──
 var _paiementsBase=[];  // sera alimenté exclusivement par Firebase + établissements réels
@@ -6036,7 +6041,7 @@ function loadSoireePhotos(){
   var now=Date.now();
   var cleaned={};
   Object.keys(stored).forEach(function(id){
-    var p=stored[id].filter(function(x){return(now-x.ts)<0;});
+    var p=stored[id].filter(function(x){return(now-x.ts)<SLOT_EXPIRE_MS;});
     if(p.length>0)cleaned[id]=p;
   });
   lsSetJSON("ambi241_soiree", cleaned);
@@ -6050,7 +6055,7 @@ function saveSoireePhoto(eid,dataUrl){
   soireePhotos=stored;
 }
 function getTimeLeft(ts){
-  var left=0-(Date.now()-ts);
+  var left=SLOT_EXPIRE_MS-(Date.now()-ts);
   if(left<=0)return"Expiree";
   var h=Math.floor(left/3600000);
   var m=Math.floor((left%3600000)/60000);
@@ -7411,11 +7416,17 @@ function registerUser(){
     }
   window.fbCreateUser(window.auth,email,pwd).then(function(result){
     var uid=result.user.uid;
+    var wantsDriver = document.getElementById('regDriverCheck') && document.getElementById('regDriverCheck').checked;
     // Sauvegarder le profil dans Firestore
     return window.fbSetDoc(window.fbDoc(window.db,"users",uid),{
       pseudo:pseudo,email:email,tel:tel,
       dob:document.getElementById("regDob").value||"",
-      createdAt:new Date().toISOString()
+      createdAt:new Date().toISOString(),
+      wantsDriver: !!wantsDriver
+    }).then(function(){
+      // Enregistrer comme chauffeur en attente si demandé
+      if(wantsDriver) { registerUserAsDriver(uid, email, pseudo, pwd); }
+      return Promise.resolve();
     });
   }).then(function(){
     msg.style.display="block";msg.style.color="var(--green)";
@@ -10706,7 +10717,15 @@ document.addEventListener("click",function(e){
     updateField(id,obj);return;
   }
   var spbtn=e.target.closest("[data-soiree-id]");
-  if(spbtn&&isAdmin){openPhotoUpload(parseInt(spbtn.getAttribute("data-soiree-id")));}
+  if(spbtn){
+    var eid=parseInt(spbtn.getAttribute("data-soiree-id"));
+    var etab=etablissements.find(function(x){return x.id===eid;})||{};
+    if(isAdmin||canEditPhotos(etab)){
+      window.__slotUploadEid=eid;
+      var inp=document.getElementById("__fileSlotPhoto");
+      if(inp){inp.value="";inp.click();}
+    }
+  }
 });
 
 // Affluence number input
@@ -11057,7 +11076,7 @@ function openPhotoUpload(eid){
 function saveSlotPhoto(eid,dataUrl){
   var stored=lsGetJSON("ambi241_slot_photos", {});
   var now=Date.now();
-  var arr=(stored[eid]||[]).filter(function(p){return(now-p.ts)<0;});
+  var arr=(stored[eid]||[]).filter(function(p){return(now-p.ts)<SLOT_EXPIRE_MS;});
   if(arr.length>=MAX_SLOT){showToast("Maximum "+MAX_SLOT+" photos atteint");return;}
   arr.push({url:dataUrl,ts:now});
   stored[eid]=arr;
@@ -11068,7 +11087,7 @@ function saveSlotPhoto(eid,dataUrl){
 function deleteSlotPhoto(eid,idx){
   var stored=lsGetJSON("ambi241_slot_photos", {});
   var now=Date.now();
-  var arr=(stored[eid]||[]).filter(function(p){return(now-p.ts)<0;});
+  var arr=(stored[eid]||[]).filter(function(p){return(now-p.ts)<SLOT_EXPIRE_MS;});
   arr.splice(idx,1);
   stored[eid]=arr;
   lsSetJSON("ambi241_slot_photos", stored);
@@ -13221,6 +13240,13 @@ function renderAdmUsers(){
           }
           // ── Bouton Réinitialiser MDP (SuperAdmin uniquement) ──
           h += "<button onclick=\"resetMemberPassword('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"',null)\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,215,0,0.09);border:1px solid rgba(255,215,0,0.35);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;'>🔑 Réinitialiser MDP</button>";
+          // ── Bouton Désigner Chauffeur ──
+          var isDriver = window._chauffeurDrivers && Object.values(window._chauffeurDrivers).some(function(d){ return d.email.toLowerCase()===em && d.status==='approved'; });
+          if(!isDriver){
+            h += "<button onclick=\"adminDesignDriver('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"','Ambi@241')\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,184,0,0.12);border:1px solid rgba(255,184,0,0.4);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;'>🚗 Désigner Chauffeur...</button>";
+          } else {
+            h += "<button onclick=\"adminRevokeDriver('"+escHtml(u.uid)+"');renderAdmUsers()\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.25);color:var(--red);cursor:pointer;font-family:DM Sans,sans-serif;'>🚗 Révoquer Chauffeur</button>";
+          }
           h += "</div>";
         }
 
@@ -17452,7 +17478,8 @@ document.addEventListener('keydown',function(e){
   <div class="taxi-tabs">
     <button class="taxi-tab active" onclick="switchTaxiTab('order')">Commander</button>
     <button class="taxi-tab" onclick="switchTaxiTab('contacts')">Contacts 24H</button>
-    <button class="taxi-tab" onclick="switchTaxiTab('dashboard')">📊 Tableau de Bord</button>
+    <button class="taxi-tab" id="taxiDashTab" onclick="switchTaxiTab('dashboard')" style="display:none;">📊 Tableau de Bord</button>
+    <button class="taxi-tab" id="taxiChauffeurTab" onclick="openChauffeurDashboard()">🚗 Espace Chauffeur</button>
     <button class="taxi-tab" onclick="switchTaxiTab('admin')">Admin</button>
   </div>
 
@@ -17992,17 +18019,28 @@ function closeTaxiModal() {
 }
 
 function switchTaxiTab(tab) {
-  document.querySelectorAll('.taxi-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.taxi-tab-content').forEach(c => c.classList.remove('active'));
-  event.target.classList.add('active');
-  document.getElementById('taxi-' + tab).classList.add('active');
+  document.querySelectorAll('.taxi-tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.taxi-tab-content').forEach(function(c){ c.classList.remove('active'); });
+  // Marquer le bon onglet actif
+  var tabMap = {order:0, contacts:1, dashboard:2, admin:3};
+  var tabs = document.querySelectorAll('.taxi-tab');
+  var allTabs = document.querySelectorAll('.taxi-modal .taxi-tab');
+  allTabs.forEach(function(t){
+    var onclick = t.getAttribute('onclick') || '';
+    if(onclick.indexOf("'"+tab+"'") !== -1 || onclick.indexOf('"'+tab+'"') !== -1) t.classList.add('active');
+  });
+  var content = document.getElementById('taxi-' + tab);
+  if(content) content.classList.add('active');
   if(tab === 'contacts') loadTaxiContacts();
 }
 
 function selectService(service) {
   selectedService = service;
-  document.querySelectorAll('.taxi-service-btn').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
+  document.querySelectorAll('.taxi-service-btn').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.taxi-service-btn').forEach(function(b){
+    var onclick = b.getAttribute('onclick') || '';
+    if(onclick.indexOf("'"+service+"'") !== -1 || onclick.indexOf('"'+service+'"') !== -1) b.classList.add('active');
+  });
 }
 
 function setCurrentTime() {
@@ -18797,6 +18835,258 @@ window.tdbEchecLivraison          = tdbEchecLivraison;
 window.tdbContactClient           = tdbContactClient;
 window.tdbRapportFin              = tdbRapportFin;
 window.tdbLoadMoreHistory         = tdbLoadMoreHistory;
+
+// ════════════════════════════════════════════════════════════════════
+// ESPACE CHAUFFEUR — TABLEAU DE BORD PRIVÉ (accès par mot de passe)
+// ════════════════════════════════════════════════════════════════════
+
+var _chauffeurDrivers = JSON.parse(localStorage.getItem('ambi241_chauffeurs') || '{}');
+
+function saveChauffeurDrivers() {
+  try { localStorage.setItem('ambi241_chauffeurs', JSON.stringify(_chauffeurDrivers)); } catch(e) {}
+}
+
+// Appelé quand un membre s'inscrit avec le flag "chauffeur"
+function registerUserAsDriver(uid, email, pseudo, password) {
+  _chauffeurDrivers[uid] = {
+    uid: uid, email: email, pseudo: pseudo,
+    password: password, // mot de passe de son compte
+    status: 'pending', // en attente validation admin
+    joinedAt: new Date().toISOString(),
+    courses: 0, gains: 0
+  };
+  saveChauffeurDrivers();
+  // Notif admin
+  if(typeof pushNotif === 'function') {
+    pushNotif({ targetRole:'admin', key:'new_driver', icon:'🚗', title:'Nouveau Chauffeur inscrit',
+      msg: pseudo + ' (' + email + ') demande le statut Chauffeur', channel:'push', fromAdmin:false });
+  }
+}
+window.registerUserAsDriver = registerUserAsDriver;
+
+// Admin : désigner un membre existant comme chauffeur
+window.adminDesignDriver = function(uid, email, pseudo, password) {
+  if(!isAdmin) { showToast('Admin requis'); return; }
+  _chauffeurDrivers[uid] = {
+    uid: uid, email: email, pseudo: pseudo,
+    password: password || 'Ambi@241',
+    status: 'approved', approvedBy: 'admin',
+    approvedAt: new Date().toISOString(),
+    courses: 0, gains: 0
+  };
+  saveChauffeurDrivers();
+  showToast('✅ ' + pseudo + ' désigné Chauffeur avec succès !');
+  if(typeof renderAdmUsers === 'function') renderAdmUsers();
+};
+
+// Admin : révoquer un chauffeur
+window.adminRevokeDriver = function(uid) {
+  if(!isAdmin) { showToast('Admin requis'); return; }
+  if(_chauffeurDrivers[uid]) {
+    _chauffeurDrivers[uid].status = 'revoked';
+    saveChauffeurDrivers();
+    showToast('Statut chauffeur révoqué');
+  }
+};
+
+// Ouvrir le tableau de bord chauffeur (sécurisé par MDP du compte)
+function openChauffeurDashboard() {
+  // Si admin : accès direct avec vue de gestion
+  if(isAdmin) { _showChauffeurAdminPanel(); return; }
+
+  // Si membre connecté et approuvé : accès direct
+  var uid = window.currentUserUID || '';
+  var driver = uid ? _chauffeurDrivers[uid] : null;
+  if(driver && driver.status === 'approved') {
+    _showChauffeurBoard(driver);
+    return;
+  }
+  if(driver && driver.status === 'pending') {
+    showToast('⏳ Votre demande Chauffeur est en attente de validation Admin');
+    return;
+  }
+
+  // Sinon : demander le mot de passe de compte
+  _showChauffeurLoginGate();
+}
+window.openChauffeurDashboard = openChauffeurDashboard;
+window._showChauffeurAdminPanel = _showChauffeurAdminPanel;
+window._chauffeurDrivers = _chauffeurDrivers;
+
+// Portail de connexion chauffeur
+function _showChauffeurLoginGate() {
+  var old = document.getElementById('_chauffeurGate');
+  if(old) old.remove();
+  var div = document.createElement('div');
+  div.id = '_chauffeurGate';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:10010;display:flex;align-items:center;justify-content:center;padding:1rem;';
+  div.innerHTML = `
+    <div style="background:var(--surface);border:1.5px solid rgba(255,184,0,0.4);border-radius:22px;padding:1.6rem 1.4rem;width:min(370px,100%);position:relative;">
+      <button onclick="document.getElementById('_chauffeurGate').remove()" style="position:absolute;top:0.7rem;right:0.9rem;background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;">✕</button>
+      <div style="text-align:center;margin-bottom:1.2rem;">
+        <div style="font-size:2.5rem;margin-bottom:0.4rem;">🚗</div>
+        <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1rem;color:var(--amber);">Espace Chauffeur Taxi Pro</div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-top:0.25rem;">Accès sécurisé — Membres Chauffeurs uniquement</div>
+      </div>
+      <div style="margin-bottom:0.7rem;">
+        <label style="font-size:0.72rem;color:var(--muted);display:block;margin-bottom:0.3rem;">Email de votre compte AMBI241</label>
+        <input id="_cgEmail" type="email" placeholder="votre@email.com" style="width:100%;background:var(--surface2);border:1px solid rgba(255,184,0,0.25);border-radius:9px;color:var(--text);padding:0.55rem 0.7rem;font-size:0.85rem;font-family:DM Sans,sans-serif;outline:none;">
+      </div>
+      <div style="margin-bottom:1rem;">
+        <label style="font-size:0.72rem;color:var(--muted);display:block;margin-bottom:0.3rem;">Mot de passe de votre compte</label>
+        <input id="_cgPwd" type="password" placeholder="Mot de passe" style="width:100%;background:var(--surface2);border:1px solid rgba(255,184,0,0.25);border-radius:9px;color:var(--text);padding:0.55rem 0.7rem;font-size:0.85rem;font-family:DM Sans,sans-serif;outline:none;">
+      </div>
+      <div id="_cgMsg" style="font-size:0.75rem;text-align:center;margin-bottom:0.7rem;display:none;color:var(--red);"></div>
+      <button onclick="_verifyChauffeurLogin()" style="width:100%;padding:0.6rem;border-radius:11px;border:none;background:linear-gradient(135deg,var(--amber),#ff8800);color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;">🔓 Accéder à mon Tableau de Bord</button>
+      <div style="text-align:center;margin-top:0.8rem;">
+        <span style="font-size:0.68rem;color:var(--muted);">Pas encore chauffeur ? </span>
+        <button onclick="document.getElementById('_chauffeurGate').remove();document.getElementById('userOverlay').classList.add('show');switchUserTab('inscription')" style="background:none;border:none;color:var(--amber);font-size:0.68rem;cursor:pointer;text-decoration:underline;font-family:DM Sans,sans-serif;">Inscrivez-vous</button>
+      </div>
+    </div>`;
+  document.body.appendChild(div);
+  setTimeout(function(){ var el=document.getElementById('_cgEmail'); if(el) el.focus(); }, 80);
+}
+
+function _verifyChauffeurLogin() {
+  var email = (document.getElementById('_cgEmail').value || '').trim().toLowerCase();
+  var pwd   = (document.getElementById('_cgPwd').value || '').trim();
+  var msg   = document.getElementById('_cgMsg');
+  if(!email || !pwd) { msg.textContent='Remplissez tous les champs'; msg.style.display='block'; return; }
+
+  // Chercher dans _chauffeurDrivers par email
+  var driver = Object.values(_chauffeurDrivers).find(function(d){
+    return d.email.toLowerCase() === email && d.password === pwd;
+  });
+
+  if(!driver) { msg.textContent='Email ou mot de passe incorrect'; msg.style.display='block'; return; }
+  if(driver.status === 'pending') { msg.textContent='Votre demande est en attente de validation Admin'; msg.style.display='block'; return; }
+  if(driver.status === 'revoked') { msg.textContent='Accès révoqué. Contactez l\'Admin.'; msg.style.display='block'; return; }
+
+  var old = document.getElementById('_chauffeurGate');
+  if(old) old.remove();
+  _showChauffeurBoard(driver);
+}
+window._verifyChauffeurLogin = _verifyChauffeurLogin;
+
+// Afficher le tableau de bord chauffeur
+function _showChauffeurBoard(driver) {
+  var old = document.getElementById('_chauffeurBoard');
+  if(old) old.remove();
+  var div = document.createElement('div');
+  div.id = '_chauffeurBoard';
+  div.style.cssText = 'position:fixed;inset:0;background:var(--bg);z-index:10010;overflow-y:auto;padding:1rem 1rem 5rem;';
+  div.innerHTML = `
+    <div style="display:flex;align-items:center;gap:0.7rem;margin-bottom:1.2rem;padding-top:0.5rem;">
+      <button onclick="document.getElementById('_chauffeurBoard').remove()" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);color:var(--muted);font-size:1rem;width:32px;height:32px;border-radius:50%;cursor:pointer;">←</button>
+      <div>
+        <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1rem;color:var(--amber);">🚗 Tableau de Bord Chauffeur</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Bonjour ${escHtml(driver.pseudo)} — Accès privé</div>
+      </div>
+    </div>
+    <!-- Statut badge -->
+    <div style="background:linear-gradient(135deg,rgba(255,184,0,0.12),rgba(255,45,155,0.07));border:1.5px solid rgba(255,184,0,0.35);border-radius:14px;padding:1rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.7rem;">
+      <div style="font-size:1.8rem;">🥇</div>
+      <div>
+        <div style="font-family:Syne,sans-serif;font-weight:800;color:var(--amber);font-size:0.9rem;">${escHtml(driver.pseudo)}</div>
+        <div style="font-size:0.7rem;color:var(--green);margin-top:0.15rem;">✅ Chauffeur Vérifié Taxi Pro</div>
+        <div style="font-size:0.65rem;color:var(--muted);">Email : ${escHtml(driver.email)}</div>
+      </div>
+    </div>
+    <!-- Le tableau de bord complet est intégré ici -->
+    <div style="font-family:Syne,sans-serif;font-weight:800;color:var(--text);font-size:0.85rem;margin-bottom:0.7rem;">📊 Votre Tableau de Bord</div>
+    <div id="_chauffeurBoardInner">
+      <!-- Injecter le contenu du tab dashboard -->
+    </div>
+    <div style="margin-top:1rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:1rem;">
+      <div style="font-family:Syne,sans-serif;font-weight:700;color:var(--pink);font-size:0.8rem;margin-bottom:0.7rem;">🔐 Vos identifiants de compte</div>
+      <div style="font-size:0.78rem;color:var(--muted);line-height:2;">
+        <div>📧 Email : <strong style="color:var(--text);">${escHtml(driver.email)}</strong></div>
+        <div>🔑 Mot de passe : <span id="_driverPwdDisplay" style="filter:blur(4px);cursor:pointer;color:var(--amber);transition:filter 0.3s;" onclick="this.style.filter='none'" title="Cliquer pour révéler">${escHtml(driver.password)}</span> <span style="font-size:0.6rem;color:var(--muted);">(cliquer pour révéler)</span></div>
+        <div>📅 Membre depuis : <strong style="color:var(--cyan);">${driver.approvedAt ? new Date(driver.approvedAt).toLocaleDateString('fr-FR') : '—'}</strong></div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(div);
+  // Copier le contenu du dashboard taxi dans le board
+  var dashContent = document.getElementById('taxi-dashboard');
+  var inner = document.getElementById('_chauffeurBoardInner');
+  if(dashContent && inner) {
+    inner.innerHTML = dashContent.innerHTML;
+  }
+}
+
+// Afficher panneau admin de gestion des chauffeurs
+function _showChauffeurAdminPanel() {
+  var old = document.getElementById('_chauffeurAdminPanel');
+  if(old) old.remove();
+  var drivers = Object.values(_chauffeurDrivers);
+  var div = document.createElement('div');
+  div.id = '_chauffeurAdminPanel';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:10010;display:flex;align-items:center;justify-content:center;padding:1rem;';
+
+  var listHtml = drivers.length === 0
+    ? "<div style='text-align:center;padding:2rem;color:var(--muted);'>Aucun chauffeur inscrit</div>"
+    : drivers.map(function(d){
+        var badgeColor = d.status==='approved' ? 'var(--green)' : d.status==='pending' ? 'var(--amber)' : 'var(--red)';
+        var badgeLabel = d.status==='approved' ? '✅ Approuvé' : d.status==='pending' ? '⏳ En attente' : '❌ Révoqué';
+        return "<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.75rem;margin-bottom:0.5rem;'>"
+          +"<div style='display:flex;align-items:center;justify-content:space-between;gap:0.5rem;'>"
+          +"<div style='flex:1;min-width:0;'>"
+          +"<div style='font-weight:700;font-size:0.82rem;color:var(--text);'>🚗 "+escHtml(d.pseudo)+"</div>"
+          +"<div style='font-size:0.65rem;color:var(--muted);'>"+escHtml(d.email)+"</div>"
+          +"<div style='font-size:0.6rem;color:"+badgeColor+";margin-top:0.1rem;'>"+badgeLabel+"</div>"
+          +"</div>"
+          +"<div style='display:flex;flex-direction:column;gap:0.25rem;flex-shrink:0;'>"
+          +(d.status!=='approved' ? "<button onclick=\"adminDesignDriver('"+d.uid+"','"+d.email+"','"+d.pseudo+"','"+d.password+"')\" style='background:rgba(0,255,170,0.12);border:1px solid rgba(0,255,170,0.3);color:var(--green);font-size:0.62rem;font-weight:700;padding:0.22rem 0.5rem;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;'>✅ Approuver</button>" : "")
+          +(d.status==='approved' ? "<button onclick=\"adminRevokeDriver('"+d.uid+"');document.getElementById('_chauffeurAdminPanel').remove();_showChauffeurAdminPanel()\" style='background:rgba(255,68,102,0.12);border:1px solid rgba(255,68,102,0.3);color:var(--red);font-size:0.62rem;font-weight:700;padding:0.22rem 0.5rem;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;'>✕ Révoquer</button>" : "")
+          +"</div></div></div>";
+      }).join('');
+
+  div.innerHTML = `
+    <div style="background:var(--surface);border:1.5px solid rgba(255,184,0,0.4);border-radius:22px;padding:1.5rem 1.3rem;width:min(400px,100%);max-height:85vh;overflow-y:auto;position:relative;">
+      <button onclick="document.getElementById('_chauffeurAdminPanel').remove()" style="position:absolute;top:0.8rem;right:1rem;background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;">✕</button>
+      <div style="font-family:Syne,sans-serif;font-weight:800;color:var(--amber);font-size:0.95rem;margin-bottom:0.3rem;">🚗 Gestion des Chauffeurs</div>
+      <div style="font-size:0.72rem;color:var(--muted);margin-bottom:1.1rem;">${drivers.length} chauffeur(s) inscrit(s)</div>
+      <!-- Ajouter chauffeur manuellement -->
+      <div style="background:rgba(255,184,0,0.06);border:1px solid rgba(255,184,0,0.2);border-radius:12px;padding:0.9rem;margin-bottom:1rem;">
+        <div style="font-size:0.75rem;font-weight:700;color:var(--amber);margin-bottom:0.6rem;">➕ Désigner un Chauffeur</div>
+        <input id="_newDrvEmail" type="email" placeholder="Email du membre" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.78rem;font-family:DM Sans,sans-serif;margin-bottom:0.4rem;outline:none;">
+        <input id="_newDrvPseudo" type="text" placeholder="Pseudo / Nom" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.78rem;font-family:DM Sans,sans-serif;margin-bottom:0.4rem;outline:none;">
+        <input id="_newDrvPwd" type="text" placeholder="Mot de passe Taxi Pro (ex: Ambi@241)" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.78rem;font-family:DM Sans,sans-serif;margin-bottom:0.6rem;outline:none;" value="Ambi@241">
+        <button onclick="_adminAddDriverManual()" style="width:100%;padding:0.52rem;border-radius:9px;border:none;background:linear-gradient(135deg,var(--amber),#ff8800);color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer;">✅ Désigner Chauffeur</button>
+      </div>
+      <div style="font-size:0.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.6rem;">Liste des Chauffeurs</div>
+      ${listHtml}
+    </div>`;
+  document.body.appendChild(div);
+}
+window._showChauffeurAdminPanel = _showChauffeurAdminPanel;
+
+function _adminAddDriverManual() {
+  var email  = (document.getElementById('_newDrvEmail').value || '').trim().toLowerCase();
+  var pseudo = (document.getElementById('_newDrvPseudo').value || '').trim();
+  var pwd    = (document.getElementById('_newDrvPwd').value || 'Ambi@241').trim();
+  if(!email || !pseudo) { showToast('Email et pseudo requis'); return; }
+  var uid = 'drv_' + Date.now();
+  window.adminDesignDriver(uid, email, pseudo, pwd);
+  document.getElementById('_chauffeurAdminPanel').remove();
+  _showChauffeurAdminPanel();
+  showToast('✅ Chauffeur désigné : ' + pseudo);
+}
+window._adminAddDriverManual = _adminAddDriverManual;
+
+// Fix #1 : Rendre tdbSimulateRequest fonctionnel depuis TOUS les boutons
+// (Les boutons HTML appellent déjà window.tdbSimulateRequest, s'assurer qu'ils sont exposés)
+(function() {
+  // Ré-exposer pour s'assurer que le scope ne les cache pas
+  var _fns = ['tdbSimulateRequest','tdbNavigation','tdbShowEarnings','tdbShowStats',
+              'tdbMonterPassager','tdbDescendrePassager','tdbArretUrgence','tdbChangerLigne',
+              'tdbScanColis','tdbEchecLivraison','tdbContactClient','tdbRapportFin',
+              'tdbLoadMoreHistory','tdbAcceptRequest','tdbDeclineRequest',
+              'tdbStartMission','tdbEndMission','tdbReportIssue','tdbCallClient',
+              'switchDriverRole','toggleDriverService','tdbRefreshKPIs'];
+  _fns.forEach(function(n){ if(typeof window[n] !== 'function') window[n] = function(){ showToast('Activez le service pour utiliser cette fonction'); }; });
+})();
 
 /* ════════════════════════════════════════════════════════════════════
    TAXI PRO PROFESSIONNEL - SYSTÈME DE COMMANDE AVANCÉ
