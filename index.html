@@ -3117,23 +3117,28 @@ if (document.readyState === 'loading') {
       <div style="text-align:center;margin-bottom:0.9rem;">
 
         <!-- ── Zone avatar cliquable + drag-drop ── -->
-        <div id="avatarDropArea" class="avatar-drop-zone" onclick="triggerAvatarUpload()" title="Changer ma photo de profil"
+        <div id="avatarDropArea" class="avatar-drop-zone" title="Changer ma photo de profil"
           style="border:none;padding:0;display:inline-block;background:none;">
           <div style="position:relative;width:96px;margin:0 auto 0.5rem;">
-            <div id="myAvatarWrap" class="user-avatar-ring">
+            <div id="myAvatarWrap" class="user-avatar-ring" onclick="triggerAvatarUpload()" style="cursor:pointer;">
               <div id="myAvatarInner" class="user-avatar-initiale">?</div>
             </div>
             <!-- Overlay caméra -->
-            <div class="avatar-cam-overlay">
-              <span>📷</span>
-              <small>Modifier</small>
+            <div class="avatar-cam-overlay" onclick="triggerAvatarUpload()" style="cursor:pointer;">
+              <span>🖼️</span>
+              <small>Galerie</small>
             </div>
             <!-- Badge crayon -->
-            <div class="user-avatar-edit-btn">✏️</div>
+            <div class="user-avatar-edit-btn" onclick="triggerAvatarUpload()" style="cursor:pointer;">✏️</div>
           </div>
-          <div style="font-size:0.62rem;color:var(--muted);margin-top:0.1rem;">Appuyer pour changer · Glisser une photo ici</div>
+          <!-- Bouton galerie explicite mobile -->
+          <button onclick="triggerAvatarUpload()" style="margin-top:0.5rem;padding:0.4rem 1rem;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.35);border-radius:10px;color:var(--pink);font-family:'DM Sans',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:0.35rem;">
+            🖼️ Choisir depuis la galerie
+          </button>
+          <div id="avatarStatus" style="font-size:0.62rem;color:var(--muted);margin-top:0.4rem;min-height:1rem;"></div>
         </div>
 
+        <!-- accept="image/*" sans capture → ouvre la galerie sur mobile (pas la caméra) -->
         <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="onAvatarFileSelected(this)">
         <div id="myProfilePseudo" style="font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;color:var(--text);margin-top:0.5rem;"></div>
         <div id="myProfileEmail" style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;"></div>
@@ -5645,6 +5650,11 @@ var isSuperAdmin=false;  // Premier admin / propriétaire de l'app
 var currentUserEmail="";
 var currentType="all";
 
+// 🔐 SÉCURITÉ PAIEMENTS
+var currentUserRole="user"; // "admin" | "super_admin" | "establishment" | "user"
+var currentEstablishmentId=null; // Nom de l'établissement connecté (si rôle establishment)
+var _payEstablishmentFilter=null; // Filtre admin : restreindre à un établissement précis
+
 // ── SUPER-ADMIN (propriétaire unique de l'application) ──────
 // L'email du premier admin est stocké dans Firebase (collection "config/superadmin")
 // et en localStorage comme fallback. Il est le SEUL à pouvoir gérer les autres admins.
@@ -5923,6 +5933,25 @@ function rebuildPaiements(){
   // Reconstruire le tableau trié par id
   paiements=Object.values(merged).sort(function(a,b){
     return (a.id||"").localeCompare(b.id||"");
+  });
+}
+
+// 🔐 SÉCURITÉ: Retourne uniquement les paiements accessibles selon le rôle
+function getVisiblePayments(){
+  var list=paiements;
+  // Établissement : ne voit que ses propres paiements
+  if(currentUserRole==="establishment"&&currentEstablishmentId){
+    list=list.filter(function(p){return p.nom.toLowerCase()===currentEstablishmentId.toLowerCase();});
+  }
+  // Admin : peut filtrer par établissement spécifique
+  if(isAdmin&&_payEstablishmentFilter){
+    list=list.filter(function(p){return p.nom.toLowerCase()===_payEstablishmentFilter.toLowerCase();});
+  }
+  // Filtres statut + recherche
+  return list.filter(function(p){
+    var matchF=_payFilter==="all"||p.statut===_payFilter;
+    var matchS=!_paySearch||p.nom.toLowerCase().indexOf(_paySearch)!==-1||p.id.toLowerCase().indexOf(_paySearch)!==-1;
+    return matchF&&matchS;
   });
 }
 
@@ -10591,16 +10620,18 @@ var _payFilter="all";
 var _paySearch="";
 
 function renderPayments(){
-  var total=paiements.length;
-  var nbConfirme=paiements.filter(function(p){return p.statut==="Confirme";}).length;
-  var nbAttente=paiements.filter(function(p){return p.statut==="En attente";}).length;
-  var confirmed=paiements.reduce(function(s,p){return s+(p.statut==="Confirme"?p.montant:0);},0);
+  // 🔐 SÉCURITÉ: paiements filtrés selon le rôle
+  var visible=getVisiblePayments();
 
-  var visible=paiements.filter(function(p){
-    var matchF=_payFilter==="all"||p.statut===_payFilter;
-    var matchS=!_paySearch||p.nom.toLowerCase().indexOf(_paySearch)!==-1||p.id.toLowerCase().indexOf(_paySearch)!==-1;
-    return matchF&&matchS;
-  });
+  // Stats calculées sur les paiements accessibles à l'utilisateur
+  var basePay=paiements;
+  if(currentUserRole==="establishment"&&currentEstablishmentId){
+    basePay=basePay.filter(function(p){return p.nom.toLowerCase()===currentEstablishmentId.toLowerCase();});
+  }
+  var total=basePay.length;
+  var nbConfirme=basePay.filter(function(p){return p.statut==="Confirme";}).length;
+  var nbAttente=basePay.filter(function(p){return p.statut==="En attente";}).length;
+  var confirmed=basePay.reduce(function(s,p){return s+(p.statut==="Confirme"?p.montant:0);},0);
 
   var html="";
 
@@ -10621,6 +10652,22 @@ function renderPayments(){
     html+="<button onclick=\"_payFilter=\'Confirme\';renderPayments()\" style=\"flex:1;padding:0.4rem;border-radius:8px;border:1px solid "+(_payFilter==="Confirme"?"var(--green)":"rgba(255,255,255,0.1)")+";background:"+(_payFilter==="Confirme"?"rgba(0,255,170,0.12)":"transparent")+";color:"+(_payFilter==="Confirme"?"var(--green)":"var(--muted)")+";font-size:0.75rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;\">\u2705 Confirm\u00e9s ("+nbConfirme+")</button>";
     html+="<button onclick=\"_payFilter=\'En attente\';renderPayments()\" style=\"flex:1;padding:0.4rem;border-radius:8px;border:1px solid "+(_payFilter==="En attente"?"var(--amber)":"rgba(255,255,255,0.1)")+";background:"+(_payFilter==="En attente"?"rgba(255,215,0,0.12)":"transparent")+";color:"+(_payFilter==="En attente"?"var(--amber)":"var(--muted)")+";font-size:0.75rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;\">\u23F3 En attente ("+nbAttente+")</button>";
     html+="</div>";
+    // 🔐 NOUVEAU — Filtre par établissement (admin seulement)
+    var estabNames={};
+    paiements.forEach(function(p){estabNames[p.nom.toLowerCase()]=p.nom;});
+    var estabList=Object.values(estabNames);
+    if(estabList.length>0){
+      html+="<div style=\"margin-bottom:0.9rem;padding-top:0.6rem;border-top:1px solid rgba(255,255,255,0.08);\">";
+      html+="<div style=\"font-size:0.68rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.45rem;\">\uD83C\uDFEA Filtrer par \u00e9tablissement</div>";
+      html+="<div style=\"display:flex;gap:0.3rem;flex-wrap:wrap;\">";
+      html+="<button onclick=\"_payEstablishmentFilter=null;renderPayments()\" style=\"padding:0.35rem 0.7rem;border-radius:8px;border:1px solid "+(_payEstablishmentFilter===null?"var(--cyan)":"rgba(255,255,255,0.1)")+";background:"+(_payEstablishmentFilter===null?"rgba(0,229,255,0.15)":"transparent")+";color:"+(_payEstablishmentFilter===null?"var(--cyan)":"var(--muted)")+";font-size:0.72rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;\">\uD83D\uDCCA Tous</button>";
+      estabList.forEach(function(name){
+        var key=name.toLowerCase();
+        var act=_payEstablishmentFilter===key;
+        html+="<button onclick=\"_payEstablishmentFilter=\'"+key+"\';renderPayments()\" style=\"padding:0.35rem 0.7rem;border-radius:8px;border:1px solid "+(act?"var(--pink)":"rgba(255,255,255,0.1)")+";background:"+(act?"rgba(255,45,155,0.15)":"transparent")+";color:"+(act?"var(--pink)":"var(--muted)")+";font-size:0.72rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;\">\uD83C\uDFEA "+name+"</button>";
+      });
+      html+="</div></div>";
+    }
   }
 
   visible.forEach(function(p,i){
@@ -13204,9 +13251,10 @@ function renderAdmUsers(){
         h += "<div class='notif-admin-item' style='"+(isAdminUser?"border-color:rgba(255,215,0,0.2);":"")+"'>";
         h += "<div style='display:flex;align-items:center;gap:0.6rem;cursor:pointer;' onclick=\"openUserProfile(decodeURIComponent('"+uDataStr+"'))\">";
 
-        // Avatar
+        // Avatar — avec chargement photo réelle si disponible
+        var avatarId = "admAvatar_"+escHtml(u.uid||u.email||"?");
         var avatarGrad = isSuperUser ? "linear-gradient(135deg,var(--amber),var(--pink))" : isAdminUser ? "linear-gradient(135deg,var(--amber),var(--cyan))" : "linear-gradient(135deg,var(--pink),var(--cyan))";
-        h += "<div style='width:34px;height:34px;border-radius:50%;background:"+avatarGrad+";display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.9rem;color:#000;flex-shrink:0;'>"+((u.pseudo||u.email||"?")[0]).toUpperCase()+"</div>";
+        h += "<div id='"+avatarId+"' style='width:34px;height:34px;border-radius:50%;background:"+avatarGrad+";display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.9rem;color:#000;flex-shrink:0;overflow:hidden;'>"+((u.pseudo||u.email||"?")[0]).toUpperCase()+"</div>";
 
         // Infos
         h += "<div style='flex:1;min-width:0;'>";
@@ -13253,6 +13301,29 @@ function renderAdmUsers(){
         h += "</div>";
       });
       document.getElementById("adminMembersList").innerHTML = h;
+
+      // 🖼️ Charger les vraies photos de profil en arrière-plan
+      users.forEach(function(u){
+        if(!u.uid) return;
+        var elId = "admAvatar_"+escHtml(u.uid||u.email||"?");
+        loadUserAvatar(u.uid, function(url){
+          if(!url) return;
+          var el = document.getElementById(elId);
+          if(!el) return;
+          var img = new Image();
+          img.onload = function(){
+            el.innerHTML = "";
+            el.style.background = "none";
+            el.style.padding = "0";
+            var imgEl = document.createElement("img");
+            imgEl.src = url;
+            imgEl.style.cssText = "width:34px;height:34px;border-radius:50%;object-fit:cover;display:block;";
+            el.appendChild(imgEl);
+          };
+          img.src = url;
+        });
+      });
+
     }).catch(function(err){
       document.getElementById("adminMembersList").innerHTML = "<div style='color:var(--red);font-size:0.8rem;padding:1rem;text-align:center;'>Erreur: "+err.message+"</div>";
     });
@@ -14486,7 +14557,7 @@ function openUserProfile(userData){
   var iAmSuper = isAdmin && isSuperAdminUser();
 
   // Avatar HTML — initiale en attendant le chargement
-  var avatarHtml = '<div class="vp-avatar"><div class="vp-avatar-init" id="_vpAvatarInit">'+escHtml(initiale)+'</div></div>';
+  var avatarHtml = '<div class="vp-avatar"><div class="vp-avatar-init" id="_vpAvatarInit" style="width:66px;height:66px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-family:Syne,sans-serif;font-weight:800;font-size:1.6rem;color:#fff;overflow:hidden;">'+escHtml(initiale)+'</div></div>';
 
   var html =
     '<div id="_userProfileOverlay" style="position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:1rem;" onclick="if(event.target===this)closeUserProfile()">' +
