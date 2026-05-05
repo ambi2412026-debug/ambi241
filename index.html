@@ -11425,6 +11425,8 @@ window.switchSection      = switchSection;
 window.goHome             = goHome;
 window.toggleAdmin        = toggleAdmin;
 window.pinPress           = pinPress;
+window.hashPin            = hashPin;
+window.loadPinHash        = loadPinHash;
 window.openUserModal      = openUserModal;
 window.closeUserModal     = closeUserModal;
 window.switchUserTab      = switchUserTab;
@@ -17776,7 +17778,7 @@ document.addEventListener('keydown',function(e){
       <input type="password" class="taxi-form-input" id="adminPass" placeholder="Entrez le mot de passe">
     </div>
 
-    <button class="taxi-admin-btn" onclick="loginAdmin()">ACCÉDER AU PANEL</button>
+    <button class="taxi-admin-btn" id="taxiAdminLoginBtn" onclick="loginAdmin()">ACCÉDER AU PANEL</button>
 
     <div id="adminPanel" style="display:none;margin-top:20px;">
       <div style="background:linear-gradient(135deg,rgba(0,255,170,0.15),rgba(0,255,170,0.08));border:2px solid rgba(0,255,170,0.3);border-radius:10px;padding:14px;margin-bottom:18px;color:var(--green);font-size:13px;font-weight:800;display:flex;align-items:center;gap:8px;">
@@ -18083,20 +18085,22 @@ function callTaxi(phone) {
 
 function loginAdmin() {
   const pass = document.getElementById('adminPass').value;
+  const btn  = document.getElementById('taxiAdminLoginBtn');
+  if(!pass){ alert('⚠️ Entrez le code PIN'); return; }
   // Vérification via le même hash SHA-256 que le PIN super-admin du site
-  (typeof hashPin === 'function' ? hashPin(pass) : Promise.resolve(null)).then(function(h) {
-    const storedHash = (typeof loadPinHash === 'function') ? loadPinHash() : null;
+  (window.hashPin || hashPin)(pass).then(function(h) {
+    const storedHash = (window.loadPinHash || loadPinHash)();
     if(storedHash && h === storedHash) {
       isAdminLoggedIn = true;
       document.getElementById('adminPanel').style.display = 'block';
-      document.getElementById('adminPass').style.display = 'none';
-      event.target.style.display = 'none';
+      document.getElementById('adminPass').style.display  = 'none';
+      if(btn) btn.style.display = 'none';
       loadAdminContacts();
       showTaxiNotification('✓ Mode Admin activé');
     } else {
-      alert('❌ Mot de passe incorrect');
+      alert('❌ Code PIN incorrect');
     }
-  });
+  }).catch(function(){ alert('❌ Erreur de vérification'); });
 }
 
 function addTaxiContact() {
