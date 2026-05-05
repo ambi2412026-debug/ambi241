@@ -1309,7 +1309,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .add-soiree-btn{flex-shrink:0;width:65px;height:65px;border-radius:8px;border:2px dashed rgba(255,45,155,0.3);background:rgba(255,45,155,0.05);color:var(--pink);font-size:1.5rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
 .card-top{padding:0.8rem 0.9rem 0.6rem;width:100%;box-sizing:border-box;}
 .card-row1{display:flex;justify-content:space-between;align-items:flex-start;width:100%;}
-.card-num{font-size:0.6rem;color:#000;font-family:'Syne',sans-serif;letter-spacing:0.06em;text-transform:uppercase;background:var(--pink);display:inline-block;padding:0.1rem 0.45rem;border-radius:5px;font-weight:800;margin-bottom:0.2rem;}
+.card-num{font-size:0.62rem;color:var(--muted);font-family:'Syne',sans-serif;font-weight:900;display:inline-block;margin-bottom:0.2rem;min-width:18px;text-align:center;}
 .card-name{font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;margin-top:0.15rem;line-height:1.2;color:var(--text);}
 .cat-badge{font-size:0.64rem;font-weight:700;padding:0.15rem 0.5rem;border-radius:6px;margin-top:0.25rem;display:inline-block;}
 .cb-bar{background:rgba(255,45,155,0.12);color:var(--pink);border:1px solid rgba(255,45,155,0.25);}
@@ -8349,45 +8349,23 @@ function buildCard(e,delay,compact,rank){
 
   var photosHtml = "<div style='width:100%;'>";
 
-  // ── 1. PHOTO DE PRÉSENTATION — visible par TOUS ──────────────
-  if (permPhoto) {
+  // ── 1. PHOTO DE PRÉSENTATION — uniquement si uploadée manuellement par l'établissement ou l'admin ──
+  // Les photos automatiques (Google Maps, fallback SVG, chargement auto) sont masquées.
+  var showManualPhoto = isProfileApproved || isManual;
+  if (showManualPhoto && permPhoto) {
     photosHtml += "<div style='position:relative;overflow:hidden;'>";
-    var imgStyle = isFallbackSvg
-      ? "width:100%;height:160px;object-fit:cover;display:block;"
-      : "width:100%;height:160px;object-fit:cover;display:block;cursor:zoom-in;";
-    var imgClick = isFallbackSvg ? "" : " onclick=\"openFullscreenPhoto('"+permPhoto.replace(/'/g,"\\'")+"',"+e.id+",'profile','"+((e.nom||"").replace(/'/g,"\\'"))+"')\"";
-    photosHtml += "<img src='"+permPhoto+"' style='"+imgStyle+"'"+imgClick+" loading='lazy' onerror=\"this.src='"+generateFallbackPhoto(e.type,e.nom).replace(/'/g,"\\'")+"'\">";
+    var imgStyle = "width:100%;height:160px;object-fit:cover;display:block;cursor:zoom-in;";
+    var imgClick = " onclick=\"openFullscreenPhoto('"+permPhoto.replace(/'/g,"\\'")+"',"+e.id+",'profile','"+((e.nom||"").replace(/'/g,"\\'"))+"')\"";
+    photosHtml += "<img src='"+permPhoto+"' style='"+imgStyle+"'"+imgClick+" loading='lazy' onerror=\"this.parentElement.style.display='none'\">";
 
     // Badge source
     if (isProfileApproved) {
       photosHtml += "<span style='position:absolute;top:6px;left:6px;font-size:0.5rem;font-weight:800;color:#fff;background:rgba(0,255,170,0.88);border-radius:5px;padding:0.1rem 0.35rem;letter-spacing:0.04em;pointer-events:none;'>✓ Photo officielle</span>";
-    } else if (isGoogleAuto) {
-      photosHtml += "<span style='position:absolute;top:6px;left:6px;font-size:0.5rem;font-weight:800;color:#fff;background:rgba(66,133,244,0.88);border-radius:5px;padding:0.1rem 0.35rem;letter-spacing:0.04em;pointer-events:none;'>Google Maps</span>";
-      // Mini-galerie Google si plusieurs photos dispo
-      if (e._gphoto_urls && e._gphoto_urls.length > 1) {
-        photosHtml += "<div style='position:absolute;bottom:6px;left:6px;display:flex;gap:4px;'>";
-        e._gphoto_urls.slice(0,4).forEach(function(u,i){
-          if(i===0) return; // la 1ère est déjà affichée en grand
-          photosHtml += "<img src='"+u+"' style='width:36px;height:36px;object-fit:cover;border-radius:4px;border:1.5px solid rgba(255,255,255,0.4);cursor:pointer;' onclick=\"event.stopPropagation();openFullscreenPhoto('"+u.replace(/'/g,"\\'")+"',"+e.id+",'profile','"+((e.nom||"").replace(/'/g,"\\'"))+"')\" loading='lazy'>";
-        });
-        photosHtml += "</div>";
-      }
-    } else if (isFallbackSvg) {
-      photosHtml += "<span style='position:absolute;top:6px;left:6px;font-size:0.5rem;font-weight:800;color:rgba(255,255,255,0.7);background:rgba(255,255,255,0.12);border-radius:5px;padding:0.1rem 0.35rem;letter-spacing:0.04em;pointer-events:none;border:1px solid rgba(255,255,255,0.15);'>Visuel auto</span>";
     }
 
     // Bouton gestion photo — UNIQUEMENT responsable/admin
     if (canManage) {
       photosHtml += "<button onclick=\"event.stopPropagation();proposeGooglePhotoProfile("+e.id+")\" style='position:absolute;top:6px;right:6px;font-size:0.55rem;font-weight:800;background:rgba(255,45,155,0.85);border:none;color:#fff;border-radius:6px;padding:0.2rem 0.45rem;cursor:pointer;z-index:5;'>🖼️ Modifier</button>";
-    }
-    photosHtml += "</div>";
-  } else {
-    // En cours de chargement (place_id présent mais fetch pas encore terminé)
-    photosHtml += "<div style='width:100%;height:70px;display:flex;align-items:center;justify-content:center;gap:0.6rem;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.04);'>";
-    photosHtml += "<span style='font-size:1.4rem;opacity:0.25;'>⏳</span>";
-    photosHtml += "<span style='font-size:0.58rem;color:var(--muted);'>Chargement de la photo…</span>";
-    if (canManage) {
-      photosHtml += "<button onclick=\"proposeGooglePhotoProfile("+e.id+")\" style='font-size:0.6rem;font-weight:700;color:var(--cyan);cursor:pointer;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);padding:0.2rem 0.5rem;border-radius:6px;'>🗺️ Importer Google</button>";
     }
     photosHtml += "</div>";
   }
@@ -8815,7 +8793,7 @@ function buildCard(e,delay,compact,rank){
     photosHtml+
     "<div class=\"card-top\">"+
     "<div class=\"card-row1\"><div>"+
-    "<div class=\"card-num\">#"+String(rank!=null?rank:e.id).padStart(3,"0")+"</div>"+
+    "<div class=\"card-num\">N°"+(rank!=null?rank:e.id)+"</div>"+
     "<div class=\"card-name\" onclick=\"openGalerie("+e.id+")\" title=\"Voir la galerie de "+(e.nom||"").replace(/"/g,'')+"\" style=\"cursor:pointer;display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap;transition:color 0.2s;\">"+e.nom+" <span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span>"+(e._distKm!=null?"<span class=\"dist-badge "+distClass(e._distKm)+"\">"+fmtDist(e._distKm)+"</span>":"")+"</div>"+
     "<span class=\"cat-badge "+ci.badge+"\" style=\"cursor:pointer;\" onclick=\"goToTypeFilter('"+getCategory(e.type)+"')\" title=\"Filtrer par "+ci.label+"\">"+ci.icon+" "+ci.label+"</span>"+
     "<div style=\"font-size:0.7rem;color:var(--cyan);margin-top:0.2rem;cursor:pointer;display:inline-flex;align-items:center;gap:0.2rem;\" onclick=\"goToQuartier('"+e.quartier.replace(/'/g,"")+"')\">&#128205; "+e.quartier+"<span style='font-size:0.55rem;opacity:0.6;'> ›</span></div>"+
