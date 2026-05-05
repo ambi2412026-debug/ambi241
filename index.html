@@ -2399,6 +2399,28 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 .taxi-pro-member-btn.promote{background:rgba(255,215,0,0.2);color:var(--amber);border:1px solid rgba(255,215,0,0.3);}
 .taxi-pro-member-btn.promote:active{opacity:0.6;}
 
+
+/* ════ PHOTO DE PROFIL ÉDITABLE — contrôle d'accès strict ════ */
+.profile-pic-wrapper{position:relative;display:inline-block;margin:0 auto 0.8rem;}
+.profile-pic-edit-btn{position:absolute;bottom:2px;right:2px;width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));border:2.5px solid var(--bg);display:none;align-items:center;justify-content:center;font-size:1rem;cursor:pointer;box-shadow:0 2px 10px rgba(255,45,155,0.55);transition:transform 0.15s,box-shadow 0.15s;}
+.profile-pic-edit-btn:hover{transform:scale(1.1);box-shadow:0 4px 16px rgba(255,45,155,0.7);}
+.profile-pic-edit-btn:active{transform:scale(0.88);}
+.profile-pic-edit-btn.visible{display:flex;}
+.pic-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:650;align-items:center;justify-content:center;padding:1rem;animation:fadeIn 0.2s;}
+.pic-modal-overlay.open{display:flex;}
+.pic-modal-box{background:var(--surface);border:1.5px solid rgba(255,45,155,0.35);border-radius:20px;padding:1.8rem 1.5rem;width:min(320px,100%);animation:popIn 0.28s cubic-bezier(0.34,1.56,0.64,1);}
+.pic-modal-title{font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:var(--pink);text-align:center;margin-bottom:1.3rem;}
+.pic-modal-preview-wrap{width:96px;height:96px;border-radius:50%;border:3px solid var(--pink);overflow:hidden;margin:0 auto 1.3rem;background:rgba(255,45,155,0.1);display:flex;align-items:center;justify-content:center;font-size:2.5rem;}
+.pic-modal-preview-wrap img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
+.pic-modal-upload-label{display:flex;align-items:center;justify-content:center;gap:0.5rem;width:100%;background:linear-gradient(135deg,rgba(255,45,155,0.18),rgba(204,68,255,0.1));border:2px solid var(--pink);color:var(--pink);border-radius:12px;padding:0.85rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.9rem;transition:opacity 0.2s;margin-bottom:0.9rem;}
+.pic-modal-upload-label:active{opacity:0.8;}
+.pic-modal-hint{font-size:0.68rem;color:var(--muted);text-align:center;margin-bottom:1.2rem;}
+.pic-modal-footer{display:flex;gap:0.6rem;}
+.pic-modal-btn{flex:1;padding:0.8rem;border-radius:10px;border:none;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.85rem;transition:opacity 0.2s;}
+.pic-modal-btn:active{opacity:0.8;}
+.pic-modal-btn.save{background:var(--pink);color:#0d0014;}
+.pic-modal-btn.cancel{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.18);color:var(--text);}
+.pic-modal-btn.del{background:rgba(255,68,102,0.12);border:1px solid rgba(255,68,102,0.3);color:var(--red);}
 </style>
 
 <!-- ══ AMBI241 i18n — Sélecteur de Langue 🌍 ══ -->
@@ -2959,9 +2981,15 @@ if (document.readyState === 'loading') {
       <button class="profile-close-btn" onclick="closeUserProfile()">✕</button>
     </div>
     <div class="profile-photo-section">
-      <img id="profilePhotoImg" src="" alt="Photo profil" class="profile-photo" style="cursor:pointer;" onclick="triggerPhotoUpload()">
-      <input type="file" id="photoUploadInput" accept="image/*" style="display:none;" onchange="uploadProfilePhoto(event)">
-      <div style="font-size:0.7rem;color:var(--muted);margin-top:0.5rem;">📷 Cliquez pour modifier</div>
+      <div class="profile-pic-wrapper">
+        <img id="profilePhotoImg" src="" alt="Photo profil" class="profile-photo">
+        <!-- Bouton 📷 visible uniquement si propriétaire du profil ou admin -->
+        <button class="profile-pic-edit-btn" id="profilePicEditBtn"
+                onclick="openPicModal()" title="Modifier ma photo">📷</button>
+      </div>
+      <div id="profilePicHint" style="font-size:0.68rem;color:var(--muted);margin-top:0.4rem;display:none;">
+        Appuyez sur 📷 pour modifier
+      </div>
     </div>
     <div class="profile-info">
       <div class="profile-name" id="profileNameEl">Chargement...</div>
@@ -3441,7 +3469,7 @@ if (document.readyState === 'loading') {
       <div class="notif-badge" id="notifBadge">0</div>
     </div>
     <button class="user-btn" id="userLoginBtn" onclick="document.getElementById('userOverlay').classList.add('show')">&#128100;</button>
-    <button class="admin-btn" id="adminBtn" onclick="toggleAdmin()">&#128273;</button>
+    <button class="admin-btn" id="adminBtn" onclick="toggleAdmin()" style="display:none;" title="Administration">&#128273;</button>
     <!-- ★ BOUTON INSTALLER PWA ★ -->
     <button class="pwa-nav-btn" id="pwaNavBtn" onclick="installPWA()" title="Installer l'application">&#128640; Installer</button>
     <!-- ★ BOUTON GUIDE ★ -->
@@ -5759,7 +5787,12 @@ function checkSecondaryAdminAccess(){
     isSuperAdmin = false;
     // Mettre à jour l'UI
     var abtn = document.getElementById("adminBtn");
-    if(abtn){ abtn.style.background="rgba(255,215,0,0.2)"; abtn.style.borderColor="rgba(255,215,0,0.6)"; abtn.style.color="#ffd700"; }
+    if(abtn){
+      abtn.style.display="flex"; // visible pour l'admin secondaire Firebase
+      abtn.style.background="rgba(255,215,0,0.2)";
+      abtn.style.borderColor="rgba(255,215,0,0.6)";
+      abtn.style.color="#ffd700";
+    }
     renderStats(); renderAll(); renderHome(); updatePayVis(); renderPayments();
     showToast("🔑 Accès Admin secondaire activé");
   }
@@ -6835,6 +6868,7 @@ function pinPress(k){
         // isSuperAdmin sera mis à jour par loadAdminConfig() après résolution Firebase
         isSuperAdmin = isSuperAdminUser(); // valeur provisoire (cache localStorage)
         var abtn=document.getElementById("adminBtn");
+        abtn.style.display="flex"; // afficher le cadenas uniquement pour l'admin authentifié
         abtn.style.background="rgba(255,215,0,0.2)";
         abtn.style.borderColor="rgba(255,215,0,0.6)";
         abtn.style.color="#ffd700";
@@ -6872,11 +6906,15 @@ function updateDots(){
 function toggleAdmin(){
   if(isAdmin){
     isAdmin=false;
+    isSuperAdmin=false;
     var abtn=document.getElementById("adminBtn");
+    abtn.style.display="none"; // masquer le cadenas quand admin se déconnecte
     abtn.style.background="";abtn.style.borderColor="";abtn.style.color="";
+    var nb=document.getElementById("adminNavBtn");
+    if(nb) nb.style.display="none";
     renderStats();renderAll();renderHome();updatePayVis();
     document.getElementById("trafficBadge").classList.remove("show");
-    showToast("Mode Admin desactive");
+    showToast("Mode Admin désactivé");
   } else {
     pinBuf="";updateDots();
     document.getElementById("pinOverlay").classList.add("show");
@@ -20044,14 +20082,31 @@ window.taxiProMembers = {
   }
 };
 
+var _currentViewedUserId = null; // profil actuellement ouvert
+
 function openUserProfile(userId) {
   const user = window.userProfiles[userId];
   if (!user) return;
-  
+  _currentViewedUserId = userId;
+
   const modal = document.getElementById('user-profile-modal');
   document.getElementById('profileNameEl').textContent = user.name;
   document.getElementById('profileUsernameEl').textContent = user.username;
-  document.getElementById('profilePhotoImg').src = user.photo;
+
+  // Afficher profilePic (modifiable) en priorité, sinon photo standard
+  const photo = user.profilePic || user.photo || '';
+  document.getElementById('profilePhotoImg').src = photo;
+
+  // ── Contrôle d'accès : bouton 📷 visible uniquement si propriétaire ou admin ──
+  const myUid   = window.currentUserUID || null;
+  const userUid = user.uid || user.firebaseUid || null;
+  const isOwner = myUid && userUid && (myUid === userUid);
+  const canEdit = (window.isAdmin === true) || isOwner;
+  const editBtn = document.getElementById('profilePicEditBtn');
+  const hint    = document.getElementById('profilePicHint');
+  if (editBtn) editBtn.classList.toggle('visible', canEdit);
+  if (hint)    hint.style.display = canEdit ? 'block' : 'none';
+  // ─────────────────────────────────────────────────────────────
   document.getElementById('profileStatOrders').textContent = user.totalOrders;
   document.getElementById('profileStatRating').textContent = user.rating.toFixed(1);
   document.getElementById('profileStatMember').textContent = user.taxiPro ? '🥇 Pro' : 'Membre';
@@ -20124,27 +20179,95 @@ function closeUserProfile() {
   document.getElementById('user-profile-modal').classList.remove('open');
 }
 
-function triggerPhotoUpload() {
-  document.getElementById('photoUploadInput').click();
+// ── MODAL PHOTO DE PROFIL — accès contrôlé ─────────────────────
+var _picModalNewData = null;
+
+function openPicModal() {
+  var userId = _currentViewedUserId;
+  var user   = userId ? (window.userProfiles || {})[userId] : null;
+  var myUid  = window.currentUserUID || null;
+  var userUid = user ? (user.uid || user.firebaseUid || null) : null;
+  var isOwner = myUid && userUid && (myUid === userUid);
+  if (!isOwner && window.isAdmin !== true) {
+    showToast('❌ Vous ne pouvez modifier que votre propre photo');
+    return;
+  }
+  _picModalNewData = null;
+  var previewImg = document.getElementById('picModalPreviewImg');
+  var emoji      = document.getElementById('picModalEmoji');
+  var saveBtn    = document.getElementById('picModalSaveBtn');
+  var delBtn     = document.getElementById('picModalDelBtn');
+  var currentPhoto = user ? (user.profilePic || user.photo || '') : '';
+  if (currentPhoto) {
+    previewImg.src = currentPhoto;
+    previewImg.style.display = 'block';
+    emoji.style.display = 'none';
+    delBtn.style.display = 'flex';
+  } else {
+    previewImg.style.display = 'none';
+    emoji.style.display = 'block';
+    delBtn.style.display = 'none';
+  }
+  saveBtn.style.display = 'none';
+  document.getElementById('picModalInput').value = '';
+  document.getElementById('picModalOverlay').classList.add('open');
 }
 
-function uploadProfilePhoto(event) {
-  const file = event.target.files[0];
+function closePicModal() {
+  document.getElementById('picModalOverlay').classList.remove('open');
+  _picModalNewData = null;
+}
+
+function handlePicModalUpload(event) {
+  var file = event.target.files[0];
   if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const dataUrl = e.target.result;
-    const currentUser = getCurrentUser();
-    if (currentUser) {
-      currentUser.photo = dataUrl;
-      document.getElementById('profilePhotoImg').src = dataUrl;
-      alert('✅ Photo de profil mise a jour!');
-    }
+  if (!file.type.startsWith('image/')) { showToast('⚠️ Fichier non reconnu comme image'); return; }
+  if (file.size > 5 * 1024 * 1024) { showToast('⚠️ Image trop lourde — max 5 Mo'); return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    _picModalNewData = e.target.result;
+    var previewImg = document.getElementById('picModalPreviewImg');
+    previewImg.src = _picModalNewData;
+    previewImg.style.display = 'block';
+    document.getElementById('picModalEmoji').style.display = 'none';
+    document.getElementById('picModalSaveBtn').style.display = 'flex';
   };
   reader.readAsDataURL(file);
   event.target.value = '';
 }
+
+function savePicModal() {
+  if (!_picModalNewData) return;
+  var userId = _currentViewedUserId;
+  var user   = userId ? (window.userProfiles || {})[userId] : null;
+  if (!user) return;
+  var myUid   = window.currentUserUID || null;
+  var userUid = user.uid || user.firebaseUid || null;
+  var isOwner = myUid && userUid && (myUid === userUid);
+  if (!isOwner && window.isAdmin !== true) { showToast('❌ Accès refusé'); return; }
+  user.profilePic = _picModalNewData;
+  document.getElementById('profilePhotoImg').src = _picModalNewData;
+  closePicModal();
+  showToast('✅ Photo de profil mise à jour !');
+}
+
+function deletePicModal() {
+  if (!confirm('Supprimer cette photo de profil ?')) return;
+  var userId = _currentViewedUserId;
+  var user   = userId ? (window.userProfiles || {})[userId] : null;
+  if (!user) return;
+  var myUid   = window.currentUserUID || null;
+  var userUid = user.uid || user.firebaseUid || null;
+  var isOwner = myUid && userUid && (myUid === userUid);
+  if (!isOwner && window.isAdmin !== true) { showToast('❌ Accès refusé'); return; }
+  user.profilePic = null;
+  document.getElementById('profilePhotoImg').src = user.photo || '';
+  closePicModal();
+  showToast('🗑️ Photo supprimée');
+}
+
+// Compatibilité — redirige vers la nouvelle modal sécurisée
+function triggerPhotoUpload() { openPicModal(); }
 
 function triggerGalleryUpload() {
   document.getElementById('galleryUploadInput').click();
@@ -20210,7 +20333,7 @@ function openTaxiProModal(userId) {
   }
   
   const adminSection = document.getElementById('taxiProMembersSection');
-  if (isAdmin()) {
+  if (window.isAdmin === true) {
     adminSection.style.display = 'block';
     renderTaxiProMembers();
   }
@@ -20298,14 +20421,43 @@ function revokeTaxiProMember(userId) {
 }
 
 function getCurrentUser() {
-  return window.userProfiles.user1;
+  // Retourne l'utilisateur Firebase actuellement connecté
+  var uid = window.currentUserUID;
+  if (!uid) return null;
+  return {
+    id: uid,
+    uid: uid,
+    name: window.currentUserPseudo || window.currentUserEmail || '',
+    email: window.currentUserEmail || ''
+  };
 }
-
-function isAdmin() {
-  return true;
-}
+// IMPORTANT : isAdmin est une variable globale gérée par toggleAdmin() et Firebase.
+// Ne jamais la redéfinir ici — window.isAdmin === true uniquement après PIN ou Firebase.
 
 console.log('✅ Profil & Taxi Pro charges');
 
 </script>
+<!-- ════ MODAL ÉDITION PHOTO DE PROFIL ════ -->
+<div id="picModalOverlay" class="pic-modal-overlay" onclick="if(event.target===this)closePicModal()">
+  <div class="pic-modal-box">
+    <div class="pic-modal-title">📷 Modifier la photo de profil</div>
+    <div class="pic-modal-preview-wrap">
+      <img id="picModalPreviewImg" src="" alt="Aperçu" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:50%;">
+      <span id="picModalEmoji">👤</span>
+    </div>
+    <label class="pic-modal-upload-label">
+      📁 Choisir depuis la galerie
+      <input type="file" id="picModalInput" accept="image/*"
+             style="display:none;" onchange="handlePicModalUpload(event)">
+    </label>
+    <div class="pic-modal-hint">JPG · PNG · WebP — max 5 Mo</div>
+    <div class="pic-modal-footer">
+      <button class="pic-modal-btn cancel" onclick="closePicModal()">Annuler</button>
+      <button class="pic-modal-btn del" id="picModalDelBtn"
+              onclick="deletePicModal()" style="display:none;">Supprimer</button>
+      <button class="pic-modal-btn save" id="picModalSaveBtn"
+              onclick="savePicModal()" style="display:none;">Enregistrer</button>
+    </div>
+  </div>
+</div>
 </html>
