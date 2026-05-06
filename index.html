@@ -18741,6 +18741,24 @@ const defaultContacts = [];
   } catch(e) {}
 })();
 
+// ── Migration : forcer online:true pour tous les contacts actifs ajoutés par admin ──
+(function _migrateOnlineStatus() {
+  try {
+    var stored = localStorage.getItem('taxiContacts');
+    if(!stored) return;
+    var contacts = JSON.parse(stored);
+    var changed = false;
+    contacts.forEach(function(c) {
+      // Si ajouté par admin ou auto-inscrit et actif → marquer online
+      if(c.active && c.online === undefined) {
+        c.online = true;
+        changed = true;
+      }
+    });
+    if(changed) localStorage.setItem('taxiContacts', JSON.stringify(contacts));
+  } catch(e) {}
+})();
+
 function openTaxiModal() {
   document.getElementById('taxiModal').style.display = 'block';
   document.getElementById('taxiModalOverlay').classList.add('open');
@@ -19008,6 +19026,7 @@ function addTaxiContact() {
     whatsapp:     cleanPhone,
     type:         type,
     active:       true,
+    online:       true,
     hours:        '24H/24',
     isEnterprise: isEnt,
     availability: 'open',
@@ -19103,6 +19122,8 @@ function toggleContactActive(idx) {
   var contacts = JSON.parse(localStorage.getItem('taxiContacts') || '[]');
   if(!contacts[idx]) return;
   contacts[idx].active = !contacts[idx].active;
+  // Synchroniser online avec active : désactiver = hors ligne, activer = en ligne
+  contacts[idx].online = contacts[idx].active;
   localStorage.setItem('taxiContacts', JSON.stringify(contacts));
   loadAdminContacts();
   loadTaxiContacts();
@@ -20098,6 +20119,7 @@ window.adminDesignDriver = function(uid, email, pseudo, password) {
       whatsapp:     '',
       type:         '🚗 Taxi Particulier',
       active:       true,
+      online:       true,
       hours:        '24H/24',
       isEnterprise: false,
       availability: 'open',
