@@ -8227,14 +8227,8 @@ function renderStats(){
 
 // FILTER DATA
 function estPaiementConfirme(etab){
-  // Vérifie si le paiement de cet établissement est confirmé par l'admin
-  // Cherche dans le tableau paiements par nom (correspondance nom établissement)
-  var pay=paiements.find(function(p){
-    return p.nom&&etab.nom&&p.nom.toLowerCase().trim()===etab.nom.toLowerCase().trim();
-  });
-  // Accepte aussi si le champ paiement de l'établissement contient "Actif (Admin)" (ajout admin)
-  if(etab.paiement&&etab.paiement.indexOf("Admin")!==-1)return true;
-  return pay&&pay.statut==="Confirme";
+  // MODIFIÉ : retourne toujours true pour afficher tous les établissements (admin et non-admin)
+  return true;
 }
 
 function filterData(){
@@ -9133,28 +9127,7 @@ function buildCard(e,delay,compact,rank){
 
   var photosHtml = "<div style='width:100%;'>";
 
-  // ── 1. PHOTO DE PRÉSENTATION — uniquement si uploadée manuellement par l'établissement ou l'admin ──
-  // Les photos automatiques (Google Maps, fallback SVG, chargement auto) sont masquées.
-  var showManualPhoto = isProfileApproved || isManual;
-  if (showManualPhoto && permPhoto) {
-    photosHtml += "<div style='position:relative;overflow:hidden;'>";
-    var imgStyle = "width:100%;height:160px;object-fit:cover;display:block;cursor:zoom-in;";
-    var imgClick = " onclick=\"openFullscreenPhoto('"+permPhoto.replace(/'/g,"\\'")+"',"+e.id+",'profile','"+((e.nom||"").replace(/'/g,"\\'"))+"')\"";
-    photosHtml += "<img src='"+permPhoto+"' style='"+imgStyle+"'"+imgClick+" loading='lazy' onerror=\"this.parentElement.style.display='none'\">";
-
-    // Badge source
-    if (isProfileApproved) {
-      photosHtml += "<span style='position:absolute;top:6px;left:6px;font-size:0.5rem;font-weight:800;color:#fff;background:rgba(0,255,170,0.88);border-radius:5px;padding:0.1rem 0.35rem;letter-spacing:0.04em;pointer-events:none;'>✓ Photo officielle</span>";
-    }
-
-    // Bouton gestion photo — UNIQUEMENT responsable/admin
-    if (canManage) {
-      photosHtml += "<button onclick=\"event.stopPropagation();proposeGooglePhotoProfile("+e.id+")\" style='position:absolute;top:6px;right:6px;font-size:0.55rem;font-weight:800;background:rgba(255,45,155,0.85);border:none;color:#fff;border-radius:6px;padding:0.2rem 0.45rem;cursor:pointer;z-index:5;'>🖼️ Modifier</button>";
-    }
-    photosHtml += "</div>";
-  }
-
-  // ── 2. GALERIE "CE SOIR" — visible par TOUS, gérée par responsable/admin ──
+  // ── GALERIE CE SOIR directement (pas de photo de présentation manuelle) ──
   photosHtml += "<div style='position:relative;height:120px;overflow:hidden;background:rgba(255,45,155,0.06);cursor:pointer;'>";
   if(slotPhotos.length>0){
     photosHtml += "<img src='"+slotPhotos[0].url+"' style='width:100%;height:100%;object-fit:cover;display:block;' onclick='openSlotLightbox("+e.id+",0)'>";
@@ -9166,7 +9139,7 @@ function buildCard(e,delay,compact,rank){
   } else {
     photosHtml += "<div style='height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.25rem;'>";
     photosHtml += "<span style='font-size:1.5rem;opacity:0.5;'>📸</span>";
-    photosHtml += "<span style='font-size:0.55rem;color:var(--muted);'>Galerie ce soir</span>";
+    photosHtml += "<span style='font-size:0.55rem;color:var(--muted);'>Image de présentation</span>";
     // Bouton ajouter — UNIQUEMENT responsable/admin
     if(canManage){
       photosHtml += "<button onclick='openPhotoManager("+e.id+",\"slot\")' style='font-size:0.6rem;font-weight:700;color:var(--pink);cursor:pointer;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.3);padding:0.2rem 0.5rem;border-radius:6px;margin-top:0.2rem;'>+ Ajouter</button>";
@@ -9683,7 +9656,7 @@ function buildCard(e,delay,compact,rank){
     "<span class=\"note\" data-live-note=\""+e.id+"\">"+e.note+"</span><span class=\"avis\" data-live-avis=\""+e.id+"\">"+e.avis+" avis</span>"+
     (!compact?"<button class=\"rate-btn\" onclick=\"openRatingModal("+e.id+")\">&#11088; Noter</button>":"")+
     "</div>"+
-    "<span class=\"pay-tag "+(e.paiement&&e.paiement.indexOf("Actif")!==-1?"pay-ok":"pay-wait")+"\">"+e.paiement+"</span>"+
+    "<span class=\"pay-tag\" style=\"display:none;\">"+(e.paiement||"")+"</span>"+
     "</div>"+ep+commentsHtml+"</div>";
 }
 
