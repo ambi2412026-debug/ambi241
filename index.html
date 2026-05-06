@@ -3441,7 +3441,7 @@ if (document.readyState === 'loading') {
       <div class="notif-badge" id="notifBadge">0</div>
     </div>
     <button class="user-btn" id="userLoginBtn" onclick="document.getElementById('userOverlay').classList.add('show')">&#128100;</button>
-    <button class="admin-btn" id="adminBtn" onclick="toggleAdmin()">&#128273;</button>
+    <button class="admin-btn" id="adminBtn" onclick="toggleAdmin()" style="display:none;"><button class="admin-btn" id="adminBtn" onclick="toggleAdmin()">&#128273;</button>#128513;</button><button id="adminUnlockBtn" onclick="pinBuf='';updateDots();document.getElementById('pinOverlay').classList.add('show');" title="Acces Admin" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.22);font-size:0.72rem;width:26px;height:26px;min-width:26px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><button class="admin-btn" id="adminBtn" onclick="toggleAdmin()">&#128273;</button>#128274;</button>
     <!-- ★ BOUTON INSTALLER PWA ★ -->
     <button class="pwa-nav-btn" id="pwaNavBtn" onclick="installPWA()" title="Installer l'application">&#128640; Installer</button>
     <!-- ★ BOUTON GUIDE ★ -->
@@ -5097,16 +5097,103 @@ function proposeGooglePhotoProfile(eid) {
   var etab = etablissements.find(function(x){ return String(x.id) === eidStr; });
   if (!etab) { showToast("Établissement introuvable"); return; }
 
-  // Si place_id déjà connu → aller directement chercher les photos
-  if (etab.place_id) {
-    _showPhotoImportModal(eid, etab);
-    return;
-  }
+  // Vérification accès : admin ou responsable uniquement
+  if (!isAdmin && !canEditPhotos(etab)) { showToast("Accès refusé"); return; }
 
-  // Sinon : ouvrir le modal de saisie du lien Google Maps / URL image
-  _showMapsLinkInputModal(eid, etab);
+  // Ouvrir le modal de choix : upload local OU lien
+  _showPhotoChoiceModal(eid, etab);
 }
 window.proposeGooglePhotoProfile = proposeGooglePhotoProfile;
+
+/* Modal de choix : photo depuis appareil OU lien URL/Google */
+function _showPhotoChoiceModal(eid, etab) {
+  var eidStr = String(eid);
+  var old = document.getElementById('_photoChoiceModal');
+  if (old) old.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = '_photoChoiceModal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+
+  // Créer un input file caché dédié à la photo de profil
+  var fileInputId = '_profilePhotoFileInput_' + eidStr;
+  var existingInput = document.getElementById(fileInputId);
+  if (existingInput) existingInput.remove();
+  var fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.id = fileInputId;
+  fileInput.accept = 'image/*';
+  fileInput.style.display = 'none';
+  fileInput.onchange = function() {
+    var file = fileInput.files[0];
+    if (!file) return;
+    overlay.remove();
+    showToast("⏳ Upload en cours...");
+    // Essayer Firebase Storage d'abord
+    if (window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL) {
+      var docId = etab._docId || ("etab_" + String(eid).padStart(3, "0"));
+      var path = "etablissements/" + docId + "/photo_profile_" + Date.now() + ".jpg";
+      var storageRef = window.fbRef(window.fbStorage, path);
+      window.fbUploadBytes(storageRef, file).then(function() {
+        return window.fbGetDownloadURL(storageRef);
+      }).then(function(url) {
+        savePhotoProfile(eid, url, 'upload_local');
+        showToast("✅ Photo de présentation mise à jour !");
+      }).catch(function() {
+        // Fallback base64
+        compressImage(file, function(dataUrl) {
+          var field = {};
+          field['photo_interieur'] = dataUrl;
+          field['_photo_profile_approved'] = dataUrl;
+          updateField(eid, field);
+          if (etab) etab._photo_profile_approved = dataUrl;
+          showToast("✅ Photo enregistrée !");
+          if (typeof renderAll === "function") setTimeout(renderAll, 200);
+        });
+      });
+    } else {
+      // Fallback base64 direct
+      compressImage(file, function(dataUrl) {
+        updateField(eid, {photo_interieur: dataUrl, _photo_profile_approved: dataUrl});
+        if (etab) etab._photo_profile_approved = dataUrl;
+        showToast("✅ Photo enregistrée !");
+        if (typeof renderAll === "function") setTimeout(renderAll, 200);
+      });
+    }
+    fileInput.value = '';
+  };
+  document.body.appendChild(fileInput);
+
+  var currentPhoto = etab._photo_profile_approved || etab.photo_interieur || etab.photo_exterieur || '';
+  var previewHtml = currentPhoto
+    ? '<div style="text-align:center;margin-bottom:0.9rem;"><img src="'+currentPhoto+'" style="width:100%;max-height:140px;object-fit:cover;border-radius:10px;border:1px solid rgba(255,45,155,0.3);" onerror="this.style.display=\'none\'"></div>'
+    : '<div style="height:70px;display:flex;align-items:center;justify-content:center;color:#b088c0;font-size:0.78rem;background:rgba(255,255,255,0.03);border-radius:10px;border:1px dashed rgba(255,255,255,0.12);margin-bottom:0.9rem;">Aucune photo actuellement</div>';
+
+  overlay.innerHTML = [
+    '<div style="background:#1a0028;border:1px solid rgba(255,45,155,0.4);border-radius:20px;padding:1.4rem 1.2rem;width:min(360px,100%);max-height:92vh;overflow-y:auto;">',
+    '<div style="font-family:Syne,sans-serif;font-size:1rem;font-weight:800;color:#ff2d9b;margin-bottom:0.2rem;">🖼️ Photo de présentation</div>',
+    '<div style="font-size:0.7rem;color:#b088c0;margin-bottom:0.9rem;">'+escHtml(etab.nom||'')+'</div>',
+    previewHtml,
+    // Bouton upload principal
+    '<label for="'+fileInputId+'" style="display:block;width:100%;padding:0.75rem;border-radius:12px;border:none;background:linear-gradient(135deg,#ff2d9b,#cc44ff);color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;text-align:center;box-sizing:border-box;margin-bottom:0.55rem;">📷 Choisir depuis l\'appareil</label>',
+    // Séparateur
+    '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.55rem;"><div style="flex:1;height:1px;background:rgba(255,255,255,0.1);"></div><span style="font-size:0.62rem;color:#b088c0;">ou</span><div style="flex:1;height:1px;background:rgba(255,255,255,0.1);"></div></div>',
+    // Bouton URL/Google Maps
+    '<button onclick="document.getElementById(\'_photoChoiceModal\').remove();_showMapsLinkInputModal('+eid+',etablissements.find(function(x){return String(x.id)===\''+eidStr+'\'})||{})" style="display:block;width:100%;padding:0.65rem;border-radius:12px;border:1px solid rgba(255,45,155,0.35);background:rgba(255,45,155,0.08);color:#ff2d9b;font-family:DM Sans,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;text-align:center;box-sizing:border-box;margin-bottom:0.55rem;">🔗 Coller un lien URL / Google Maps</button>',
+    // Supprimer photo si elle existe
+    currentPhoto ? '<button onclick="if(confirm(\'Supprimer la photo de présentation ?\')){'
+      +'var obj={photo_interieur:\'\',_photo_profile_approved:\'\'};updateField('+eid+',obj);'
+      +'var et=etablissements.find(function(x){return String(x.id)===\''+eidStr+'\';});if(et){et._photo_profile_approved=\'\';et.photo_interieur=\'\';}showToast(\'Photo supprimée\');'
+      +'if(typeof renderAll===\'function\')setTimeout(renderAll,200);document.getElementById(\'_photoChoiceModal\').remove();}" '
+      +'style="display:block;width:100%;padding:0.5rem;border-radius:10px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.07);color:#ff4466;font-family:DM Sans,sans-serif;font-size:0.75rem;cursor:pointer;margin-bottom:0.5rem;">🗑️ Supprimer la photo actuelle</button>' : '',
+    // Fermer
+    '<button onclick="document.getElementById(\'_photoChoiceModal\').remove()" style="display:block;width:100%;padding:0.5rem;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:#b088c0;font-family:DM Sans,sans-serif;font-size:0.8rem;cursor:pointer;">Annuler</button>',
+    '</div>'
+  ].join('');
+
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', function(ev){ if(ev.target===overlay) overlay.remove(); });
+}
 
 /* Modal de saisie d'un lien Google Maps ou d'une URL image directe */
 function _showMapsLinkInputModal(eid, etab) {
@@ -6834,10 +6921,11 @@ function pinPress(k){
         isAdmin=true;
         // isSuperAdmin sera mis à jour par loadAdminConfig() après résolution Firebase
         isSuperAdmin = isSuperAdminUser(); // valeur provisoire (cache localStorage)
+        // Afficher bouton admin, masquer le cadenas discret
         var abtn=document.getElementById("adminBtn");
-        abtn.style.background="rgba(255,215,0,0.2)";
-        abtn.style.borderColor="rgba(255,215,0,0.6)";
-        abtn.style.color="#ffd700";
+        var unlockBtn=document.getElementById("adminUnlockBtn");
+        if(abtn){ abtn.style.display="flex"; abtn.style.background="rgba(255,215,0,0.2)"; abtn.style.borderColor="rgba(255,215,0,0.6)"; abtn.style.color="#ffd700"; }
+        if(unlockBtn) unlockBtn.style.display="none";
         renderStats();renderAll();renderHome();updatePayVis();renderPayments();
         var t=getTraffic();
         document.getElementById("trafficVal").textContent=t.count+" (total: "+t.total+")";
@@ -6872,8 +6960,11 @@ function updateDots(){
 function toggleAdmin(){
   if(isAdmin){
     isAdmin=false;
+    isSuperAdmin=false;
     var abtn=document.getElementById("adminBtn");
-    abtn.style.background="";abtn.style.borderColor="";abtn.style.color="";
+    var unlockBtn=document.getElementById("adminUnlockBtn");
+    if(abtn){ abtn.style.display="none"; abtn.style.background=""; abtn.style.borderColor=""; abtn.style.color=""; }
+    if(unlockBtn) unlockBtn.style.display="flex";
     renderStats();renderAll();renderHome();updatePayVis();
     document.getElementById("trafficBadge").classList.remove("show");
     showToast("Mode Admin desactive");
@@ -20301,9 +20392,8 @@ function getCurrentUser() {
   return window.userProfiles.user1;
 }
 
-function isAdmin() {
-  return true;
-}
+// Note: isAdmin() function removed — use the global variable `isAdmin` (boolean) instead
+// The function was conflicting with the global var isAdmin=false; defined earlier
 
 console.log('✅ Profil & Taxi Pro charges');
 
