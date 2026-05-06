@@ -17867,7 +17867,30 @@ document.addEventListener('keydown',function(e){
   <div id="taxi-order" class="taxi-tab-content active">
     <div class="taxi-form-group">
       <label class="taxi-form-label">📍 Point de départ</label>
-      <input type="text" class="taxi-form-input" id="taxiFrom" placeholder="Votre localisation actuelle" value="Ma position">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="text" class="taxi-form-input" id="taxiFrom" placeholder="Votre localisation actuelle" value="Ma position" style="flex:1;margin-bottom:0;">
+        <button id="taxiGeoBtn" onclick="taxiDetectLocation()" title="Détecter ma position GPS"
+          style="flex-shrink:0;width:42px;height:42px;border-radius:10px;border:2px solid rgba(0,229,255,0.45);background:rgba(0,229,255,0.1);color:var(--cyan);font-size:1.15rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.35s;box-shadow:none;">
+          📍
+        </button>
+      </div>
+      <!-- Actions géo : WhatsApp + Google Maps -->
+      <div id="taxiGeoActions" style="display:none;margin-top:8px;gap:7px;flex-wrap:wrap;">
+        <button onclick="taxiShareWhatsApp()"
+          style="flex:1;min-width:120px;padding:7px 10px;border-radius:9px;border:1.5px solid rgba(37,211,102,0.5);background:rgba(37,211,102,0.1);color:#25d366;font-size:0.72rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:5px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          Envoyer sur WhatsApp
+        </button>
+        <button onclick="taxiOpenGoogleMaps()"
+          style="flex:1;min-width:120px;padding:7px 10px;border-radius:9px;border:1.5px solid rgba(66,133,244,0.5);background:rgba(66,133,244,0.1);color:#4a90d9;font-size:0.72rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:5px;">
+          🗺️ Voir sur Google Maps
+        </button>
+      </div>
+      <!-- Badge statut géo -->
+      <div id="taxiGeoStatus" style="display:none;margin-top:5px;font-size:0.65rem;color:var(--green);font-weight:700;display:flex;align-items:center;gap:4px;">
+        <span id="taxiGeoStatusDot" style="width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 1.5s infinite;"></span>
+        <span id="taxiGeoStatusText">Position détectée</span>
+      </div>
     </div>
 
     <div class="taxi-form-group">
@@ -18804,6 +18827,99 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════
+// GÉOLOCALISATION POINT DE DÉPART — BOUTON INTELLIGENT
+// ═══════════════════════════════════════════════════════════
+let _taxiUserLat = null, _taxiUserLng = null;
+
+function taxiDetectLocation() {
+  const btn    = document.getElementById('taxiGeoBtn');
+  const input  = document.getElementById('taxiFrom');
+  const status = document.getElementById('taxiGeoStatus');
+  const statusTxt = document.getElementById('taxiGeoStatusText');
+  if (!btn) return;
+
+  // État chargement
+  btn.textContent = '⏳';
+  btn.style.borderColor = 'rgba(255,184,0,0.6)';
+  btn.style.background  = 'rgba(255,184,0,0.12)';
+  btn.style.color       = 'var(--amber)';
+  btn.style.animation   = 'spin 1s linear infinite';
+
+  if (!navigator.geolocation) {
+    btn.textContent = '❌';
+    btn.style.animation = 'none';
+    showTaxiNotification('⚠️ Géolocalisation non disponible sur ce navigateur');
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      _taxiUserLat = pos.coords.latitude;
+      _taxiUserLng = pos.coords.longitude;
+
+      // Bouton vert ✅
+      btn.textContent = '✅';
+      btn.style.animation   = 'none';
+      btn.style.borderColor = 'rgba(0,255,170,0.7)';
+      btn.style.background  = 'rgba(0,255,170,0.15)';
+      btn.style.color       = 'var(--green)';
+      btn.style.boxShadow   = '0 0 14px rgba(0,255,170,0.35)';
+
+      // Remplir le champ
+      if (input) input.value = '📍 Ma position (' + _taxiUserLat.toFixed(5) + ', ' + _taxiUserLng.toFixed(5) + ')';
+
+      // Afficher actions
+      const actions = document.getElementById('taxiGeoActions');
+      if (actions) { actions.style.display = 'flex'; }
+
+      // Badge statut
+      if (status)    { status.style.display = 'flex'; }
+      if (statusTxt) { statusTxt.textContent = '✅ Position GPS détectée avec succès'; }
+      document.getElementById('taxiGeoStatusDot').style.background = 'var(--green)';
+
+      showTaxiNotification('✅ Position GPS détectée !');
+    },
+    function(err) {
+      btn.textContent = '❌';
+      btn.style.animation   = 'none';
+      btn.style.borderColor = 'rgba(255,68,102,0.5)';
+      btn.style.background  = 'rgba(255,68,102,0.1)';
+      btn.style.color       = 'var(--red)';
+
+      if (status)    { status.style.display = 'flex'; }
+      if (statusTxt) { statusTxt.textContent = '❌ Accès refusé — vérifiez les permissions'; }
+      document.getElementById('taxiGeoStatusDot').style.background = 'var(--red)';
+
+      let msg = '❌ Localisation refusée';
+      if (err.code === 1) msg = '🔒 Permission GPS refusée';
+      else if (err.code === 3) msg = '⏱️ Délai dépassé — Réessayez';
+      showTaxiNotification(msg);
+    },
+    { timeout: 10000, enableHighAccuracy: true, maximumAge: 30000 }
+  );
+}
+
+function taxiShareWhatsApp() {
+  if (!_taxiUserLat || !_taxiUserLng) {
+    showTaxiNotification('⚠️ Détectez d\'abord votre position');
+    return;
+  }
+  const mapsLink = 'https://maps.google.com/?q=' + _taxiUserLat + ',' + _taxiUserLng;
+  const text = encodeURIComponent('🚕 *Taxi Pro AMBI241* — Mon point de départ :\n📍 ' + mapsLink + '\n\nPouvez-vous venir me chercher ici ?');
+  window.open('https://wa.me/?text=' + text, '_blank');
+  showTaxiNotification('💬 WhatsApp ouvert avec votre position...');
+}
+
+function taxiOpenGoogleMaps() {
+  if (!_taxiUserLat || !_taxiUserLng) {
+    showTaxiNotification('⚠️ Détectez d\'abord votre position');
+    return;
+  }
+  window.open('https://maps.google.com/?q=' + _taxiUserLat + ',' + _taxiUserLng, '_blank');
+  showTaxiNotification('🗺️ Google Maps ouvert...');
+}
+
 console.log('%c🚕 TAXI PRO MODULE CHARGÉ', 'color:#FFB800;font-size:16px;font-weight:bold;');
 
 // ════════════════════════════════════════════════════════════════════
@@ -19423,24 +19539,282 @@ function _showChauffeurAdminPanel() {
       }).join('');
 
   div.innerHTML = `
-    <div style="background:var(--surface);border:1.5px solid rgba(255,184,0,0.4);border-radius:22px;padding:1.5rem 1.3rem;width:min(400px,100%);max-height:85vh;overflow-y:auto;position:relative;">
-      <button onclick="document.getElementById('_chauffeurAdminPanel').remove()" style="position:absolute;top:0.8rem;right:1rem;background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;">✕</button>
-      <div style="font-family:Syne,sans-serif;font-weight:800;color:var(--amber);font-size:0.95rem;margin-bottom:0.3rem;">🚗 Gestion des Chauffeurs</div>
-      <div style="font-size:0.72rem;color:var(--muted);margin-bottom:1.1rem;">${drivers.length} chauffeur(s) inscrit(s)</div>
-      <!-- Ajouter chauffeur manuellement -->
-      <div style="background:rgba(255,184,0,0.06);border:1px solid rgba(255,184,0,0.2);border-radius:12px;padding:0.9rem;margin-bottom:1rem;">
-        <div style="font-size:0.75rem;font-weight:700;color:var(--amber);margin-bottom:0.6rem;">➕ Désigner un Chauffeur</div>
-        <input id="_newDrvEmail" type="email" placeholder="Email du membre" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.78rem;font-family:DM Sans,sans-serif;margin-bottom:0.4rem;outline:none;">
-        <input id="_newDrvPseudo" type="text" placeholder="Pseudo / Nom" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.78rem;font-family:DM Sans,sans-serif;margin-bottom:0.4rem;outline:none;">
-        <input id="_newDrvPwd" type="text" placeholder="Mot de passe Taxi Pro (ex: Ambi@241)" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.78rem;font-family:DM Sans,sans-serif;margin-bottom:0.6rem;outline:none;" value="Ambi@241">
-        <button onclick="_adminAddDriverManual()" style="width:100%;padding:0.52rem;border-radius:9px;border:none;background:linear-gradient(135deg,var(--amber),#ff8800);color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer;">✅ Désigner Chauffeur</button>
+    <div style="background:var(--surface);border:1.5px solid rgba(255,184,0,0.4);border-radius:22px;padding:0;width:min(480px,100%);max-height:90vh;overflow:hidden;position:relative;display:flex;flex-direction:column;">
+      <!-- Header -->
+      <div style="padding:1.2rem 1.3rem 0.7rem;border-bottom:1px solid rgba(255,184,0,0.15);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-family:Syne,sans-serif;font-weight:800;color:var(--amber);font-size:1rem;">🚗 Panel Admin — Taxi Pro</div>
+          <div style="font-size:0.68rem;color:var(--muted);margin-top:0.1rem;">${drivers.length} chauffeur(s) · ${window.taxiProTransactions ? window.taxiProTransactions.length : 0} transaction(s)</div>
+        </div>
+        <button onclick="document.getElementById('_chauffeurAdminPanel').remove()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--muted);width:30px;height:30px;border-radius:50%;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
       </div>
-      <div style="font-size:0.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.6rem;">Liste des Chauffeurs</div>
-      ${listHtml}
+
+      <!-- Tabs navigation -->
+      <div style="display:flex;overflow-x:auto;border-bottom:1px solid rgba(255,184,0,0.12);flex-shrink:0;scrollbar-width:none;background:rgba(0,0,0,0.2);">
+        <button id="_admTab-chauffeurs" onclick="_admSwitchTab('chauffeurs')" style="flex-shrink:0;padding:0.6rem 0.9rem;border:none;background:transparent;color:var(--amber);font-family:'DM Sans',sans-serif;font-size:0.68rem;font-weight:700;cursor:pointer;border-bottom:2.5px solid var(--amber);white-space:nowrap;">🚗 Chauffeurs</button>
+        <button id="_admTab-transactions" onclick="_admSwitchTab('transactions')" style="flex-shrink:0;padding:0.6rem 0.9rem;border:none;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:0.68rem;font-weight:700;cursor:pointer;border-bottom:2.5px solid transparent;white-space:nowrap;">💳 Transactions</button>
+        <button id="_admTab-echanges" onclick="_admSwitchTab('echanges')" style="flex-shrink:0;padding:0.6rem 0.9rem;border:none;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:0.68rem;font-weight:700;cursor:pointer;border-bottom:2.5px solid transparent;white-space:nowrap;">💬 Échanges</button>
+        <button id="_admTab-operations" onclick="_admSwitchTab('operations')" style="flex-shrink:0;padding:0.6rem 0.9rem;border:none;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:0.68rem;font-weight:700;cursor:pointer;border-bottom:2.5px solid transparent;white-space:nowrap;">⚙️ Opérations</button>
+      </div>
+
+      <!-- Content scrollable -->
+      <div style="overflow-y:auto;flex:1;padding:1rem 1.1rem;">
+
+        <!-- ═══ TAB: CHAUFFEURS ═══ -->
+        <div id="_admPane-chauffeurs">
+          <!-- Désigner chauffeur -->
+          <div style="background:rgba(255,184,0,0.06);border:1px solid rgba(255,184,0,0.22);border-radius:12px;padding:0.9rem;margin-bottom:0.9rem;">
+            <div style="font-size:0.75rem;font-weight:800;color:var(--amber);margin-bottom:0.6rem;display:flex;align-items:center;gap:0.4rem;">➕ Désigner un Chauffeur
+              <span style="font-size:0.6rem;font-weight:400;color:var(--muted);margin-left:auto;">Nouveau membre du réseau</span>
+            </div>
+            <input id="_newDrvEmail" type="email" placeholder="Email du membre" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.78rem;font-family:DM Sans,sans-serif;margin-bottom:0.4rem;outline:none;box-sizing:border-box;">
+            <input id="_newDrvPseudo" type="text" placeholder="Pseudo / Nom complet" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.78rem;font-family:DM Sans,sans-serif;margin-bottom:0.4rem;outline:none;box-sizing:border-box;">
+            <div style="display:flex;gap:0.4rem;margin-bottom:0.4rem;">
+              <select id="_newDrvRole" style="flex:1;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.45rem 0.5rem;font-size:0.75rem;font-family:DM Sans,sans-serif;outline:none;">
+                <option value="chauffeur">🚗 Chauffeur</option>
+                <option value="conducteur">🚌 Conducteur</option>
+                <option value="livreur">📦 Livreur</option>
+              </select>
+              <select id="_newDrvZone" style="flex:1;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.45rem 0.5rem;font-size:0.75rem;font-family:DM Sans,sans-serif;outline:none;">
+                <option>Centre-Ville</option><option>Louis</option><option>Glass</option>
+                <option>Akanda</option><option>Angondjé</option><option>Owendo</option><option>Aéroport</option>
+              </select>
+            </div>
+            <input id="_newDrvPwd" type="text" placeholder="Mot de passe Taxi Pro" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.78rem;font-family:DM Sans,sans-serif;margin-bottom:0.6rem;outline:none;box-sizing:border-box;" value="Ambi@241">
+            <button onclick="_adminAddDriverManual()" style="width:100%;padding:0.52rem;border-radius:9px;border:none;background:linear-gradient(135deg,var(--amber),#ff8800);color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;">✅ Désigner Chauffeur</button>
+          </div>
+          <!-- Liste chauffeurs -->
+          <div style="font-size:0.68rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;">📋 Liste des Chauffeurs (${drivers.length})</div>
+          ${listHtml}
+        </div>
+
+        <!-- ═══ TAB: TRANSACTIONS ═══ -->
+        <div id="_admPane-transactions" style="display:none;">
+          <!-- KPIs -->
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.5rem;margin-bottom:0.9rem;">
+            ${[
+              { id:'_adm_totOrders', label:'Total Commandes', color:'var(--amber)', icon:'📋' },
+              { id:'_adm_accepted', label:'Acceptées', color:'var(--green)', icon:'✅' },
+              { id:'_adm_revenue', label:'Revenus XAF', color:'var(--cyan)', icon:'💰' },
+              { id:'_adm_commission', label:'Commission (10%)', color:'var(--pink)', icon:'📊' }
+            ].map(k=>`
+              <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.75rem;text-align:center;">
+                <div style="font-size:1rem;">${k.icon}</div>
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.05rem;color:${k.color};" id="${k.id}">—</div>
+                <div style="font-size:0.58rem;color:var(--muted);margin-top:0.1rem;">${k.label}</div>
+              </div>`).join('')}
+          </div>
+          <!-- Filtres -->
+          <div style="display:flex;gap:0.4rem;margin-bottom:0.7rem;flex-wrap:wrap;">
+            <input id="_admTransSearch" placeholder="🔍 Client, chauffeur, ID…" oninput="_admRenderTrans()" style="flex:2;min-width:120px;padding:0.4rem 0.6rem;background:var(--surface2);border:1px solid rgba(255,184,0,0.2);border-radius:8px;color:var(--text);font-size:0.72rem;font-family:DM Sans,sans-serif;outline:none;">
+            <select id="_admTransFilter" onchange="_admRenderTrans()" style="flex:1;min-width:90px;padding:0.4rem 0.5rem;background:var(--surface2);border:1px solid rgba(255,184,0,0.2);border-radius:8px;color:var(--text);font-size:0.7rem;font-family:DM Sans,sans-serif;outline:none;">
+              <option value="">Tous</option>
+              <option value="pending">⏳ En attente</option>
+              <option value="accepted">✅ Acceptée</option>
+              <option value="completed">🏁 Complétée</option>
+              <option value="rejected">❌ Rejetée</option>
+              <option value="cancelled">🚫 Annulée</option>
+            </select>
+          </div>
+          <div id="_admTransList" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+        </div>
+
+        <!-- ═══ TAB: ÉCHANGES ═══ -->
+        <div id="_admPane-echanges" style="display:none;">
+          <div style="display:flex;gap:0.4rem;margin-bottom:0.8rem;">
+            <input id="_admChatSearch" placeholder="🔍 Rechercher un échange…" oninput="_admRenderChats()" style="flex:1;padding:0.4rem 0.6rem;background:var(--surface2);border:1px solid rgba(0,229,255,0.2);border-radius:8px;color:var(--text);font-size:0.72rem;font-family:DM Sans,sans-serif;outline:none;">
+          </div>
+          <!-- Échanges simulés -->
+          <div id="_admChatList" style="display:flex;flex-direction:column;gap:0.45rem;"></div>
+
+          <!-- Composer un message broadcast -->
+          <div style="margin-top:0.9rem;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:12px;padding:0.85rem;">
+            <div style="font-size:0.72rem;font-weight:800;color:var(--cyan);margin-bottom:0.5rem;">📡 Message Broadcast Admin</div>
+            <select id="_admBroadcastTarget" style="width:100%;background:var(--surface2);border:1px solid rgba(0,229,255,0.18);border-radius:8px;color:var(--text);padding:0.4rem 0.5rem;font-size:0.72rem;font-family:DM Sans,sans-serif;outline:none;margin-bottom:0.4rem;">
+              <option value="all">📢 Tous les chauffeurs</option>
+              <option value="online">🟢 Chauffeurs en ligne</option>
+              <option value="clients">👥 Tous les clients</option>
+            </select>
+            <textarea id="_admBroadcastMsg" placeholder="Votre message pour les chauffeurs / clients…" maxlength="250" style="width:100%;background:var(--surface2);border:1px solid rgba(0,229,255,0.15);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.75rem;font-family:DM Sans,sans-serif;outline:none;resize:vertical;min-height:55px;box-sizing:border-box;margin-bottom:0.5rem;"></textarea>
+            <button onclick="_admSendBroadcast()" style="width:100%;padding:0.5rem;border-radius:9px;border:none;background:linear-gradient(135deg,var(--cyan),var(--green));color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;">📡 Envoyer le message</button>
+          </div>
+        </div>
+
+        <!-- ═══ TAB: OPÉRATIONS ═══ -->
+        <div id="_admPane-operations" style="display:none;">
+          <!-- Stats globales -->
+          <div style="font-size:0.68rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.55rem;">📊 Statistiques Globales</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.4rem;margin-bottom:0.9rem;">
+            ${[
+              { label:'Taux acceptation', val:'72%', color:'var(--green)' },
+              { label:'Note moyenne', val:'4.8 ⭐', color:'var(--amber)' },
+              { label:'Temps moy. réponse', val:'~4 min', color:'var(--cyan)' },
+              { label:'Zones actives', val:'4', color:'var(--pink)' },
+              { label:'Courses/heure', val:'18', color:'var(--amber)' },
+              { label:'Annulations', val:'12%', color:'var(--red)' },
+            ].map(s=>`<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:0.6rem;text-align:center;">
+              <div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.95rem;color:${s.color};">${s.val}</div>
+              <div style="font-size:0.56rem;color:var(--muted);margin-top:0.08rem;line-height:1.3;">${s.label}</div>
+            </div>`).join('')}
+          </div>
+
+          <!-- Actions rapides opérationnelles -->
+          <div style="font-size:0.68rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.55rem;">⚡ Actions Rapides</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;margin-bottom:0.9rem;">
+            <button onclick="_admExportTrans()" style="padding:0.6rem;border-radius:9px;border:1px solid rgba(0,255,170,0.3);background:rgba(0,255,170,0.07);color:var(--green);font-size:0.7rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;text-align:left;display:flex;align-items:center;gap:0.4rem;">📥 Exporter transactions</button>
+            <button onclick="_admResetDayStats()" style="padding:0.6rem;border-radius:9px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.07);color:var(--cyan);font-size:0.7rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;text-align:left;display:flex;align-items:center;gap:0.4rem;">🔄 Reset stats du jour</button>
+            <button onclick="_admToggleService()" style="padding:0.6rem;border-radius:9px;border:1px solid rgba(255,184,0,0.3);background:rgba(255,184,0,0.07);color:var(--amber);font-size:0.7rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;text-align:left;display:flex;align-items:center;gap:0.4rem;">🔌 Mode urgence ON/OFF</button>
+            <button onclick="_admViewZones()" style="padding:0.6rem;border-radius:9px;border:1px solid rgba(204,68,255,0.3);background:rgba(204,68,255,0.07);color:var(--purple);font-size:0.7rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;text-align:left;display:flex;align-items:center;gap:0.4rem;">🗺️ Zones de couverture</button>
+          </div>
+
+          <!-- Paramètres du service -->
+          <div style="font-size:0.68rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.55rem;">🔧 Paramètres du Service</div>
+          <div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.85rem;display:flex;flex-direction:column;gap:0.6rem;">
+            ${[
+              { label:'Commission plateforme', sub:'Pourcentage prélevé sur chaque course', val:'10%', id:'_admParamComm' },
+              { label:'Rayon de recherche', sub:'Distance max client → chauffeur', val:'5 km', id:'_admParamRadius' },
+              { label:'Délai d\'annulation', sub:'Avant pénalité pour le client', val:'3 min', id:'_admParamCancel' },
+            ].map(p=>`
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
+                <div>
+                  <div style="font-size:0.73rem;font-weight:600;color:var(--text);">${p.label}</div>
+                  <div style="font-size:0.6rem;color:var(--muted);">${p.sub}</div>
+                </div>
+                <button id="${p.id}" onclick="_admEditParam('${p.id}','${p.label}')" style="background:rgba(255,184,0,0.1);border:1px solid rgba(255,184,0,0.3);color:var(--amber);font-size:0.7rem;font-weight:700;padding:0.2rem 0.55rem;border-radius:7px;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap;">${p.val}</button>
+              </div>`).join('')}
+          </div>
+
+          <!-- Log des événements -->
+          <div style="margin-top:0.9rem;">
+            <div style="font-size:0.68rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.5rem;">📜 Journal des événements</div>
+            <div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:0.6rem;font-size:0.65rem;color:var(--muted);line-height:1.9;max-height:130px;overflow-y:auto;font-family:'DM Sans',monospace;">
+              ${(function(){
+                const now = new Date();
+                const logs = [
+                  { t: new Date(now-60000*2),  msg:'✅ Transaction ORD-1701234567891 complétée — 35 000 XAF' },
+                  { t: new Date(now-60000*8),  msg:'🔔 Nouvelle demande: Glass → Owendo (45 000 XAF)' },
+                  { t: new Date(now-60000*15), msg:'🚗 Alain Mba passé EN SERVICE' },
+                  { t: new Date(now-60000*22), msg:'❌ Transaction ORD-1701234567892 rejetée' },
+                  { t: new Date(now-60000*35), msg:'👤 Nouveau chauffeur: Marie Nkoghe ajoutée' },
+                  { t: new Date(now-60000*48), msg:'💳 Commission perçue: 3 500 XAF' },
+                ].map(l=>`<div><span style="color:rgba(255,255,255,0.25);">${l.t.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span> ${l.msg}</div>`).join('');
+                return logs;
+              })()}
+            </div>
+          </div>
+        </div>
+
+      </div><!-- end content -->
     </div>`;
+
   document.body.appendChild(div);
+
+  // Initialiser les données des tabs après injection
+  _admInitPanelData();
 }
 window._showChauffeurAdminPanel = _showChauffeurAdminPanel;
+
+// ── Fonctions de navigation des tabs admin ──
+function _admSwitchTab(tab) {
+  ['chauffeurs','transactions','echanges','operations'].forEach(function(t) {
+    var pane = document.getElementById('_admPane-' + t);
+    var btn  = document.getElementById('_admTab-' + t);
+    if (pane) pane.style.display = t === tab ? 'block' : 'none';
+    if (btn) {
+      btn.style.color       = t === tab ? 'var(--amber)' : 'var(--muted)';
+      btn.style.borderBottom = t === tab ? '2.5px solid var(--amber)' : '2.5px solid transparent';
+      btn.style.background  = t === tab ? 'rgba(255,184,0,0.05)' : 'transparent';
+    }
+  });
+  if (tab === 'transactions') { _admRenderTrans(); }
+  if (tab === 'echanges')     { _admRenderChats(); }
+}
+window._admSwitchTab = _admSwitchTab;
+
+function _admInitPanelData() {
+  var txs      = window.taxiProTransactions || [];
+  var accepted = txs.filter(function(t){ return t.status==='accepted'||t.status==='completed'; }).length;
+  var revenue  = txs.filter(function(t){ return t.status==='completed'; }).reduce(function(s,t){ return s+(t.price||0); }, 0);
+  var comm     = Math.round(revenue * 0.1);
+  var _s = function(id, v) { var el = document.getElementById(id); if(el) el.textContent = v; };
+  _s('_adm_totOrders', txs.length);
+  _s('_adm_accepted', accepted);
+  _s('_adm_revenue', revenue.toLocaleString('fr-FR') + ' XAF');
+  _s('_adm_commission', comm.toLocaleString('fr-FR') + ' XAF');
+}
+window._admInitPanelData = _admInitPanelData;
+
+function _admRenderTrans() {
+  var panel   = document.getElementById('_admTransList');
+  var search  = (document.getElementById('_admTransSearch') || {}).value || '';
+  var filter  = (document.getElementById('_admTransFilter') || {}).value || '';
+  if (!panel) return;
+  var statusColor = { pending:'var(--amber)', accepted:'var(--green)', completed:'var(--cyan)', rejected:'var(--red)', cancelled:'var(--muted)' };
+  var statusIcon  = { pending:'⏳', accepted:'✅', completed:'🏁', rejected:'❌', cancelled:'🚫' };
+  var txs = (window.taxiProTransactions || []).filter(function(t) {
+    var ok = !search || (t.client||'').toLowerCase().includes(search.toLowerCase()) ||
+             (t.driver||'').toLowerCase().includes(search.toLowerCase()) || (t.id||'').includes(search);
+    return ok && (!filter || t.status===filter);
+  }).sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+  if (!txs.length) { panel.innerHTML='<div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.78rem;">📭 Aucune transaction</div>'; return; }
+  panel.innerHTML = txs.map(function(t){
+    var sc=statusColor[t.status]||'var(--muted)', si=statusIcon[t.status]||'❓';
+    var dateStr=t.createdAt?new Date(t.createdAt).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+    return '<div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:0.65rem 0.75rem;font-size:0.7rem;">'
+      +'<div style="display:flex;justify-content:space-between;margin-bottom:0.25rem;"><span style="color:rgba(255,255,255,0.25);font-size:0.58rem;">'+t.id+'</span><span style="color:'+sc+';font-weight:700;font-size:0.65rem;">'+si+' '+t.status.toUpperCase()+'</span></div>'
+      +'<div style="color:var(--text);font-weight:600;">👤 '+t.client+' → 🚕 '+t.driver+'</div>'
+      +'<div style="color:var(--muted);margin-top:0.12rem;">📍 '+t.from+' → '+t.to+' | '+dateStr+'</div>'
+      +'<div style="color:var(--amber);font-weight:700;margin-top:0.18rem;">💰 '+(t.price||0).toLocaleString('fr-FR')+' '+t.currency+'</div>'
+      +(t.status==='pending'?'<div style="display:flex;gap:0.35rem;margin-top:0.4rem;">'
+        +'<button onclick="taxiProApproveTrans(\''+t.id+'\');_admRenderTrans();_admInitPanelData();" style="flex:1;padding:0.28rem;border-radius:6px;border:1px solid rgba(0,255,170,0.3);background:rgba(0,255,170,0.07);color:var(--green);font-size:0.63rem;font-weight:700;cursor:pointer;">✅ Valider</button>'
+        +'<button onclick="taxiProRejectTrans(\''+t.id+'\');_admRenderTrans();_admInitPanelData();" style="flex:1;padding:0.28rem;border-radius:6px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.07);color:var(--red);font-size:0.63rem;font-weight:700;cursor:pointer;">❌ Rejeter</button>'
+        +'</div>':'')+'</div>';
+  }).join('');
+}
+window._admRenderTrans = _admRenderTrans;
+
+window._admChats = window._admChats || [
+  {id:'CH001',client:'Jean Nzila',driver:'Alain Mba',lastMsg:'Je suis devant le carrefour Louis.',time:new Date(Date.now()-120000),unread:2,status:'active'},
+  {id:'CH002',client:'Marie Okah',driver:'Carole Miyango',lastMsg:"D'accord, j'arrive dans 5 min.",time:new Date(Date.now()-480000),unread:0,status:'closed'},
+  {id:'CH003',client:'Pierre Sanda',driver:'Jean Ondoua',lastMsg:'Quel est votre prix exact ?',time:new Date(Date.now()-900000),unread:1,status:'dispute'},
+  {id:'CH004',client:'Sophie Mekogo',driver:'Marie Nkoghe',lastMsg:'Merci, très bon service !',time:new Date(Date.now()-1800000),unread:0,status:'completed'},
+  {id:'CH005',client:'Alex Koumba',driver:'Pierre Okondo',lastMsg:'Pouvez-vous passer par Glass ?',time:new Date(Date.now()-3600000),unread:0,status:'active'},
+];
+
+function _admRenderChats() {
+  var panel = document.getElementById('_admChatList');
+  var search = (document.getElementById('_admChatSearch')||{}).value||'';
+  if (!panel) return;
+  var statusStyle = { active:{color:'var(--green)',bg:'rgba(0,255,170,0.1)',label:'En cours'}, closed:{color:'var(--muted)',bg:'rgba(255,255,255,0.04)',label:'Terminé'}, dispute:{color:'var(--red)',bg:'rgba(255,68,102,0.1)',label:'⚠️ Litige'}, completed:{color:'var(--cyan)',bg:'rgba(0,229,255,0.1)',label:'✅ OK'} };
+  var chats = window._admChats.filter(function(c){ return !search||(c.client+c.driver+c.lastMsg).toLowerCase().includes(search.toLowerCase()); });
+  panel.innerHTML = chats.map(function(c){
+    var ss=statusStyle[c.status]||statusStyle.closed;
+    var timeStr=new Date(c.time).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    return '<div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:0.6rem 0.75rem;cursor:pointer;" onclick="_admOpenChat(\''+c.id+'\')">'
+      +'<div style="display:flex;align-items:center;gap:0.45rem;margin-bottom:0.18rem;">'
+      +'<div style="flex:1;font-size:0.71rem;font-weight:700;color:var(--text);">👤 '+c.client+' ↔ 🚕 '+c.driver+'</div>'
+      +(c.unread>0?'<span style="background:var(--pink);color:#fff;font-size:0.52rem;font-weight:800;width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center;">'+c.unread+'</span>':'')
+      +'<span style="font-size:0.58rem;color:'+ss.color+';background:'+ss.bg+';padding:0.06rem 0.3rem;border-radius:5px;font-weight:700;">'+ss.label+'</span>'
+      +'</div>'
+      +'<div style="font-size:0.65rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+c.lastMsg+'</div>'
+      +'<div style="font-size:0.56rem;color:rgba(255,255,255,0.22);margin-top:0.1rem;">'+timeStr+'</div>'
+      +(c.status==='dispute'?'<button onclick="event.stopPropagation();_admResolveDispute(\''+c.id+'\')" style="margin-top:0.3rem;width:100%;padding:0.25rem;border-radius:6px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.07);color:var(--red);font-size:0.62rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">⚠️ Résoudre le litige</button>':'')
+      +'</div>';
+  }).join('')||'<div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.78rem;">💬 Aucun échange trouvé</div>';
+}
+window._admRenderChats = _admRenderChats;
+
+function _admOpenChat(id){ var c=(window._admChats||[]).find(function(x){return x.id===id;}); if(!c)return; c.unread=0; showAdminToast('💬 Échange ouvert : '+c.client+' ↔ '+c.driver); _admRenderChats(); }
+function _admResolveDispute(id){ var c=(window._admChats||[]).find(function(x){return x.id===id;}); if(!c)return; c.status='completed'; showAdminToast('✅ Litige résolu pour '+c.client); _admRenderChats(); }
+function _admSendBroadcast(){ var target=(document.getElementById('_admBroadcastTarget')||{}).value||'all'; var msg=((document.getElementById('_admBroadcastMsg')||{}).value||'').trim(); if(!msg){showAdminToast('⚠️ Écrivez un message d\'abord');return;} var label={all:'tous les chauffeurs',online:'chauffeurs en ligne',clients:'clients'}[target]||target; showAdminToast('📡 Message envoyé à '+label+' !'); var ta=document.getElementById('_admBroadcastMsg'); if(ta)ta.value=''; window._admChats.unshift({id:'BR'+Date.now(),client:'ADMIN',driver:'Broadcast → '+label,lastMsg:msg,time:new Date(),unread:0,status:'completed'}); _admRenderChats(); }
+function _admExportTrans(){ var txs=window.taxiProTransactions||[]; var csv='ID,Client,Chauffeur,De,A,Prix,Statut\n'+txs.map(function(t){return [t.id,t.client,t.driver,t.from,t.to,t.price+' '+t.currency,t.status].join(',');}).join('\n'); var blob=new Blob([csv],{type:'text/csv'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='taxi-transactions.csv'; a.click(); showAdminToast('📥 Export CSV téléchargé'); }
+function _admResetDayStats(){ if(!confirm('Réinitialiser les stats du jour ?'))return; if(window.tdbData){Object.keys(window.tdbData).forEach(function(r){window.tdbData[r].courses=0;window.tdbData[r].gains=0;window.tdbData[r].km=0;});} showAdminToast('🔄 Stats réinitialisées'); }
+function _admToggleService(){ window._admServiceEmergency=!window._admServiceEmergency; showAdminToast(window._admServiceEmergency?'🚨 Mode urgence ACTIVÉ':'✅ Mode normal rétabli'); }
+function _admViewZones(){ showAdminToast('🗺️ Louis: 🔴 Actif | Glass: 🟡 Modéré | Angondjé: 🟢 Calme | Centre: 🔴 Actif'); }
+function _admEditParam(id,label){ var btn=document.getElementById(id); var cur=btn?btn.textContent:''; var val=prompt('Modifier "'+label+'" (actuel: '+cur+'):', cur); if(val!==null&&val.trim()){if(btn)btn.textContent=val.trim(); showAdminToast('✅ '+label+' mis à jour');} }
+window._admOpenChat=_admOpenChat; window._admResolveDispute=_admResolveDispute; window._admSendBroadcast=_admSendBroadcast;
+window._admExportTrans=_admExportTrans; window._admResetDayStats=_admResetDayStats; window._admToggleService=_admToggleService;
+window._admViewZones=_admViewZones; window._admEditParam=_admEditParam;
 
 function _adminAddDriverManual() {
   var email  = (document.getElementById('_newDrvEmail').value || '').trim().toLowerCase();
