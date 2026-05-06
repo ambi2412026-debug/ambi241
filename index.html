@@ -18909,10 +18909,22 @@ function loadTaxiContacts() {
 // WHATSAPP ENRICHI — message complet avec toutes les conditions + deep-link
 // ════════════════════════════════════════════════════════════════════
 
-function _buildDeepLink(driverPhone) {
-  // Deep-link vers le dashboard chauffeur — encode le numéro comme identifiant
+function _buildDeepLink(driverPhone, orderCtx) {
+  // Deep-link vers le tableau de bord chauffeur avec les détails complets de la commande
   var clean = (driverPhone||'').replace(/\s|\+/g,'');
-  return 'https://ambi241.com/?taxi_driver=' + clean + '&action=dashboard';
+  var base = 'https://ambi241.com/?taxi_driver=' + clean + '&action=offer';
+  if (!orderCtx) return base;
+  // Encoder chaque champ de la commande dans l'URL
+  var fields = ['from','to','price','vehicle','passengers','time','clientName','clientPhone'];
+  fields.forEach(function(k) {
+    if (orderCtx[k]) base += '&order_' + k + '=' + encodeURIComponent(orderCtx[k]);
+  });
+  // GPS si disponible
+  if (window._taxiUserLat && window._taxiUserLng) {
+    base += '&order_lat=' + window._taxiUserLat.toFixed(6);
+    base += '&order_lng=' + window._taxiUserLng.toFixed(6);
+  }
+  return base;
 }
 
 function openWhatsApp(encodedPhone, encodedName, contextData) {
@@ -18934,8 +18946,9 @@ function openWhatsApp(encodedPhone, encodedName, contextData) {
     gpsCoords = '📌 GPS: https://maps.google.com/?q=' + window._taxiUserLat.toFixed(6) + ',' + window._taxiUserLng.toFixed(6);
   }
 
-  // Deep-link dashboard chauffeur
-  var dashLink = _buildDeepLink(phone);
+  // Deep-link dashboard chauffeur — on passe le contexte complet de la commande
+  var orderCtx = { from, to, price, vehicle, passengers, time: timeVal, clientName };
+  var dashLink = _buildDeepLink(phone, orderCtx);
 
   // Construire le message enrichi
   var lines = [];
@@ -19556,43 +19569,62 @@ function taxiOpenGoogleMaps() {
 console.log('%c🚕 TAXI PRO MODULE CHARGÉ', 'color:#FFB800;font-size:16px;font-weight:bold;');
 
 // ════════════════════════════════════════════════════════════════════
-// DEEP-LINK — auto-ouverture du dashboard chauffeur depuis lien WA
-// Format: ?taxi_driver=PHONE&action=dashboard
+// DEEP-LINK — ouverture de l'écran d'offre chauffeur depuis lien WA
+// Format: ?taxi_driver=PHONE&action=offer&order_from=...&order_to=...
+// (rétrocompatible avec action=dashboard)
 // ════════════════════════════════════════════════════════════════════
 (function _handleTaxiDeepLink() {
   var params = new URLSearchParams(window.location.search);
   var driverPhone = params.get('taxi_driver');
   var action      = params.get('action');
-  if(!driverPhone || action !== 'dashboard') return;
+  if (!driverPhone || (action !== 'offer' && action !== 'dashboard')) return;
 
-  // Attendre que tout soit chargé
+  // Extraire les détails de la commande encodés dans l'URL
+  var orderFromUrl = {
+    from:        params.get('order_from')        || '',
+    to:          params.get('order_to')          || '',
+    price:       params.get('order_price')       || '',
+    vehicle:     params.get('order_vehicle')     || '',
+    passengers:  params.get('order_passengers')  || '',
+    time:        params.get('order_time')        || '',
+    clientName:  params.get('order_clientName')  || '',
+    clientPhone: params.get('order_clientPhone') || '',
+    lat:         params.get('order_lat')         || '',
+    lng:         params.get('order_lng')         || ''
+  };
+  var hasOrderData = !!(orderFromUrl.from || orderFromUrl.to || orderFromUrl.price);
+
   window.addEventListener('load', function() {
     setTimeout(function() {
-      // Chercher le chauffeur dans _chauffeurDrivers par téléphone
+      // 1) Chercher le chauffeur dans _chauffeurDrivers (peut être absent sur l'appareil du chauffeur)
       var cleanTarget = driverPhone.replace(/\s|\+/g,'');
       var driver = null;
       var allDrivers = Object.values(window._chauffeurDrivers || {});
       driver = allDrivers.find(function(d) {
-        var dp = (d.phone||'').replace(/\s|\+/g,'');
-        return dp === cleanTarget;
+        return (d.phone||'').replace(/\s|\+/g,'') === cleanTarget;
       });
 
-      if(driver && driver.status === 'approved') {
-        // Afficher directement le board sans login gate
+      // 2) Si on a les détails de la commande → afficher l'écran d'offre directement,
+      //    sans exiger que le chauffeur soit dans le localStorage local
+      if (hasOrderData) {
+        _showTaxiOfferScreen(cleanTarget, driver, orderFromUrl);
+        return;
+      }
+
+      // 3) Fallback (ancien lien sans order_*) : ouvrir le dashboard si connecté
+      if (driver && driver.status === 'approved') {
         _showChauffeurBoard(driver);
-        // Ouvrir directement l'onglet Commandes
         setTimeout(function(){
           var btn = document.querySelector('[data-board-tab="commandes"]');
           if(btn) btn.click();
         }, 300);
         showTaxiNotification('🚗 Tableau de bord ouvert depuis WhatsApp !');
       } else {
-        // Montrer le portail de login pré-rempli
+        // Portail de login pré-rempli
         setTimeout(function() {
           _showChauffeurLoginGate();
           var emailEl = document.getElementById('_cgEmail');
           if(emailEl && driver) emailEl.value = driver.email || '';
-          // Afficher un bandeau info
           var gate = document.getElementById('_chauffeurGate');
           if(gate) {
             var info = document.createElement('div');
@@ -19606,6 +19638,126 @@ console.log('%c🚕 TAXI PRO MODULE CHARGÉ', 'color:#FFB800;font-size:16px;font
     }, 800);
   });
 })();
+
+// ════════════════════════════════════════════════════════════════════
+// ÉCRAN D'OFFRE — affiché sur l'appareil du CHAUFFEUR quand il ouvre le lien WA
+// Ne dépend PAS du localStorage local : tous les détails viennent de l'URL
+// ════════════════════════════════════════════════════════════════════
+function _showTaxiOfferScreen(driverPhone, driver, order) {
+  // Supprimer un éventuel écran précédent
+  var old = document.getElementById('_taxiOfferScreen');
+  if (old) old.remove();
+
+  var driverName = driver ? escHtml(driver.pseudo || driver.name || 'Chauffeur') : 'Chauffeur';
+
+  var gpsLink = '';
+  if (order.lat && order.lng) {
+    gpsLink = '<a href="https://maps.google.com/?q=' + order.lat + ',' + order.lng + '" target="_blank" style="color:var(--cyan);font-size:0.7rem;text-decoration:none;">📌 Voir sur la carte</a>';
+  }
+
+  var wrap = document.createElement('div');
+  wrap.id = '_taxiOfferScreen';
+  wrap.style.cssText = 'position:fixed;inset:0;background:var(--bg);z-index:10020;overflow-y:auto;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:2rem 1rem 6rem;';
+
+  wrap.innerHTML = `
+    <div style="width:100%;max-width:420px;">
+      <!-- En-tête -->
+      <div style="text-align:center;margin-bottom:1.5rem;">
+        <div style="font-size:2.8rem;margin-bottom:0.4rem;">🚕</div>
+        <div style="font-family:Syne,sans-serif;font-size:1.1rem;font-weight:800;color:var(--amber);">Nouvelle Commande</div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;">Bonjour ${driverName} — une course vous attend</div>
+      </div>
+
+      <!-- Carte commande -->
+      <div style="background:linear-gradient(135deg,rgba(255,184,0,0.13),rgba(255,45,155,0.07));border:2px solid rgba(255,184,0,0.45);border-radius:20px;padding:1.2rem;margin-bottom:1rem;animation:pulse 2s infinite;">
+
+        <!-- Départ / Arrivée -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;margin-bottom:0.9rem;">
+          <div style="background:rgba(0,0,0,0.25);border-radius:12px;padding:0.7rem 0.8rem;">
+            <div style="font-size:0.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.2rem;">Départ</div>
+            <div style="font-size:0.82rem;font-weight:700;color:var(--text);">${escHtml(order.from || '—')}</div>
+            ${gpsLink ? '<div style="margin-top:0.3rem;">'+gpsLink+'</div>' : ''}
+          </div>
+          <div style="background:rgba(0,0,0,0.25);border-radius:12px;padding:0.7rem 0.8rem;">
+            <div style="font-size:0.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.2rem;">Destination</div>
+            <div style="font-size:0.82rem;font-weight:700;color:var(--text);">${escHtml(order.to || '—')}</div>
+          </div>
+        </div>
+
+        <!-- Détails -->
+        <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.9rem;">
+          ${order.clientName ? '<div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:0.35rem 0.6rem;font-size:0.7rem;color:var(--text);">👤 '+escHtml(order.clientName)+'</div>' : ''}
+          ${order.vehicle    ? '<div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:0.35rem 0.6rem;font-size:0.7rem;color:var(--text);">🚗 '+escHtml(order.vehicle)+'</div>' : ''}
+          ${order.passengers ? '<div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:0.35rem 0.6rem;font-size:0.7rem;color:var(--text);">👥 '+escHtml(order.passengers)+' passager(s)</div>' : ''}
+          ${order.time       ? '<div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:0.35rem 0.6rem;font-size:0.7rem;color:var(--text);">🕐 '+escHtml(order.time)+'</div>' : ''}
+        </div>
+
+        <!-- Prix -->
+        ${order.price ? '<div style="text-align:center;margin-bottom:0.9rem;"><div style="font-family:Syne,sans-serif;font-size:2rem;font-weight:800;color:var(--green);">'+escHtml(order.price)+'</div><div style="font-size:0.65rem;color:var(--muted);">Prix proposé</div></div>' : ''}
+
+        <!-- Boutons ACCEPTER / REFUSER -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;">
+          <button onclick="_offerAccept('${escHtml(driverPhone)}')" style="padding:0.85rem;border-radius:14px;border:none;background:linear-gradient(135deg,var(--green),#00cc88);color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;box-shadow:0 4px 20px rgba(0,255,170,0.3);">
+            ✅ ACCEPTER
+          </button>
+          <button onclick="_offerRefuse()" style="padding:0.85rem;border-radius:14px;border:1.5px solid rgba(255,68,102,0.5);background:rgba(255,68,102,0.1);color:var(--red);font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;">
+            ❌ REFUSER
+          </button>
+        </div>
+      </div>
+
+      <!-- Info driver non reconnu -->
+      ${!driver ? '<div style="background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.2);border-radius:12px;padding:0.7rem 0.9rem;font-size:0.7rem;color:var(--cyan);text-align:center;margin-bottom:0.8rem;">🔗 Lien reçu via WhatsApp — Acceptez ou refusez la course ci-dessus.<br><span style="color:var(--muted);">Connectez-vous ensuite pour accéder à votre tableau de bord complet.</span></div>' : ''}
+
+      <!-- Accès dashboard -->
+      <button onclick="document.getElementById('_taxiOfferScreen').remove();${driver && driver.status==='approved' ? '_showChauffeurBoard(window._chauffeurDrivers[\''+escHtml(driver.uid||'')+'\'||\'\']\u007C\u007C{phone:\''+escHtml(driverPhone)+'\',pseudo:\'Chauffeur\',status:\'approved\'});' : '_showChauffeurLoginGate();'}" style="width:100%;padding:0.7rem;border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--muted);font-size:0.75rem;font-weight:600;cursor:pointer;font-family:\'DM Sans\',sans-serif;">
+        → Accéder à mon tableau de bord
+      </button>
+    </div>
+  `;
+
+  document.body.appendChild(wrap);
+
+  // Sauvegarder la commande dans le pendingReq global pour acceptation
+  window._tdbPendingReq = order;
+}
+
+function _offerAccept(driverPhone) {
+  var order = window._tdbPendingReq || {};
+  // Sauvegarder dans les commandes en attente du chauffeur (localStorage local)
+  var key = 'ambi241_pending_orders_' + driverPhone.replace(/\s|\+/g,'');
+  var pending = [];
+  try { pending = JSON.parse(localStorage.getItem(key) || '[]'); } catch(e){}
+  pending.unshift({ ...order, acceptedAt: new Date().toISOString(), status: 'accepted' });
+  try { localStorage.setItem(key, JSON.stringify(pending.slice(0,50))); } catch(e){}
+
+  // Remplacer l'écran d'offre par un écran de confirmation
+  var screen = document.getElementById('_taxiOfferScreen');
+  if (screen) {
+    screen.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:2rem;">' +
+      '<div style="font-size:4rem;margin-bottom:1rem;">✅</div>' +
+      '<div style="font-family:Syne,sans-serif;font-size:1.2rem;font-weight:800;color:var(--green);margin-bottom:0.5rem;">Course acceptée !</div>' +
+      '<div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.4rem;">Rendez-vous au point de départ.</div>' +
+      (order.from ? '<div style="font-size:0.9rem;color:var(--text);font-weight:700;margin-bottom:1.5rem;">📍 ' + escHtml(order.from) + '</div>' : '') +
+      (order.lat && order.lng ? '<a href="https://maps.google.com/?q='+order.lat+','+order.lng+'" target="_blank" style="padding:0.7rem 1.5rem;border-radius:30px;background:linear-gradient(135deg,var(--green),#00cc88);color:#000;font-weight:800;font-size:0.85rem;text-decoration:none;margin-bottom:1rem;">🗺️ Ouvrir Maps</a>' : '') +
+      '<button onclick="document.getElementById(\'_taxiOfferScreen\').remove()" style="margin-top:1rem;padding:0.6rem 1.2rem;border-radius:30px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:var(--muted);font-size:0.75rem;cursor:pointer;">Fermer</button>' +
+      '</div>';
+  }
+  showTaxiNotification('✅ Course acceptée ! Rendez-vous au client.');
+}
+
+function _offerRefuse() {
+  var screen = document.getElementById('_taxiOfferScreen');
+  if (screen) {
+    screen.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:2rem;">' +
+      '<div style="font-size:4rem;margin-bottom:1rem;">❌</div>' +
+      '<div style="font-family:Syne,sans-serif;font-size:1.1rem;font-weight:800;color:var(--red);margin-bottom:0.5rem;">Course refusée</div>' +
+      '<div style="font-size:0.78rem;color:var(--muted);margin-bottom:1.5rem;">Le client sera informé automatiquement.</div>' +
+      '<button onclick="document.getElementById(\'_taxiOfferScreen\').remove()" style="padding:0.6rem 1.2rem;border-radius:30px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:var(--muted);font-size:0.75rem;cursor:pointer;">Fermer</button>' +
+      '</div>';
+  }
+  showTaxiNotification('❌ Course refusée');
+}
 
 // ════════════════════════════════════════════════════════════════════
 // TABLEAU DE BORD — LOGIQUE
