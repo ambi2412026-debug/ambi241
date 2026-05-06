@@ -9127,16 +9127,26 @@ function buildCard(e,delay,compact,rank){
 
   var photosHtml = "<div style='width:100%;'>";
 
-  // ── GALERIE CE SOIR directement (pas de photo de présentation manuelle) ──
+  // ── GALERIE CE SOIR directement + fallback permPhoto ──
+  // Priorité : slotPhotos[0] (ce soir) > permPhoto (présentation main) > placeholder vide
+  var displayedPhoto = (slotPhotos.length > 0) ? slotPhotos[0].url : (permPhoto || "");
+  
   photosHtml += "<div style='position:relative;height:120px;overflow:hidden;background:rgba(255,45,155,0.06);cursor:pointer;'>";
-  if(slotPhotos.length>0){
-    photosHtml += "<img src='"+slotPhotos[0].url+"' style='width:100%;height:100%;object-fit:cover;display:block;' onclick='openSlotLightbox("+e.id+",0)'>";
-    photosHtml += "<span style='position:absolute;bottom:4px;left:4px;font-size:0.52rem;font-weight:700;color:#fff;background:rgba(0,0,0,0.6);padding:0.1rem 0.3rem;border-radius:4px;'>📸 "+slotPhotos.length+"/"+MAX_SLOT+"</span>";
+  if(displayedPhoto){
+    // Afficher la photo (slot ou permPhoto)
+    var isSlotPhoto = slotPhotos.length > 0;
+    photosHtml += "<img src='"+displayedPhoto+"' style='width:100%;height:100%;object-fit:cover;display:block;' onclick='"+(isSlotPhoto ? "openSlotLightbox("+e.id+",0)" : "openFullscreenPhoto('"+displayedPhoto.replace(/'/g,"\\'")+"',"+e.id+",'profile','"+((e.nom||"").replace(/'/g,"\\'"))+"')")+"'>";
+    
+    if(isSlotPhoto){
+      photosHtml += "<span style='position:absolute;bottom:4px;left:4px;font-size:0.52rem;font-weight:700;color:#fff;background:rgba(0,0,0,0.6);padding:0.1rem 0.3rem;border-radius:4px;'>📸 "+slotPhotos.length+"/"+MAX_SLOT+"</span>";
+    }
+    
     // Bouton gestion photos — UNIQUEMENT responsable/admin
     if(canManage){
       photosHtml += "<button onclick='event.stopPropagation();openPhotoManager("+e.id+",\"slot\")' style='position:absolute;top:4px;right:4px;font-size:0.55rem;font-weight:700;color:#fff;background:rgba(255,45,155,0.75);border-radius:5px;padding:0.15rem 0.4rem;cursor:pointer;z-index:5;border:none;'>📸 Gérer</button>";
     }
   } else {
+    // Placeholder vide
     photosHtml += "<div style='height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.25rem;'>";
     photosHtml += "<span style='font-size:1.5rem;opacity:0.5;'>📸</span>";
     photosHtml += "<span style='font-size:0.55rem;color:var(--muted);'>Image de présentation</span>";
