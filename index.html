@@ -18903,14 +18903,62 @@ function loadTaxiContacts() {
   });
 }
 
-// Ouvrir WhatsApp avec numéro encodé
-function openWhatsApp(encodedPhone, encodedName) {
+// ════════════════════════════════════════════════════════════════════
+// WHATSAPP ENRICHI — message complet avec toutes les conditions + deep-link
+// ════════════════════════════════════════════════════════════════════
+
+function _buildDeepLink(driverPhone) {
+  // Deep-link vers le dashboard chauffeur — encode le numéro comme identifiant
+  var clean = (driverPhone||'').replace(/\s|\+/g,'');
+  return 'https://ambi241.com/?taxi_driver=' + clean + '&action=dashboard';
+}
+
+function openWhatsApp(encodedPhone, encodedName, contextData) {
   var phone = decodeURIComponent(encodedPhone);
-  var name  = decodeURIComponent(encodedName);
+  var name  = decodeURIComponent(encodedName || '');
   var clean = phone.replace(/\s|\+/g, '');
-  var msg = encodeURIComponent('Bonjour ' + name + ', je cherche un taxi. Êtes-vous disponible ?');
+
+  // Récupérer le contexte de la commande si disponible
+  var ctx = contextData || window._tdbPendingReq || {};
+  var from        = ctx.from        || (document.getElementById('taxiFrom')        ? document.getElementById('taxiFrom').value        : '');
+  var to          = ctx.to          || (document.getElementById('taxiProDestination')? document.getElementById('taxiProDestination').value : '');
+  var price       = ctx.price       || (document.getElementById('taxiProPrice')     ? document.getElementById('taxiProPrice').value + ' XAF' : '');
+  var vehicle     = ctx.vehicle     || taxiProState.selectedVehicle || '';
+  var passengers  = ctx.passengers  || '';
+  var timeVal     = ctx.time        || (document.getElementById('taxiProTime')      ? document.getElementById('taxiProTime').value      : '');
+  var clientName  = ctx.clientName  || (document.getElementById('taxiProFirstName') ? document.getElementById('taxiProFirstName').value : '');
+  var gpsCoords   = '';
+  if(window._taxiUserLat && window._taxiUserLng) {
+    gpsCoords = '📌 GPS: https://maps.google.com/?q=' + window._taxiUserLat.toFixed(6) + ',' + window._taxiUserLng.toFixed(6);
+  }
+
+  // Deep-link dashboard chauffeur
+  var dashLink = _buildDeepLink(phone);
+
+  // Construire le message enrichi
+  var lines = [];
+  lines.push('🚕 *AMBI241 — NOUVELLE COMMANDE TAXI PRO*');
+  lines.push('━━━━━━━━━━━━━━━━━━━━');
+  if(clientName) lines.push('👤 Client : *' + clientName + '*');
+  if(from)       lines.push('📍 Départ : *' + from + '*');
+  if(gpsCoords)  lines.push(gpsCoords);
+  if(to)         lines.push('🏁 Destination : *' + to + '*');
+  if(timeVal)    lines.push('🕐 Heure souhaitée : *' + timeVal + '*');
+  if(vehicle)    lines.push('🚗 Véhicule : *' + vehicle + '*');
+  if(passengers) lines.push('👥 Passagers : *' + passengers + '*');
+  if(price)      lines.push('💰 Prix proposé : *' + price + '*');
+  lines.push('━━━━━━━━━━━━━━━━━━━━');
+  lines.push('');
+  lines.push('✅ *Répondez ACCEPTER ou REFUSER*');
+  lines.push('');
+  lines.push('📲 Votre tableau de bord : ' + dashLink);
+  lines.push('');
+  lines.push('_Bonjour ' + (name||'Chauffeur') + ', merci de confirmer votre disponibilité._');
+  lines.push('_— AMBI241 Taxi Pro, Libreville 🇬🇦_');
+
+  var msg = encodeURIComponent(lines.join('\n'));
   window.open('https://wa.me/' + clean + '?text=' + msg, '_blank');
-  showTaxiNotification('💬 WhatsApp ouvert...');
+  showTaxiNotification('💬 WhatsApp enrichi envoyé !');
 }
 
 function callTaxi(encodedPhone) {
@@ -19501,6 +19549,58 @@ function taxiOpenGoogleMaps() {
 }
 
 console.log('%c🚕 TAXI PRO MODULE CHARGÉ', 'color:#FFB800;font-size:16px;font-weight:bold;');
+
+// ════════════════════════════════════════════════════════════════════
+// DEEP-LINK — auto-ouverture du dashboard chauffeur depuis lien WA
+// Format: ?taxi_driver=PHONE&action=dashboard
+// ════════════════════════════════════════════════════════════════════
+(function _handleTaxiDeepLink() {
+  var params = new URLSearchParams(window.location.search);
+  var driverPhone = params.get('taxi_driver');
+  var action      = params.get('action');
+  if(!driverPhone || action !== 'dashboard') return;
+
+  // Attendre que tout soit chargé
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      // Chercher le chauffeur dans _chauffeurDrivers par téléphone
+      var cleanTarget = driverPhone.replace(/\s|\+/g,'');
+      var driver = null;
+      var allDrivers = Object.values(window._chauffeurDrivers || {});
+      driver = allDrivers.find(function(d) {
+        var dp = (d.phone||'').replace(/\s|\+/g,'');
+        return dp === cleanTarget;
+      });
+
+      if(driver && driver.status === 'approved') {
+        // Afficher directement le board sans login gate
+        _showChauffeurBoard(driver);
+        // Ouvrir directement l'onglet Commandes
+        setTimeout(function(){
+          var btn = document.querySelector('[data-board-tab="commandes"]');
+          if(btn) btn.click();
+        }, 300);
+        showTaxiNotification('🚗 Tableau de bord ouvert depuis WhatsApp !');
+      } else {
+        // Montrer le portail de login pré-rempli
+        setTimeout(function() {
+          _showChauffeurLoginGate();
+          var emailEl = document.getElementById('_cgEmail');
+          if(emailEl && driver) emailEl.value = driver.email || '';
+          // Afficher un bandeau info
+          var gate = document.getElementById('_chauffeurGate');
+          if(gate) {
+            var info = document.createElement('div');
+            info.style.cssText = 'background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);border-radius:10px;padding:0.6rem 0.8rem;margin-bottom:0.8rem;font-size:0.72rem;color:var(--cyan);text-align:center;';
+            info.innerHTML = '🔗 Lien WhatsApp reçu — Connectez-vous pour voir votre commande';
+            var form = gate.querySelector('div > div');
+            if(form) form.insertBefore(info, form.firstChild);
+          }
+        }, 500);
+      }
+    }, 800);
+  });
+})();
 
 // ════════════════════════════════════════════════════════════════════
 // TABLEAU DE BORD — LOGIQUE
@@ -20125,76 +20225,580 @@ function _verifyChauffeurLogin() {
 }
 window._verifyChauffeurLogin = _verifyChauffeurLogin;
 
-// Afficher le tableau de bord chauffeur
+// Afficher le tableau de bord chauffeur — VERSION REDESIGNÉE
 function _showChauffeurBoard(driver) {
   var old = document.getElementById('_chauffeurBoard');
   if(old) old.remove();
 
-  // ── Récupérer la photo du profil depuis localStorage ──
+  // ── Stats persistées par chauffeur ──
+  var statsKey = 'ambi241_drvstats_' + (driver.uid||driver.email||'x');
+  var stats = JSON.parse(localStorage.getItem(statsKey) || '{"courses":0,"gains":0,"km":0,"note":4.8,"history":[]}');
+
+  // ── Avatar ──
   var myUid = driver.uid || '';
   var myPhotoB64 = '';
   try { myPhotoB64 = localStorage.getItem('ambi241_photo_'+myUid) || ''; } catch(e){}
   var avatarHtml = myPhotoB64
-    ? '<img src="'+myPhotoB64+'" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid var(--amber);">'
-    : '<div style="width:60px;height:60px;border-radius:50%;background:rgba(255,184,0,0.15);border:2px solid rgba(255,184,0,0.4);display:flex;align-items:center;justify-content:center;font-size:1.8rem;">🚗</div>';
+    ? '<img src="'+myPhotoB64+'" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2.5px solid var(--amber);">'
+    : '<div style="width:56px;height:56px;border-radius:50%;background:rgba(255,184,0,0.15);border:2px solid rgba(255,184,0,0.4);display:flex;align-items:center;justify-content:center;font-size:1.6rem;">🚗</div>';
 
-  // ── Récupérer la pièce d'identité ──
-  var myIdDoc = null;
-  try { var raw = localStorage.getItem('ambi241_idDoc_'+myUid); if(raw) myIdDoc = JSON.parse(raw); } catch(e){}
-  var idDocHtml = '';
-  if(myIdDoc && myIdDoc.data){
-    var idLabel = myIdDoc.type==='passeport' ? '🛂 Passeport' : '🪪 CNI';
-    var idStatus = myIdDoc.verified ? '<span style="color:var(--green);font-size:0.6rem;">✅ Vérifiée</span>' : '<span style="color:var(--amber);font-size:0.6rem;">⏳ En attente de vérification</span>';
-    idDocHtml = '<div style="margin-top:0.6rem;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.18);border-radius:10px;padding:0.6rem 0.7rem;">'
-      +'<div style="font-size:0.62rem;font-weight:700;color:var(--cyan);margin-bottom:0.4rem;">🪪 Pièce d\'identité — '+idLabel+' '+idStatus+'</div>'
-      +'<img src="'+myIdDoc.data+'" style="width:100%;max-height:90px;object-fit:cover;border-radius:7px;filter:blur(3px);cursor:pointer;" onclick="this.style.filter=\'none\'" title="Cliquer pour révéler">'
-      +'<div style="font-size:0.55rem;color:var(--muted);margin-top:0.25rem;">🔒 Visible uniquement par vous et l\'Admin — cliquer pour afficher</div>'
-      +'</div>';
-  }
+  // ── Commandes en attente ──
+  var pendingOrders = JSON.parse(localStorage.getItem('ambi241_pending_orders_' + (driver.phone||'').replace(/\s|\+/g,'')) || '[]');
 
   var div = document.createElement('div');
   div.id = '_chauffeurBoard';
-  div.style.cssText = 'position:fixed;inset:0;background:var(--bg);z-index:10010;overflow-y:auto;padding:1rem 1rem 5rem;';
+  div.style.cssText = 'position:fixed;inset:0;background:var(--bg);z-index:10010;overflow-y:auto;padding:0 0 6rem;';
+
   div.innerHTML = `
-    <div style="display:flex;align-items:center;gap:0.7rem;margin-bottom:1.2rem;padding-top:0.5rem;">
-      <button onclick="document.getElementById('_chauffeurBoard').remove()" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);color:var(--muted);font-size:1rem;width:32px;height:32px;border-radius:50%;cursor:pointer;">←</button>
-      <div>
-        <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1rem;color:var(--amber);">🚗 Tableau de Bord Chauffeur</div>
-        <div style="font-size:0.68rem;color:var(--muted);">Bonjour ${escHtml(driver.pseudo)} — Accès privé</div>
+  <!-- ══ HEADER ══ -->
+  <div style="background:rgba(13,0,20,0.97);border-bottom:1px solid rgba(255,184,0,0.2);padding:0.7rem 1rem;display:flex;align-items:center;gap:0.7rem;position:sticky;top:0;z-index:10;backdrop-filter:blur(20px);">
+    <button onclick="document.getElementById('_chauffeurBoard').remove()" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);color:var(--muted);font-size:1rem;width:32px;height:32px;border-radius:50%;cursor:pointer;flex-shrink:0;">←</button>
+    <div style="flex:1;">
+      <div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.95rem;color:var(--amber);">🚗 Dashboard Chauffeur</div>
+      <div style="font-size:0.62rem;color:var(--muted);">Bienvenue ${escHtml(driver.pseudo)}</div>
+    </div>
+    <div id="_boardOnlineDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:0 0 8px rgba(255,68,102,0.5);transition:all 0.3s;"></div>
+    <div style="font-size:0.68rem;font-weight:700;" id="_boardOnlineLabel" style="color:var(--muted);">Hors service</div>
+  </div>
+
+  <!-- ══ PROFIL CARD ══ -->
+  <div style="margin:1rem;background:linear-gradient(135deg,rgba(255,184,0,0.1),rgba(255,45,155,0.06));border:1.5px solid rgba(255,184,0,0.3);border-radius:16px;padding:0.9rem 1rem;display:flex;align-items:center;gap:0.8rem;">
+    ${avatarHtml}
+    <div style="flex:1;min-width:0;">
+      <div style="font-family:Syne,sans-serif;font-weight:800;color:var(--amber);font-size:0.9rem;">${escHtml(driver.pseudo)}</div>
+      <div style="font-size:0.65rem;color:var(--green);margin-top:0.1rem;">✅ Chauffeur Vérifié Taxi Pro</div>
+      <div style="font-size:0.6rem;color:var(--muted);">${escHtml(driver.phone||'')} · ${escHtml(driver.license||'')}</div>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.2rem;color:var(--amber);">${Number(stats.note||4.8).toFixed(1)}</div>
+      <div style="font-size:0.58rem;color:var(--muted);">Note ⭐</div>
+    </div>
+  </div>
+
+  <!-- ══ TOGGLE SERVICE ══ -->
+  <div style="margin:0 1rem 1rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:0.9rem 1rem;display:flex;align-items:center;justify-content:space-between;" id="_boardServiceCard">
+    <div>
+      <div style="font-weight:700;color:var(--text);font-size:0.85rem;" id="_boardServiceLabel">Hors service</div>
+      <div style="font-size:0.65rem;color:var(--muted);margin-top:0.1rem;" id="_boardServiceSub">Activez pour recevoir des courses</div>
+    </div>
+    <label style="position:relative;width:52px;height:28px;">
+      <input type="checkbox" id="_boardServiceToggle" onchange="_boardToggleService(this)" style="opacity:0;width:0;height:0;">
+      <span style="position:absolute;inset:0;background:rgba(255,255,255,0.1);border-radius:28px;cursor:pointer;transition:0.25s;" id="_boardServiceSlider">
+        <span style="position:absolute;width:22px;height:22px;top:3px;left:3px;background:#fff;border-radius:50%;transition:0.25s;" id="_boardServiceKnob"></span>
+      </span>
+    </label>
+  </div>
+
+  <!-- ══ KPI STATS ══ -->
+  <div style="margin:0 1rem 1rem;display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.7rem;text-align:center;">
+      <div style="font-family:Syne,sans-serif;font-size:1.3rem;font-weight:800;color:var(--green);" id="_bKpiCourses">${stats.courses||0}</div>
+      <div style="font-size:0.58rem;color:var(--muted);">Courses</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.7rem;text-align:center;">
+      <div style="font-family:Syne,sans-serif;font-size:1.1rem;font-weight:800;color:var(--amber);" id="_bKpiGains">${(stats.gains||0).toLocaleString('fr-FR')}</div>
+      <div style="font-size:0.58rem;color:var(--muted);">XAF gains</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.7rem;text-align:center;">
+      <div style="font-family:Syne,sans-serif;font-size:1.3rem;font-weight:800;color:var(--cyan);" id="_bKpiKm">${stats.km||0}</div>
+      <div style="font-size:0.58rem;color:var(--muted);">km parcourus</div>
+    </div>
+  </div>
+
+  <!-- ══ ONGLETS ══ -->
+  <div style="display:flex;border-bottom:1px solid rgba(255,255,255,0.07);margin:0 1rem 0.8rem;gap:0.2rem;">
+    <button data-board-tab="commandes" onclick="_boardSwitchTab('commandes')" style="flex:1;padding:0.6rem 0.3rem;border:none;background:transparent;color:var(--amber);font-family:'DM Sans',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;border-bottom:2px solid var(--amber);position:relative;">
+      Commandes
+      ${pendingOrders.length ? '<span style="position:absolute;top:4px;right:4px;background:var(--red);color:#fff;font-size:0.5rem;font-weight:900;width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;">'+pendingOrders.length+'</span>' : ''}
+    </button>
+    <button data-board-tab="course" onclick="_boardSwitchTab('course')" style="flex:1;padding:0.6rem 0.3rem;border:none;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:0.72rem;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;">En Course</button>
+    <button data-board-tab="historique" onclick="_boardSwitchTab('historique')" style="flex:1;padding:0.6rem 0.3rem;border:none;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:0.72rem;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;">Historique</button>
+    <button data-board-tab="profil" onclick="_boardSwitchTab('profil')" style="flex:1;padding:0.6rem 0.3rem;border:none;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:0.72rem;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;">Profil</button>
+  </div>
+
+  <!-- ══ TAB: COMMANDES ══ -->
+  <div id="_boardTab_commandes" style="padding:0 1rem;">
+    <!-- Demande entrante simulée -->
+    <div id="_boardIncomingReq" style="display:none;background:linear-gradient(135deg,rgba(255,184,0,0.15),rgba(255,45,155,0.08));border:2px solid rgba(255,184,0,0.5);border-radius:16px;padding:1rem;margin-bottom:0.8rem;animation:pulse 1.5s infinite;">
+      <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.7rem;">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px rgba(255,184,0,0.7);animation:pulse 1s infinite;"></div>
+        <span style="font-family:Syne,sans-serif;font-weight:800;color:var(--amber);font-size:0.85rem;">NOUVELLE DEMANDE</span>
+        <span id="_boardReqCountdown" style="margin-left:auto;background:rgba(255,68,102,0.2);color:var(--red);font-size:0.7rem;font-weight:800;padding:0.15rem 0.5rem;border-radius:10px;">30s</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.7rem;">
+        <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:0.5rem 0.6rem;">
+          <div style="font-size:0.58rem;color:var(--muted);margin-bottom:0.1rem;">DÉPART</div>
+          <div style="font-size:0.78rem;font-weight:700;color:var(--text);" id="_boardReqFrom">—</div>
+        </div>
+        <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:0.5rem 0.6rem;">
+          <div style="font-size:0.58rem;color:var(--muted);margin-bottom:0.1rem;">DESTINATION</div>
+          <div style="font-size:0.78rem;font-weight:700;color:var(--text);" id="_boardReqTo">—</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.8rem;">
+        <div>
+          <span style="font-size:0.68rem;color:var(--muted);">👤 </span><span style="font-size:0.75rem;font-weight:700;color:var(--text);" id="_boardReqClient">—</span>
+          <br><span style="font-size:0.65rem;color:var(--muted);" id="_boardReqDist">—</span>
+        </div>
+        <div style="font-family:Syne,sans-serif;font-size:1.2rem;font-weight:800;color:var(--green);" id="_boardReqPrice">—</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+        <button onclick="_boardAcceptReq()" style="padding:0.6rem;border-radius:11px;border:none;background:linear-gradient(135deg,var(--green),#00cc88);color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;">✅ ACCEPTER</button>
+        <button onclick="_boardRefuseReq()" style="padding:0.6rem;border-radius:11px;border:none;background:rgba(255,68,102,0.15);border:1px solid rgba(255,68,102,0.4);color:var(--red);font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;">❌ REFUSER</button>
       </div>
     </div>
-    <!-- Profil card -->
-    <div style="background:linear-gradient(135deg,rgba(255,184,0,0.12),rgba(255,45,155,0.07));border:1.5px solid rgba(255,184,0,0.35);border-radius:14px;padding:1rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.8rem;">
-      ${avatarHtml}
-      <div style="flex:1;min-width:0;">
-        <div style="font-family:Syne,sans-serif;font-weight:800;color:var(--amber);font-size:0.9rem;">${escHtml(driver.pseudo)}</div>
-        <div style="font-size:0.7rem;color:var(--green);margin-top:0.15rem;">✅ Chauffeur Vérifié Taxi Pro</div>
-        <div style="font-size:0.65rem;color:var(--muted);">Email : ${escHtml(driver.email)}</div>
-        ${idDocHtml}
+
+    <!-- Liste des commandes en attente -->
+    <div id="_boardOrdersList"></div>
+
+    <!-- État vide -->
+    <div id="_boardOrdersEmpty" style="text-align:center;padding:2.5rem 1rem;color:var(--muted);">
+      <div style="font-size:3rem;margin-bottom:0.5rem;">📭</div>
+      <div style="font-size:0.85rem;font-weight:700;color:var(--text);margin-bottom:0.3rem;">Aucune commande en attente</div>
+      <div style="font-size:0.72rem;">Activez le service pour recevoir des demandes</div>
+      <button onclick="_boardSimRequest()" style="margin-top:1rem;padding:0.5rem 1.2rem;border-radius:30px;border:1.5px dashed rgba(255,184,0,0.4);background:transparent;color:var(--amber);font-size:0.72rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">⚡ Simuler une demande</button>
+    </div>
+  </div>
+
+  <!-- ══ TAB: EN COURSE ══ -->
+  <div id="_boardTab_course" style="display:none;padding:0 1rem;">
+    <div id="_boardRideCard" style="display:none;background:rgba(0,229,255,0.05);border:1.5px solid rgba(0,229,255,0.25);border-radius:16px;padding:1rem;margin-bottom:1rem;">
+      <div style="font-family:Syne,sans-serif;font-weight:800;color:var(--cyan);margin-bottom:0.8rem;font-size:0.88rem;" id="_boardRideTitle">Course acceptée</div>
+      <!-- Stepper -->
+      <div style="display:flex;align-items:center;gap:0;margin-bottom:1rem;" id="_boardRideStepper">
+        <div class="_bStep active" id="_bStep0" style="flex:1;text-align:center;">
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--amber);display:flex;align-items:center;justify-content:center;margin:0 auto 0.25rem;font-size:0.7rem;">1</div>
+          <div style="font-size:0.55rem;color:var(--amber);font-weight:700;">En route</div>
+        </div>
+        <div style="flex:1;height:2px;background:rgba(255,255,255,0.08);" id="_bLine0"></div>
+        <div class="_bStep" id="_bStep1" style="flex:1;text-align:center;">
+          <div style="width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 0.25rem;font-size:0.7rem;color:var(--muted);">2</div>
+          <div style="font-size:0.55rem;color:var(--muted);font-weight:700;">Client à bord</div>
+        </div>
+        <div style="flex:1;height:2px;background:rgba(255,255,255,0.08);" id="_bLine1"></div>
+        <div class="_bStep" id="_bStep2" style="flex:1;text-align:center;">
+          <div style="width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 0.25rem;font-size:0.7rem;color:var(--muted);">3</div>
+          <div style="font-size:0.55rem;color:var(--muted);font-weight:700;">Destination</div>
+        </div>
+        <div style="flex:1;height:2px;background:rgba(255,255,255,0.08);" id="_bLine2"></div>
+        <div class="_bStep" id="_bStep3" style="flex:1;text-align:center;">
+          <div style="width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 0.25rem;font-size:0.7rem;color:var(--muted);">✓</div>
+          <div style="font-size:0.55rem;color:var(--muted);font-weight:700;">Terminé</div>
+        </div>
+      </div>
+      <!-- Infos course -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.8rem;">
+        <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:0.5rem 0.6rem;">
+          <div style="font-size:0.58rem;color:var(--muted);">DÉPART</div>
+          <div style="font-size:0.75rem;font-weight:700;color:var(--text);" id="_boardRideFrom">—</div>
+        </div>
+        <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:0.5rem 0.6rem;">
+          <div style="font-size:0.58rem;color:var(--muted);">DESTINATION</div>
+          <div style="font-size:0.75rem;font-weight:700;color:var(--text);" id="_boardRideTo">—</div>
+        </div>
+      </div>
+      <!-- Timer + Prix -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.8rem;">
+        <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:0.5rem 0.8rem;text-align:center;">
+          <div style="font-family:Syne,sans-serif;font-size:1.3rem;font-weight:800;color:var(--cyan);" id="_boardRideTimer">00:00</div>
+          <div style="font-size:0.58rem;color:var(--muted);">Durée</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:0.65rem;color:var(--muted);">Client</div>
+          <div style="font-size:0.8rem;font-weight:700;color:var(--text);" id="_boardRideClient">—</div>
+        </div>
+        <div style="background:rgba(0,255,170,0.08);border-radius:10px;padding:0.5rem 0.8rem;text-align:center;">
+          <div style="font-family:Syne,sans-serif;font-size:1.1rem;font-weight:800;color:var(--green);" id="_boardRidePrice">—</div>
+          <div style="font-size:0.58rem;color:var(--muted);">Prix</div>
+        </div>
+      </div>
+      <!-- Action Button -->
+      <button id="_boardRideBtn" onclick="_boardNextRideStep()" style="width:100%;padding:0.7rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--amber),#ff8800);color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;">📍 Client arrivé — À bord</button>
+      <!-- Outils -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.4rem;margin-top:0.6rem;">
+        <button onclick="_boardCallClient()" style="padding:0.45rem;border-radius:8px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.06);color:var(--cyan);font-size:0.65rem;cursor:pointer;font-family:'DM Sans',sans-serif;">📞 Appeler</button>
+        <button onclick="_boardOpenNav()" style="padding:0.45rem;border-radius:8px;border:1px solid rgba(255,184,0,0.3);background:rgba(255,184,0,0.06);color:var(--amber);font-size:0.65rem;cursor:pointer;font-family:'DM Sans',sans-serif;">🗺️ Maps</button>
+        <button onclick="_boardReportIssue()" style="padding:0.45rem;border-radius:8px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.06);color:var(--red);font-size:0.65rem;cursor:pointer;font-family:'DM Sans',sans-serif;">⚠️ Incident</button>
       </div>
     </div>
-    <!-- Notice confidentialité -->
-    <div style="background:rgba(255,68,102,0.07);border:1px solid rgba(255,68,102,0.25);border-radius:11px;padding:0.6rem 0.8rem;margin-bottom:1rem;font-size:0.68rem;color:var(--red);line-height:1.5;">
-      🔐 <strong>Données confidentielles :</strong> Vos informations personnelles (email, permis, pièce d'identité) ne sont <strong>jamais visibles</strong> par les autres chauffeurs. Seul l'Admin y a accès.
+    <div id="_boardNoCourseMsg" style="text-align:center;padding:2.5rem 1rem;color:var(--muted);">
+      <div style="font-size:3rem;margin-bottom:0.5rem;">🚕</div>
+      <div style="font-size:0.82rem;">Aucune course en cours.<br>Acceptez une demande pour démarrer.</div>
     </div>
-    <!-- Tableau de bord -->
-    <div style="font-family:Syne,sans-serif;font-weight:800;color:var(--text);font-size:0.85rem;margin-bottom:0.7rem;">📊 Votre Tableau de Bord</div>
-    <div id="_chauffeurBoardInner"></div>
-    <!-- Identifiants (floutés) -->
-    <div style="margin-top:1rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:1rem;">
-      <div style="font-family:Syne,sans-serif;font-weight:700;color:var(--pink);font-size:0.8rem;margin-bottom:0.7rem;">🔐 Vos identifiants de compte</div>
-      <div style="font-size:0.78rem;color:var(--muted);line-height:2;">
-        <div>📧 Email : <strong style="color:var(--text);">${escHtml(driver.email)}</strong></div>
-        <div>🔑 Mot de passe : <span id="_driverPwdDisplay" style="filter:blur(4px);cursor:pointer;color:var(--amber);transition:filter 0.3s;" onclick="this.style.filter='none'" title="Cliquer pour révéler">${escHtml(driver.password)}</span> <span style="font-size:0.6rem;color:var(--muted);">(cliquer pour révéler)</span></div>
+  </div>
+
+  <!-- ══ TAB: HISTORIQUE ══ -->
+  <div id="_boardTab_historique" style="display:none;padding:0 1rem;">
+    <div id="_boardHistList"></div>
+  </div>
+
+  <!-- ══ TAB: PROFIL ══ -->
+  <div id="_boardTab_profil" style="display:none;padding:0 1rem;">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:1rem;margin-bottom:0.8rem;">
+      <div style="font-family:Syne,sans-serif;font-weight:700;color:var(--pink);font-size:0.8rem;margin-bottom:0.8rem;">🔐 Informations du compte</div>
+      <div style="font-size:0.78rem;color:var(--muted);line-height:2.2;">
+        <div>📧 Email : <strong style="color:var(--text);">${escHtml(driver.email||'—')}</strong></div>
+        <div>📞 Téléphone : <strong style="color:var(--text);">${escHtml(driver.phone||'—')}</strong></div>
+        <div>🪪 Licence : <strong style="color:var(--text);">${escHtml(driver.license||'—')}</strong></div>
+        <div>🏢 Compagnie : <strong style="color:var(--text);">${escHtml(driver.company||'—')}</strong></div>
         <div>📅 Membre depuis : <strong style="color:var(--cyan);">${driver.approvedAt ? new Date(driver.approvedAt).toLocaleDateString('fr-FR') : '—'}</strong></div>
       </div>
     </div>
+    <div style="background:rgba(255,68,102,0.05);border:1px solid rgba(255,68,102,0.2);border-radius:12px;padding:0.8rem;font-size:0.68rem;color:var(--red);line-height:1.6;">
+      🔐 <strong>Données confidentielles</strong> — Vos informations ne sont visibles que par vous et l'Admin AMBI241.
+    </div>
+  </div>
   `;
+
   document.body.appendChild(div);
-  var dashContent = document.getElementById('taxi-dashboard');
-  var inner = document.getElementById('_chauffeurBoardInner');
-  if(dashContent && inner){ inner.innerHTML = dashContent.innerHTML; }
+
+  // ── Initialiser les données ──
+  window._boardDriver = driver;
+  window._boardStats = stats;
+  window._boardStatsKey = statsKey;
+  window._boardRideStep = 0;
+  window._boardRideTimerSec = 0;
+  window._boardRideTimerInterval = null;
+  window._boardActiveReq = null;
+  window._boardOnDuty = false;
+
+  _boardRenderHistory();
+  _boardRenderOrders();
 }
+
+// ──── Toggle service ────
+function _boardToggleService(chk) {
+  window._boardOnDuty = chk.checked;
+  var dot   = document.getElementById('_boardOnlineDot');
+  var label = document.getElementById('_boardOnlineLabel');
+  var sLabel = document.getElementById('_boardServiceLabel');
+  var sSub  = document.getElementById('_boardServiceSub');
+  var card  = document.getElementById('_boardServiceCard');
+  var slider = document.getElementById('_boardServiceSlider');
+  var knob  = document.getElementById('_boardServiceKnob');
+  if(chk.checked) {
+    dot.style.background = 'var(--green)';
+    dot.style.boxShadow = '0 0 8px rgba(0,255,170,0.6)';
+    label.textContent = 'En service';
+    if(sLabel) sLabel.textContent = 'En service';
+    if(sSub)   sSub.textContent   = 'Vous recevez des demandes';
+    if(card)   card.style.borderColor = 'rgba(0,255,170,0.3)';
+    if(slider) slider.style.background = 'var(--green)';
+    if(knob)   knob.style.transform = 'translateX(24px)';
+    showTaxiNotification('🟢 Vous êtes en service !');
+    _persistDriverOnlineStatus(true);
+    setTimeout(function(){ if(window._boardOnDuty) _boardSimRequest(); }, 5000);
+  } else {
+    dot.style.background = 'var(--red)';
+    dot.style.boxShadow = '0 0 8px rgba(255,68,102,0.5)';
+    label.textContent = 'Hors service';
+    if(sLabel) sLabel.textContent = 'Hors service';
+    if(sSub)   sSub.textContent   = 'Activez pour recevoir des courses';
+    if(card)   card.style.borderColor = '';
+    if(slider) slider.style.background = 'rgba(255,255,255,0.1)';
+    if(knob)   knob.style.transform = 'translateX(0)';
+    showTaxiNotification('🔴 Hors service');
+    _persistDriverOnlineStatus(false);
+    // Cacher la demande entrante
+    var req = document.getElementById('_boardIncomingReq');
+    if(req) req.style.display = 'none';
+  }
+}
+
+// ──── Switcher d'onglets ────
+function _boardSwitchTab(tab) {
+  ['commandes','course','historique','profil'].forEach(function(t) {
+    var panel = document.getElementById('_boardTab_'+t);
+    var btn   = document.querySelector('[data-board-tab="'+t+'"]');
+    if(panel) panel.style.display = t===tab ? (t==='commandes'?'block':'block') : 'none';
+    if(btn) {
+      btn.style.color = t===tab ? 'var(--amber)' : 'var(--muted)';
+      btn.style.borderBottom = t===tab ? '2px solid var(--amber)' : '2px solid transparent';
+    }
+  });
+}
+
+// ──── Simuler une demande entrante ────
+function _boardSimRequest() {
+  var demos = [
+    { from:'Quartier Louis', to:'Aéroport Léon MBA', price:'4 500 XAF', dist:'12 km • ~18 min', client:'M. Essono Bi', avatar:'👨' },
+    { from:'Centre-Ville', to:'Hôtel Radisson Blu', price:'2 200 XAF', dist:'5 km • ~8 min', client:'Mme. Nkoghe', avatar:'👩' },
+    { from:'Glass', to:'Angondjé Mall', price:'3 100 XAF', dist:'8 km • ~12 min', client:'M. Mba Obame', avatar:'👨' },
+    { from:'Owendo', to:'Akanda Beach', price:'6 800 XAF', dist:'18 km • ~25 min', client:'Mme. Biyoghe', avatar:'👩' },
+  ];
+  var r = demos[Math.floor(Math.random()*demos.length)];
+  window._boardActiveReq = r;
+  var el = document.getElementById('_boardIncomingReq');
+  if(!el) return;
+  document.getElementById('_boardReqFrom').textContent  = r.from;
+  document.getElementById('_boardReqTo').textContent    = r.to;
+  document.getElementById('_boardReqPrice').textContent = r.price;
+  document.getElementById('_boardReqDist').textContent  = r.dist;
+  document.getElementById('_boardReqClient').textContent = r.client;
+  el.style.display = 'block';
+  _boardSwitchTab('commandes');
+  // Countdown
+  var sec = 30;
+  var cdEl = document.getElementById('_boardReqCountdown');
+  if(cdEl) cdEl.textContent = sec + 's';
+  clearInterval(window._boardCDInterval);
+  window._boardCDInterval = setInterval(function() {
+    sec--;
+    if(cdEl) cdEl.textContent = sec + 's';
+    if(sec <= 0) {
+      clearInterval(window._boardCDInterval);
+      if(el) el.style.display = 'none';
+      showTaxiNotification('⏰ Demande expirée');
+      setTimeout(function(){ if(window._boardOnDuty) _boardSimRequest(); }, 8000);
+    }
+  }, 1000);
+  showTaxiNotification('🔔 Nouvelle demande de course !');
+}
+
+// ──── Accepter une demande ────
+function _boardAcceptReq() {
+  clearInterval(window._boardCDInterval);
+  var r = window._boardActiveReq;
+  if(!r) return;
+  var el = document.getElementById('_boardIncomingReq');
+  if(el) el.style.display = 'none';
+  // Activer l'onglet En Course avec le stepper
+  _boardStartRide(r);
+  _boardSwitchTab('course');
+  showTaxiNotification('✅ Course acceptée ! En route vers le client.');
+  // Notification WhatsApp auto (simulée)
+  showTaxiNotification('💬 Client notifié par WhatsApp — Taxi en route');
+}
+
+// ──── Refuser avec motif ────
+function _boardRefuseReq() {
+  clearInterval(window._boardCDInterval);
+  var el = document.getElementById('_boardIncomingReq');
+  // Afficher choix de motif
+  var motifs = ['Zone trop loin','Déjà en course','Problème véhicule','Autre'];
+  var motifHtml = motifs.map(function(m,i) {
+    return '<button onclick="_boardConfirmRefuse(\''+m+'\')" style="width:100%;padding:0.6rem 0.8rem;margin-bottom:0.4rem;border-radius:10px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.07);color:var(--red);font-size:0.78rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;text-align:left;">❌ '+m+'</button>';
+  }).join('');
+  var overlay = document.createElement('div');
+  overlay.id = '_refuseOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:10020;display:flex;align-items:center;justify-content:center;padding:1rem;';
+  overlay.innerHTML = '<div style="background:var(--surface);border:1px solid rgba(255,68,102,0.3);border-radius:20px;padding:1.4rem;width:min(360px,100%);"><div style="font-family:Syne,sans-serif;font-weight:800;color:var(--red);margin-bottom:0.3rem;">Motif de refus</div><div style="font-size:0.72rem;color:var(--muted);margin-bottom:1rem;">Sélectionnez un motif (facultatif)</div>'+motifHtml+'<button onclick="document.getElementById(\'_refuseOverlay\').remove()" style="width:100%;padding:0.5rem;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:var(--muted);font-size:0.72rem;cursor:pointer;font-family:DM Sans,sans-serif;">Annuler</button></div>';
+  document.body.appendChild(overlay);
+}
+window._boardConfirmRefuse = function(motif) {
+  document.getElementById('_refuseOverlay').remove();
+  var el = document.getElementById('_boardIncomingReq');
+  if(el) el.style.display = 'none';
+  showTaxiNotification('❌ Refusé : ' + motif);
+  setTimeout(function(){ if(window._boardOnDuty) _boardSimRequest(); }, 6000);
+};
+
+// ──── Démarrer une course ────
+function _boardStartRide(r) {
+  window._boardCurrentRide = r;
+  window._boardRideStep = 0;
+  // Remplir les infos
+  var setT = function(id, val) { var e = document.getElementById(id); if(e) e.textContent = val; };
+  setT('_boardRideFrom', r.from||'—');
+  setT('_boardRideTo', r.to||'—');
+  setT('_boardRideClient', r.client||'Client');
+  setT('_boardRidePrice', r.price||'—');
+  setT('_boardRideTitle', 'En route vers le client');
+  setT('_boardRideBtn', '📍 Client à bord — Démarrer le trajet');
+  // Timer
+  clearInterval(window._boardRideTimerInterval);
+  window._boardRideTimerSec = 0;
+  document.getElementById('_boardRideTimer').textContent = '00:00';
+  window._boardRideTimerInterval = setInterval(function() {
+    window._boardRideTimerSec++;
+    var m = String(Math.floor(window._boardRideTimerSec/60)).padStart(2,'0');
+    var s = String(window._boardRideTimerSec%60).padStart(2,'0');
+    var timerEl = document.getElementById('_boardRideTimer');
+    if(timerEl) timerEl.textContent = m+':'+s;
+  }, 1000);
+  // Afficher
+  var card = document.getElementById('_boardRideCard');
+  var noMsg = document.getElementById('_boardNoCourseMsg');
+  if(card) card.style.display = 'block';
+  if(noMsg) noMsg.style.display = 'none';
+  _boardUpdateStepper(0);
+}
+
+// ──── Avancer dans le flow de course ────
+var _boardRideStepLabels = [
+  { title:'Client à bord — Trajet en cours', btn:'🏁 Destination atteinte' },
+  { title:'En approche de la destination', btn:'✅ Terminer la course' },
+  { title:'Course terminée !', btn:'🎉 Nouvelle course' }
+];
+function _boardNextRideStep() {
+  window._boardRideStep = (window._boardRideStep||0) + 1;
+  var step = window._boardRideStep;
+  if(step <= 2) {
+    var info = _boardRideStepLabels[step-1];
+    var setT = function(id,v){ var e=document.getElementById(id);if(e)e.textContent=v; };
+    setT('_boardRideTitle', info.title);
+    setT('_boardRideBtn', info.btn);
+    _boardUpdateStepper(step);
+    if(step === 1) showTaxiNotification('👥 Client à bord — trajet démarré !');
+    if(step === 2) showTaxiNotification('🏁 Destination atteinte !');
+  } else {
+    // Terminer la course
+    clearInterval(window._boardRideTimerInterval);
+    var r = window._boardCurrentRide || {};
+    var priceNum = parseInt((r.price||'0').replace(/\D/g,'')) || 0;
+    var kmNum = parseInt((r.dist||'0').replace(/\D+/,'')) || 0;
+    // Sauvegarder stats
+    var stats = window._boardStats || {};
+    stats.courses = (stats.courses||0) + 1;
+    stats.gains   = (stats.gains  ||0) + priceNum;
+    stats.km      = (stats.km     ||0) + kmNum;
+    if(!stats.history) stats.history = [];
+    var now = new Date();
+    stats.history.unshift({
+      from: r.from, to: r.to, price: r.price, dist: r.dist,
+      client: r.client, duration: window._boardRideTimerSec,
+      date: now.toISOString(), rating: 5
+    });
+    if(stats.history.length > 50) stats.history.length = 50;
+    window._boardStats = stats;
+    try { localStorage.setItem(window._boardStatsKey, JSON.stringify(stats)); } catch(e){}
+    // Mettre à jour KPIs
+    var setT = function(id,v){ var e=document.getElementById(id);if(e)e.textContent=v; };
+    setT('_bKpiCourses', stats.courses);
+    setT('_bKpiGains', stats.gains.toLocaleString('fr-FR'));
+    setT('_bKpiKm', stats.km);
+    // Masquer la course
+    var card = document.getElementById('_boardRideCard');
+    var noMsg = document.getElementById('_boardNoCourseMsg');
+    if(card) card.style.display = 'none';
+    if(noMsg) noMsg.style.display = 'block';
+    _boardUpdateStepper(3);
+    _boardRenderHistory();
+    showTaxiNotification('🎉 Course terminée ! +' + (r.price||'0'));
+    _boardSwitchTab('historique');
+    if(window._boardOnDuty) setTimeout(function(){ _boardSimRequest(); }, 5000);
+  }
+}
+
+// ──── Stepper visuel ────
+function _boardUpdateStepper(activeStep) {
+  var colors = ['var(--amber)','var(--cyan)','var(--pink)','var(--green)'];
+  for(var i=0;i<4;i++) {
+    var stepEl = document.getElementById('_bStep'+i);
+    if(!stepEl) continue;
+    var circle = stepEl.querySelector('div');
+    var label  = stepEl.querySelectorAll('div')[1];
+    if(i <= activeStep) {
+      circle.style.background = colors[i];
+      circle.style.color = '#000';
+      if(label) { label.style.color = colors[i]; label.style.fontWeight = '800'; }
+    } else {
+      circle.style.background = 'rgba(255,255,255,0.1)';
+      circle.style.color = 'var(--muted)';
+      if(label) { label.style.color = 'var(--muted)'; label.style.fontWeight = '600'; }
+    }
+    if(i < 3) {
+      var line = document.getElementById('_bLine'+i);
+      if(line) line.style.background = i < activeStep ? colors[i] : 'rgba(255,255,255,0.08)';
+    }
+  }
+}
+
+function _boardCallClient() {
+  var r = window._boardCurrentRide || {};
+  showTaxiNotification('📞 Appel vers ' + (r.client||'client') + '...');
+}
+function _boardOpenNav() {
+  var r = window._boardCurrentRide || {};
+  if(r.to) window.open('https://www.google.com/maps/search/'+encodeURIComponent(r.to+', Libreville'), '_blank');
+}
+function _boardReportIssue() {
+  var motifs = ['Passager non trouvé','Problème de route','Urgence véhicule','Passager agressif'];
+  var m = motifs[Math.floor(Math.random()*motifs.length)];
+  if(confirm('Signaler un incident ?\n\nMotif suggéré : ' + m)) {
+    showTaxiNotification('⚠️ Incident signalé — support notifié');
+  }
+}
+
+// ──── Historique ────
+function _boardRenderHistory() {
+  var el = document.getElementById('_boardHistList');
+  if(!el) return;
+  var stats = window._boardStats || {};
+  var history = stats.history || [];
+  if(!history.length) {
+    el.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.8rem;"><div style="font-size:2.5rem;margin-bottom:0.5rem;">📋</div>Aucune course enregistrée</div>';
+    return;
+  }
+  el.innerHTML = history.map(function(h) {
+    var d = h.date ? new Date(h.date) : new Date();
+    var timeStr = d.toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+    var dur = h.duration ? Math.floor(h.duration/60)+'min' : '—';
+    return '<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:0.7rem 0.8rem;margin-bottom:0.5rem;display:flex;align-items:center;gap:0.6rem;">'
+      +'<div style="width:28px;height:28px;border-radius:50%;background:rgba(0,255,170,0.15);display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--green);font-weight:800;flex-shrink:0;">✓</div>'
+      +'<div style="flex:1;min-width:0;">'
+        +'<div style="font-size:0.78rem;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(h.from||'?')+' → '+(h.to||'?')+'</div>'
+        +'<div style="font-size:0.62rem;color:var(--muted);margin-top:0.1rem;">'+timeStr+' · '+dur+'</div>'
+      +'</div>'
+      +'<div style="text-align:right;flex-shrink:0;">'
+        +'<div style="font-family:Syne,sans-serif;font-size:0.85rem;font-weight:800;color:var(--green);">'+(h.price||'—')+'</div>'
+        +'<div style="font-size:0.65rem;color:var(--amber);">⭐'.repeat(h.rating||5)+'</div>'
+      +'</div></div>';
+  }).join('');
+}
+
+// ──── Render commandes en attente ────
+function _boardRenderOrders() {
+  var el = document.getElementById('_boardOrdersList');
+  var emptyEl = document.getElementById('_boardOrdersEmpty');
+  if(!el) return;
+  var driver = window._boardDriver;
+  var phone = driver ? (driver.phone||'').replace(/\s|\+/g,'') : '';
+  var orders = [];
+  try { orders = JSON.parse(localStorage.getItem('ambi241_pending_orders_'+phone) || '[]'); } catch(e){}
+  if(!orders.length) {
+    el.innerHTML = '';
+    if(emptyEl) emptyEl.style.display = 'block';
+    return;
+  }
+  if(emptyEl) emptyEl.style.display = 'none';
+  el.innerHTML = '<div style="font-size:0.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.5rem;">Commandes reçues</div>'
+    + orders.map(function(o, i) {
+      return '<div style="background:rgba(255,184,0,0.05);border:1px solid rgba(255,184,0,0.2);border-radius:12px;padding:0.7rem 0.8rem;margin-bottom:0.5rem;">'
+        +'<div style="font-size:0.72rem;font-weight:700;color:var(--text);">'+escHtml(o.clientName||'Client')+'</div>'
+        +'<div style="font-size:0.65rem;color:var(--muted);">'+escHtml(o.from||'—')+' → '+escHtml(o.to||'—')+'</div>'
+        +'<div style="display:flex;gap:0.4rem;margin-top:0.5rem;">'
+        +'<button onclick="_boardAcceptStoredOrder('+i+')" style="flex:1;padding:0.4rem;border-radius:8px;border:none;background:rgba(0,255,170,0.15);color:var(--green);font-size:0.68rem;font-weight:700;cursor:pointer;">✅ Accepter</button>'
+        +'<button onclick="_boardRefuseStoredOrder('+i+')" style="flex:1;padding:0.4rem;border-radius:8px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.07);color:var(--red);font-size:0.68rem;font-weight:700;cursor:pointer;">❌ Refuser</button>'
+        +'</div></div>';
+    }).join('');
+}
+window._boardAcceptStoredOrder = function(i) {
+  var driver = window._boardDriver;
+  var phone = driver ? (driver.phone||'').replace(/\s|\+/g,'') : '';
+  var orders = JSON.parse(localStorage.getItem('ambi241_pending_orders_'+phone) || '[]');
+  var o = orders[i];
+  if(!o) return;
+  orders.splice(i, 1);
+  localStorage.setItem('ambi241_pending_orders_'+phone, JSON.stringify(orders));
+  _boardStartRide(o);
+  _boardSwitchTab('course');
+  _boardRenderOrders();
+  showTaxiNotification('✅ Course acceptée !');
+};
+window._boardRefuseStoredOrder = function(i) {
+  _boardRefuseReq();
+};
+
+window._boardToggleService = _boardToggleService;
+window._boardSwitchTab     = _boardSwitchTab;
+window._boardSimRequest    = _boardSimRequest;
+window._boardAcceptReq     = _boardAcceptReq;
+window._boardRefuseReq     = _boardRefuseReq;
+window._boardNextRideStep  = _boardNextRideStep;
+window._boardCallClient    = _boardCallClient;
+window._boardOpenNav       = _boardOpenNav;
+window._boardReportIssue   = _boardReportIssue;
 
 // Afficher panneau admin de gestion des chauffeurs
 function _showChauffeurAdminPanel() {
@@ -20769,24 +21373,34 @@ function taxiProSubmitOrder() {
 
   taxiProShowDriverResponseModal();
 
-  // Notification WhatsApp optionnelle (ouvre wa.me)
+  // ─── Sauvegarder la commande pour le chauffeur (accessible depuis son dashboard) ───
   if(driver) {
-    const waMsg = encodeURIComponent(
-      `🚕 *DEMANDE TAXI PRO AMBI241*\n`+
-      `📋 Réf: ${orderId}\n`+
-      `👤 Client: ${firstName}\n`+
-      `📍 Départ: ${gpsVal || 'À préciser'}\n`+
-      `🎯 Destination: ${destination}\n`+
-      `🚗 Véhicule: ${vehicleLabels[taxiProState.vehicleType]}\n`+
-      `💰 Offre: ${parseFloat(price).toLocaleString('fr-FR')} ${taxiProState.currency}\n`+
-      `🕐 Heure: ${time || 'Immédiat'}\n\n`+
-      `Répondez OUI pour accepter, NON pour refuser.`
-    );
-    // Ouvre WhatsApp vers le chauffeur (numéro fictif — à remplacer par numéro réel)
-    const driverWA = driver.whatsapp || '241060000000';
-    setTimeout(() => {
-      if(confirm(`Envoyer la demande à ${driver.name} via WhatsApp ?`)) {
-        window.open(`https://wa.me/${driverWA}?text=${waMsg}`, '_blank');
+    var driverPhoneClean = (driver.phone||driver.whatsapp||'').replace(/\s|\+/g,'');
+    var pendingKey = 'ambi241_pending_orders_' + driverPhoneClean;
+    var existing = [];
+    try { existing = JSON.parse(localStorage.getItem(pendingKey) || '[]'); } catch(e){}
+    existing.push({
+      id: orderId, clientName: firstName,
+      from: gpsVal || 'Position GPS', to: destination,
+      price: parseFloat(price).toLocaleString('fr-FR') + ' ' + taxiProState.currency,
+      vehicle: vehicleLabels[taxiProState.vehicleType] || taxiProState.vehicleType,
+      time: time || 'Immédiat', createdAt: new Date().toISOString()
+    });
+    try { localStorage.setItem(pendingKey, JSON.stringify(existing)); } catch(e){}
+  }
+
+  // ─── Notification WhatsApp ENRICHIE avec deep-link ───
+  if(driver) {
+    var contextData = {
+      from: gpsVal || 'À préciser', to: destination,
+      price: parseFloat(price).toLocaleString('fr-FR') + ' ' + taxiProState.currency,
+      vehicle: vehicleLabels[taxiProState.vehicleType],
+      clientName: firstName, time: time || 'Immédiat'
+    };
+    var driverWA = (driver.whatsapp || driver.phone || '241060000000').replace(/\s|\+/g,'');
+    setTimeout(function() {
+      if(confirm('Envoyer la demande à ' + (driver.name||'le chauffeur') + ' via WhatsApp ?')) {
+        openWhatsApp(encodeURIComponent('+' + driverWA), encodeURIComponent(driver.name||'Chauffeur'), contextData);
       }
     }, 300);
   }
