@@ -280,6 +280,46 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
   background:rgba(0,255,170,0.5);min-height:4px;transition:height 0.3s;
 }
 
+/* ══ REG TYPE TILES ══ */
+.reg-type-tile{
+  border-radius:14px;padding:0.75rem 0.4rem 0.65rem;
+  text-align:center;cursor:pointer;
+  border:2px solid rgba(255,255,255,0.1);
+  background:rgba(255,255,255,0.03);
+  transition:all 0.22s;user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  position:relative;overflow:hidden;
+}
+.reg-type-tile:active{transform:scale(0.94);}
+.reg-type-tile--membre.active{background:rgba(0,229,255,0.12);border-color:var(--cyan);box-shadow:0 0 16px rgba(0,229,255,0.18);}
+.reg-type-tile--gerant.active{background:rgba(255,45,155,0.12);border-color:var(--pink);box-shadow:0 0 16px rgba(255,45,155,0.18);}
+.reg-type-tile--chauffeur.active{background:rgba(255,215,0,0.12);border-color:var(--amber);box-shadow:0 0 16px rgba(255,215,0,0.18);}
+.reg-type-tile:not(.active):hover{background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.2);}
+/* Étab type checkboxes */
+.reg-etab-check-label{
+  display:flex;align-items:center;gap:0.4rem;
+  font-size:0.72rem;color:var(--text);
+  background:rgba(255,255,255,0.03);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:8px;padding:0.35rem 0.55rem;
+  cursor:pointer;transition:all 0.15s;
+  user-select:none;
+}
+.reg-etab-check-label:has(input:checked){
+  background:rgba(255,45,155,0.1);
+  border-color:rgba(255,45,155,0.4);
+  color:var(--pink);
+}
+.reg-etab-check-label--amber:has(input:checked){
+  background:rgba(255,215,0,0.1);
+  border-color:rgba(255,215,0,0.4);
+  color:var(--amber);
+}
+.reg-etab-check-label input[type=checkbox]{
+  accent-color:var(--pink);width:14px;height:14px;flex-shrink:0;
+}
+.reg-etab-check-label--amber input[type=checkbox]{accent-color:var(--amber);}
+
 /* HEADER */
 header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0.96);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,45,155,0.2);padding:0;width:100%;max-width:100vw;box-sizing:border-box;overflow:visible;display:flex;flex-direction:column;}
 .header-top{display:flex;align-items:center;justify-content:space-between;padding:0 0.5rem;height:56px;width:100%;}
@@ -3114,6 +3154,30 @@ if (document.readyState === 'loading') {
     <div id="formInscription">
       <div class="modal-title">Creer mon compte</div>
       <div class="modal-sub">Rejoignez la communaute AMBI241</div>
+
+      <!-- ═══ CHOIX DU TYPE DE MEMBRE ═══ -->
+      <div style="margin-bottom:1rem;">
+        <div style="font-size:0.62rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.55rem;">Type de compte <span style="color:var(--pink);">*</span></div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.45rem;">
+          <!-- Simple Membre -->
+          <div class="reg-type-tile reg-type-tile--membre active" id="regTypeMembre" onclick="selectRegType('membre')">
+            <div style="font-size:1.5rem;margin-bottom:0.3rem;">👤</div>
+            <div style="font-family:'Syne',sans-serif;font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.04em;color:#fff0f8;">Simple<br>Membre</div>
+          </div>
+          <!-- Gérant Établissement -->
+          <div class="reg-type-tile reg-type-tile--gerant" id="regTypeGerant" onclick="selectRegType('gerant')">
+            <div style="font-size:1.5rem;margin-bottom:0.3rem;">🏢</div>
+            <div style="font-family:'Syne',sans-serif;font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.04em;color:#fff0f8;">Gérant<br>Étab.</div>
+          </div>
+          <!-- Chauffeur -->
+          <div class="reg-type-tile reg-type-tile--chauffeur" id="regTypeChauffeur" onclick="selectRegType('chauffeur')">
+            <div style="font-size:1.5rem;margin-bottom:0.3rem;">🚗</div>
+            <div style="font-family:'Syne',sans-serif;font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.04em;color:#fff0f8;">Membre<br>Chauffeur</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ CHAMPS COMMUNS ═══ -->
       <div class="field"><label>Pseudo / Nom complet <span class="req">*</span></label><input type="text" id="regPseudo" placeholder="Ex: DJ_Libreville" maxlength="30" required></div>
       <div class="field-row">
         <div class="field"><label>Prenom <span class="req">*</span></label><input type="text" id="regPrenom" placeholder="Votre prenom" required></div>
@@ -3125,11 +3189,52 @@ if (document.readyState === 'loading') {
         <div class="field"><label>Date de naissance</label><input type="date" id="regDob"></div>
       </div>
       <div class="field"><label>Mot de passe <span class="req">*</span></label><input type="password" id="regPwd" placeholder="Min. 6 caracteres" required minlength="6"></div>
-      <div class="consent-box"><input type="checkbox" id="regConsent"><div class="consent-text">J accepte les <strong>conditions d utilisation</strong> et la <strong>politique de confidentialite</strong> d AMBI241.</div></div>
-      <div class="consent-box" style="margin-top:0.4rem;background:rgba(255,184,0,0.06);border:1px solid rgba(255,184,0,0.3);border-radius:10px;padding:0.5rem 0.7rem;">
-        <input type="checkbox" id="regDriverCheck">
-        <div class="consent-text">🚗 Je souhaite être <strong style="color:var(--amber);">Membre Chauffeur</strong> — accès au Tableau de Bord Taxi Pro (sous réserve de validation Admin)</div>
+
+      <!-- ═══ SECTION GÉRANT ÉTABLISSEMENT ═══ -->
+      <div id="regSectionGerant" style="display:none;margin-bottom:0.75rem;background:rgba(255,45,155,0.05);border:1px solid rgba(255,45,155,0.25);border-radius:14px;padding:0.9rem 0.85rem;">
+        <div style="font-size:0.62rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--pink);margin-bottom:0.65rem;">🏢 Informations Établissement</div>
+        <div class="field" style="margin-bottom:0.55rem;"><label>Nom de l'établissement <span class="req">*</span></label><input type="text" id="regEtabNom" placeholder="Ex: Le Blue Moon Bar"></div>
+        <div class="field" style="margin-bottom:0.55rem;"><label>Adresse / Quartier <span class="req">*</span></label><input type="text" id="regEtabAdresse" placeholder="Ex: Quartier Louis, Libreville"></div>
+        <div class="field" style="margin-bottom:0.6rem;"><label>Tel. Établissement</label><input type="tel" id="regEtabTel" placeholder="+241 XX XXX XXX"></div>
+        <!-- Type d'établissement (cases à cocher) -->
+        <div style="font-size:0.62rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.45rem;">Type d'établissement <span style="color:var(--pink);">*</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.3rem 0.5rem;margin-bottom:0.6rem;">
+          <label class="reg-etab-check-label"><input type="checkbox" name="etabType" value="bar" id="etabTypeBar"> 🍺 Bar</label>
+          <label class="reg-etab-check-label"><input type="checkbox" name="etabType" value="snack" id="etabTypeSnack"> 🥪 Snack</label>
+          <label class="reg-etab-check-label"><input type="checkbox" name="etabType" value="hotel" id="etabTypeHotel"> 🏨 Hôtel</label>
+          <label class="reg-etab-check-label"><input type="checkbox" name="etabType" value="restaurant" id="etabTypeRestaurant"> 🍽️ Restaurant</label>
+          <label class="reg-etab-check-label"><input type="checkbox" name="etabType" value="disco" id="etabTypeDisco"> 🎶 Discothèque</label>
+          <label class="reg-etab-check-label"><input type="checkbox" name="etabType" value="bar-terrasse" id="etabTypeTerrasse"> ☀️ Bar Terrasse</label>
+          <label class="reg-etab-check-label" style="grid-column:1/-1"><input type="checkbox" name="etabType" value="autre" id="etabTypeAutre"> ➕ Autre</label>
+        </div>
+        <div class="field" id="etabTypeAutreField" style="display:none;margin-bottom:0.5rem;"><label>Précisez le type</label><input type="text" id="regEtabTypeAutre" placeholder="Ex: Salon de thé, Lounge..."></div>
+        <div style="font-size:0.6rem;color:var(--amber);background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.2);border-radius:8px;padding:0.45rem 0.6rem;line-height:1.5;">
+          ⚠️ L'inscription établissement est payante (<strong style="color:var(--amber);">5 000 XAF/mois</strong>). Validation sous 24h après paiement au nom : <strong>KOZANGUE ESSONO PATRICK BERTIN</strong>
+        </div>
       </div>
+
+      <!-- ═══ SECTION CHAUFFEUR ═══ -->
+      <div id="regSectionChauffeur" style="display:none;margin-bottom:0.75rem;background:rgba(255,184,0,0.05);border:1px solid rgba(255,184,0,0.25);border-radius:14px;padding:0.9rem 0.85rem;">
+        <div style="font-size:0.62rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--amber);margin-bottom:0.65rem;">🚗 Informations Chauffeur</div>
+        <div class="field" style="margin-bottom:0.55rem;"><label>Numéro de permis <span class="req">*</span></label><input type="text" id="regPermis" placeholder="Ex: GA-123456"></div>
+        <div class="field" style="margin-bottom:0.55rem;"><label>Marque &amp; Modèle du véhicule <span class="req">*</span></label><input type="text" id="regVehicule" placeholder="Ex: Toyota Corolla Blanc"></div>
+        <div class="field" style="margin-bottom:0.55rem;"><label>Immatriculation</label><input type="text" id="regImmat" placeholder="Ex: LBV-2024-XXX"></div>
+        <!-- Type de service -->
+        <div style="font-size:0.62rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.45rem;">Type de service proposé</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.3rem 0.5rem;margin-bottom:0.6rem;">
+          <label class="reg-etab-check-label reg-etab-check-label--amber"><input type="checkbox" name="chauffeurService" value="taxi" id="chauffServiceTaxi"> 🚕 Taxi</label>
+          <label class="reg-etab-check-label reg-etab-check-label--amber"><input type="checkbox" name="chauffeurService" value="moto" id="chauffServiceMoto"> 🛵 Moto-taxi</label>
+          <label class="reg-etab-check-label reg-etab-check-label--amber"><input type="checkbox" name="chauffeurService" value="vip" id="chauffServiceVip"> 👑 VTC / VIP</label>
+          <label class="reg-etab-check-label reg-etab-check-label--amber"><input type="checkbox" name="chauffeurService" value="livraison" id="chauffServiceLivraison"> 📦 Livraison</label>
+        </div>
+        <div style="font-size:0.6rem;color:var(--cyan);background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:8px;padding:0.45rem 0.6rem;line-height:1.5;">
+          ℹ️ Votre profil chauffeur sera <strong style="color:var(--cyan);">validé par l'admin</strong> avant activation. Accès au Tableau de Bord Taxi Pro après validation.
+        </div>
+      </div>
+
+      <div class="consent-box"><input type="checkbox" id="regConsent"><div class="consent-text">J accepte les <strong>conditions d utilisation</strong> et la <strong>politique de confidentialite</strong> d AMBI241.</div></div>
+      <!-- Champ caché pour compatibilité avec l'ancien code -->
+      <input type="checkbox" id="regDriverCheck" style="display:none">
       <button class="modal-btn" id="regBtn" onclick="registerUser()">&#128100; Creer mon compte</button>
       <div id="regMsg" style="font-size:0.78rem;text-align:center;margin-top:0.5rem;display:none;"></div>
     </div>
@@ -7542,6 +7647,31 @@ window.openEditPseudoModal = openEditPseudoModal;
 
 function closeUserModal(){document.getElementById("userOverlay").classList.remove("show");}
 
+/* ══ GESTION TYPE MEMBRE À L'INSCRIPTION ══ */
+var _regCurrentType = 'membre'; // membre | gerant | chauffeur
+
+function selectRegType(type) {
+  _regCurrentType = type;
+  var tiles = ['membre','gerant','chauffeur'];
+  tiles.forEach(function(t){
+    var el = document.getElementById('regType' + t.charAt(0).toUpperCase() + t.slice(1));
+    if(el) el.classList.toggle('active', t === type);
+  });
+  document.getElementById('regSectionGerant').style.display   = (type==='gerant')    ? 'block' : 'none';
+  document.getElementById('regSectionChauffeur').style.display = (type==='chauffeur') ? 'block' : 'none';
+  // Sync ancien champ chauffeur (compatibilité)
+  var dc = document.getElementById('regDriverCheck');
+  if(dc) dc.checked = (type === 'chauffeur');
+}
+
+// Afficher/masquer le champ "autre type d'étab"
+document.addEventListener('DOMContentLoaded', function(){
+  var autreChk = document.getElementById('etabTypeAutre');
+  if(autreChk) autreChk.addEventListener('change', function(){
+    document.getElementById('etabTypeAutreField').style.display = this.checked ? 'block' : 'none';
+  });
+});
+
 function registerUser(){
   var pseudo=document.getElementById("regPseudo").value.trim();
   var email=document.getElementById("regEmail").value.trim();
@@ -7549,6 +7679,7 @@ function registerUser(){
   var pwd=document.getElementById("regPwd").value;
   var consent=document.getElementById("regConsent").checked;
   var msg=document.getElementById("regMsg");
+
   if(!pseudo||!email||!tel||!pwd){
     msg.style.display="block";msg.style.color="var(--red)";
     msg.textContent="Veuillez remplir tous les champs obligatoires.";return;
@@ -7557,8 +7688,33 @@ function registerUser(){
     msg.style.display="block";msg.style.color="var(--red)";
     msg.textContent="Vous devez accepter les conditions.";return;
   }
+
+  // Validations spécifiques par type
+  if(_regCurrentType === 'gerant'){
+    var etabNom = document.getElementById("regEtabNom").value.trim();
+    var etabAdr = document.getElementById("regEtabAdresse").value.trim();
+    var typesChecked = document.querySelectorAll('input[name="etabType"]:checked');
+    if(!etabNom || !etabAdr){
+      msg.style.display="block";msg.style.color="var(--red)";
+      msg.textContent="Remplissez le nom et l'adresse de l'établissement.";return;
+    }
+    if(typesChecked.length === 0){
+      msg.style.display="block";msg.style.color="var(--red)";
+      msg.textContent="Cochez au moins un type d'établissement.";return;
+    }
+  }
+  if(_regCurrentType === 'chauffeur'){
+    var permis = document.getElementById("regPermis").value.trim();
+    var vehicule = document.getElementById("regVehicule").value.trim();
+    if(!permis || !vehicule){
+      msg.style.display="block";msg.style.color="var(--red)";
+      msg.textContent="Remplissez le numéro de permis et le véhicule.";return;
+    }
+  }
+
   var btn=document.querySelector("#formInscription .modal-btn");
   if(btn){btn.disabled=true;btn.textContent="Création en cours...";}
+
   var _tryRegister = function(attempts){
     if(!window.fbCreateUser || !window.auth){
       if(attempts > 50){
@@ -7568,34 +7724,67 @@ function registerUser(){
       }
       return setTimeout(function(){ _tryRegister(attempts+1); }, 100);
     }
-  window.fbCreateUser(window.auth,email,pwd).then(function(result){
-    var uid=result.user.uid;
-    var wantsDriver = document.getElementById('regDriverCheck') && document.getElementById('regDriverCheck').checked;
-    // Sauvegarder le profil dans Firestore
-    return window.fbSetDoc(window.fbDoc(window.db,"users",uid),{
-      pseudo:pseudo,email:email,tel:tel,
-      dob:document.getElementById("regDob").value||"",
-      createdAt:new Date().toISOString(),
-      wantsDriver: !!wantsDriver
+    var wantsDriver = (_regCurrentType === 'chauffeur');
+    var isGerant    = (_regCurrentType === 'gerant');
+
+    // Données établissement si gérant
+    var etabData = {};
+    if(isGerant){
+      var typesCheckedVals = [];
+      document.querySelectorAll('input[name="etabType"]:checked').forEach(function(c){ typesCheckedVals.push(c.value); });
+      etabData = {
+        nom:     (document.getElementById("regEtabNom")||{}).value||'',
+        adresse: (document.getElementById("regEtabAdresse")||{}).value||'',
+        tel:     (document.getElementById("regEtabTel")||{}).value||'',
+        types:   typesCheckedVals,
+        typeAutre: (document.getElementById("regEtabTypeAutre")||{}).value||''
+      };
+    }
+    // Données chauffeur
+    var chauffData = {};
+    if(wantsDriver){
+      var servicesChecked = [];
+      document.querySelectorAll('input[name="chauffeurService"]:checked').forEach(function(c){ servicesChecked.push(c.value); });
+      chauffData = {
+        permis:   (document.getElementById("regPermis")||{}).value||'',
+        vehicule: (document.getElementById("regVehicule")||{}).value||'',
+        immat:    (document.getElementById("regImmat")||{}).value||'',
+        services: servicesChecked
+      };
+    }
+
+    window.fbCreateUser(window.auth,email,pwd).then(function(result){
+      var uid=result.user.uid;
+      return window.fbSetDoc(window.fbDoc(window.db,"users",uid),{
+        pseudo:pseudo,email:email,tel:tel,
+        prenom: (document.getElementById("regPrenom")||{}).value||'',
+        nom:    (document.getElementById("regNom")||{}).value||'',
+        dob:    document.getElementById("regDob").value||"",
+        createdAt:new Date().toISOString(),
+        memberType: _regCurrentType,
+        wantsDriver: wantsDriver,
+        isGerant:    isGerant,
+        etab:        isGerant    ? etabData   : null,
+        chauffeur:   wantsDriver ? chauffData : null
+      }).then(function(){
+        if(wantsDriver) { registerUserAsDriver(uid, email, pseudo, pwd); }
+        return Promise.resolve();
+      });
     }).then(function(){
-      // Enregistrer comme chauffeur en attente si demandé
-      if(wantsDriver) { registerUserAsDriver(uid, email, pseudo, pwd); }
-      return Promise.resolve();
+      var label = _regCurrentType==='gerant' ? 'Gérant Établissement' : (_regCurrentType==='chauffeur' ? 'Membre Chauffeur' : 'Simple Membre');
+      msg.style.display="block";msg.style.color="var(--green)";
+      msg.textContent="✅ Compte créé ! Bienvenue "+pseudo+" ("+label+") !";
+      if(btn){btn.disabled=false;btn.textContent="👤 Créer mon compte";}
+      window.currentUserPseudo = pseudo;
+      updateHeaderUser(pseudo);
+      setTimeout(function(){closeUserModal();},1800);
+    }).catch(function(err){
+      if(btn){btn.disabled=false;btn.textContent="👤 Créer mon compte";}
+      msg.style.display="block";msg.style.color="var(--red)";
+      if(err.code==="auth/email-already-in-use")msg.textContent="Cet email est déjà utilisé.";
+      else if(err.code==="auth/weak-password")msg.textContent="Mot de passe trop court (6 caractères min).";
+      else msg.textContent="Erreur: "+err.message;
     });
-  }).then(function(){
-    msg.style.display="block";msg.style.color="var(--green)";
-    msg.textContent="Compte créé ! Bienvenue "+pseudo+" !";
-    if(btn){btn.disabled=false;btn.textContent="👤 Créer mon compte";}
-    window.currentUserPseudo = pseudo;
-    updateHeaderUser(pseudo);
-    setTimeout(function(){closeUserModal();},1500);
-  }).catch(function(err){
-    if(btn){btn.disabled=false;btn.textContent="👤 Créer mon compte";}
-    msg.style.display="block";msg.style.color="var(--red)";
-    if(err.code==="auth/email-already-in-use")msg.textContent="Cet email est déjà utilisé.";
-    else if(err.code==="auth/weak-password")msg.textContent="Mot de passe trop court (6 caractères min).";
-    else msg.textContent="Erreur: "+err.message;
-  });
   }; // fin _tryRegister
   _tryRegister(0);
 }
@@ -11652,6 +11841,7 @@ window.openUserModal      = openUserModal;
 window.closeUserModal     = closeUserModal;
 window.switchUserTab      = switchUserTab;
 window.registerUser       = registerUser;
+window.selectRegType      = selectRegType;
 window.loginUser          = loginUser;
 window.openGalerie        = openGalerie;
 window.closeGalerie       = closeGalerie;
