@@ -9324,8 +9324,8 @@ function buildCard(e,delay,compact,rank){
 
   // ── PHOTOS ──
   var slotPhotos=loadSlotPhotos(e.id);
-  // ── Photo principale : approved > manuelle > Google > fallback SVG ──
-  var permPhoto = e._photo_profile_approved || e.photo_interieur || e.photo_exterieur || getGooglePhotoUrl(e,'exterieur') || "";
+  // ── Photo principale : approved > manuelle > Google > défaut admin > fallback SVG ──
+  var permPhoto = e._photo_profile_approved || e.photo_interieur || e.photo_exterieur || getGooglePhotoUrl(e,'exterieur') || getAdminDefaultPhotoForEtab(e) || "";
   var isProfileApproved = !!e._photo_profile_approved;
   var isManual = !isProfileApproved && (!!e.photo_interieur || !!e.photo_exterieur);
   var isGoogleAuto = !isProfileApproved && !isManual && !!permPhoto && (e._gphoto_urls && e._gphoto_urls.length > 0);
@@ -14863,14 +14863,19 @@ function renderAdmSettings(){
 
   // Trafic
   var t=getTraffic();
-  html+="<div style='background:rgba(204,68,255,0.04);border:1px solid rgba(204,68,255,0.15);border-radius:14px;padding:1rem;'>";
+  html+="<div style='background:rgba(204,68,255,0.04);border:1px solid rgba(204,68,255,0.15);border-radius:14px;padding:1rem;margin-bottom:1rem;'>";
   html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--purple);font-size:0.85rem;margin-bottom:0.6rem;'>📈 Trafic</div>";
   html+="<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;'>";
   html+="<div class='adm-kpi'><div class='kv' style='color:var(--purple);'>"+t.count+"</div><div class='kl'>Aujourd'hui</div></div>";
   html+="<div class='adm-kpi'><div class='kv' style='color:var(--purple);'>"+t.total+"</div><div class='kl'>Total</div></div>";
   html+="</div></div>";
 
+  // ── Photos par défaut (Admin) ──
+  html += renderAdminDefaultPhotosSection();
+
   document.getElementById("adminSettingsContent").innerHTML=html;
+  // Init des aperçus après injection du HTML
+  setTimeout(initAdminDefaultPhotosPreviews, 80);
 }
 
 function changeAdminPin(){
@@ -14885,6 +14890,228 @@ function changeAdminPin(){
   });
 }
 window.changeAdminPin=changeAdminPin;
+
+// ══════════════════════════════════════════════════════════════
+// ══  PHOTOS PAR DÉFAUT ADMIN — 6 cadres pour établissements  ══
+// ══════════════════════════════════════════════════════════════
+
+// Clé Firebase de stockage des photos par défaut admin
+var ADMIN_DEFAULT_PHOTOS_DOC = "config/default_photos";
+
+// Descripteurs des 6 slots
+var ADMIN_PHOTO_SLOTS = [
+  { key:"bar_resto",   label:"Bar / Resto",          icon:"🍸", hint:"Photo profil par défaut des bars & restaurants" },
+  { key:"club",        label:"Club / Discothèque",   icon:"🎶", hint:"Photo profil par défaut des clubs" },
+  { key:"hotel",       label:"Hôtel",                icon:"🏨", hint:"Photo profil par défaut des hôtels" },
+  { key:"driver",      label:"Chauffeur (Taxi Pro)", icon:"🚕", hint:"Avatar par défaut pour les chauffeurs Taxi Pro" },
+  { key:"company",     label:"Entreprise (Taxi Pro)",icon:"🏢", hint:"Logo/avatar par défaut pour les entreprises Taxi Pro" },
+  { key:"generic",     label:"Autres établissements",icon:"📍", hint:"Photo de fallback générique (tous les autres lieux)" }
+];
+
+// Cache local des photos par défaut admin (initialisé au chargement)
+var _adminDefaultPhotos = {};
+
+/** Charge les photos par défaut admin depuis Firebase */
+function loadAdminDefaultPhotos(cb){
+  if(!window.db || !window.fbGetDoc || !window.fbDoc){
+    if(cb) cb({});
+    return;
+  }
+  window.fbGetDoc(window.fbDoc(window.db, "config", "default_photos"))
+    .then(function(snap){
+      _adminDefaultPhotos = snap.exists() ? (snap.data() || {}) : {};
+      if(cb) cb(_adminDefaultPhotos);
+    })
+    .catch(function(){ if(cb) cb({}); });
+}
+
+/** Retourne la photo par défaut admin pour une clé donnée */
+function getAdminDefaultPhoto(key){
+  return _adminDefaultPhotos[key] || null;
+}
+
+/** Retourne la photo par défaut admin la plus adaptée à un établissement */
+function getAdminDefaultPhotoForEtab(etab){
+  if(!etab) return null;
+  var type = (etab.type||"").toLowerCase();
+  var key = "generic";
+  if(/bar|brasserie|bistro|resto|restaurant|café|cafe|maquis|terrasse/i.test(type)) key = "bar_resto";
+  else if(/club|discothèque|discotheque|boîte|boite|night/i.test(type)) key = "club";
+  else if(/hôtel|hotel/i.test(type)) key = "hotel";
+  return getAdminDefaultPhoto(key) || getAdminDefaultPhoto("generic") || null;
+}
+
+/** Retourne la photo par défaut admin pour un chauffeur Taxi Pro */
+function getAdminDefaultPhotoForDriver(){
+  return getAdminDefaultPhoto("driver") || getAdminDefaultPhoto("generic") || null;
+}
+
+/** Retourne la photo par défaut admin pour une entreprise Taxi Pro */
+function getAdminDefaultPhotoForCompany(){
+  return getAdminDefaultPhoto("company") || getAdminDefaultPhoto("generic") || null;
+}
+
+/** Sauvegarde une photo par défaut dans Firebase */
+function saveAdminDefaultPhoto(key, dataUrl, callback){
+  if(!window.db || !window.fbSetDoc || !window.fbDoc){
+    showToast("❌ Firebase non disponible");
+    if(callback) callback(false);
+    return;
+  }
+  var update = {};
+  update[key] = dataUrl;
+  update["_updated"] = Date.now();
+  _adminDefaultPhotos[key] = dataUrl;
+  window.fbSetDoc(window.fbDoc(window.db,"config","default_photos"), _adminDefaultPhotos, {merge:true})
+    .then(function(){
+      showToast("✅ Photo par défaut enregistrée !");
+      if(callback) callback(true);
+    })
+    .catch(function(e){
+      showToast("❌ Erreur sauvegarde: " + (e.message||""));
+      if(callback) callback(false);
+    });
+}
+
+/** Supprime une photo par défaut */
+function deleteAdminDefaultPhoto(key){
+  if(!window.db || !window.fbSetDoc || !window.fbDoc){ showToast("❌ Firebase non disponible"); return; }
+  delete _adminDefaultPhotos[key];
+  _adminDefaultPhotos["_updated"] = Date.now();
+  window.fbSetDoc(window.fbDoc(window.db,"config","default_photos"), _adminDefaultPhotos, {merge:false})
+    .then(function(){
+      showToast("🗑️ Photo par défaut supprimée");
+      renderAdmSettings();
+    })
+    .catch(function(e){ showToast("❌ Erreur: " + (e.message||"")); });
+}
+window.deleteAdminDefaultPhoto = deleteAdminDefaultPhoto;
+
+/** Génère le HTML de la section photos par défaut */
+function renderAdminDefaultPhotosSection(){
+  var html = "<div style='background:linear-gradient(135deg,rgba(157,132,255,0.08),rgba(0,229,255,0.05));border:1.5px solid rgba(157,132,255,0.35);border-radius:16px;padding:1.1rem;margin-top:1.2rem;'>";
+  html += "<div style='display:flex;align-items:center;gap:0.55rem;margin-bottom:0.5rem;'>";
+  html += "<span style='font-size:1.3rem;'>🖼️</span>";
+  html += "<div style='font-family:Syne,sans-serif;font-weight:800;color:#9D84FF;font-size:0.92rem;'>Photos de profil par défaut</div>";
+  html += "</div>";
+  html += "<div style='font-size:0.73rem;color:var(--muted);margin-bottom:1.1rem;line-height:1.55;'>Ces photos s'affichent pour tout établissement, chauffeur ou entreprise qui n'a pas encore uploadé sa propre photo. Dès que l'établissement upload la sienne, elle remplace automatiquement la photo par défaut.</div>";
+  html += "<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;'>";
+
+  ADMIN_PHOTO_SLOTS.forEach(function(slot){
+    var existing = _adminDefaultPhotos[slot.key] || null;
+    html += "<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(157,132,255,0.2);border-radius:12px;padding:0.75rem;'>";
+    html += "<div style='font-size:1.1rem;text-align:center;margin-bottom:0.3rem;'>"+slot.icon+"</div>";
+    html += "<div style='font-family:Syne,sans-serif;font-weight:700;font-size:0.72rem;color:#9D84FF;text-align:center;margin-bottom:0.4rem;'>"+slot.label+"</div>";
+
+    // Aperçu photo
+    if(existing){
+      html += "<div style='position:relative;margin-bottom:0.5rem;'>";
+      html += "<img id='adm-defphoto-preview-"+slot.key+"' src='"+existing+"' alt='default' style='width:100%;height:70px;object-fit:cover;border-radius:8px;border:2px solid rgba(157,132,255,0.45);'>";
+      html += "<button onclick=\"deleteAdminDefaultPhoto('"+slot.key+"')\" title='Supprimer' style='position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:rgba(255,68,102,0.85);border:none;color:#fff;font-size:0.65rem;cursor:pointer;display:flex;align-items:center;justify-content:center;'>✕</button>";
+      html += "</div>";
+    } else {
+      html += "<div id='adm-defphoto-preview-"+slot.key+"' style='width:100%;height:70px;border-radius:8px;background:rgba(157,132,255,0.07);border:2px dashed rgba(157,132,255,0.25);display:flex;align-items:center;justify-content:center;margin-bottom:0.5rem;'><span style='font-size:1.8rem;opacity:0.35;'>👤</span></div>";
+    }
+
+    // Bouton choisir (input file caché)
+    html += "<label style='display:block;width:100%;padding:0.38rem 0.4rem;border-radius:8px;background:rgba(157,132,255,0.12);border:1px solid rgba(157,132,255,0.35);color:#9D84FF;font-family:DM Sans,sans-serif;font-size:0.68rem;font-weight:700;cursor:pointer;text-align:center;' title='"+slot.hint+"'>";
+    html += (existing ? "🔄 Changer" : "📁 Choisir depuis galerie");
+    html += "<input type='file' accept='image/*' style='display:none;' onchange=\"adminDefaultPhotoSelected(this,'"+slot.key+"')\">";
+    html += "</label>";
+    html += "</div>";
+  });
+
+  html += "</div>"; // grid
+  html += "</div>"; // card
+  return html;
+}
+
+/** Gère la sélection d'une photo depuis la galerie pour un slot par défaut */
+function adminDefaultPhotoSelected(input, key){
+  var file = input.files && input.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var dataUrl = ev.target.result;
+    // Redimensionner si nécessaire avant de sauvegarder
+    var img = new Image();
+    img.onload = function(){
+      var canvas = document.createElement("canvas");
+      var MAX = 400;
+      var w = img.width, h = img.height;
+      if(w > MAX || h > MAX){
+        if(w > h){ h = Math.round(h * MAX/w); w = MAX; }
+        else { w = Math.round(w * MAX/h); h = MAX; }
+      }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      var compressed = canvas.toDataURL("image/jpeg", 0.82);
+      saveAdminDefaultPhoto(key, compressed, function(ok){
+        if(ok){
+          // Mettre à jour l'aperçu inline sans re-rendre tout
+          var previewEl = document.getElementById("adm-defphoto-preview-"+key);
+          if(previewEl){
+            if(previewEl.tagName === "IMG"){
+              previewEl.src = compressed;
+            } else {
+              // Remplacer le placeholder div par un img
+              var imgEl = document.createElement("img");
+              imgEl.id = "adm-defphoto-preview-"+key;
+              imgEl.src = compressed;
+              imgEl.alt = "default";
+              imgEl.style.cssText = "width:100%;height:70px;object-fit:cover;border-radius:8px;border:2px solid rgba(157,132,255,0.45);";
+              previewEl.parentNode.replaceChild(imgEl, previewEl);
+            }
+          }
+          // Re-rendre la section pour mettre à jour le bouton Changer vs Choisir
+          setTimeout(function(){ renderAdmSettings(); }, 400);
+        }
+      });
+    };
+    img.src = dataUrl;
+  };
+  reader.readAsDataURL(file);
+}
+window.adminDefaultPhotoSelected = adminDefaultPhotoSelected;
+
+/** Init aperçus photos par défaut après injection HTML (au cas où) */
+function initAdminDefaultPhotosPreviews(){
+  // Rien de spécial, les aperçus sont déjà dans le HTML injecté
+}
+
+// Patch de generateFallbackPhoto : si un établissement n'a pas de photo réelle
+// et qu'il y a une photo admin par défaut, on l'utilise en priorité
+(function patchFallbackPhotoWithAdminDefaults(){
+  var originalGenerate = window.generateFallbackPhoto;
+  // On sur-patch getPermPhotoForCard si elle existe, sinon on patch _fallback_svg resolution
+  // Le patch principal se fait dans getAdminDefaultPhotoForEtab appelé par la carte
+})();
+
+// Charger les photos par défaut au démarrage (quand Firebase est prêt)
+(function waitForFirebaseAndLoadDefaults(){
+  var attempts = 0;
+  var t = setInterval(function(){
+    if(window.db && window.fbGetDoc && window.fbDoc){
+      clearInterval(t);
+      loadAdminDefaultPhotos(function(photos){
+        _adminDefaultPhotos = photos || {};
+        // Patcher les etablissements déjà chargés
+        if(typeof etablissements !== "undefined" && etablissements && etablissements.length){
+          etablissements.forEach(function(e){
+            if(!e._photo_profile_approved && !e.photo_interieur && !e.photo_exterieur && !e._gphoto_urls){
+              var def = getAdminDefaultPhotoForEtab(e);
+              if(def && !e._fallback_svg_is_admin_default){
+                e._fallback_svg = def;
+                e._fallback_svg_is_admin_default = true;
+              }
+            }
+          });
+        }
+      });
+    }
+    if(++attempts > 60) clearInterval(t);
+  }, 500);
+})();
 
 // ── Afficher le bouton Admin dans la nav quand mode admin actif ─
 var _admNavShown=false;
@@ -19220,7 +19447,9 @@ function loadTaxiContacts() {
     var ratingHtml = c.rating ? `⭐ ${Number(c.rating).toFixed(1)}` : '';
     var avatarHtml = c.photo
       ? `<img src="${c.photo}" style="width:46px;height:46px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid rgba(0,255,170,0.35);" onerror="this.outerHTML='<div style=\\'width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#ff2d9b,#ff8800);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1rem;color:#000;flex-shrink:0;\\'>${initials}</div>'">`
-      : `<div style="width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#9D84FF,#ff8800);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1rem;color:#000;flex-shrink:0;position:relative;">${initials}<span class="taxi-online-dot" style="position:absolute;bottom:0;right:0;width:12px;height:12px;border:2px solid var(--surface);"></span></div>`;
+      : (getAdminDefaultPhotoForDriver()
+          ? `<img src="${getAdminDefaultPhotoForDriver()}" style="width:46px;height:46px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid rgba(0,255,170,0.35);" onerror="this.outerHTML='<div style=\\'width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#9D84FF,#ff8800);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1rem;color:#000;flex-shrink:0;\\'>${initials}</div>'">`
+          : `<div style="width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#9D84FF,#ff8800);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1rem;color:#000;flex-shrink:0;position:relative;">${initials}<span class="taxi-online-dot" style="position:absolute;bottom:0;right:0;width:12px;height:12px;border:2px solid var(--surface);"></span></div>`);
 
     var safePhone = (c.phone||'').replace(/['"]/g,'');
     var html = `
@@ -19811,7 +20040,9 @@ function showDriverProfile(encodedPhone) {
 
   var avatarBlock = c.photo
     ? `<img src="${escHtml(c.photo)}" class="taxi-profile-avatar" onerror="this.outerHTML='<div class=\\'taxi-profile-avatar\\'>${initials}</div>'">`
-    : `<div class="taxi-profile-avatar">${initials}</div>`;
+    : (getAdminDefaultPhotoForDriver()
+        ? `<img src="${getAdminDefaultPhotoForDriver()}" class="taxi-profile-avatar" onerror="this.outerHTML='<div class=\\'taxi-profile-avatar\\'>${initials}</div>'">`
+        : `<div class="taxi-profile-avatar">${initials}</div>`);
 
   var overlay = document.createElement('div');
   overlay.id = '_driverProfileOverlay';
@@ -21848,9 +22079,12 @@ function taxiProRenderDriversList() {
   }
   list.innerHTML = drivers.map(d => {
     const initials = d.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    const driverDefaultPhoto = getAdminDefaultPhotoForDriver();
     const avatarHtml = d.photo
       ? `<img src="${d.photo}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid var(--taxi-gold,#9D84FF);flex-shrink:0;" onerror="this.outerHTML='<div class=\\'taxi-driver-avatar\\'>${initials}</div>'">`
-      : `<div class="taxi-driver-avatar">${initials}</div>`;
+      : (driverDefaultPhoto
+          ? `<img src="${driverDefaultPhoto}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid var(--taxi-gold,#9D84FF);flex-shrink:0;" onerror="this.outerHTML='<div class=\\'taxi-driver-avatar\\'>${initials}</div>'">`
+          : `<div class="taxi-driver-avatar">${initials}</div>`);
     const ratingHtml = d.rating ? ` • ⭐ ${d.rating}` : '';
     const safeId = encodeURIComponent(d.id);
     return `
