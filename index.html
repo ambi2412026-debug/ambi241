@@ -19099,20 +19099,32 @@ function loadTaxiContacts() {
 function _buildDeepLink(driverPhone, orderCtx) {
   // Deep-link vers le tableau de bord chauffeur avec les détails complets de la commande
   var clean = (driverPhone||'').replace(/\s|\+/g,'');
-  var origin = (window.location && window.location.origin && window.location.origin !== 'null') ? window.location.origin : 'https://ambi2412026-debug.github.io/ambi241';
-  var base = origin + '/?taxi_driver=' + clean + '&action=offer';
-  if (!orderCtx) return base;
+  var base = window.AMBI241_APP_URL;
+  if (!base) {
+    // Fallback : tenter d'utiliser l'URL courante
+    base = (window.location.protocol === 'http:' || window.location.protocol === 'https:')
+           ? window.location.href.split('?')[0]
+           : null;
+  }
+  if (!base) {
+    console.error('❌ AMBI241_APP_URL non configuré. Configurez-le dans le panneau admin Taxi Pro.');
+    return '#url-non-configuree';
+  }
+  // S'assurer que la base se termine sans slash final avant d'ajouter les params
+  base = base.replace(/\/$/, '');
+  var url = base + '?taxi_driver=' + clean + '&action=offer';
+  if (!orderCtx) return url;
   // Encoder chaque champ de la commande dans l'URL
   var fields = ['from','to','price','vehicle','passengers','time','clientName','clientPhone'];
   fields.forEach(function(k) {
-    if (orderCtx[k]) base += '&order_' + k + '=' + encodeURIComponent(orderCtx[k]);
+    if (orderCtx[k]) url += '&order_' + k + '=' + encodeURIComponent(orderCtx[k]);
   });
   // GPS si disponible
   if (window._taxiUserLat && window._taxiUserLng) {
-    base += '&order_lat=' + window._taxiUserLat.toFixed(6);
-    base += '&order_lng=' + window._taxiUserLng.toFixed(6);
+    url += '&order_lat=' + window._taxiUserLat.toFixed(6);
+    url += '&order_lng=' + window._taxiUserLng.toFixed(6);
   }
-  return base;
+  return url;
 }
 
 function openWhatsApp(encodedPhone, encodedName, contextData) {
@@ -19138,23 +19150,33 @@ function openWhatsApp(encodedPhone, encodedName, contextData) {
   var orderCtx = { from, to, price, vehicle, passengers, time: timeVal, clientName };
   var dashLink = _buildDeepLink(phone, orderCtx);
 
-  // Construire le message enrichi
+  // Avertissement si URL non configurée
+  if (dashLink === '#url-non-configuree') {
+    alert('⚠️ URL de l\'application non configurée !\nConfigurez-la dans le panneau Admin Taxi Pro avant d\'envoyer des commandes.\nLe lien tableau de bord chauffeur ne fonctionnera pas.');
+  }
+
+  // Construire le message enrichi — infos critiques EN PREMIER
   var lines = [];
   lines.push('🚕 *AMBI241 — NOUVELLE COMMANDE TAXI PRO*');
+  lines.push('');
+  // Résumé immédiat (visible même si message tronqué)
+  if(clientName && to)   lines.push('👤 *' + clientName + '* → 🏁 *' + to + '*');
+  if(price)              lines.push('💰 Prix : *' + price + '*');
+  if(vehicle)            lines.push('🚗 ' + vehicle + (passengers ? '  👥 ' + passengers + ' pers.' : ''));
   lines.push('━━━━━━━━━━━━━━━━━━━━');
-  if(clientName) lines.push('👤 Client : *' + clientName + '*');
-  if(from)       lines.push('📍 Départ : *' + from + '*');
+  if(from)       lines.push('📍 Départ     : *' + from + '*');
   if(gpsCoords)  lines.push(gpsCoords);
   if(to)         lines.push('🏁 Destination : *' + to + '*');
-  if(timeVal)    lines.push('🕐 Heure souhaitée : *' + timeVal + '*');
-  if(vehicle)    lines.push('🚗 Véhicule : *' + vehicle + '*');
-  if(passengers) lines.push('👥 Passagers : *' + passengers + '*');
-  if(price)      lines.push('💰 Prix proposé : *' + price + '*');
+  if(timeVal)    lines.push('🕐 Heure       : *' + timeVal + '*');
+  if(vehicle)    lines.push('🚗 Véhicule    : *' + vehicle + '*');
+  if(passengers) lines.push('👥 Passagers   : *' + passengers + '*');
+  if(price)      lines.push('💰 Prix proposé: *' + price + '*');
   lines.push('━━━━━━━━━━━━━━━━━━━━');
   lines.push('');
   lines.push('✅ *Répondez ACCEPTER ou REFUSER*');
   lines.push('');
-  lines.push('📲 Votre tableau de bord : ' + dashLink);
+  lines.push('📲 *Votre tableau de bord :*');
+  lines.push(dashLink);
   lines.push('');
   lines.push('_Bonjour ' + (name||'Chauffeur') + ', merci de confirmer votre disponibilité._');
   lines.push('_— AMBI241 Taxi Pro, Libreville 🇬🇦_');
@@ -20393,6 +20415,31 @@ window.tdbLoadMoreHistory         = tdbLoadMoreHistory;
 // ESPACE CHAUFFEUR — TABLEAU DE BORD PRIVÉ (accès par mot de passe)
 // ════════════════════════════════════════════════════════════════════
 
+// ── URL DE BASE DE L'APPLICATION (configurable par l'admin) ──────────
+// Si l'app est hébergée en ligne, cette valeur est automatique.
+// Si l'app tourne en local (file://), définissez manuellement l'URL ici :
+(function() {
+  var saved = localStorage.getItem('ambi241_app_url');
+  var auto  = (window.location.protocol === 'http:' || window.location.protocol === 'https:')
+              ? window.location.href.split('?')[0]
+              : null;
+  window.AMBI241_APP_URL = saved || auto || null;
+  if (!window.AMBI241_APP_URL) {
+    console.warn('⚠️ AMBI241: URL de l\'application non configurée. Les liens chauffeur WhatsApp ne fonctionneront pas. Configurez l\'URL dans le panneau admin Taxi Pro.');
+  }
+})();
+window.setAmbi241AppUrl = function(url) {
+  if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+    alert('❌ URL invalide. Elle doit commencer par https://');
+    return;
+  }
+  var clean = url.replace(/\?.*$/, '').replace(/\/$/, '') + '/';
+  localStorage.setItem('ambi241_app_url', clean);
+  window.AMBI241_APP_URL = clean;
+  alert('✅ URL configurée : ' + clean + '\nLes liens chauffeur WhatsApp utiliseront cette adresse.');
+};
+// ─────────────────────────────────────────────────────────────────────
+
 var _chauffeurDrivers = JSON.parse(localStorage.getItem('ambi241_chauffeurs') || '{}');
 
 function saveChauffeurDrivers() {
@@ -21256,6 +21303,12 @@ function _showChauffeurAdminPanel() {
             </div>
             <input id="_newDrvPwd" type="text" placeholder="Mot de passe Taxi Pro" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.78rem;font-family:DM Sans,sans-serif;margin-bottom:0.6rem;outline:none;box-sizing:border-box;" value="Ambi@241">
             <button onclick="_adminAddDriverManual()" style="width:100%;padding:0.52rem;border-radius:9px;border:none;background:linear-gradient(135deg,var(--amber),#ff8800);color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;">✅ Désigner Chauffeur</button>
+            <div style="margin-top:0.8rem;padding:0.6rem 0.7rem;background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.25);border-radius:8px;">
+              <div style="font-size:0.65rem;color:var(--cyan);font-weight:700;margin-bottom:0.35rem;">🌐 URL de l\'app (pour les liens WhatsApp chauffeur)</div>
+              <div style="font-size:0.62rem;color:var(--muted);margin-bottom:0.4rem;" id="_appUrlDisplay">${window.AMBI241_APP_URL ? '✅ ' + window.AMBI241_APP_URL : '❌ Non configurée — les liens 404 !'}</div>
+              <input id="_newAppUrl" type="url" placeholder="https://votre-site.com/index.html" style="width:100%;background:var(--surface2);border:1px solid rgba(0,229,255,0.3);border-radius:6px;color:var(--text);padding:0.35rem 0.5rem;font-size:0.72rem;font-family:DM Sans,sans-serif;margin-bottom:0.35rem;outline:none;box-sizing:border-box;">
+              <button onclick="setAmbi241AppUrl(document.getElementById('_newAppUrl').value);document.getElementById('_appUrlDisplay').textContent='✅ '+window.AMBI241_APP_URL;" style="width:100%;padding:0.35rem;border-radius:6px;border:none;background:rgba(0,229,255,0.15);color:var(--cyan);font-size:0.72rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">💾 Enregistrer l\'URL</button>
+            </div>
           </div>
           <!-- Liste chauffeurs -->
           <div style="font-size:0.68rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;">📋 Liste des Chauffeurs (${drivers.length})</div>
@@ -22729,10 +22782,11 @@ function createDetailedOrder(driverId, driverName, driverPhone, orderDetails = {
 
 // Construire le lien de validation pour le chauffeur
 function buildDriverValidationLink(token) {
-  // Format: application://validate-order/TOKEN
-  // Ou pour web: https://votresite.com/validate?token=TOKEN
-  const baseUrl = window.location.origin;
-  return `${baseUrl}?action=validate-order&token=${token}`;
+  var base = window.AMBI241_APP_URL
+             || ((window.location.protocol === 'http:' || window.location.protocol === 'https:')
+                 ? window.location.href.split('?')[0] : null);
+  if (!base) return '#url-non-configuree';
+  return base.replace(/\/$/, '') + '?action=validate-order&token=' + token;
 }
 
 // Contacter chauffeur avec lien de commande
