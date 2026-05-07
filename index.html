@@ -5151,8 +5151,17 @@ function _gphotoFetchOne(e, callback) {
   var cached = _gphotoReadCache(e.place_id);
   if (cached !== null) {
     e._gphoto_urls = cached;
-    // Si Google n'avait rien renvoyé → fallback SVG
-    if (cached.length === 0 && !e._fallback_svg) e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+    // Si Google n'avait rien renvoyé → admin default en priorité, sinon fallback SVG
+    if (cached.length === 0) {
+      var _admDefCached = getAdminDefaultPhotoForEtab(e);
+      if (_admDefCached) {
+        e._fallback_svg = _admDefCached;
+        e._fallback_svg_is_admin_default = true;
+      } else if (!e._fallback_svg || e._fallback_svg_is_admin_default) {
+        e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+        e._fallback_svg_is_admin_default = false;
+      }
+    }
     if(callback) callback(cached.length > 0 ? cached[0] : null);
     return;
   }
@@ -5390,10 +5399,18 @@ function getGooglePhotoUrl(e, type) {
   // Photos manuelles en attente du résultat Google
   if (type === 'exterieur' && e.photo_exterieur) return e.photo_exterieur;
   if (type === 'interieur' && e.photo_interieur) return e.photo_interieur;
+  // Photo admin par défaut en priorité sur le fallback SVG généré
+  var _admDefault = getAdminDefaultPhotoForEtab(e);
+  if (_admDefault) {
+    e._fallback_svg = _admDefault;
+    e._fallback_svg_is_admin_default = true;
+    return _admDefault;
+  }
   // Fallback SVG généré
   if (e._fallback_svg) return e._fallback_svg;
   if (!e.place_id && !e._fallback_svg) {
-    e._fallback_svg = getAdminDefaultPhotoForEtab(e) || generateFallbackPhoto(e.type, e.nom);
+    e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+    e._fallback_svg_is_admin_default = false;
     return e._fallback_svg;
   }
   return null;
