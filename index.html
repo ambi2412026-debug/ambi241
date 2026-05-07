@@ -20399,6 +20399,25 @@ function saveChauffeurDrivers() {
   try { localStorage.setItem('ambi241_chauffeurs', JSON.stringify(_chauffeurDrivers)); } catch(e) {}
 }
 
+// ── Réparer les chauffeurs existants dont le phone est un email ──
+function repairDriverPhones() {
+  var contacts = JSON.parse(localStorage.getItem('taxiContacts') || '[]');
+  var changed = false;
+  contacts.forEach(function(c) {
+    // Si le phone ressemble à un email (contient @), c'est un bug → vider pour forcer correction
+    if (c.phone && c.phone.indexOf('@') !== -1) {
+      c.phone = '';
+      c.whatsapp = '';
+      changed = true;
+    }
+  });
+  if (changed) {
+    localStorage.setItem('taxiContacts', JSON.stringify(contacts));
+    console.warn('⚠️ Numéros chauffeurs corrompus (email utilisé comme phone) ont été réinitialisés. Veuillez re-saisir les numéros depuis le panneau admin.');
+  }
+}
+repairDriverPhones();
+
 // Appelé quand un membre s'inscrit avec le flag "chauffeur"
 function registerUserAsDriver(uid, email, pseudo, password) {
   _chauffeurDrivers[uid] = {
@@ -20419,11 +20438,14 @@ function registerUserAsDriver(uid, email, pseudo, password) {
 window.registerUserAsDriver = registerUserAsDriver;
 
 // Admin : désigner un membre existant comme chauffeur
-window.adminDesignDriver = function(uid, email, pseudo, password) {
+window.adminDesignDriver = function(uid, email, pseudo, password, phone) {
   if(!isAdmin) { showToast('Admin requis'); return; }
+  var cleanPhone = (phone || '').replace(/\s|\+/g,'');
   _chauffeurDrivers[uid] = {
     uid: uid, email: email, pseudo: pseudo,
     password: password || 'Ambi@241',
+    phone: cleanPhone,
+    whatsapp: cleanPhone,
     status: 'approved', approvedBy: 'admin',
     approvedAt: new Date().toISOString(),
     courses: 0, gains: 0
@@ -20432,33 +20454,37 @@ window.adminDesignDriver = function(uid, email, pseudo, password) {
 
   // ── Ajouter automatiquement dans la liste Contacts 24H ──
   var contacts = JSON.parse(localStorage.getItem('taxiContacts') || '[]');
-  var alreadyIn = contacts.some(function(c){
+  // Mettre à jour si déjà présent, sinon ajouter
+  var existingIdx = contacts.findIndex(function(c){
     return (c.email && c.email.toLowerCase() === email.toLowerCase()) ||
            (c.addedBy === 'chauffeur_inscription' && c.name === pseudo);
   });
-  if(!alreadyIn) {
-    contacts.push({
-      name:         pseudo,
-      phone:        email, // sera remplacé si le chauffeur met son tel
-      whatsapp:     '',
-      type:         '🚗 Taxi Particulier',
-      active:       true,
-      online:       true,
-      hours:        '24H/24',
-      isEnterprise: false,
-      availability: 'open',
-      addedBy:      'chauffeur_inscription',
-      email:        email,
-      uid:          uid,
-      addedAt:      new Date().toISOString(),
-      photo:        '',
-      rating:       5.0,
-      courses:      0
-    });
-    localStorage.setItem('taxiContacts', JSON.stringify(contacts));
-    if(typeof loadTaxiContacts === 'function') loadTaxiContacts();
-    if(typeof loadAdminContacts === 'function') loadAdminContacts();
+  var contactEntry = {
+    name:         pseudo,
+    phone:        cleanPhone,  // ✅ vrai numéro téléphone
+    whatsapp:     cleanPhone,  // ✅ vrai numéro WhatsApp
+    type:         '🚗 Taxi Particulier',
+    active:       true,
+    online:       true,
+    hours:        '24H/24',
+    isEnterprise: false,
+    availability: 'open',
+    addedBy:      'chauffeur_inscription',
+    email:        email,
+    uid:          uid,
+    addedAt:      new Date().toISOString(),
+    photo:        '',
+    rating:       5.0,
+    courses:      0
+  };
+  if(existingIdx >= 0) {
+    contacts[existingIdx] = Object.assign(contacts[existingIdx], contactEntry);
+  } else {
+    contacts.push(contactEntry);
   }
+  localStorage.setItem('taxiContacts', JSON.stringify(contacts));
+  if(typeof loadTaxiContacts === 'function') loadTaxiContacts();
+  if(typeof loadAdminContacts === 'function') loadAdminContacts();
 
   showToast('✅ ' + pseudo + ' désigné Chauffeur + ajouté à la liste 24H !');
   if(typeof renderAdmUsers === 'function') renderAdmUsers();
@@ -21216,6 +21242,7 @@ function _showChauffeurAdminPanel() {
             </div>
             <input id="_newDrvEmail" type="email" placeholder="Email du membre" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.78rem;font-family:DM Sans,sans-serif;margin-bottom:0.4rem;outline:none;box-sizing:border-box;">
             <input id="_newDrvPseudo" type="text" placeholder="Pseudo / Nom complet" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.78rem;font-family:DM Sans,sans-serif;margin-bottom:0.4rem;outline:none;box-sizing:border-box;">
+            <input id="_newDrvPhone" type="tel" placeholder="📱 Numéro WhatsApp (ex: +24160141924)" style="width:100%;background:var(--surface2);border:1px solid rgba(37,211,102,0.35);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.78rem;font-family:DM Sans,sans-serif;margin-bottom:0.4rem;outline:none;box-sizing:border-box;">
             <div style="display:flex;gap:0.4rem;margin-bottom:0.4rem;">
               <select id="_newDrvRole" style="flex:1;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.45rem 0.5rem;font-size:0.75rem;font-family:DM Sans,sans-serif;outline:none;">
                 <option value="chauffeur">🚗 Chauffeur</option>
@@ -21466,10 +21493,12 @@ window._admViewZones=_admViewZones; window._admEditParam=_admEditParam;
 function _adminAddDriverManual() {
   var email  = (document.getElementById('_newDrvEmail').value || '').trim().toLowerCase();
   var pseudo = (document.getElementById('_newDrvPseudo').value || '').trim();
+  var phone  = (document.getElementById('_newDrvPhone').value || '').trim().replace(/\s/g,'');
   var pwd    = (document.getElementById('_newDrvPwd').value || 'Ambi@241').trim();
   if(!email || !pseudo) { showToast('Email et pseudo requis'); return; }
+  if(!phone) { showToast('⚠️ Numéro WhatsApp requis pour envoyer les commandes au chauffeur'); return; }
   var uid = 'drv_' + Date.now();
-  window.adminDesignDriver(uid, email, pseudo, pwd);
+  window.adminDesignDriver(uid, email, pseudo, pwd, phone);
   document.getElementById('_chauffeurAdminPanel').remove();
   window._showChauffeurAdminPanel();
 }
