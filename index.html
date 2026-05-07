@@ -2431,7 +2431,45 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 .taxi-pro-doc-item.uploaded .taxi-pro-doc-icon::after{content:'✓';position:absolute;font-size:0.8rem;color:var(--green);font-weight:800;}
 
 .taxi-pro-action-buttons{padding:1.5rem;border-top:1px solid rgba(255,215,0,0.2);display:flex;gap:0.6rem;}
-.taxi-pro-btn{flex:1;padding:0.7rem;border-radius:8px;border:none;font-size:0.75rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;}
+.taxi-pro-btn{
+  background: linear-gradient(135deg, #FFD700 0%, #FFB800 50%, #FFA500 100%);
+  border: 2px solid #FFB800;
+  color: #1a0a00;
+  padding: 0.7rem 1.5rem;
+  border-radius: 20px;
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 0.9rem;
+  font-family: 'Syne', sans-serif;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 8px 30px rgba(255, 184, 0, 0.5), 0 0 20px rgba(255, 215, 0, 0.3);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  position: relative;
+  overflow: hidden;
+}
+.taxi-pro-btn::before{
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  animation: luxeShine 3s infinite;
+}
+@keyframes luxeShine{
+  0%{ transform: translateX(-100%); }
+  100%{ transform: translateX(100%); }
+}
+.taxi-pro-btn:hover{
+  background: linear-gradient(135deg, #FFE55C 0%, #FFD700 50%, #FFB800 100%);
+  transform: translateY(-4px) scale(1.05);
+  box-shadow: 0 12px 40px rgba(255, 184, 0, 0.7), 0 0 30px rgba(255, 215, 0, 0.4);
+  letter-spacing: 0.08em;
+}
+.taxi-pro-btn:active{
+  transform: translateY(-1px) scale(0.97);
+  box-shadow: 0 4px 15px rgba(255, 184, 0, 0.6);
+  opacity: 0.95;
+}
 .taxi-pro-btn-primary{background:var(--amber);color:#000;}
 .taxi-pro-btn-primary:active{opacity:0.8;}
 .taxi-pro-btn-secondary{background:rgba(255,215,0,0.15);border:1px solid rgba(255,215,0,0.4);color:var(--amber);}
@@ -2443,10 +2481,35 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 .taxi-pro-member-name{font-size:0.8rem;font-weight:700;color:var(--text);}
 .taxi-pro-member-license{font-size:0.65rem;color:var(--muted);margin-top:0.2rem;}
 .taxi-pro-member-actions{display:flex;gap:0.4rem;}
-.taxi-pro-member-btn{padding:0.3rem 0.6rem;font-size:0.65rem;border-radius:6px;border:none;cursor:pointer;font-weight:700;font-family:'DM Sans',sans-serif;transition:all 0.2s;}
-.taxi-pro-member-btn.revoke{background:rgba(255,68,102,0.2);color:var(--red);border:1px solid rgba(255,68,102,0.3);}
-.taxi-pro-member-btn.revoke:active{opacity:0.6;}
-.taxi-pro-member-btn.promote{background:rgba(255,215,0,0.2);color:var(--amber);border:1px solid rgba(255,215,0,0.3);}
+.taxi-pro-member-btn{
+  padding: 0.45rem 0.85rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.78rem;
+  font-family: 'DM Sans', sans-serif;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.taxi-pro-member-btn:hover{
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.taxi-pro-member-btn:active{
+  transform: scale(0.95);
+}
+.taxi-pro-member-btn.promote{
+  background: rgba(0,255,170,0.2);
+  border: 1px solid var(--green);
+  color: var(--green);
+}
+.taxi-pro-member-btn.revoke{
+  background: rgba(255,68,102,0.2);
+  border: 1px solid var(--red);
+  color: var(--red);
+}
+
 .taxi-pro-member-btn.promote:active{opacity:0.6;}
 
 </style>
@@ -22269,6 +22332,118 @@ function getCurrentUser() {
 // The function was conflicting with the global var isAdmin=false; defined earlier
 
 console.log('✅ Profil & Taxi Pro charges');
+
+
+// ════════════════════════════════════════════════════════════════
+// RÉINITIALISATION MOT DE PASSE
+// ════════════════════════════════════════════════════════════════
+
+function openPasswordResetModal(event) {
+  if (event) event.preventDefault();
+  document.getElementById('resetPasswordModal').style.display = 'block';
+  document.getElementById('resetEmail').value = '';
+  document.getElementById('resetMessage').textContent = '';
+  document.getElementById('resetEmail').focus();
+}
+
+function closePasswordResetModal() {
+  document.getElementById('resetPasswordModal').style.display = 'none';
+}
+
+function sendPasswordReset() {
+  const email = document.getElementById('resetEmail').value.trim();
+  const msgEl = document.getElementById('resetMessage');
+  
+  if (!email) {
+    msgEl.textContent = '❌ Veuillez entrer votre email';
+    msgEl.style.color = 'var(--red)';
+    return;
+  }
+  
+  // Simuler l'envoi
+  msgEl.textContent = '⏳ Envoi en cours...';
+  msgEl.style.color = 'var(--amber)';
+  
+  setTimeout(() => {
+    const user = Object.values(window.userProfiles).find(u => u.email === email);
+    
+    if (user) {
+      // Générer un token unique
+      const resetToken = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+      if (!window.passwordResetTokens) window.passwordResetTokens = {};
+      window.passwordResetTokens[resetToken] = {
+        userId: user.id,
+        email: email,
+        createdAt: new Date().getTime(),
+        expiresAt: new Date().getTime() + 3600000 // 1 heure
+      };
+      
+      msgEl.innerHTML = '✅ Email de réinitialisation envoyé!<br><small>Vérifiez votre boîte mail</small>';
+      msgEl.style.color = 'var(--green)';
+      
+      setTimeout(() => {
+        closePasswordResetModal();
+      }, 2000);
+    } else {
+      msgEl.textContent = '❌ Email non trouvé dans le système';
+      msgEl.style.color = 'var(--red)';
+    }
+  }, 500);
+}
+
+// Admin function pour réinitialiser le mot de passe d'un utilisateur
+function resetUserPasswordAdmin(userId) {
+  const user = window.userProfiles[userId];
+  if (!user) return;
+  
+  const newPassword = prompt(`Nouveau mot de passe pour ${user.name}:`, 'Motdepasse123!');
+  if (newPassword === null || newPassword.length < 6) {
+    alert('Mot de passe invalide (min 6 caractères)');
+    return;
+  }
+  
+  user.password = newPassword;
+  alert('✅ Mot de passe réinitialisé avec succès!\nNouveaux identifiants:\nEmail: ' + user.email + '\nMot de passe: ' + newPassword);
+  
+  // Enregistrer la modification
+  if (window.adminLog) {
+    window.adminLog.push({
+      action: 'password_reset',
+      userId: userId,
+      userName: user.name,
+      timestamp: new Date().toISOString()
+    });
+  }
+}
+
+// Ajouter fonction pour gérer le montant par défaut dans admin
+function setDefaultAmount(userId) {
+  const user = window.userProfiles[userId];
+  if (!user) return;
+  
+  const defaultAmount = prompt('Montant par défaut (ex: 5000 CFA):', user.defaultAmount || '5000');
+  if (defaultAmount === null) return;
+  
+  const amount = parseFloat(defaultAmount);
+  if (isNaN(amount) || amount <= 0) {
+    alert('❌ Montant invalide');
+    return;
+  }
+  
+  user.defaultAmount = amount;
+  alert('✅ Montant par défaut défini: ' + amount + ' CFA');
+}
+
+// Fermer le modal au clic en dehors
+document.addEventListener('click', function(event) {
+  const modal = document.getElementById('resetPasswordModal');
+  if (event.target === modal) {
+    closePasswordResetModal();
+  }
+});
+
+console.log('✅ Système de réinitialisation mot de passe chargé');
+
 
 </script>
 </html>
