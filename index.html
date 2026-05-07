@@ -3559,7 +3559,59 @@ if (document.readyState === 'loading') {
         <button onclick="memberViewMyTickets()" style="width:100%;margin-top:0.4rem;padding:0.4rem;border-radius:9px;border:1px solid rgba(0,229,255,0.2);background:rgba(0,229,255,0.05);color:var(--cyan);font-family:DM Sans,sans-serif;font-size:0.72rem;cursor:pointer;">📋 Voir mes demandes en cours</button>
       </div>
       <div id="avatarUploadStatus"></div>
+
+      <!-- ── Quitter l'application ── -->
+      <div style="margin-top:1rem;padding-top:0.8rem;border-top:1px solid rgba(255,68,102,0.15);">
+        <button onclick="openLeaveAppModal()" style="width:100%;padding:0.6rem;border-radius:10px;border:1px solid rgba(255,68,102,0.35);background:rgba(255,68,102,0.07);color:var(--red);font-family:'Syne',sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.45rem;transition:background 0.15s;">
+          🚪 Quitter l'application
+        </button>
+      </div>
     </div>
+  </div>
+</div>
+
+<!-- ══ MODAL QUITTER L'APPLICATION ══ -->
+<div id="leaveAppOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9800;align-items:center;justify-content:center;padding:1rem;">
+  <div style="background:var(--surface);border:1.5px solid rgba(255,68,102,0.4);border-radius:22px;padding:1.6rem 1.4rem;width:min(380px,100%);max-height:90vh;overflow-y:auto;position:relative;animation:popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);">
+    <button onclick="closeLeaveAppModal()" style="position:absolute;top:0.9rem;right:0.9rem;background:rgba(255,255,255,0.08);border:none;color:var(--text);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;">&#10005;</button>
+    <div style="text-align:center;margin-bottom:1.1rem;">
+      <div style="font-size:2.2rem;margin-bottom:0.4rem;">&#128682;</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:var(--red);">Quitter l'application</div>
+      <div style="font-size:0.73rem;color:var(--muted);margin-top:0.3rem;line-height:1.5;">Votre compte et vos donn&#233;es seront supprim&#233;s d&#233;finitivement.</div>
+    </div>
+    <!-- Motif -->
+    <div style="margin-bottom:1rem;">
+      <div style="font-size:0.72rem;font-weight:700;color:var(--text);margin-bottom:0.5rem;">&#128221; Motif de d&#233;part</div>
+      <div style="display:flex;flex-direction:column;gap:0.3rem;" id="leaveMotifList">
+        <label style="display:flex;align-items:center;gap:0.5rem;padding:0.45rem 0.6rem;border-radius:9px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);cursor:pointer;font-size:0.78rem;color:var(--text);">
+          <input type="radio" name="leaveMotif" value="plus_utilise" style="accent-color:var(--red);"> Je n'utilise plus l'app
+        </label>
+        <label style="display:flex;align-items:center;gap:0.5rem;padding:0.45rem 0.6rem;border-radius:9px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);cursor:pointer;font-size:0.78rem;color:var(--text);">
+          <input type="radio" name="leaveMotif" value="confidentialite" style="accent-color:var(--red);"> Probl&#232;me de confidentialit&#233;
+        </label>
+        <label style="display:flex;align-items:center;gap:0.5rem;padding:0.45rem 0.6rem;border-radius:9px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);cursor:pointer;font-size:0.78rem;color:var(--text);">
+          <input type="radio" name="leaveMotif" value="mauvaise_exp" style="accent-color:var(--red);"> Mauvaise exp&#233;rience
+        </label>
+        <label style="display:flex;align-items:center;gap:0.5rem;padding:0.45rem 0.6rem;border-radius:9px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);cursor:pointer;font-size:0.78rem;color:var(--text);">
+          <input type="radio" name="leaveMotif" value="autre" style="accent-color:var(--red);"> Autre raison
+        </label>
+      </div>
+      <textarea id="leaveMotifAutre" placeholder="Pr&#233;cisez votre motif (optionnel)..." style="display:none;width:100%;margin-top:0.5rem;padding:0.55rem 0.7rem;border-radius:9px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.75rem;resize:none;min-height:64px;outline:none;box-sizing:border-box;" maxlength="300"></textarea>
+    </div>
+    <!-- Confirmation mot de passe -->
+    <div style="margin-bottom:1.1rem;">
+      <div style="font-size:0.72rem;font-weight:700;color:var(--text);margin-bottom:0.4rem;">&#128273; Confirmez avec votre mot de passe</div>
+      <input id="leaveAppPassword" type="password" placeholder="Votre mot de passe actuel" autocomplete="current-password"
+        style="width:100%;padding:0.6rem 0.75rem;border-radius:10px;border:1px solid rgba(255,68,102,0.35);background:rgba(255,68,102,0.06);color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none;box-sizing:border-box;">
+      <div id="leaveAppPassErr" style="font-size:0.68rem;color:var(--red);margin-top:0.3rem;min-height:1rem;"></div>
+    </div>
+    <!-- Bouton confirmer -->
+    <button id="leaveAppConfirmBtn" onclick="confirmLeaveApp()" style="width:100%;padding:0.75rem;border-radius:12px;border:none;background:linear-gradient(135deg,rgba(255,68,102,0.85),rgba(204,0,40,0.9));color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;letter-spacing:0.02em;">
+      &#128465;&#65039; Supprimer mon compte d&#233;finitivement
+    </button>
+    <button onclick="closeLeaveAppModal()" style="width:100%;margin-top:0.55rem;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:0.8rem;cursor:pointer;">
+      Annuler
+    </button>
   </div>
 </div>
 
@@ -7984,6 +8036,97 @@ function openEditPseudoModal(){
 window.openEditPseudoModal = openEditPseudoModal;
 
 function closeUserModal(){document.getElementById("userOverlay").classList.remove("show");}
+
+// ── Quitter l'application (suppression compte membre) ──────────
+function openLeaveAppModal(){
+  var overlay = document.getElementById("leaveAppOverlay");
+  if(!overlay) return;
+  // Reset
+  document.querySelectorAll("input[name='leaveMotif']").forEach(function(r){ r.checked = false; });
+  var ta = document.getElementById("leaveMotifAutre");
+  if(ta){ ta.value = ""; ta.style.display = "none"; }
+  var pw = document.getElementById("leaveAppPassword");
+  if(pw) pw.value = "";
+  var err = document.getElementById("leaveAppPassErr");
+  if(err) err.textContent = "";
+  var btn = document.getElementById("leaveAppConfirmBtn");
+  if(btn){ btn.disabled = false; btn.textContent = "\uD83D\uDDD1\uFE0F Supprimer mon compte définitivement"; }
+  // Afficher textarea si motif "autre"
+  document.querySelectorAll("input[name='leaveMotif']").forEach(function(r){
+    r.addEventListener("change", function(){
+      if(ta) ta.style.display = this.value === "autre" ? "block" : "none";
+    });
+  });
+  overlay.style.display = "flex";
+}
+function closeLeaveAppModal(){
+  var overlay = document.getElementById("leaveAppOverlay");
+  if(overlay) overlay.style.display = "none";
+}
+async function confirmLeaveApp(){
+  var uid   = window.currentUserUID;
+  var email = window.currentUserEmail;
+  if(!uid || !email){ showToast("Non connecté."); return; }
+
+  // Motif
+  var motifEl = document.querySelector("input[name='leaveMotif']:checked");
+  if(!motifEl){ document.getElementById("leaveAppPassErr").textContent = "Veuillez choisir un motif."; return; }
+  var motif = motifEl.value;
+  var ta = document.getElementById("leaveMotifAutre");
+  var motifDetail = (ta && motif === "autre") ? (ta.value.trim() || "") : "";
+
+  // Mot de passe
+  var pw = (document.getElementById("leaveAppPassword")||{}).value || "";
+  if(!pw){ document.getElementById("leaveAppPassErr").textContent = "Mot de passe requis."; return; }
+
+  var btn = document.getElementById("leaveAppConfirmBtn");
+  if(btn){ btn.disabled = true; btn.textContent = "⏳ Suppression en cours..."; }
+  document.getElementById("leaveAppPassErr").textContent = "";
+
+  try {
+    // Ré-authentification Firebase
+    var { EmailAuthProvider, reauthenticateWithCredential } = await import("https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js");
+    var user = window.fbAuth && window.fbAuth.currentUser;
+    if(!user) throw new Error("Session expirée, reconnectez-vous.");
+    var cred = EmailAuthProvider.credential(email, pw);
+    await reauthenticateWithCredential(user, cred);
+
+    // Enregistrer le motif dans Firebase avant suppression
+    if(window.db && window.fbAddDoc && window.fbCollection){
+      try {
+        await window.fbAddDoc(window.fbCollection(window.db, "departures"), {
+          uid: uid, email: email,
+          pseudo: window.currentUserPseudo || "",
+          motif: motif, motifDetail: motifDetail,
+          timestamp: Date.now()
+        });
+      } catch(e2){}
+    }
+
+    // Supprimer le document Firestore de l'utilisateur
+    if(window.db && window.fbDeleteDoc && window.fbDoc){
+      try { await window.fbDeleteDoc(window.fbDoc(window.db, "users", uid)); } catch(e3){}
+    }
+
+    // Supprimer le compte Firebase Auth
+    await user.delete();
+
+    // Nettoyage local
+    closeLeaveAppModal();
+    showToast("✅ Compte supprimé. À bientôt !");
+    setTimeout(function(){ window.location.reload(); }, 1800);
+
+  } catch(err){
+    var msg = err.code === "auth/wrong-password" || err.code === "auth/invalid-credential"
+      ? "Mot de passe incorrect."
+      : (err.message || "Erreur inconnue.");
+    document.getElementById("leaveAppPassErr").textContent = "❌ " + msg;
+    if(btn){ btn.disabled = false; btn.textContent = "\uD83D\uDDD1\uFE0F Supprimer mon compte définitivement"; }
+  }
+}
+window.openLeaveAppModal  = openLeaveAppModal;
+window.closeLeaveAppModal = closeLeaveAppModal;
+window.confirmLeaveApp    = confirmLeaveApp;
 
 /* ═══════════════════════════════════════════════════════
    INSCRIPTION : type sélection + photos + pièce identité
@@ -21149,8 +21292,11 @@ function _showChauffeurLoginGate() {
         <input id="_cgPwd" type="password" placeholder="Mot de passe" style="width:100%;background:var(--surface2);border:1px solid rgba(157,132,255,0.25);border-radius:9px;color:var(--text);padding:0.55rem 0.7rem;font-size:0.85rem;font-family:DM Sans,sans-serif;outline:none;">
       </div>
       <div id="_cgMsg" style="font-size:0.75rem;text-align:center;margin-bottom:0.7rem;display:none;color:var(--red);"></div>
-      <button onclick="_verifyChauffeurLogin()" style="width:100%;padding:0.6rem;border-radius:11px;border:none;background:linear-gradient(135deg,var(--amber),#ff8800);color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;">🔓 Accéder à mon Tableau de Bord</button>
-      <div style="text-align:center;margin-top:0.8rem;">
+      <button onclick="_verifyChauffeurLogin()" id="_cgLoginBtn" style="width:100%;padding:0.6rem;border-radius:11px;border:none;background:linear-gradient(135deg,var(--amber),#ff8800);color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;">🔓 Accéder à mon Tableau de Bord</button>
+      <div style="text-align:center;margin-top:0.6rem;">
+        <button onclick="document.getElementById('_chauffeurGate').remove();openForgotModal();" style="background:none;border:none;color:var(--cyan);font-size:0.73rem;cursor:pointer;text-decoration:underline;font-family:'DM Sans',sans-serif;">🔑 Mot de passe oublié ?</button>
+      </div>
+      <div style="text-align:center;margin-top:0.5rem;">
         <span style="font-size:0.68rem;color:var(--muted);">Pas encore chauffeur ? </span>
         <button onclick="document.getElementById('_chauffeurGate').remove();document.getElementById('userOverlay').classList.add('show');switchUserTab('inscription')" style="background:none;border:none;color:var(--amber);font-size:0.68rem;cursor:pointer;text-decoration:underline;font-family:DM Sans,sans-serif;">Inscrivez-vous</button>
       </div>
@@ -21163,20 +21309,50 @@ function _verifyChauffeurLogin() {
   var email = (document.getElementById('_cgEmail').value || '').trim().toLowerCase();
   var pwd   = (document.getElementById('_cgPwd').value || '').trim();
   var msg   = document.getElementById('_cgMsg');
+  var btn   = document.getElementById('_cgLoginBtn');
   if(!email || !pwd) { msg.textContent='Remplissez tous les champs'; msg.style.display='block'; return; }
 
-  // Chercher dans _chauffeurDrivers par email
+  // ── Vérifier d'abord que l'email est bien un chauffeur enregistré ──
   var driver = Object.values(_chauffeurDrivers).find(function(d){
-    return d.email.toLowerCase() === email && d.password === pwd;
+    return (d.email||'').toLowerCase() === email;
   });
-
-  if(!driver) { msg.textContent='Email ou mot de passe incorrect'; msg.style.display='block'; return; }
-  if(driver.status === 'pending') { msg.textContent='Votre demande est en attente de validation Admin'; msg.style.display='block'; return; }
+  if(!driver) { msg.textContent='Cet email n\'est pas enregistré comme chauffeur.'; msg.style.display='block'; return; }
+  if(driver.status === 'pending') { msg.textContent='Votre demande est en attente de validation Admin.'; msg.style.display='block'; return; }
   if(driver.status === 'revoked') { msg.textContent='Accès révoqué. Contactez l\'Admin.'; msg.style.display='block'; return; }
 
-  var old = document.getElementById('_chauffeurGate');
-  if(old) old.remove();
-  _showChauffeurBoard(driver);
+  // ── Authentification via Firebase Auth (même compte AMBI241) ──
+  if(!window.fbSignIn || !window.auth) {
+    // Fallback : mot de passe stocké (ancien système)
+    if(driver.password && driver.password === pwd) {
+      var old = document.getElementById('_chauffeurGate'); if(old) old.remove();
+      _showChauffeurBoard(driver); return;
+    }
+    msg.textContent='Email ou mot de passe incorrect.'; msg.style.display='block'; return;
+  }
+
+  msg.style.display='none';
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Connexion...'; }
+
+  window.fbSignIn(window.auth, email, pwd).then(function(result){
+    // Connexion Firebase réussie → accès chauffeur
+    if(btn){ btn.disabled=false; btn.textContent='🔓 Accéder à mon Tableau de Bord'; }
+    var old = document.getElementById('_chauffeurGate'); if(old) old.remove();
+    // Enrichir le driver avec les infos Firebase Auth
+    driver.uid   = driver.uid   || result.user.uid;
+    driver.email = driver.email || result.user.email;
+    _showChauffeurBoard(driver);
+  }).catch(function(err){
+    if(btn){ btn.disabled=false; btn.textContent='🔓 Accéder à mon Tableau de Bord'; }
+    var code = err.code || '';
+    var errMsg = (code === 'auth/wrong-password' || code === 'auth/invalid-credential')
+      ? 'Mot de passe incorrect. Utilisez le même que votre compte AMBI241.'
+      : (code === 'auth/user-not-found' || code === 'auth/invalid-email')
+        ? 'Aucun compte AMBI241 trouvé pour cet email.'
+        : (code === 'auth/too-many-requests')
+          ? 'Trop de tentatives. Réessayez plus tard.'
+          : 'Erreur : ' + (err.message||code);
+    msg.textContent = errMsg; msg.style.display='block';
+  });
 }
 window._verifyChauffeurLogin = _verifyChauffeurLogin;
 
