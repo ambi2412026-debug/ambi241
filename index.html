@@ -5140,10 +5140,10 @@ function _gphotoMakeUrl(photoName) {
 /* ── Fetch Google Places pour UN établissement ──────────────────────── */
 function _gphotoFetchOne(e, callback) {
   if (!e.place_id) {
-    // Pas de place_id → fallback SVG immédiat
+    // Pas de place_id → admin default en priorité, sinon fallback SVG immédiat
     if (!e._gphoto_urls || e._gphoto_urls.length === 0) {
       e._gphoto_urls = [];
-      e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+      e._fallback_svg = getAdminDefaultPhotoForEtab(e) || generateFallbackPhoto(e.type, e.nom);
     }
     if(callback) callback(null);
     return;
@@ -5170,8 +5170,9 @@ function _gphotoFetchOne(e, callback) {
         if (photos.length === 0) {
           _gphotoWriteCache(e.place_id, []);
           e._gphoto_urls = [];
-          // Aucune photo Google → générer le fallback SVG
-          e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+          // Aucune photo Google → admin default en priorité, sinon SVG
+          var _admDef = getAdminDefaultPhotoForEtab(e);
+          e._fallback_svg = _admDef || generateFallbackPhoto(e.type, e.nom);
           if(callback) callback(null);
           return;
         }
@@ -5186,23 +5187,23 @@ function _gphotoFetchOne(e, callback) {
         if(callback) callback(urls[0]);
       } else {
         e._gphoto_urls = [];
-        e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+        e._fallback_svg = getAdminDefaultPhotoForEtab(e) || generateFallbackPhoto(e.type, e.nom);
         if(callback) callback(null);
       }
     } catch(err) {
       e._gphoto_urls = [];
-      e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+      e._fallback_svg = getAdminDefaultPhotoForEtab(e) || generateFallbackPhoto(e.type, e.nom);
       if(callback) callback(null);
     }
   };
   xhr.onerror = function() {
     e._gphoto_urls = [];
-    e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+    e._fallback_svg = getAdminDefaultPhotoForEtab(e) || generateFallbackPhoto(e.type, e.nom);
     if(callback) callback(null);
   };
   try { xhr.send(); } catch(err) {
     e._gphoto_urls = [];
-    e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+    e._fallback_svg = getAdminDefaultPhotoForEtab(e) || generateFallbackPhoto(e.type, e.nom);
     if(callback) callback(null);
   }
 }
@@ -5392,7 +5393,7 @@ function getGooglePhotoUrl(e, type) {
   // Fallback SVG généré
   if (e._fallback_svg) return e._fallback_svg;
   if (!e.place_id && !e._fallback_svg) {
-    e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
+    e._fallback_svg = getAdminDefaultPhotoForEtab(e) || generateFallbackPhoto(e.type, e.nom);
     return e._fallback_svg;
   }
   return null;
@@ -15098,14 +15099,19 @@ function initAdminDefaultPhotosPreviews(){
         // Patcher les etablissements déjà chargés
         if(typeof etablissements !== "undefined" && etablissements && etablissements.length){
           etablissements.forEach(function(e){
-            if(!e._photo_profile_approved && !e.photo_interieur && !e.photo_exterieur && !e._gphoto_urls){
+            // Correction : !e._gphoto_urls était faux pour [] (tableau vide truthy)
+            if(!e._photo_profile_approved && !e.photo_interieur && !e.photo_exterieur
+               && (!e._gphoto_urls || e._gphoto_urls.length === 0)){
               var def = getAdminDefaultPhotoForEtab(e);
-              if(def && !e._fallback_svg_is_admin_default){
+              if(def){
                 e._fallback_svg = def;
                 e._fallback_svg_is_admin_default = true;
               }
             }
           });
+          // Re-render pour appliquer les nouvelles photos par défaut aux cartes déjà affichées
+          if(typeof renderAll  === "function") setTimeout(renderAll,  80);
+          if(typeof renderHome === "function") setTimeout(renderHome, 80);
         }
       });
     }
