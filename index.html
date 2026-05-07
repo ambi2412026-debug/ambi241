@@ -14055,6 +14055,8 @@ function renderAdmUsers(){
           } else {
             h += "<button onclick=\"adminRevokeDriver('"+escHtml(u.uid)+"');renderAdmUsers()\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.25);color:var(--red);cursor:pointer;font-family:DM Sans,sans-serif;'>🚗 Révoquer Chauffeur</button>";
           }
+          // ── Bouton Supprimer Membre ──
+          h += "<button onclick=\"deleteMember('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"')\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,68,102,0.15);border:1px solid rgba(255,68,102,0.45);color:var(--red);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;'>🗑️ Supprimer membre</button>";
           h += "</div>";
         }
 
@@ -14090,6 +14092,31 @@ function renderAdmUsers(){
   }
   _loadMembers(1);
 }
+
+// ── Supprimer un membre (SuperAdmin uniquement) ─────────────────
+function deleteMember(uid, email, pseudo) {
+  var nom = pseudo || email || uid;
+  if (!confirm("⚠️ Supprimer définitivement le membre \"" + nom + "\" ?\n\nCette action supprimera son compte de la base de données. Elle est irréversible.")) return;
+  if (!window.db || !window.fbDeleteDoc || !window.fbDoc) {
+    showToast("❌ Firebase non disponible."); return;
+  }
+  // Supprimer le document utilisateur dans Firestore
+  var docRef = window.fbDoc(window.db, "users", uid);
+  window.fbDeleteDoc(docRef).then(function() {
+    showToast("🗑️ Membre \"" + nom + "\" supprimé.");
+    // Si c'était un admin secondaire, le retirer de la liste
+    var em = (email || "").toLowerCase();
+    _adminsList = _adminsList.filter(function(a){ return (a.email||"").toLowerCase() !== em; });
+    if (_adminsList !== undefined && window.fbSetDoc && window.fbDoc) {
+      window.fbSetDoc(window.fbDoc(window.db, "config", "admins"), { list: _adminsList }).catch(function(){});
+    }
+    // Rafraîchir la liste
+    renderAdmUsers();
+  }).catch(function(err) {
+    showToast("❌ Erreur suppression : " + err.message);
+  });
+}
+window.deleteMember = deleteMember;
 
 // ── Support / Tchat de réception des demandes ──────────────────
 var _supportFilter = "open"; // open | in_progress | resolved | all
