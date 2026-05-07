@@ -22658,5 +22658,596 @@ function callChauffeur(phoneNumber) {
 console.log('✅ WhatsApp contact system loaded');
 
 
+
+// ════════════════════════════════════════════════════════════════════════
+// SYSTÈME DE COMMANDES & FLUX WHATSAPP COMPLET
+// ════════════════════════════════════════════════════════════════════════
+
+// Stockage des commandes avec tokens uniques
+window.commandesEnCours = {};
+window.commandeTokens = {};
+
+// Générer un token unique pour une commande
+function generateCommandToken() {
+  return 'CMD-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+}
+
+// Créer une commande détaillée
+function createDetailedOrder(driverId, driverName, driverPhone, orderDetails = {}) {
+  const token = generateCommandToken();
+  
+  // Données de la commande
+  const order = {
+    token: token,
+    driverId: driverId,
+    driverName: driverName,
+    driverPhone: driverPhone,
+    clientId: getCurrentUserId(),
+    clientName: getCurrentUserName(),
+    details: orderDetails,
+    createdAt: new Date().toISOString(),
+    status: 'pending', // pending, accepted, rejected
+    rejectionReason: null
+  };
+  
+  // Sauvegarder la commande
+  window.commandesEnCours[token] = order;
+  window.commandeTokens[driverPhone] = token;
+  
+  console.log('✅ Commande créée:', token);
+  return token;
+}
+
+// Construire le lien de validation pour le chauffeur
+function buildDriverValidationLink(token) {
+  // Format: application://validate-order/TOKEN
+  // Ou pour web: https://votresite.com/validate?token=TOKEN
+  const baseUrl = window.location.origin;
+  return `${baseUrl}?action=validate-order&token=${token}`;
+}
+
+// Contacter chauffeur avec lien de commande
+function contactChauffeurWithOrder(phoneNumber, chauffeurName, driverId, orderDetails) {
+  if (!phoneNumber) {
+    alert('❌ Numéro WhatsApp non disponible');
+    return;
+  }
+  
+  // Nettoyer le numéro
+  let cleaned = phoneNumber.replace(/[^0-9+]/g, '');
+  if (cleaned.startsWith('0') || cleaned.startsWith('1')) {
+    cleaned = '+241' + cleaned.substring(1);
+  } else if (!cleaned.startsWith('+')) {
+    cleaned = '+241' + cleaned;
+  }
+  
+  // Créer la commande avec token
+  const token = createDetailedOrder(driverId, chauffeurName, cleaned, orderDetails);
+  
+  // Construire le lien de validation
+  const validationLink = buildDriverValidationLink(token);
+  
+  // Message WhatsApp avec lien de commande
+  const message = `Bonjour ${chauffeurName},\n\n📋 NOUVELLE COMMANDE AMBI241\n\nClient: ${getCurrentUserName()}\nLocalisation: [À confirmer]\n\n🔗 Voir détails & valider: ${validationLink}\n\nMerci!`;
+  
+  const encodedMessage = encodeURIComponent(message);
+  const whatsappUrl = `https://wa.me/${cleaned}?text=${encodedMessage}`;
+  
+  console.log('✅ Ouverture WhatsApp avec lien de commande:', validationLink);
+  window.open(whatsappUrl, '_blank', 'width=600,height=700');
+}
+
+// Gérer la validation de commande (quand le chauffeur clique le lien)
+function handleOrderValidation(token) {
+  const order = window.commandesEnCours[token];
+  
+  if (!order) {
+    alert('❌ Commande non trouvée');
+    return;
+  }
+  
+  // Vérifier si c'est le chauffeur
+  const currentUser = getCurrentUser();
+  if (currentUser.id !== order.driverId) {
+    alert('⚠️ Vous n\'êtes pas autorisé à valider cette commande');
+    return;
+  }
+  
+  // Ouvrir le modal de réponse du chauffeur
+  openDriverResponseModal(token, order);
+}
+
+// Modal: Chauffeur accepte/refuse la commande
+function openDriverResponseModal(token, order) {
+  const html = `
+    <div id="driverResponseModal" style="
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--surface);
+      border: 2px solid #9D84FF;
+      border-radius: 20px;
+      padding: 2rem;
+      width: min(420px, 95vw);
+      z-index: 10000;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.9);
+    ">
+      <h2 style="font-family: Syne; color: #9D84FF; margin-bottom: 1rem; text-align: center;">
+        📍 RÉPONDRE À LA COMMANDE
+      </h2>
+      
+      <p style="color: var(--muted); margin-bottom: 1.5rem; text-align: center;">
+        Client: <strong style="color: var(--text);">${order.clientName}</strong>
+      </p>
+      
+      <div style="margin-bottom: 1.5rem;">
+        <label style="display: block; color: var(--text); font-weight: 600; margin-bottom: 0.5rem;">
+          ✅ ACCEPTER
+        </label>
+        <button onclick="acceptOrder('${token}')" style="
+          width: 100%;
+          padding: 1rem;
+          background: linear-gradient(135deg, #9D84FF, #7C5FE8);
+          border: none;
+          border-radius: 12px;
+          color: white;
+          font-weight: 700;
+          cursor: pointer;
+          font-family: DM Sans;
+          transition: all 0.2s;
+        ">
+          ✅ ACCEPTER LA COMMANDE
+        </button>
+      </div>
+      
+      <div style="margin-bottom: 1.5rem;">
+        <label style="display: block; color: var(--text); font-weight: 600; margin-bottom: 0.5rem;">
+          ❌ REFUSER (optionnel: motif)
+        </label>
+        <input type="text" id="rejectionReason" placeholder="Raison du refus..." style="
+          width: 100%;
+          padding: 0.75rem;
+          background: rgba(157, 132, 255, 0.1);
+          border: 1px solid rgba(157, 132, 255, 0.3);
+          border-radius: 12px;
+          color: var(--text);
+          margin-bottom: 0.5rem;
+          font-family: DM Sans;
+        " />
+        <button onclick="rejectOrder('${token}')" style="
+          width: 100%;
+          padding: 1rem;
+          background: rgba(255, 68, 102, 0.2);
+          border: 1px solid #ff4466;
+          border-radius: 12px;
+          color: #ff4466;
+          font-weight: 700;
+          cursor: pointer;
+          font-family: DM Sans;
+          transition: all 0.2s;
+        ">
+          ❌ REFUSER LA COMMANDE
+        </button>
+      </div>
+    </div>
+  `;
+  
+  // Injecter le modal
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = html;
+  wrapper.style.position = 'fixed';
+  wrapper.style.inset = '0';
+  wrapper.style.background = 'rgba(0,0,0,0.7)';
+  wrapper.style.zIndex = '9999';
+  wrapper.onclick = function(e) {
+    if (e.target === wrapper) wrapper.remove();
+  };
+  
+  document.body.appendChild(wrapper);
+}
+
+// Chauffeur accepte la commande
+function acceptOrder(token) {
+  const order = window.commandesEnCours[token];
+  if (!order) return;
+  
+  order.status = 'accepted';
+  recordTransaction(order, "accepted");
+  order.acceptedAt = new Date().toISOString();
+  
+  alert('✅ Commande acceptée! Vous allez être redirigé vers votre tableau de bord.');
+  
+  // Fermer le modal
+  const modal = document.getElementById('driverResponseModal');
+  if (modal) modal.parentElement.remove();
+  
+  // Rediriger vers tableau de bord Taxi Pro du chauffeur
+  redirectToTaxiProDashboard(token, 'accepted');
+}
+
+// Chauffeur refuse la commande
+function rejectOrder(token) {
+  const reason = document.getElementById('rejectionReason').value || 'Non spécifiée';
+  const order = window.commandesEnCours[token];
+  if (!order) return;
+  
+  order.status = 'rejected';
+  recordTransaction(order, "rejected", {rejectionReason: reason});
+  order.rejectionReason = reason;
+  order.rejectedAt = new Date().toISOString();
+  
+  alert(`❌ Commande refusée (Motif: ${reason})`);
+  
+  // Fermer le modal
+  const modal = document.getElementById('driverResponseModal');
+  if (modal) modal.parentElement.remove();
+  
+  // Rediriger vers tableau de bord
+  redirectToTaxiProDashboard(token, 'rejected');
+}
+
+// Rediriger vers le tableau de bord Taxi Pro du chauffeur
+function redirectToTaxiProDashboard(token, action) {
+  const order = window.commandesEnCours[token];
+  
+  // Chercher l'utilisateur chauffeur correspondant
+  const driver = Object.values(window.userProfiles).find(u => 
+    u.id === order.driverId || u.phone === order.driverPhone
+  );
+  
+  if (driver) {
+    // Ouvrir le profil/dashboard du chauffeur
+    openTaxiProDashboardForDriver(driver.id, action, token);
+    
+    console.log(`✅ Redirection Taxi Pro Dashboard: ${action}`);
+  }
+}
+
+function openTaxiProDashboardForDriver(driverId, action, token) {
+  // Simuler l'ouverture du dashboard Taxi Pro
+  const driver = window.userProfiles[driverId];
+  
+  if (driver) {
+    // Enregistrer l'action
+    if (!window.driverActions) window.driverActions = {};
+    window.driverActions[token] = {
+      action: action,
+      driver: driver.id,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Afficher confirmation
+    alert(`✅ Tableau de bord Taxi Pro ouvert\nAction: ${action.toUpperCase()}\n\nVous pouvez désormais gérer l'offre.`);
+    
+    // Mettre à jour l'interface (simulé)
+    console.log('📊 Dashboard Taxi Pro mis à jour', window.driverActions[token]);
+  }
+}
+
+// Fonction pour obtenir l'ID utilisateur actuel
+function getCurrentUserId() {
+  const user = getCurrentUser();
+  return user ? user.id : 'client_' + Date.now();
+}
+
+// Fonction pour obtenir le nom utilisateur actuel
+function getCurrentUserName() {
+  const user = getCurrentUser();
+  return user ? user.name : 'Client AMBI241';
+}
+
+// Vérifier le lien de validation au chargement
+function checkOrderValidationLink() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+  const action = params.get('action');
+  
+  if (action === 'validate-order' && token) {
+    console.log('🔗 Lien de validation détecté:', token);
+    handleOrderValidation(token);
+  }
+}
+
+// Appeler au chargement de la page
+window.addEventListener('load', checkOrderValidationLink);
+
+console.log('✅ Système de commandes WhatsApp complet chargé');
+
+
+
+function contactChauffeurWhatsApp(phoneNumber, chauffeurName, driverId = null) {
+  // Rediriger vers le nouveau système
+  if (!driverId) {
+    driverId = generateRandomId();
+  }
+  contactChauffeurWithOrder(phoneNumber, chauffeurName, driverId);
+}
+
+function generateRandomId() {
+  return 'driver_' + Math.random().toString(36).substring(2, 9);
+}
+
+
+
+// ════════════════════════════════════════════════════════════════════════
+// SYSTÈME D'HISTORIQUE DES TRANSACTIONS
+// Enregistrement complet pour Chauffeur + Admin
+// ════════════════════════════════════════════════════════════════════════
+
+// Initialiser le stockage d'historique
+if (!window.transactionHistory) {
+  window.transactionHistory = {};
+}
+
+if (!window.adminLogs) {
+  window.adminLogs = [];
+}
+
+if (!window.driverTransactionHistory) {
+  window.driverTransactionHistory = {};
+}
+
+// Enregistrer une transaction
+function recordTransaction(order, action, details = {}) {
+  const transactionId = 'TXN-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+  
+  const transaction = {
+    id: transactionId,
+    token: order.token,
+    driverId: order.driverId,
+    driverName: order.driverName,
+    driverPhone: order.driverPhone,
+    clientId: order.clientId,
+    clientName: order.clientName,
+    action: action, // 'created', 'accepted', 'rejected', 'completed', 'cancelled'
+    status: order.status,
+    rejectionReason: order.rejectionReason || null,
+    details: details,
+    timestamp: new Date().toISOString(),
+    formattedTime: formatDate(new Date()),
+    ipAddress: 'N/A', // À implémenter si besoin
+    userAgent: navigator.userAgent.substring(0, 100)
+  };
+  
+  // Enregistrer dans l'historique global
+  window.transactionHistory[transactionId] = transaction;
+  
+  // Enregistrer pour le chauffeur spécifique
+  if (!window.driverTransactionHistory[order.driverId]) {
+    window.driverTransactionHistory[order.driverId] = [];
+  }
+  window.driverTransactionHistory[order.driverId].push(transaction);
+  
+  // Enregistrer dans les logs admin
+  window.adminLogs.push({
+    ...transaction,
+    category: 'transaction',
+    severity: action === 'rejected' ? 'warning' : 'info',
+    adminViewed: false
+  });
+  
+  // Sauvegarder dans localStorage pour persistance
+  try {
+    localStorage.setItem('transactionHistory_' + transactionId, JSON.stringify(transaction));
+    localStorage.setItem('driverTransactions_' + order.driverId, JSON.stringify(window.driverTransactionHistory[order.driverId]));
+    localStorage.setItem('adminLogs', JSON.stringify(window.adminLogs));
+  } catch (e) {
+    console.warn('⚠️ Erreur sauvegarde localStorage:', e);
+  }
+  
+  // Envoyer au serveur (si backend disponible)
+  sendTransactionToServer(transaction);
+  
+  console.log('✅ Transaction enregistrée:', transactionId);
+  console.log('   Driver:', order.driverName);
+  console.log('   Client:', order.clientName);
+  console.log('   Action:', action);
+  
+  return transactionId;
+}
+
+// Envoyer la transaction au serveur
+function sendTransactionToServer(transaction) {
+  // À adapter avec votre API
+  // Example:
+  // fetch('/api/transactions', {
+  //   method: 'POST',
+  //   headers: { 'Content-Type': 'application/json' },
+  //   body: JSON.stringify(transaction)
+  // }).then(r => r.json()).catch(e => console.warn('Erreur serveur:', e));
+  
+  console.log('📤 Transaction prête pour serveur:', transaction.id);
+}
+
+// Obtenir l'historique du chauffeur
+function getDriverTransactionHistory(driverId) {
+  return window.driverTransactionHistory[driverId] || [];
+}
+
+// Obtenir toutes les transactions (pour admin)
+function getAllTransactions() {
+  return Object.values(window.transactionHistory);
+}
+
+// Obtenir les logs admin
+function getAdminLogs(filter = {}) {
+  let logs = [...window.adminLogs];
+  
+  if (filter.driverId) {
+    logs = logs.filter(l => l.driverId === filter.driverId);
+  }
+  if (filter.action) {
+    logs = logs.filter(l => l.action === filter.action);
+  }
+  if (filter.status) {
+    logs = logs.filter(l => l.status === filter.status);
+  }
+  if (filter.startDate) {
+    logs = logs.filter(l => new Date(l.timestamp) >= new Date(filter.startDate));
+  }
+  if (filter.endDate) {
+    logs = logs.filter(l => new Date(l.timestamp) <= new Date(filter.endDate));
+  }
+  
+  return logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+}
+
+// Afficher l'historique du chauffeur
+function displayDriverTransactionHistory(driverId) {
+  const transactions = getDriverTransactionHistory(driverId);
+  
+  let html = '<div style="max-height: 600px; overflow-y: auto;">';
+  
+  if (transactions.length === 0) {
+    html += '<p style="color: var(--muted); text-align: center; padding: 2rem;">Aucune transaction</p>';
+  } else {
+    html += transactions.map(txn => `
+      <div style="
+        padding: 1rem;
+        border-bottom: 1px solid rgba(157, 132, 255, 0.1);
+        background: rgba(157, 132, 255, 0.02);
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+      ">
+        <div style="display: flex; justify-content: space-between; align-items: start;">
+          <div>
+            <strong style="color: #9D84FF;">${txn.clientName}</strong>
+            <br><small style="color: var(--muted);">${txn.formattedTime}</small>
+          </div>
+          <span style="
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            ${txn.action === 'accepted' ? 'background: rgba(0,255,170,0.2); color: var(--green);' : 
+              txn.action === 'rejected' ? 'background: rgba(255,68,102,0.2); color: #ff4466;' :
+              'background: rgba(0,229,255,0.2); color: var(--cyan);'}
+          ">
+            ${txn.action.toUpperCase()}
+          </span>
+        </div>
+        <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted);">
+          ${txn.status === 'rejected' ? '<strong>Motif:</strong> ' + (txn.rejectionReason || 'N/A') : 'Commande: ' + txn.token}
+        </div>
+      </div>
+    `).join('');
+  }
+  
+  html += '</div>';
+  return html;
+}
+
+// Tableau admin: Afficher toutes les transactions
+function displayAdminTransactionTable(filter = {}) {
+  const logs = getAdminLogs(filter);
+  
+  let html = `
+    <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+      <thead>
+        <tr style="background: rgba(157, 132, 255, 0.1); border-bottom: 2px solid #9D84FF;">
+          <th style="padding: 0.75rem; text-align: left; color: #9D84FF;">Date/Heure</th>
+          <th style="padding: 0.75rem; text-align: left; color: #9D84FF;">Chauffeur</th>
+          <th style="padding: 0.75rem; text-align: left; color: #9D84FF;">Client</th>
+          <th style="padding: 0.75rem; text-align: left; color: #9D84FF;">Action</th>
+          <th style="padding: 0.75rem; text-align: left; color: #9D84FF;">Statut</th>
+          <th style="padding: 0.75rem; text-align: left; color: #9D84FF;">Détails</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${logs.map((log, i) => `
+          <tr style="border-bottom: 1px solid rgba(157, 132, 255, 0.1); background: ${i % 2 ? 'rgba(157, 132, 255, 0.02)' : 'transparent'};">
+            <td style="padding: 0.75rem;">${log.formattedTime}</td>
+            <td style="padding: 0.75rem;"><strong>${log.driverName}</strong></td>
+            <td style="padding: 0.75rem;">${log.clientName}</td>
+            <td style="padding: 0.75rem;">
+              <span style="
+                padding: 0.25rem 0.5rem;
+                border-radius: 6px;
+                font-size: 0.7rem;
+                font-weight: 700;
+                background: rgba(157, 132, 255, 0.2);
+                color: #9D84FF;
+              ">${log.action}</span>
+            </td>
+            <td style="padding: 0.75rem;">
+              <span style="
+                padding: 0.25rem 0.5rem;
+                border-radius: 6px;
+                font-size: 0.7rem;
+                font-weight: 700;
+                ${log.status === 'accepted' ? 'background: rgba(0,255,170,0.2); color: var(--green);' : 
+                  log.status === 'rejected' ? 'background: rgba(255,68,102,0.2); color: #ff4466;' :
+                  'background: rgba(0,229,255,0.2); color: var(--cyan);'}
+              ">${log.status}</span>
+            </td>
+            <td style="padding: 0.75rem; font-size: 0.75rem; color: var(--muted);">
+              ${log.rejectionReason ? 'Refus: ' + log.rejectionReason : 'Token: ' + log.token.substring(0, 12) + '...'}
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  
+  return html;
+}
+
+// Mettre à jour la transaction après acceptation/refus
+function updateTransactionStatus(token, status, rejectionReason = null) {
+  const order = window.commandesEnCours[token];
+  if (!order) return;
+  
+  order.status = status;
+  order.rejectionReason = rejectionReason;
+  
+  // Enregistrer l'action
+  recordTransaction(order, status, {
+    rejectionReason: rejectionReason
+  });
+  
+  console.log('✅ Transaction mise à jour:', token, 'Status:', status);
+}
+
+// Utilitaires
+function formatDate(date) {
+  const options = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+  return date.toLocaleDateString('fr-FR', options);
+}
+
+// Charger l'historique depuis localStorage au démarrage
+function loadTransactionHistoryFromStorage() {
+  try {
+    const keys = Object.keys(localStorage);
+    const txnKeys = keys.filter(k => k.startsWith('transactionHistory_'));
+    
+    txnKeys.forEach(key => {
+      try {
+        const txn = JSON.parse(localStorage.getItem(key));
+        if (txn) {
+          window.transactionHistory[txn.id] = txn;
+        }
+      } catch (e) {
+        console.warn('Erreur chargement transaction:', e);
+      }
+    });
+    
+    const adminLogsStr = localStorage.getItem('adminLogs');
+    if (adminLogsStr) {
+      window.adminLogs = JSON.parse(adminLogsStr);
+    }
+    
+    console.log('✅ Historique des transactions chargé depuis localStorage');
+  } catch (e) {
+    console.warn('⚠️ Erreur chargement historique:', e);
+  }
+}
+
+// Charger au démarrage
+window.addEventListener('load', loadTransactionHistoryFromStorage);
+
+console.log("✅ Système d'historique des transactions chargé");
+
+
 </script>
 </html>
