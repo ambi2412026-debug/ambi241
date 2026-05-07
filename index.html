@@ -1583,6 +1583,150 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 /* == RESERVATION VIP == */
 .card-vip-row{padding:0.55rem 0.9rem 0.75rem;border-top:1px solid rgba(255,215,0,0.12);}
 .vip-reserve-btn{width:100%;padding:0.6rem;border-radius:12px;border:1px solid rgba(255,215,0,0.4);background:linear-gradient(135deg,rgba(255,215,0,0.13),rgba(255,140,0,0.08));color:var(--amber);font-family:'Syne',sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;transition:all 0.2s;box-shadow:0 0 10px rgba(255,215,0,0.1);display:flex;align-items:center;justify-content:center;gap:0.4rem;}
+
+/* ══ BOUTON FLOTTANT NOM ÉTABLISSEMENT → RÉSERVATION DIRECTE ══ */
+/* Rend le nom de l'établissement cliquable comme un chauffeur taxi */
+.etab-name-order-btn {
+  background: none; border: none; padding: 0; margin: 0;
+  cursor: pointer; font-family: inherit; font-size: inherit;
+  font-weight: inherit; color: inherit; text-align: left;
+  display: inline-flex; align-items: center; gap: 5px;
+  transition: color 0.18s; -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+.etab-name-order-btn:hover { color: var(--amber); }
+.etab-name-order-btn:active { opacity: 0.75; }
+.etab-name-order-pulse {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--amber), #ff8800);
+  color: #000; font-size: 0.45rem; font-weight: 900;
+  flex-shrink: 0; animation: pulse 2s infinite;
+  box-shadow: 0 0 5px rgba(255,184,0,0.6);
+  opacity: 0; transition: opacity 0.2s;
+}
+.etab-name-order-btn:hover .etab-name-order-pulse,
+.card:hover .etab-name-order-pulse { opacity: 1; }
+
+/* ══ SHEET RÉSERVATION DIRECTE ÉTABLISSEMENT (style taxi pro) ══ */
+.etab-qorder-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.88); z-index: 10060;
+  align-items: flex-end; justify-content: center;
+  animation: fadeIn 0.2s;
+}
+.etab-qorder-overlay.open { display: flex; }
+.etab-qorder-sheet {
+  background: var(--surface);
+  border: 2px solid rgba(255,215,0,0.35);
+  border-radius: 26px 26px 0 0;
+  width: min(500px, 100%); max-height: 92vh; overflow-y: auto;
+  padding: 0 0 2rem;
+  animation: slideUp 0.32s cubic-bezier(0.34,1.1,0.64,1);
+}
+.etab-qorder-drag { width: 40px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.15); margin: 0.75rem auto 0; }
+.etab-qorder-head {
+  padding: 1rem 1.3rem 0.7rem;
+  border-bottom: 1px solid rgba(255,215,0,0.12);
+  display: flex; align-items: center; gap: 0.75rem; position: relative;
+}
+.etab-qorder-avatar {
+  width: 52px; height: 52px; border-radius: 14px;
+  background: linear-gradient(135deg, var(--amber), #ff8800);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.6rem; flex-shrink: 0;
+  border: 2px solid rgba(255,215,0,0.4);
+  overflow: hidden;
+}
+.etab-qorder-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; }
+.etab-qorder-info { flex: 1; }
+.etab-qorder-name { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1rem; color: var(--text); }
+.etab-qorder-sub { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+.etab-qorder-status {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.65rem; font-weight: 700; color: var(--green); margin-top: 3px;
+}
+.etab-qorder-close {
+  position: absolute; top: 0.9rem; right: 1rem;
+  background: rgba(255,68,102,0.12); border: 1px solid rgba(255,68,102,0.3);
+  color: var(--red); width: 30px; height: 30px; border-radius: 50%;
+  cursor: pointer; font-size: 1rem;
+  display: flex; align-items: center; justify-content: center;
+}
+.etab-qorder-close:active { opacity: 0.6; }
+.etab-qorder-body { padding: 1rem 1.3rem 0; }
+.etab-qorder-section {
+  font-size: 0.6rem; font-weight: 800; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted);
+  margin-bottom: 0.55rem; display: flex; align-items: center; gap: 0.4rem;
+}
+.etab-qorder-section::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.06); }
+
+/* Type réservation */
+.etab-qorder-type-grid {
+  display: grid; grid-template-columns: repeat(2,1fr); gap: 8px; margin-bottom: 1rem;
+}
+.etab-qorder-type-btn {
+  padding: 10px 8px; border-radius: 12px;
+  border: 1.5px solid rgba(255,215,0,0.18);
+  background: rgba(255,215,0,0.05);
+  color: var(--muted); font-size: 0.72rem; font-weight: 700;
+  cursor: pointer; text-align: center; transition: all 0.2s;
+  font-family: 'DM Sans', sans-serif;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.etab-qorder-type-btn .ticon { font-size: 1.3rem; }
+.etab-qorder-type-btn.active {
+  background: linear-gradient(135deg,rgba(255,215,0,0.22),rgba(255,140,0,0.12));
+  border-color: var(--amber); color: var(--amber);
+  box-shadow: 0 4px 12px rgba(255,215,0,0.2);
+}
+.etab-qorder-type-btn:active { transform: scale(0.95); }
+
+/* Inputs */
+.etab-qorder-input {
+  width: 100%; padding: 10px 12px;
+  background: rgba(255,215,0,0.05);
+  border: 1.5px solid rgba(255,215,0,0.18);
+  border-radius: 10px; color: var(--text);
+  font-family: 'DM Sans', sans-serif; font-size: 0.82rem;
+  margin-bottom: 0.6rem; transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+.etab-qorder-input:focus { outline: none; border-color: var(--amber); background: rgba(255,215,0,0.09); }
+.etab-qorder-input::placeholder { color: rgba(255,215,0,0.3); }
+.etab-qorder-row { display: flex; gap: 0.5rem; margin-bottom: 0.6rem; }
+.etab-qorder-row .etab-qorder-input { flex: 1; margin-bottom: 0; }
+
+/* Bouton WhatsApp envoi */
+.etab-qorder-wa-btn {
+  width: 100%; padding: 14px;
+  background: linear-gradient(135deg, #25d366, #128c7e);
+  border: none; border-radius: 14px;
+  color: #fff; font-family: 'Syne', sans-serif;
+  font-weight: 800; font-size: 1rem;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+  box-shadow: 0 6px 20px rgba(37,211,102,0.35);
+  margin-bottom: 0.6rem; transition: all 0.2s;
+}
+.etab-qorder-wa-btn:active { transform: scale(0.97); opacity: 0.9; }
+
+/* Confirmation */
+.etab-qorder-sent {
+  text-align: center; padding: 1.8rem 1rem; display: none;
+  animation: fadeIn 0.3s ease;
+}
+.etab-qorder-sent.show { display: block; }
+.etab-qorder-sent-icon { font-size: 3rem; margin-bottom: 0.7rem; }
+.etab-qorder-sent-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1rem; color: var(--green); margin-bottom: 0.3rem; }
+.etab-qorder-sent-sub { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+.etab-qorder-token {
+  display: inline-block; margin-top: 0.7rem;
+  font-family: monospace; font-size: 0.68rem;
+  background: rgba(0,255,170,0.08); border: 1px solid rgba(0,255,170,0.2);
+  border-radius: 8px; padding: 0.28rem 0.65rem;
+  color: var(--green); letter-spacing: 0.06em;
+}
 .vip-reserve-btn:active{opacity:0.8;transform:scale(0.98);}
 .adm-reserv-card{background:rgba(255,215,0,0.04);border:1px solid rgba(255,215,0,0.15);border-radius:14px;padding:0.85rem;margin-bottom:0.65rem;}
 .adm-reserv-card .arc-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.45rem;}
@@ -9643,6 +9787,22 @@ function buildCard(e,delay,compact,rank){
   var vipBtn = !compact ? '<div class="card-vip-row"><button class="vip-reserve-btn" '
     + 'onclick="openReservationModal(\'' + e.id + '\',\'' + e.nom.replace(/'/g,'') + '\',' + aff + ')">' 
     + '&#11088; R&#233;server une place VIP</button></div>' : '';
+
+  // ── Bouton flottant sur le nom : réservation directe WhatsApp (même logique taxi pro) ──
+  var etabContact = (e.contact||'').replace(/'/g,'');
+  var etabPhotoForBtn = (e.photo_interieur||e.photo||'').replace(/'/g,'');
+  var etabTypeForBtn  = (e.type||'').replace(/'/g,'');
+  var etabNomForBtn   = (e.nom||'').replace(/'/g,'');
+  // On expose la fn pour que le clic sur le nom ouvre le sheet direct
+  window['_etabOrderBtn_'+e.id] = function() {
+    openEtabQorder(
+      e.id,
+      encodeURIComponent(etabNomForBtn),
+      encodeURIComponent(etabContact),
+      encodeURIComponent(etabTypeForBtn),
+      encodeURIComponent(etabPhotoForBtn)
+    );
+  };
   return "<div class=\"card\" id=\"card-etab-"+e.id+"\" style=\"animation-delay:"+delay+"s;"+(e._isPinned&&!isAdmin?"border:1.5px solid rgba(255,45,155,0.5);box-shadow:0 0 18px rgba(255,45,155,0.12);":"")+(eventFlashHtml?"border-color:rgba(255,45,155,0.4);":"")+"\">"+
     pinnedBanner+
     eventFlashHtml+
@@ -9650,7 +9810,7 @@ function buildCard(e,delay,compact,rank){
     "<div class=\"card-top\">"+
     "<div class=\"card-row1\"><div>"+
     "<div class=\"card-num\">N°"+(rank!=null?rank:e.id)+"</div>"+
-    "<div class=\"card-name\" onclick=\"openGalerie("+e.id+")\" title=\"Voir la galerie de "+(e.nom||"").replace(/"/g,'')+"\" style=\"cursor:pointer;display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap;transition:color 0.2s;\">"+e.nom+" <span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span>"+(e._distKm!=null?"<span class=\"dist-badge "+distClass(e._distKm)+"\">"+fmtDist(e._distKm)+"</span>":"")+"</div>"+
+    "<div class=\"card-name\"><button class=\"etab-name-order-btn\" onclick=\"window['_etabOrderBtn_'+"+e.id+"] && window['_etabOrderBtn_'+"+e.id+"]()\" title=\"📋 Réserver à "+e.nom.replace(/"/g,'')+"\" style=\"font-family:'Syne',sans-serif;font-size:inherit;font-weight:inherit;\">"+e.nom+" <span class=\"etab-name-order-pulse\">+</span></button> <span onclick=\"openGalerie("+e.id+")\" title=\"Voir la galerie de "+(e.nom||"").replace(/"/g,'')+"\" style=\"cursor:pointer;display:inline-flex;align-items:center;gap:0.35rem;flex-wrap:wrap;transition:color 0.2s;\"><span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span>"+(e._distKm!=null?"<span class=\"dist-badge "+distClass(e._distKm)+"\">"+fmtDist(e._distKm)+"</span>":"")+"</span></div>"+
     "<span class=\"cat-badge "+ci.badge+"\" style=\"cursor:pointer;\" onclick=\"goToTypeFilter('"+getCategory(e.type)+"')\" title=\"Filtrer par "+ci.label+"\">"+ci.icon+" "+ci.label+"</span>"+
     "<div style=\"font-size:0.7rem;color:var(--cyan);margin-top:0.2rem;cursor:pointer;display:inline-flex;align-items:center;gap:0.2rem;\" onclick=\"goToQuartier('"+e.quartier.replace(/'/g,"")+"')\">&#128205; "+e.quartier+"<span style='font-size:0.55rem;opacity:0.6;'> ›</span></div>"+
     "</div><span class=\"status-pill "+sc+"\">"+e.statut+"</span></div>"+
@@ -23332,5 +23492,369 @@ window.addEventListener('load', loadTransactionHistoryFromStorage);
 console.log("✅ Système d'historique des transactions chargé");
 
 
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════
+     MODAL RÉSERVATION DIRECTE ÉTABLISSEMENT (WhatsApp Pro)
+     Même logique que le système Taxi Pro : clic sur nom → sheet
+     L'établissement reçoit un WA avec lien Accepter/Refuser
+     ══════════════════════════════════════════════════════════════ -->
+<div class="etab-qorder-overlay" id="etabQorderOverlay">
+  <div class="etab-qorder-sheet">
+    <div class="etab-qorder-drag"></div>
+
+    <!-- En-tête établissement -->
+    <div class="etab-qorder-head">
+      <div class="etab-qorder-avatar" id="etabQorderAvatar">🏠</div>
+      <div class="etab-qorder-info">
+        <div class="etab-qorder-name" id="etabQorderName">Établissement</div>
+        <div class="etab-qorder-sub" id="etabQorderSub">Bar · Libreville</div>
+        <div class="etab-qorder-status">
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 1.5s infinite;box-shadow:0 0 6px rgba(0,255,170,0.7);"></span>
+          Disponible maintenant
+        </div>
+      </div>
+      <button class="etab-qorder-close" onclick="closeEtabQorder()">✕</button>
+    </div>
+
+    <!-- Corps formulaire -->
+    <div class="etab-qorder-body" id="etabQorderBody">
+
+      <!-- Type de réservation -->
+      <div class="etab-qorder-section">Type de réservation</div>
+      <div class="etab-qorder-type-grid" id="etabQorderTypeGrid">
+        <button class="etab-qorder-type-btn active" onclick="selectEtabQorderType(this,'table_vip')">
+          <span class="ticon">🛋️</span>Table VIP
+        </button>
+        <button class="etab-qorder-type-btn" onclick="selectEtabQorderType(this,'soiree')">
+          <span class="ticon">🎉</span>Soirée privée
+        </button>
+        <button class="etab-qorder-type-btn" onclick="selectEtabQorderType(this,'anniversaire')">
+          <span class="ticon">🎂</span>Anniversaire
+        </button>
+        <button class="etab-qorder-type-btn" onclick="selectEtabQorderType(this,'chambre')">
+          <span class="ticon">🛏️</span>Chambre / Suite
+        </button>
+      </div>
+
+      <!-- Infos client -->
+      <div class="etab-qorder-section">Vos coordonnées</div>
+      <div class="etab-qorder-row">
+        <input class="etab-qorder-input" id="etabQorderNom" type="text" placeholder="Votre nom *">
+        <input class="etab-qorder-input" id="etabQorderTel" type="tel" placeholder="Téléphone *">
+      </div>
+
+      <!-- Date & nb personnes -->
+      <div class="etab-qorder-row">
+        <input class="etab-qorder-input" id="etabQorderDate" type="date">
+        <input class="etab-qorder-input" id="etabQorderNb" type="number" min="1" max="50" placeholder="Nb pers." value="2">
+      </div>
+
+      <!-- Message -->
+      <input class="etab-qorder-input" id="etabQorderMsg" type="text" placeholder="Message / demande spéciale (optionnel)">
+
+      <!-- Bouton envoi WhatsApp -->
+      <button class="etab-qorder-wa-btn" onclick="sendEtabQorderWhatsApp()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+        Envoyer via WhatsApp
+      </button>
+
+      <!-- Note info -->
+      <div style="font-size:0.65rem;color:var(--muted);text-align:center;line-height:1.5;margin-top:-0.2rem;">
+        📨 Message envoyé directement à l'établissement · Réponse sous quelques minutes
+      </div>
+    </div>
+
+    <!-- Confirmation envoi -->
+    <div class="etab-qorder-sent" id="etabQorderSent">
+      <div class="etab-qorder-sent-icon">✅</div>
+      <div class="etab-qorder-sent-title">Demande envoyée !</div>
+      <div class="etab-qorder-sent-sub">
+        L'établissement a reçu votre demande sur WhatsApp.<br>
+        Il peut <strong style="color:var(--green);">Accepter</strong> ou <strong style="color:var(--red);">Refuser</strong> depuis son tableau de bord.
+      </div>
+      <div class="etab-qorder-token" id="etabQorderToken"></div>
+      <button onclick="closeEtabQorder()" style="margin-top:1.2rem;padding:0.65rem 1.8rem;border-radius:30px;border:1px solid rgba(255,215,0,0.4);background:rgba(255,215,0,0.1);color:var(--amber);font-family:'Syne',sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// RÉSERVATION DIRECTE ÉTABLISSEMENT — WHATSAPP PRO
+// Même mécanique que Taxi Pro : clic nom → sheet → WA direct
+// L'établissement reçoit un lien Accepter/Refuser dashboard
+// ══════════════════════════════════════════════════════════════
+
+var _etabQorderState = {
+  etabId: null,
+  etabNom: '',
+  etabContact: '',
+  etabType: '',
+  etabPhoto: '',
+  selectedType: 'table_vip',
+  token: ''
+};
+
+// Ouvrir le sheet de réservation directe (appelé depuis vip-reserve-btn enrichi)
+function openEtabQorder(etabId, etabNom, etabContact, etabType, etabPhoto) {
+  _etabQorderState.etabId    = etabId;
+  _etabQorderState.etabNom   = decodeURIComponent(etabNom || '');
+  _etabQorderState.etabContact = decodeURIComponent(etabContact || '');
+  _etabQorderState.etabType  = decodeURIComponent(etabType || '');
+  _etabQorderState.etabPhoto = decodeURIComponent(etabPhoto || '');
+  _etabQorderState.selectedType = 'table_vip';
+  _etabQorderState.token = '';
+
+  // Adapter les types selon l'établissement
+  var isHotel = (_etabQorderState.etabType||'').toLowerCase().indexOf('hotel') !== -1
+             || (_etabQorderState.etabType||'').toLowerCase().indexOf('hôtel') !== -1;
+  var isResto = (_etabQorderState.etabType||'').toLowerCase().indexOf('restaurant') !== -1
+             || (_etabQorderState.etabType||'').toLowerCase().indexOf('snack') !== -1;
+
+  // Mettre à jour l'en-tête
+  var avatarEl = document.getElementById('etabQorderAvatar');
+  var nameEl   = document.getElementById('etabQorderName');
+  var subEl    = document.getElementById('etabQorderSub');
+
+  if (nameEl)  nameEl.textContent  = _etabQorderState.etabNom || 'Établissement';
+  if (subEl)   subEl.textContent   = _etabQorderState.etabType + ' · Libreville';
+  if (avatarEl) {
+    if (_etabQorderState.etabPhoto) {
+      avatarEl.innerHTML = '<img src="' + _etabQorderState.etabPhoto + '" onerror="this.parentNode.textContent=\'🏠\'">';
+    } else {
+      var typeIcons = { Bar:'🍺', Discotheque:'🎵', Restaurant:'🍽️', Hotel:'🏨', Snack:'🥗', 'Bar Terrasse':'☀️' };
+      var ic = typeIcons[_etabQorderState.etabType] || '🏠';
+      avatarEl.textContent = ic;
+    }
+  }
+
+  // Adapter la grille des types selon l'établissement
+  var typeGrid = document.getElementById('etabQorderTypeGrid');
+  if (typeGrid) {
+    var types = [
+      { key:'table_vip',    icon:'🛋️', label:'Table VIP' },
+      { key:'soiree',       icon:'🎉', label:'Soirée privée' },
+      { key:'anniversaire', icon:'🎂', label:'Anniversaire' },
+      { key:'chambre',      icon:'🛏️', label:'Chambre / Suite', hotelOnly: true },
+      { key:'repas',        icon:'🍽️', label:'Repas / Menu',    restoOnly: true },
+    ];
+    var html = '';
+    types.forEach(function(t) {
+      if (t.hotelOnly && !isHotel) return;
+      if (t.restoOnly && !isResto && !isHotel) return;
+      var isActive = t.key === 'table_vip';
+      html += '<button class="etab-qorder-type-btn' + (isActive ? ' active' : '') + '" onclick="selectEtabQorderType(this,\'' + t.key + '\')">'
+        + '<span class="ticon">' + t.icon + '</span>' + t.label + '</button>';
+    });
+    typeGrid.innerHTML = html;
+  }
+
+  // Pré-remplir le nom si connecté
+  var nomEl = document.getElementById('etabQorderNom');
+  if (nomEl && window.currentUserPseudo) nomEl.value = window.currentUserPseudo;
+
+  // Date par défaut = aujourd'hui
+  var dateEl = document.getElementById('etabQorderDate');
+  if (dateEl) {
+    var today = new Date();
+    dateEl.value = today.toISOString().split('T')[0];
+  }
+
+  // Réinitialiser
+  var bodyEl = document.getElementById('etabQorderBody');
+  var sentEl = document.getElementById('etabQorderSent');
+  if (bodyEl) bodyEl.style.display = 'block';
+  if (sentEl) sentEl.classList.remove('show');
+
+  document.getElementById('etabQorderOverlay').classList.add('open');
+}
+
+function closeEtabQorder() {
+  document.getElementById('etabQorderOverlay').classList.remove('open');
+}
+
+function selectEtabQorderType(btn, type) {
+  _etabQorderState.selectedType = type;
+  var btns = document.querySelectorAll('.etab-qorder-type-btn');
+  btns.forEach(function(b) { b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+}
+
+function sendEtabQorderWhatsApp() {
+  var nom  = (document.getElementById('etabQorderNom')  || {}).value || '';
+  var tel  = (document.getElementById('etabQorderTel')  || {}).value || '';
+  var date = (document.getElementById('etabQorderDate') || {}).value || '';
+  var nb   = (document.getElementById('etabQorderNb')   || {}).value || '2';
+  var msg  = (document.getElementById('etabQorderMsg')  || {}).value || '';
+
+  nom = nom.trim(); tel = tel.trim();
+  if (!nom || !tel) { showToast('Nom et téléphone requis'); return; }
+
+  // Token unique pour traçabilité (accept/refus)
+  var token = 'AMBI' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2,4).toUpperCase();
+  _etabQorderState.token = token;
+
+  // Deep-link tableau de bord de l'établissement (même logique que _buildDeepLink taxi)
+  var base = window.AMBI241_APP_URL || window.location.href.split('?')[0];
+  base = (base || '').replace(/\/$/, '');
+  var cleanTel = (tel || '').replace(/\s|\+/g, '');
+
+  var acceptUrl = base + '?etab_id=' + encodeURIComponent(_etabQorderState.etabId)
+    + '&action=accept_resa&token=' + token + '&client=' + encodeURIComponent(nom);
+  var refusUrl  = base + '?etab_id=' + encodeURIComponent(_etabQorderState.etabId)
+    + '&action=refuse_resa&token=' + token + '&client=' + encodeURIComponent(nom);
+
+  // Types labels
+  var typeLabels = {
+    table_vip:'🛋️ Table VIP', soiree:'🎉 Soirée privée',
+    anniversaire:'🎂 Anniversaire', chambre:'🛏️ Chambre/Suite', repas:'🍽️ Repas/Menu'
+  };
+  var typeLabel = typeLabels[_etabQorderState.selectedType] || '⭐ Réservation VIP';
+
+  // GPS client si disponible
+  var gpsLine = '';
+  if (window._taxiUserLat && window._taxiUserLng) {
+    gpsLine = '\n📌 Position client : https://maps.google.com/?q='
+      + window._taxiUserLat.toFixed(6) + ',' + window._taxiUserLng.toFixed(6);
+  }
+
+  // Message WhatsApp enrichi — adapté AMBI241 établissements
+  var lines = [];
+  lines.push('⭐ *AMBI241 — NOUVELLE RÉSERVATION*');
+  lines.push('');
+  lines.push('🏠 *' + _etabQorderState.etabNom + '*');
+  lines.push(typeLabel);
+  lines.push('━━━━━━━━━━━━━━━━');
+  lines.push('👤 Client  : *' + nom + '*');
+  lines.push('📞 Tél      : *' + tel + '*');
+  if (date) lines.push('📅 Date     : *' + date + '*');
+  lines.push('👥 Personnes: *' + nb + '*');
+  if (msg)  lines.push('💬 Note     : ' + msg);
+  if (gpsLine) lines.push(gpsLine);
+  lines.push('━━━━━━━━━━━━━━━━');
+  lines.push('🔖 Ref: ' + token);
+  lines.push('');
+  lines.push('✅ *ACCEPTER* → ' + acceptUrl);
+  lines.push('❌ *REFUSER*  → ' + refusUrl);
+  lines.push('');
+  lines.push('_(Liens de réponse tableau de bord AMBI241)_');
+
+  var waText = encodeURIComponent(lines.join('\n'));
+
+  // Numéro destinataire : contact de l'établissement ou admin AMBI241
+  var etabContact = (_etabQorderState.etabContact || '').replace(/\s|\+/g, '');
+  var waNum = etabContact && etabContact.length >= 8 ? etabContact : '24174450924';
+  var waUrl = 'https://wa.me/' + waNum + '?text=' + waText;
+
+  // Enregistrement Firebase (même logique que taxi)
+  if (window.db && window.fbAddDoc && window.fbCollection) {
+    window.fbAddDoc(window.fbCollection(window.db, 'reservations'), {
+      etablissementId: String(_etabQorderState.etabId),
+      etablissementNom: _etabQorderState.etabNom,
+      userId: window.currentUserUID || 'anonyme',
+      userNom: nom, userTel: tel,
+      nbPersonnes: parseInt(nb) || 2,
+      typePlace: typeLabel,
+      statut: 'en_attente',
+      message: msg,
+      date: date,
+      token: token,
+      channel: 'whatsapp_direct',
+      timestamp: Date.now(),
+      lu: false
+    }).then(function() {
+      try {
+        pushNotif({ targetRole:'admin', key:'resa_wa_'+token, icon:'⭐',
+          title:'Réservation WA — ' + _etabQorderState.etabNom,
+          msg: nom + ' · ' + nb + ' pers · ' + tel,
+          channel:'push', fromAdmin:false });
+      } catch(e2) {}
+    }).catch(function(){});
+  }
+
+  // Ouvrir WhatsApp
+  window.open(waUrl, '_blank');
+
+  // Afficher la confirmation
+  var bodyEl = document.getElementById('etabQorderBody');
+  var sentEl = document.getElementById('etabQorderSent');
+  var tokEl  = document.getElementById('etabQorderToken');
+  if (bodyEl) bodyEl.style.display = 'none';
+  if (sentEl) sentEl.classList.add('show');
+  if (tokEl)  tokEl.textContent = '🔖 Réf : ' + token;
+
+  showToast('✅ Demande envoyée à ' + _etabQorderState.etabNom + ' !');
+}
+
+// ── Gestion de la réponse accept/refus depuis le dashboard ──────
+// Si l'URL contient action=accept_resa ou action=refuse_resa,
+// on affiche le résultat au propriétaire de l'établissement
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var action = params.get('action');
+  var token  = params.get('token');
+  var client = params.get('client');
+  var etabId = params.get('etab_id');
+
+  if (!action || (action !== 'accept_resa' && action !== 'refuse_resa')) return;
+
+  window.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+      var isAccept = action === 'accept_resa';
+      var icon  = isAccept ? '✅' : '❌';
+      var title = isAccept ? 'Réservation ACCEPTÉE' : 'Réservation REFUSÉE';
+      var color = isAccept ? 'var(--green)' : 'var(--red)';
+      var msg   = isAccept
+        ? 'La réservation de ' + decodeURIComponent(client||'ce client') + ' a été confirmée.\nUn WhatsApp de confirmation lui sera envoyé.'
+        : 'La réservation de ' + decodeURIComponent(client||'ce client') + ' a été refusée.\nVous pouvez lui proposer une autre date.';
+
+      // Mettre à jour le statut dans Firebase
+      if (window.db && window.fbCollection && window.fbGetDocs && window.fbWhere && window.fbQuery) {
+        var q = window.fbQuery(
+          window.fbCollection(window.db, 'reservations'),
+          window.fbWhere('token', '==', token)
+        );
+        window.fbGetDocs(q).then(function(snap) {
+          snap.forEach(function(d) {
+            window.fbUpdateDoc(window.fbDoc(window.db, 'reservations', d.id), {
+              statut: isAccept ? 'confirmée' : 'refusée',
+              reponduAt: Date.now(),
+              lu: true
+            }).catch(function(){});
+          });
+        }).catch(function(){});
+      }
+
+      // Notification visuelle (toast + alert stylé)
+      showToast(icon + ' ' + title);
+      setTimeout(function() {
+        var overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:10090;display:flex;align-items:center;justify-content:center;padding:1rem;';
+        overlay.innerHTML = '<div style="background:var(--surface);border:2px solid '+color+';border-radius:22px;padding:2rem 1.5rem;width:min(380px,100%);text-align:center;">'
+          + '<div style="font-size:3rem;margin-bottom:0.8rem;">'+icon+'</div>'
+          + '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;color:'+color+';margin-bottom:0.5rem;">'+title+'</div>'
+          + '<div style="font-size:0.82rem;color:var(--muted);line-height:1.6;white-space:pre-line;">'+msg+'</div>'
+          + '<div style="margin-top:0.8rem;font-size:0.65rem;color:rgba(255,255,255,0.25);">Réf : '+token+'</div>'
+          + '<button onclick="this.closest(\'div[style]\').remove();window.history.replaceState({},\'\',window.location.pathname);" style="margin-top:1.2rem;padding:0.65rem 2rem;border-radius:30px;border:1px solid '+color+';background:transparent;color:'+color+';font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;">Fermer</button>'
+          + '</div>';
+        document.body.appendChild(overlay);
+        overlay.addEventListener('click', function(e) {
+          if (e.target === overlay) {
+            overlay.remove();
+            window.history.replaceState({}, '', window.location.pathname);
+          }
+        });
+      }, 600);
+    }, 1200);
+  });
+})();
+
+window.openEtabQorder   = openEtabQorder;
+window.closeEtabQorder  = closeEtabQorder;
+window.selectEtabQorderType = selectEtabQorderType;
+window.sendEtabQorderWhatsApp = sendEtabQorderWhatsApp;
+
+console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) chargé");
 </script>
 </html>
