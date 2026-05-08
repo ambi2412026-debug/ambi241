@@ -25360,22 +25360,56 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
   function _get(id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; }
   function _chk(id) { var e = document.getElementById(id); return e ? e.checked : false; }
 
-  /* Charger fichier local */
+  /* Charger fichier local → upload Firebase Storage */
   window.wsamLoadFile = function(input) {
     var file = input.files[0];
     if (!file) return;
-    if (_blob) URL.revokeObjectURL(_blob);
-    _blob = URL.createObjectURL(file);
-    var tmp = new Audio(_blob);
-    tmp.addEventListener('loadedmetadata', function() {
-      var ok = document.getElementById('wsamAudioOk');
-      var okT = document.getElementById('wsamAudioOkTxt');
-      if (ok) ok.classList.add('show');
-      if (okT) okT.textContent = file.name + ' · ' + _fmt(tmp.duration);
-      document.getElementById('wsamAudioUrl').value = _blob;
+
+    /* Vérifier que Firebase Storage est disponible */
+    if (!window.fbStorage || !window.fbRef || !window.fbUploadBytes || !window.fbGetDownloadURL) {
+      if (typeof showToast === 'function') showToast('⚠️ Firebase Storage non disponible — réessayez dans 2s');
+      return;
+    }
+
+    /* Indicateur de progression */
+    var ok  = document.getElementById('wsamAudioOk');
+    var okT = document.getElementById('wsamAudioOkTxt');
+    if (ok)  ok.classList.add('show');
+    if (okT) okT.textContent = '⏳ Upload en cours…';
+    if (typeof showToast === 'function') showToast('⏳ Upload de ' + file.name + '…');
+
+    /* Chemin unique dans Firebase Storage */
+    var ext      = file.name.split('.').pop() || 'mp3';
+    var safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    var path     = 'week_songs/' + Date.now() + '_' + safeName;
+    var storRef  = window.fbRef(window.fbStorage, path);
+
+    window.fbUploadBytes(storRef, file).then(function() {
+      return window.fbGetDownloadURL(storRef);
+    }).then(function(url) {
+      /* URL permanente → remplir le champ */
+      document.getElementById('wsamAudioUrl').value = url;
+
+      /* Afficher durée via Audio temporaire */
+      if (_blob) URL.revokeObjectURL(_blob);
+      _blob = URL.createObjectURL(file);
+      var tmp = new Audio(_blob);
+      tmp.addEventListener('loadedmetadata', function() {
+        if (okT) okT.textContent = '✅ ' + file.name + ' · ' + _fmt(tmp.duration);
+        URL.revokeObjectURL(_blob);
+        _blob = null;
+      });
+      tmp.load();
+
+      if (ok)  ok.classList.add('show');
+      if (okT && !tmp.duration) okT.textContent = '✅ ' + file.name + ' uploadé';
+      if (typeof showToast === 'function') showToast('✅ ' + file.name + ' uploadé sur Firebase !');
+
+    }).catch(function(err) {
+      console.error('Firebase Storage upload error:', err);
+      if (okT) okT.textContent = '❌ Échec upload';
+      if (typeof showToast === 'function') showToast('❌ Échec upload : ' + (err.message || err));
     });
-    tmp.load();
-    if (typeof showToast === 'function') showToast('🎵 ' + file.name + ' chargé');
   };
 
   /* Preview pochette */
@@ -25386,10 +25420,11 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
     var title    = _get('wsamTitle');
     var audioUrl = _get('wsamAudioUrl');
     if (!title)    { if (typeof showToast==='function') showToast('⚠️ Saisissez un titre'); return; }
-    if (!audioUrl) { if (typeof showToast==='function') showToast('⚠️ Chargez un fichier audio'); return; }
-    // Avertir si l'URL est un blob (fichier local non persistant entre sessions)
+    if (!audioUrl) { if (typeof showToast==='function') showToast('⚠️ Chargez un fichier audio ou saisissez une URL'); return; }
+    /* Bloquer si l'URL est encore un blob (upload Firebase pas encore terminé) */
     if (audioUrl.startsWith('blob:')) {
-      if (typeof showToast==='function') showToast('⚠️ Fichier local : la chanson disparaîtra à la prochaine session. Utilisez une URL externe (ex: Firebase Storage).');
+      if (typeof showToast==='function') showToast('⏳ Upload encore en cours, patientez…');
+      return;
     }
     var cfg = {
       title:    title,
