@@ -18,7 +18,7 @@
 :root{--bg:#1a0a28;--surface:#230d35;--surface2:#2c1040;--border:rgba(255,45,155,0.15);--text:#fff0f8;--muted:#b088c0;--pink:#ff2d9b;--cyan:#00e5ff;--amber:#ffd700;--green:#00ffaa;--red:#ff4466;--purple:#cc44ff;--taxi-gold:#ffd700;--taxi-dark:#1a0a28;}
 html{overflow-x:hidden;max-width:100vw;}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;padding-bottom:80px;padding-top:96px;max-width:100vw;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;padding-bottom:80px;padding-top:116px;max-width:100vw;}
 body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(255,45,155,0.12) 0%,transparent 50%),radial-gradient(ellipse at 90% 30%,rgba(0,229,255,0.10) 0%,transparent 50%),radial-gradient(ellipse at 50% 90%,rgba(204,68,255,0.08) 0%,transparent 50%);pointer-events:none;z-index:0;will-change:transform;}
 /* Optimisation GPU pour les éléments animés */
 .live-dot,.heb-dot,.dispo-updated-dot,.cef-live,.hero-eyebrow-dot{will-change:opacity,transform;}
@@ -458,8 +458,8 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 /* HEADER */
 header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0.96);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,45,155,0.2);padding:0;width:100%;max-width:100vw;box-sizing:border-box;overflow:visible;display:flex;flex-direction:column;}
 .header-top{display:flex;align-items:center;justify-content:space-between;padding:0 0.5rem;height:56px;width:100%;}
-.header-guide-bar{display:flex;align-items:center;justify-content:center;padding:0.28rem 0.5rem;border-top:1px solid rgba(0,229,255,0.12);background:rgba(0,229,255,0.04);}
-.header-guide-bar .guide-btn{width:100%;max-width:480px;justify-content:center;font-size:0.82rem;padding:0.3rem 1rem;border-radius:10px;}
+.header-guide-bar{display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.28rem 0.5rem;border-top:1px solid rgba(0,229,255,0.12);background:rgba(0,229,255,0.04);flex-wrap:wrap;}
+.header-guide-bar .guide-btn{flex:1;min-width:0;max-width:240px;justify-content:center;font-size:0.78rem;padding:0.3rem 0.8rem;border-radius:10px;text-align:center;}
 .header-guide-bar .guide-label{display:inline !important;}
 .logo-wrap{display:flex;align-items:center;gap:0.35rem;cursor:pointer;text-decoration:none;flex-shrink:0;min-width:0;}
 .logo-img{height:34px;width:34px;min-width:34px;border-radius:50%;object-fit:cover;box-shadow:0 0 10px rgba(255,45,155,0.6),0 0 18px rgba(0,229,255,0.3);flex-shrink:0;}
@@ -25161,26 +25161,52 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
   /* ── Charger la config au démarrage ── */
   function init() {
     try { _cfg = JSON.parse(localStorage.getItem(WS_KEY) || 'null'); } catch(e) {}
+    // Ignorer les blob URLs (éphémères, ne survivent pas entre sessions)
+    if (_cfg && _cfg.audioUrl && _cfg.audioUrl.startsWith('blob:')) {
+      _cfg.audioUrl = '';
+      _cfg.active = false;
+    }
     _renderHeaderBtn();
     if (_cfg && _cfg.active && _cfg.audioUrl) {
       _buildAudio(_cfg.audioUrl);
     }
     // Sync Firebase si disponible
-    setTimeout(_syncFirebase, 2000);
+    setTimeout(_syncFirebase, 1500);
   }
 
   function _syncFirebase() {
-    if (!window.db || !window.fbDoc || !window.fbGetDoc) return;
+    if (!window.db || !window.fbDoc) return;
     try {
-      window.fbGetDoc(window.fbDoc(window.db, 'config', 'week_song')).then(function(snap) {
-        if (!snap.exists || !snap.exists()) return;
-        var d = snap.data();
-        if (!d) return;
-        _cfg = d;
-        try { localStorage.setItem(WS_KEY, JSON.stringify(d)); } catch(e) {}
-        _renderHeaderBtn();
-        if (d.active && d.audioUrl) _buildAudio(d.audioUrl);
-      }).catch(function() {});
+      // Utiliser onSnapshot si disponible pour une sync en temps réel
+      if (window.fbOnSnapshot) {
+        window.fbOnSnapshot(
+          window.fbDoc(window.db, 'config', 'week_song'),
+          function(snap) {
+            if (!snap.exists || !snap.exists()) return;
+            var d = snap.data();
+            if (!d) return;
+            // Ne pas utiliser les blob URLs (éphémères) venant de Firebase
+            if (d.audioUrl && d.audioUrl.startsWith('blob:')) return;
+            _cfg = d;
+            try { localStorage.setItem(WS_KEY, JSON.stringify(d)); } catch(e) {}
+            _renderHeaderBtn();
+            if (d.active && d.audioUrl && !d.audioUrl.startsWith('blob:')) {
+              _buildAudio(d.audioUrl);
+            }
+          },
+          function() {}
+        );
+      } else if (window.fbGetDoc) {
+        window.fbGetDoc(window.fbDoc(window.db, 'config', 'week_song')).then(function(snap) {
+          if (!snap.exists || !snap.exists()) return;
+          var d = snap.data();
+          if (!d || (d.audioUrl && d.audioUrl.startsWith('blob:'))) return;
+          _cfg = d;
+          try { localStorage.setItem(WS_KEY, JSON.stringify(d)); } catch(e) {}
+          _renderHeaderBtn();
+          if (d.active && d.audioUrl) _buildAudio(d.audioUrl);
+        }).catch(function() {});
+      }
     } catch(e) {}
   }
 
@@ -25361,6 +25387,10 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
     var audioUrl = _get('wsamAudioUrl');
     if (!title)    { if (typeof showToast==='function') showToast('⚠️ Saisissez un titre'); return; }
     if (!audioUrl) { if (typeof showToast==='function') showToast('⚠️ Chargez un fichier audio'); return; }
+    // Avertir si l'URL est un blob (fichier local non persistant entre sessions)
+    if (audioUrl.startsWith('blob:')) {
+      if (typeof showToast==='function') showToast('⚠️ Fichier local : la chanson disparaîtra à la prochaine session. Utilisez une URL externe (ex: Firebase Storage).');
+    }
     var cfg = {
       title:    title,
       artist:   _get('wsamArtist'),
