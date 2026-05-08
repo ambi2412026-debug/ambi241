@@ -17774,6 +17774,8 @@ window.doAssignEtab = doAssignEtab;
   function populateEtabSelect(){
     var sel = document.getElementById("pubEtabSelect");
     if(!sel || !window.etablissements) return;
+    // Éviter la duplication des options à chaque ouverture
+    if(sel.options.length > 1) return;
     window.etablissements.forEach(function(e){
       var opt = document.createElement("option");
       opt.value = e.id || e.nom;
@@ -18297,14 +18299,9 @@ window.doAssignEtab = doAssignEtab;
       var targetDur = Math.min(realDur, 10);
 
       if(realDur <= 10){
-        // Vidéo OK, utiliser directement
-        URL.revokeObjectURL(objUrl);
-        var reader = new FileReader();
-        reader.onload = function(e){
-          _pubVideo = { file: file, dataUrl: e.target.result, duration: Math.round(realDur) };
-          renderPubVideoPreview();
-        };
-        reader.readAsDataURL(file);
+        // Vidéo OK, utiliser directement — on garde objUrl pour preview (évite readAsDataURL qui charge tout en RAM)
+        _pubVideo = { file: file, previewUrl: objUrl, dataUrl: null, duration: Math.round(realDur), _ownObjUrl: true };
+        renderPubVideoPreview();
         return;
       }
 
@@ -18338,14 +18335,12 @@ window.doAssignEtab = doAssignEtab;
           URL.revokeObjectURL(objUrl);
           var blob = new Blob(chunks, {type: mimeType||"video/webm"});
           var trimmedFile = new File([blob], "video_trim.webm", {type: blob.type});
-          var reader = new FileReader();
-          reader.onload = function(e){
-            _pubVideo = { file: trimmedFile, dataUrl: e.target.result, duration: 10, trimmed: true };
-            renderPubVideoPreview();
-            showVideoInfo("✅ Vidéo découpée à 10s avec succès !");
-            setTimeout(function(){ hideVideoInfo(); }, 2500);
-          };
-          reader.readAsDataURL(blob);
+          // Utiliser createObjectURL au lieu de readAsDataURL pour éviter de charger tout en RAM
+          var previewUrl = URL.createObjectURL(blob);
+          _pubVideo = { file: trimmedFile, previewUrl: previewUrl, dataUrl: null, duration: 10, trimmed: true, _ownObjUrl: true };
+          renderPubVideoPreview();
+          showVideoInfo("✅ Vidéo découpée à 10s avec succès !");
+          setTimeout(function(){ hideVideoInfo(); }, 2500);
         };
 
         // Dessiner chaque frame sur le canvas
@@ -18417,7 +18412,8 @@ window.doAssignEtab = doAssignEtab;
       return;
     }
     if(errEl) errEl.style.display = "none";
-    if(vid){ vid.src = _pubVideo.dataUrl; }
+    // Utiliser previewUrl (objectURL) en priorité, dataUrl en fallback
+    if(vid){ vid.src = _pubVideo.previewUrl || _pubVideo.dataUrl || ""; }
     if(dur){
       dur.textContent = (_pubVideo.trimmed ? "✂️ " : "") + _pubVideo.duration + "s";
       dur.className = "pub-video-duration";
@@ -18428,6 +18424,10 @@ window.doAssignEtab = doAssignEtab;
   }
 
   window.removePubVideo = function(){
+    // Libérer l'objectURL si on l'a créé nous-mêmes
+    if(_pubVideo && _pubVideo._ownObjUrl && _pubVideo.previewUrl){
+      URL.revokeObjectURL(_pubVideo.previewUrl);
+    }
     _pubVideo = null;
     renderPubVideoPreview();
     var addBtn = document.getElementById("pubVideoAddBtn");
@@ -18436,9 +18436,15 @@ window.doAssignEtab = doAssignEtab;
 
   async function uploadPubVideo(pubId){
     if(!_pubVideo) return null;
-    var path = "publications/"+pubId+"/video_"+Date.now()+".mp4";
+    var ext = (_pubVideo.file.name || "video.mp4").split(".").pop() || "mp4";
+    var path = "publications/"+pubId+"/video_"+Date.now()+"."+ext;
     var storRef = window.fbRef(window.fbStorage, path);
     var snap = await window.fbUploadBytes(storRef, _pubVideo.file);
+    // Libérer l'objectURL après upload réussi
+    if(_pubVideo && _pubVideo._ownObjUrl && _pubVideo.previewUrl){
+      URL.revokeObjectURL(_pubVideo.previewUrl);
+      _pubVideo._ownObjUrl = false;
+    }
     return await window.fbGetDownloadURL(snap.ref);
   }
 
@@ -18536,11 +18542,17 @@ window.doAssignEtab = doAssignEtab;
     document.getElementById("pubTitleInput").value = "";
     document.getElementById("pubTextInput").value = "";
     _pubPhotos = [];
+    // Libérer l'objectURL vidéo si créé
+    if(_pubVideo && _pubVideo._ownObjUrl && _pubVideo.previewUrl){
+      URL.revokeObjectURL(_pubVideo.previewUrl);
+    }
     _pubVideo  = null;
     renderPubPhotoGrid();
     renderPubVideoPreview();
     var msg = document.getElementById("pubMsg");
     if(msg){ msg.style.display="none"; }
+    // S'assurer que la barre de progression est cachée
+    hideUploadProgress(0);
   };
 
   window.submitPub = async function(){
@@ -18554,9 +18566,19 @@ window.doAssignEtab = doAssignEtab;
     var btn = document.getElementById("pubSubmitBtn");
     var msg = document.getElementById("pubMsg");
     btn.disabled = true;
+    if(msg){ msg.style.display="none"; }
     var hasMedia = _pubPhotos.length || _pubVideo;
     btn.textContent = hasMedia ? "⬆ Upload médias..." : "⏳ Envoi...";
     if(hasMedia) showUploadProgress(5, "Envoi...");
+    // Timeout de sécurité : 60s max pour éviter un freeze infini
+    var _aborted = false;
+    var _safetyTimer = setTimeout(function(){
+      _aborted = true;
+      btn.disabled = false;
+      btn.textContent = "🚀 Publier";
+      hideUploadProgress(0);
+      if(msg){ msg.textContent = "⏱ Délai dépassé — vérifiez votre connexion et réessayez."; msg.style.display="block"; msg.style.color="var(--red)"; }
+    }, 60000);
     try {
       var data = {
         pseudo: window.currentUserPseudo || window.currentUserEmail || "Anonyme",
@@ -18571,28 +18593,34 @@ window.doAssignEtab = doAssignEtab;
         createdAt: window.fbServerTimestamp()
       };
       var docRef = await window.fbAddDoc(window.fbCollection(window.db, "publications"), data);
+      if(_aborted) return;
       var updates = {};
       if(_pubPhotos.length){
         btn.textContent = "⬆ Photos "+1+"/"+_pubPhotos.length+"...";
         var photoUrls = await uploadPubPhotos(docRef.id);
+        if(_aborted) return;
         if(photoUrls.length){ updates.photos = photoUrls; }
       }
       if(_pubVideo){
         btn.textContent = "⬆ Vidéo...";
         showUploadProgress(50, "Vidéo...");
         var videoUrl = await uploadPubVideo(docRef.id);
+        if(_aborted) return;
         if(videoUrl){ updates.video = videoUrl; updates.videoDuration = _pubVideo.duration; }
       }
       if(Object.keys(updates).length){
         await window.fbUpdateDoc(window.fbDoc(window.db, "publications", docRef.id), updates);
       }
+      clearTimeout(_safetyTimer);
       incTodayPubCount(window.currentUserUID);
       btn.disabled = false;
       btn.textContent = "🚀 Publier";
       if(hasMedia) hideUploadProgress(800);
+      else hideUploadProgress(0);
       window.closePubCompose();
       showToast("Publication envoyée ✓");
     } catch(e) {
+      clearTimeout(_safetyTimer);
       btn.disabled = false;
       btn.textContent = "🚀 Publier";
       hideUploadProgress(0);
