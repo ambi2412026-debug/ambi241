@@ -4080,7 +4080,7 @@ if (document.readyState === 'loading') {
     <button class="logout-btn" id="logoutBtn" onclick="logoutUser()" title="Se déconnecter">&#128682; Quitter</button>
     <!-- 🎵 CHANSON DE LA SEMAINE — bouton toujours visible -->
     <button id="weekSongHeaderBtn" onclick="weekSongUserActivate()" title="Chanson de la semaine">
-      <span class="wshb-dot"></span>🎵 Semaine
+      <span class="wshb-dot"></span>🎵
     </button>
     <!-- Cloche notifications -->
     <div class="notif-bell-wrap" id="notifBellWrap" style="display:none;">
@@ -4097,6 +4097,7 @@ if (document.readyState === 'loading') {
   </div>
   <div class="header-guide-bar">
     <button class="guide-btn" onclick="document.getElementById('guideOverlay').classList.add('show')" title="Guide d'utilisation">&#9432; <span class="guide-label">Guide AMBI241</span></button>
+    <button class="guide-btn" onclick="weekSongUserActivate()" title="Chanson de la semaine" style="background:rgba(255,45,155,0.1);border-color:rgba(255,45,155,0.35);color:var(--pink);">🎵 <span class="guide-label">Chanson de la semaine</span></button>
   </div>
 </header>
 
@@ -4533,6 +4534,7 @@ if (document.readyState === 'loading') {
         <button id="tabStatistiques" onclick="switchAdminTab('statistiques')" style="flex:1;min-width:80px;padding:0.45rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--amber);font-family:'DM Sans',sans-serif;transition:all 0.2s;">&#128293; Stats</button>
         <button id="tabContacts" onclick="switchAdminTab('contacts')" style="flex:1;min-width:80px;padding:0.45rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--amber);font-family:'DM Sans',sans-serif;transition:all 0.2s;">&#128172; Contacts</button>
         <button id="tabTaxiPro" onclick="switchAdminTab('taxipro')" style="flex:1;min-width:100px;padding:0.45rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--amber);font-family:'DM Sans',sans-serif;transition:all 0.2s;">🚕 Taxi Pro</button>
+        <button id="tabWeekSongAdmin" onclick="switchAdminTab('weeksong')" style="flex:1;min-width:80px;padding:0.45rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:1px solid rgba(255,45,155,0.35);background:transparent;color:var(--pink);font-family:'DM Sans',sans-serif;transition:all 0.2s;">🎵 Son</button>
       </div>
       <!-- BOUTON AJOUT ADMIN GRATUIT -->
       <button onclick="openAdminAddModal()" style="width:100%;padding:0.75rem;border-radius:12px;border:2px dashed rgba(255,215,0,0.5);background:rgba(255,215,0,0.08);color:var(--amber);font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;margin-bottom:1rem;transition:all 0.2s;">&#43; Ajouter un établissement (gratuit)</button>
@@ -4554,7 +4556,14 @@ if (document.readyState === 'loading') {
       <div id="panelContacts" style="display:none">
         <div id="contactsAdminPanel"><div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.82rem;">Chargement des contacts...</div></div>
       </div>
-      <!-- PANEL TRANSACTIONS TAXI PRO -->
+      <!-- PANEL SON (CHANSON DE LA SEMAINE) -->
+      <div id="panelWeekSong" style="display:none">
+        <div style="padding:1rem 0;">
+          <h3 style="color:var(--pink);font-family:'Syne',sans-serif;font-size:1rem;margin-bottom:1rem;">🎵 Chanson de la Semaine</h3>
+          <button onclick="weekSongOpenAdmin()" style="width:100%;padding:0.9rem;border-radius:12px;border:1.5px solid rgba(255,45,155,0.45);background:rgba(255,45,155,0.1);color:var(--pink);font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;transition:all 0.2s;">🎵 Configurer / Changer la chanson de la semaine</button>
+        </div>
+      </div>
+            <!-- PANEL TRANSACTIONS TAXI PRO -->
       <div id="panelTaxiPro" style="display:none">
         <div style="margin-bottom:1.2rem;">
           <h3 style="color:var(--amber);font-family:'Syne',sans-serif;font-size:1rem;margin-bottom:0.8rem;">📊 Gestion des Transactions Taxi Pro</h3>
@@ -7847,6 +7856,12 @@ function switchAdminTab(tab){
     if(btn){btn.style.background=active?"var(--amber)":"transparent";btn.style.color=active?"#000":"var(--amber)";}
     if(panel)panel.style.display=active?"block":"none";
   });
+  /* onglet Son (weeksong) — gestion séparée couleur pink */
+  var btnWS=document.getElementById("tabWeekSongAdmin");
+  var panelWS=document.getElementById("panelWeekSong");
+  var wsActive=tab==="weeksong";
+  if(btnWS){btnWS.style.background=wsActive?"rgba(255,45,155,0.2)":"transparent";btnWS.style.color="var(--pink)";btnWS.style.borderColor=wsActive?"var(--pink)":"rgba(255,45,155,0.35)";}
+  if(panelWS)panelWS.style.display=wsActive?"block":"none";
   if(tab==="contacts") renderContactsAdmin();
   if(tab==="taxipro") renderTaxiProTransactions();
 }
@@ -25173,8 +25188,8 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
   function _renderHeaderBtn() {
     var btn = document.getElementById('weekSongHeaderBtn');
     if (!btn) return;
-    var title = (_cfg && _cfg.title) ? _cfg.title.substring(0, 12) + (_cfg.title.length > 12 ? '…' : '') : 'Semaine';
-    btn.innerHTML = '<span class="wshb-dot"></span>🎵 ' + title;
+    // Icône seulement dans le header (pas de texte pour éviter le débordement)
+    btn.innerHTML = '<span class="wshb-dot"></span>🎵';
     // Toujours visible — même sans chanson (pour que l'admin puisse y accéder)
     btn.style.display = 'flex';
   }
@@ -25411,19 +25426,7 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
     btn.addEventListener('pointercancel', function() { clearTimeout(holdTimer); });
   });
 
-  /* Ajouter bouton dans le dashboard admin */
-  document.addEventListener('DOMContentLoaded', function() {
-    var adminTabs = document.getElementById('adminTabs');
-    if (!adminTabs) return;
-    var bar = adminTabs.querySelector('div[style*="flex"]');
-    if (!bar) return;
-    var b = document.createElement('button');
-    b.id = 'tabWeekSong';
-    b.style.cssText = 'flex:1;min-width:80px;padding:0.45rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:1px solid rgba(255,45,155,0.35);background:rgba(255,45,155,0.1);color:var(--pink);font-family:"DM Sans",sans-serif;transition:all 0.2s;';
-    b.textContent = '🎵 Semaine';
-    b.onclick = function() { wsamLoad(); document.getElementById('weekSongAdminModal').classList.add('show'); };
-    bar.appendChild(b);
-  });
+  /* Bouton 🎵 Son déjà intégré en HTML dans adminTabs — pas d'injection JS nécessaire */
 
   /* Init */
   if (document.readyState === 'loading') {
