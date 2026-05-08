@@ -25243,7 +25243,8 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
   function _buildAudio(url) {
     if (_audio) { _audio.pause(); _audio.src = ''; _audio = null; }
     var a = new Audio();
-    a.crossOrigin = 'anonymous';   /* ← CORS Firebase Storage */
+    /* Pas de crossOrigin ici : Firebase Storage ne renvoie pas les headers CORS
+       nécessaires pour la lecture anonyme — cela provoque MEDIA_ERR_SRC_NOT_SUPPORTED (code 4). */
     a.preload = 'auto';
     a.volume  = 0.8;
     a.loop    = !_cfg || _cfg.loop !== false;
@@ -25257,7 +25258,7 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
       if (typeof showToast === 'function') showToast('⚠️ Impossible de lire l\'audio (code ' + code + ')');
     });
     _audio = a;
-    a.src = url;   /* src APRÈS crossOrigin pour éviter les erreurs CORS */
+    a.src = url;
     a.load();
     _fillPlayer();
     var vol = document.getElementById('wspVol');
