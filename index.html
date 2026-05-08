@@ -15838,6 +15838,25 @@ function renderAdmSettings(){
   // ── Photos par défaut (Admin) ──
   html += renderAdminDefaultPhotosSection();
 
+  /* ── 🎵 Chanson de la semaine ── */
+  html += "<div style='background:linear-gradient(135deg,rgba(255,45,155,0.08),rgba(204,68,255,0.05));border:1.5px solid rgba(255,45,155,0.3);border-radius:14px;padding:1rem;margin-bottom:1rem;'>";
+  html += "<div style='display:flex;align-items:center;gap:0.55rem;margin-bottom:0.6rem;'>";
+  html += "<span style='font-size:1.1rem;'>🎵</span>";
+  html += "<span style='font-family:Syne,sans-serif;font-weight:800;color:var(--pink);font-size:0.88rem;'>Chanson de la semaine</span>";
+  html += "</div>";
+  (function(){
+    var cfg = window._weekSongGetCfg ? window._weekSongGetCfg() : null;
+    if (cfg && cfg.active && cfg.title) {
+      html += "<div style='font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem;line-height:1.5;'>En cours : <strong style='color:var(--text);'>" + escHtml(cfg.title) + "</strong>";
+      if (cfg.artist) html += " · " + escHtml(cfg.artist);
+      html += "</div>";
+    } else {
+      html += "<div style='font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem;'>Aucune chanson configurée pour cette semaine.</div>";
+    }
+  })();
+  html += "<button onclick=\"weekSongOpenAdmin()\" style='width:100%;padding:0.65rem;border-radius:10px;border:1.5px solid rgba(255,45,155,0.45);background:rgba(255,45,155,0.1);color:var(--pink);font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;transition:all 0.2s;'>🎵 Configurer / Changer la chanson</button>";
+  html += "</div>";
+
   document.getElementById("adminSettingsContent").innerHTML=html;
   // Init des aperçus après injection du HTML
   setTimeout(initAdminDefaultPhotosPreviews, 80);
@@ -25223,18 +25242,24 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
   /* ── Construire l'élément audio ── */
   function _buildAudio(url) {
     if (_audio) { _audio.pause(); _audio.src = ''; _audio = null; }
-    var a = new Audio(url);
-    a.preload = 'metadata';
+    var a = new Audio();
+    a.crossOrigin = 'anonymous';   /* ← CORS Firebase Storage */
+    a.preload = 'auto';
     a.volume  = 0.8;
     a.loop    = !_cfg || _cfg.loop !== false;
     a.addEventListener('timeupdate', _updateProgress);
     a.addEventListener('loadedmetadata', _updateProgress);
     a.addEventListener('play',  function() { _setPlaying(true); });
     a.addEventListener('pause', function() { _setPlaying(false); });
-    a.addEventListener('error', function() { if(typeof showToast==='function') showToast('⚠️ Impossible de lire l\'audio'); });
+    a.addEventListener('error', function(e) {
+      var code = a.error ? a.error.code : '?';
+      console.error('Audio error code:', code, 'src:', url);
+      if (typeof showToast === 'function') showToast('⚠️ Impossible de lire l\'audio (code ' + code + ')');
+    });
     _audio = a;
+    a.src = url;   /* src APRÈS crossOrigin pour éviter les erreurs CORS */
+    a.load();
     _fillPlayer();
-    // Volume slider
     var vol = document.getElementById('wspVol');
     if (vol) { vol.value = (_cfg && _cfg.volume) || 80; a.volume = vol.value / 100; }
   }
@@ -25355,6 +25380,7 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
     else if (ok) ok.classList.remove('show');
   }
   window.wsamLoad = wsamLoad;
+  window._weekSongGetCfg = function() { return _cfg; };
 
   function _val(id, v) { var e = document.getElementById(id); if (e) e.value = v; }
   function _get(id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; }
@@ -25378,8 +25404,10 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
     if (okT) okT.textContent = '⏳ Upload en cours…';
     if (typeof showToast === 'function') showToast('⏳ Upload de ' + file.name + '…');
 
+    /* Vider le champ URL pour éviter de publier un ancien blob */
+    document.getElementById('wsamAudioUrl').value = '';
+
     /* Chemin unique dans Firebase Storage */
-    var ext      = file.name.split('.').pop() || 'mp3';
     var safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     var path     = 'week_songs/' + Date.now() + '_' + safeName;
     var storRef  = window.fbRef(window.fbStorage, path);
@@ -25390,7 +25418,7 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
       /* URL permanente → remplir le champ */
       document.getElementById('wsamAudioUrl').value = url;
 
-      /* Afficher durée via Audio temporaire */
+      /* Afficher la durée via blob temporaire (côté client uniquement) */
       if (_blob) URL.revokeObjectURL(_blob);
       _blob = URL.createObjectURL(file);
       var tmp = new Audio(_blob);
@@ -25402,7 +25430,7 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
       tmp.load();
 
       if (ok)  ok.classList.add('show');
-      if (okT && !tmp.duration) okT.textContent = '✅ ' + file.name + ' uploadé';
+      if (!tmp.duration && okT) okT.textContent = '✅ ' + file.name + ' uploadé';
       if (typeof showToast === 'function') showToast('✅ ' + file.name + ' uploadé sur Firebase !');
 
     }).catch(function(err) {
@@ -25421,7 +25449,7 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
     var audioUrl = _get('wsamAudioUrl');
     if (!title)    { if (typeof showToast==='function') showToast('⚠️ Saisissez un titre'); return; }
     if (!audioUrl) { if (typeof showToast==='function') showToast('⚠️ Chargez un fichier audio ou saisissez une URL'); return; }
-    /* Bloquer si l'URL est encore un blob (upload Firebase pas encore terminé) */
+    /* Bloquer si l'URL est encore un blob (upload pas terminé) */
     if (audioUrl.startsWith('blob:')) {
       if (typeof showToast==='function') showToast('⏳ Upload encore en cours, patientez…');
       return;
