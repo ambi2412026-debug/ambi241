@@ -4518,7 +4518,7 @@ if (document.readyState === 'loading') {
 <!-- ══ FIREBASE SDK (module isolé) ══ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query, where, getDoc, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query, where, getDoc, addDoc, onSnapshot, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-storage.js";
 
@@ -4789,6 +4789,7 @@ window.fbServerTimestamp = serverTimestamp;
 window.fbQuery      = query;
 window.fbOrderBy    = orderBy;
 window.fbWhere      = where;
+window.fbLimit      = limit;
 window.fbCreateUser = createUserWithEmailAndPassword;
 window.fbSignIn     = signInWithEmailAndPassword;
 window.fbSignOut    = signOut;
@@ -12267,15 +12268,120 @@ setInterval(function(){
 var galerieEtabId=null;
 var MAX_GALERIE=10;
 
-function loadGalerie(eid){
-  var stored=lsGetJSON("ambi241_galerie", {});
-  return stored[eid]||[];
+// ── Cache mémoire galerie (évite les lectures Firebase répétées) ──
+var _galerieCache = {}; // { eid: [ {url, addedAt, docId, addedBy} ] }
+
+// Charger la galerie depuis Firebase Firestore (permanent) avec fallback localStorage
+function loadGalerieFirebase(eid, callback){
+  var eidStr = String(eid);
+  // Retourner le cache si disponible
+  if(_galerieCache[eidStr] !== undefined){ if(callback) callback(_galerieCache[eidStr]); return; }
+  if(!window.db || !window.fbGetDocs || !window.fbCollection || !window.fbQuery || !window.fbOrderBy){
+    // Fallback localStorage si Firebase indisponible
+    var stored = lsGetJSON("ambi241_galerie", {});
+    _galerieCache[eidStr] = stored[eidStr] || [];
+    if(callback) callback(_galerieCache[eidStr]);
+    return;
+  }
+  try {
+    window.fbGetDocs(
+      window.fbQuery(
+        window.fbCollection(window.db, "etablissements", eidStr, "galerie"),
+        window.fbOrderBy("addedAt", "asc")
+      )
+    ).then(function(snap){
+      var photos = [];
+      snap.forEach(function(d){ photos.push(Object.assign({docId: d.id}, d.data())); });
+      _galerieCache[eidStr] = photos;
+      if(callback) callback(photos);
+    }).catch(function(){
+      // Fallback localStorage
+      var stored = lsGetJSON("ambi241_galerie", {});
+      _galerieCache[eidStr] = stored[eidStr] || [];
+      if(callback) callback(_galerieCache[eidStr]);
+    });
+  } catch(e) {
+    var stored = lsGetJSON("ambi241_galerie", {});
+    _galerieCache[eidStr] = stored[eidStr] || [];
+    if(callback) callback(_galerieCache[eidStr]);
+  }
 }
-function saveGalerie(eid,photos){
-  var stored=lsGetJSON("ambi241_galerie", {});
-  stored[eid]=photos;
-  try{lsSetJSON("ambi241_galerie", stored);}
-  catch(e){showToast("Stockage plein, supprimez des photos");}
+
+// Sauvegarder une photo dans Firebase Firestore (permanent)
+function saveGaleriePhotoFirebase(eid, file, callback){
+  var eidStr = String(eid);
+  var addedBy = currentUserEmail || window.currentUserUID || "inconnu";
+
+  function _persistRecord(url){
+    var record = { url: url, addedAt: Date.now(), addedBy: addedBy };
+    if(window.db && window.fbAddDoc && window.fbCollection){
+      window.fbAddDoc(window.fbCollection(window.db, "etablissements", eidStr, "galerie"), record)
+        .then(function(docRef){
+          record.docId = docRef.id;
+          if(!_galerieCache[eidStr]) _galerieCache[eidStr] = [];
+          _galerieCache[eidStr].push(record);
+          if(callback) callback(true);
+        }).catch(function(){
+          // Fallback localStorage si Firestore échoue
+          var stored = lsGetJSON("ambi241_galerie", {});
+          stored[eidStr] = (stored[eidStr]||[]);
+          stored[eidStr].push(record);
+          try{ lsSetJSON("ambi241_galerie", stored); }catch(e){}
+          if(!_galerieCache[eidStr]) _galerieCache[eidStr] = [];
+          _galerieCache[eidStr].push(record);
+          if(callback) callback(true);
+        });
+    } else {
+      // Fallback localStorage
+      var stored = lsGetJSON("ambi241_galerie", {});
+      stored[eidStr] = (stored[eidStr]||[]);
+      stored[eidStr].push(record);
+      try{ lsSetJSON("ambi241_galerie", stored); }catch(e){}
+      if(!_galerieCache[eidStr]) _galerieCache[eidStr] = [];
+      _galerieCache[eidStr].push(record);
+      if(callback) callback(true);
+    }
+  }
+
+  // Tenter Firebase Storage pour un vrai URL permanent, sinon base64
+  if(window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL){
+    var etab = etablissements.find(function(x){ return String(x.id)===eidStr; });
+    var docId = (etab && etab._docId) || ("etab_"+String(eid).padStart(3,"0"));
+    var path = "etablissements/"+docId+"/galerie/"+Date.now()+"_"+Math.random().toString(36).slice(2)+".jpg";
+    var storageRef = window.fbRef(window.fbStorage, path);
+    window.fbUploadBytes(storageRef, file).then(function(){
+      return window.fbGetDownloadURL(storageRef);
+    }).then(function(url){
+      _persistRecord(url);
+    }).catch(function(){
+      // Fallback base64
+      compressImage(file, function(dataUrl){ _persistRecord(dataUrl); });
+    });
+  } else {
+    compressImage(file, function(dataUrl){ _persistRecord(dataUrl); });
+  }
+}
+
+// Supprimer une photo depuis Firebase
+function deleteGaleriePhotoFirebase(eid, photo, index, callback){
+  var eidStr = String(eid);
+  function _removeFromCache(){
+    if(_galerieCache[eidStr]) _galerieCache[eidStr].splice(index,1);
+    // Aussi dans localStorage si présent
+    var stored = lsGetJSON("ambi241_galerie", {});
+    if(stored[eidStr]){
+      stored[eidStr].splice(index,1);
+      try{ lsSetJSON("ambi241_galerie", stored); }catch(e){}
+    }
+    if(callback) callback();
+  }
+  if(photo.docId && window.db && window.fbDoc && window.fbDeleteDoc){
+    window.fbDeleteDoc(window.fbDoc(window.db, "etablissements", eidStr, "galerie", photo.docId))
+      .then(function(){ _removeFromCache(); })
+      .catch(function(){ _removeFromCache(); });
+  } else {
+    _removeFromCache();
+  }
 }
 
 function openGalerie(eid){
@@ -12287,9 +12393,10 @@ function openGalerie(eid){
   var etab=etablissements.find(function(x){return x.id===eid;})||{};
   document.getElementById("galerieNom").textContent="\uD83D\uDCF8 "+etab.nom;
   document.getElementById("galerieSub").textContent="Galerie photos — "+etab.quartier;
-  // Réinitialiser l'input pour que onchange se déclenche même si même fichier
   var inp=document.getElementById("__fileGallery");
   if(inp)inp.value="";
+  // Invalider le cache pour forcer rechargement depuis Firebase
+  delete _galerieCache[String(eid)];
   renderGalerieGrid();
   document.getElementById("galerieOverlay").classList.add("show");
 }
@@ -12306,58 +12413,206 @@ function openUserModal(){
 
 function renderGalerieGrid(){
   var eid=galerieEtabId;
-  var photos=loadGalerie(eid);
   var etab=etablissements.find(function(x){return x.id===eid;})||{};
   var canEdit=isAdmin||canEditPhotos(etab);
   var grid=document.getElementById("galerieGrid");
   var addBar=document.getElementById("galerieAddBar");
   var countSpan=document.getElementById("galerieCount");
 
-  countSpan.textContent="("+photos.length+"/"+MAX_GALERIE+")";
+  // Afficher le spinner pendant le chargement Firebase
+  grid.innerHTML="<div style=\"grid-column:1/-1;text-align:center;padding:2rem;color:var(--muted);font-size:0.82rem;\">⏳ Chargement de la galerie...</div>";
+  addBar.style.display="none";
 
-  var html="";
-  photos.forEach(function(p,i){
-    html+="<div style=\"position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--surface2);\">";
-    html+="<img src=\""+p.url+"\" style=\"width:100%;height:100%;object-fit:cover;cursor:pointer;display:block;\" onclick=\"openLightbox('"+p.url+"')\">";
-    if(canEdit){
-      html+="<button onclick=\"deleteGaleriePhoto("+i+")\" style=\"position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.7);border:none;color:#fff;width:24px;height:24px;border-radius:50%;font-size:0.75rem;cursor:pointer;line-height:24px;text-align:center;padding:0;\">&#10005;</button>";
+  loadGalerieFirebase(eid, function(photos){
+    countSpan.textContent="("+photos.length+"/"+MAX_GALERIE+")";
+
+    // ── Section avatars membres ── (photo de profil visible & cliquable)
+    var memberAvatarsHtml = _buildMemberAvatarsSection(eid, canEdit);
+
+    var html="";
+    photos.forEach(function(p,i){
+      html+="<div style=\"position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--surface2);\">";
+      html+="<img src=\""+escHtml(p.url)+"\" style=\"width:100%;height:100%;object-fit:cover;cursor:pointer;display:block;\" onclick=\"openLightbox('"+escHtml(p.url)+"')\" onerror=\"this.parentElement.style.background='rgba(255,255,255,0.04)'\">";
+      if(p.addedBy){
+        html+="<span style=\"position:absolute;bottom:3px;left:4px;font-size:0.5rem;background:rgba(0,0,0,0.65);color:rgba(255,255,255,0.75);padding:0.08rem 0.3rem;border-radius:4px;max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;\">"+escHtml((p.addedBy||"").split("@")[0])+"</span>";
+      }
+      if(canEdit){
+        html+="<button onclick=\"_deleteGaleriePhotoByIdx("+i+")\" style=\"position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.7);border:none;color:#fff;width:24px;height:24px;border-radius:50%;font-size:0.75rem;cursor:pointer;line-height:24px;text-align:center;padding:0;\">&#10005;</button>";
+      }
+      html+="</div>";
+    });
+
+    if(photos.length===0){
+      html="<div style=\"grid-column:1/-1;text-align:center;padding:2rem;color:var(--muted);font-size:0.82rem;\">&#128247; Aucune photo pour le moment</div>";
     }
-    html+="</div>";
-  });
 
-  if(photos.length===0){
-    html="<div style=\"grid-column:1/-1;text-align:center;padding:2rem;color:var(--muted);font-size:0.82rem;\">&#128247; Aucune photo pour le moment</div>";
+    grid.innerHTML = memberAvatarsHtml + html;
+    addBar.style.display=(canEdit&&photos.length<MAX_GALERIE)?"block":"none";
+
+    // Charger les avatars membres de manière asynchrone
+    _loadMemberAvatarsInGalerie(eid);
+  });
+}
+
+// ── Section avatars membres dans la galerie ──
+function _buildMemberAvatarsSection(eid, canEdit){
+  var myUid = window.currentUserUID;
+  if(!myUid) return "";
+
+  var myInitiale = ((window.currentUserPseudo||window.currentUserEmail||"?")[0]).toUpperCase();
+  var editBtn = canEdit
+    ? " <button onclick=\"_openMyAvatarEditFromGalerie()\" style=\"font-size:0.6rem;font-weight:700;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.35);color:var(--pink);padding:0.12rem 0.4rem;border-radius:5px;cursor:pointer;font-family:DM Sans,sans-serif;margin-left:0.35rem;\">✏️ Modifier</button>"
+    : " <button onclick=\"_openMyAvatarEditFromGalerie()\" style=\"font-size:0.6rem;font-weight:700;background:rgba(0,229,255,0.10);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);padding:0.12rem 0.4rem;border-radius:5px;cursor:pointer;font-family:DM Sans,sans-serif;margin-left:0.35rem;\">🖼️ Ma photo</button>";
+
+  return "<div id=\"galerieMembreSection\" style=\"grid-column:1/-1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,45,155,0.15);border-radius:12px;padding:0.6rem 0.75rem;margin-bottom:0.5rem;\">"
+    +"<div style=\"font-size:0.6rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem;display:flex;align-items:center;gap:0.4rem;\">👤 Membres présents"+editBtn+"</div>"
+    +"<div id=\"galerieMembreAvatars\" style=\"display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;\">"
+    +"<div id=\"myGalerieAvatar\" style=\"cursor:pointer;\" onclick=\"_openMyAvatarEditFromGalerie()\">"
+    +"<div style=\"width:36px;height:36px;border-radius:50%;border:2px solid var(--pink);display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--pink),var(--purple));font-weight:800;font-size:0.9rem;color:#fff;font-family:Syne,sans-serif;\" id=\"myGalerieAvatarInner\">"+myInitiale+"</div>"
+    +"<div style=\"font-size:0.5rem;color:var(--muted);text-align:center;margin-top:0.15rem;\">Moi</div>"
+    +"</div>"
+    +"</div>"
+    +"</div>";
+}
+
+// Charger les avatars des membres depuis Firebase (async)
+function _loadMemberAvatarsInGalerie(eid){
+  var myUid = window.currentUserUID;
+  if(!myUid) return;
+  // Charger l'avatar de l'utilisateur courant
+  loadUserAvatar(myUid, function(url){
+    var inner = document.getElementById("myGalerieAvatarInner");
+    if(!inner) return;
+    if(url){
+      inner.innerHTML = "<img src=\""+escHtml(url)+"\" style=\"width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;\" onerror=\"this.style.display='none'\">";
+      inner.style.padding="0";
+      inner.style.overflow="hidden";
+    }
+  });
+}
+
+// Ouvrir l'éditeur d'avatar depuis la galerie
+function _openMyAvatarEditFromGalerie(){
+  var uid = window.currentUserUID;
+  if(!uid){ showToast("Connectez-vous pour modifier votre photo"); return; }
+
+  var old = document.getElementById("_galerieAvatarEditModal");
+  if(old) old.remove();
+
+  var overlay = document.createElement("div");
+  overlay.id = "_galerieAvatarEditModal";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:10100;display:flex;align-items:center;justify-content:center;padding:1rem;";
+
+  var fileInputId = "_galerieAvatarFile";
+  overlay.innerHTML = "<div style=\"background:var(--surface);border:1px solid rgba(255,45,155,0.4);border-radius:20px;padding:1.4rem 1.2rem;width:min(340px,100%);text-align:center;\">"
+    +"<div style=\"font-family:Syne,sans-serif;font-size:1rem;font-weight:800;color:var(--pink);margin-bottom:0.3rem;\">🖼️ Ma photo de profil</div>"
+    +"<div style=\"font-size:0.72rem;color:var(--muted);margin-bottom:1rem;line-height:1.5;\">Visible dans la galerie et les commentaires. Permanente jusqu'à votre prochain changement.</div>"
+    +"<div id=\"_galerieAvatarPreview\" style=\"width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));border:3px solid var(--pink);margin:0 auto 1rem;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.8rem;color:#fff;font-family:Syne,sans-serif;overflow:hidden;\">"+((window.currentUserPseudo||window.currentUserEmail||"?")[0]).toUpperCase()+"</div>"
+    +"<input type=\"file\" id=\""+fileInputId+"\" accept=\"image/*\" style=\"display:none\" onchange=\"_onGalerieAvatarSelected(this)\">"
+    +"<label for=\""+fileInputId+"\" style=\"display:block;width:100%;padding:0.7rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--pink),#e0009a);color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;text-align:center;box-sizing:border-box;margin-bottom:0.6rem;\">📷 Choisir une photo</label>"
+    +"<button onclick=\"document.getElementById('_galerieAvatarEditModal').remove()\" style=\"display:block;width:100%;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:transparent;color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.8rem;cursor:pointer;\">Annuler</button>"
+    +"</div>";
+
+  document.body.appendChild(overlay);
+  overlay.addEventListener("click", function(e){ if(e.target===overlay) overlay.remove(); });
+
+  // Pré-charger l'avatar actuel
+  loadUserAvatar(uid, function(url){
+    var preview = document.getElementById("_galerieAvatarPreview");
+    if(preview && url){
+      preview.innerHTML = "<img src=\""+escHtml(url)+"\" style=\"width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;\">";
+    }
+  });
+}
+window._openMyAvatarEditFromGalerie = _openMyAvatarEditFromGalerie;
+
+// Traiter la sélection d'un fichier avatar depuis la galerie
+function _onGalerieAvatarSelected(inp){
+  var file = inp.files[0];
+  if(!file) return;
+  var uid = window.currentUserUID;
+  if(!uid){ showToast("Erreur: non connecté"); return; }
+
+  showToast("⏳ Upload de votre photo...");
+  inp.value = "";
+
+  function _saveAvatarUrl(url){
+    // Mettre à jour Firestore
+    if(window.db && window.fbUpdateDoc && window.fbDoc){
+      window.fbUpdateDoc(window.fbDoc(window.db, "users", uid), { avatarUrl: url })
+        .then(function(){
+          _userAvatarCache[uid] = url;
+          showToast("✅ Photo de profil mise à jour !");
+          // Mettre à jour l'aperçu dans la modal
+          var preview = document.getElementById("_galerieAvatarPreview");
+          if(preview){ preview.innerHTML = "<img src=\""+escHtml(url)+"\" style=\"width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;\">"; }
+          // Mettre à jour l'avatar dans la galerie
+          _loadMemberAvatarsInGalerie(galerieEtabId);
+          // Mettre à jour le header
+          if(typeof _renderMyProfileTab === "function") _renderMyProfileTab();
+          // Fermer la modal après 1 seconde
+          setTimeout(function(){ var m=document.getElementById("_galerieAvatarEditModal"); if(m) m.remove(); }, 1000);
+        }).catch(function(e){ showToast("Erreur: "+e.message); });
+    } else {
+      // Fallback localStorage
+      try{ localStorage.setItem("ambi241_photo_"+uid, url); }catch(e){}
+      _userAvatarCache[uid] = url;
+      showToast("✅ Photo enregistrée !");
+      var preview = document.getElementById("_galerieAvatarPreview");
+      if(preview){ preview.innerHTML = "<img src=\""+escHtml(url)+"\" style=\"width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;\">"; }
+      _loadMemberAvatarsInGalerie(galerieEtabId);
+    }
   }
 
-  grid.innerHTML=html;
-  // Afficher le bouton d'ajout uniquement si canEdit ET moins de 10 photos
-  addBar.style.display=(canEdit&&photos.length<MAX_GALERIE)?"block":"none";
+  // Firebase Storage en priorité, sinon base64
+  if(window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL){
+    var path = "users/"+uid+"/avatar_"+Date.now()+".jpg";
+    var storageRef = window.fbRef(window.fbStorage, path);
+    window.fbUploadBytes(storageRef, file).then(function(){
+      return window.fbGetDownloadURL(storageRef);
+    }).then(function(url){
+      _saveAvatarUrl(url);
+    }).catch(function(){
+      compressImage(file, function(dataUrl){ _saveAvatarUrl(dataUrl); });
+    });
+  } else {
+    compressImage(file, function(dataUrl){ _saveAvatarUrl(dataUrl); });
+  }
 }
+window._onGalerieAvatarSelected = _onGalerieAvatarSelected;
 
 // Appelé directement par onchange sur l'input dans la modal
 function onGalerieFileSelected(inp){
   var file=inp.files[0];
   if(!file||galerieEtabId===null)return;
-  var photos=loadGalerie(galerieEtabId);
-  if(photos.length>=MAX_GALERIE){showToast("Maximum "+MAX_GALERIE+" photos atteint");inp.value="";return;}
-  showToast("Compression en cours...");
-  compressImage(file,function(dataUrl){
-    photos.push({url:dataUrl,addedAt:Date.now()});
-    saveGalerie(galerieEtabId,photos);
-    inp.value=""; // reset pour permettre de rechoisir le même fichier
-    renderGalerieGrid();
-    showToast("Photo ajoutee !");
+  var eidStr = String(galerieEtabId);
+  var cached = _galerieCache[eidStr] || [];
+  if(cached.length>=MAX_GALERIE){showToast("Maximum "+MAX_GALERIE+" photos atteint");inp.value="";return;}
+  showToast("⏳ Upload en cours...");
+  inp.value="";
+  saveGaleriePhotoFirebase(galerieEtabId, file, function(ok){
+    if(ok){
+      showToast("✅ Photo ajoutée !");
+      renderGalerieGrid();
+    }
   });
 }
 
-function deleteGaleriePhoto(index){
+function _deleteGaleriePhotoByIdx(index){
   if(!confirm("Supprimer cette photo ?"))return;
-  var photos=loadGalerie(galerieEtabId);
-  photos.splice(index,1);
-  saveGalerie(galerieEtabId,photos);
-  renderGalerieGrid();
-  showToast("Photo supprimee");
+  var eidStr = String(galerieEtabId);
+  var photos = _galerieCache[eidStr] || [];
+  var photo = photos[index];
+  if(!photo) return;
+  deleteGaleriePhotoFirebase(galerieEtabId, photo, index, function(){
+    showToast("Photo supprimée");
+    renderGalerieGrid();
+  });
 }
+window._deleteGaleriePhotoByIdx = _deleteGaleriePhotoByIdx;
+
+// Rétrocompatibilité (ancienne signature utilisée nulle part, mais sécurité)
+function deleteGaleriePhoto(index){ _deleteGaleriePhotoByIdx(index); }
 // ─────────────────────────────────────────────────────────────────
 
 // ══ SÉCURITÉ — Nettoyage automatique des cooldowns expirés ════
@@ -13729,7 +13984,10 @@ function checkAutoNotifs(){
   }
   // ── Photos galerie → MEMBRES seulement ──
   if(role==="membre"){
-    var galerieData=lsGetJSON("ambi241_galerie", {});
+    // Utiliser le cache Firebase en priorité, fallback localStorage
+    var galerieData = Object.keys(_galerieCache||{}).length > 0
+      ? _galerieCache
+      : lsGetJSON("ambi241_galerie", {});
     var etabsAvecPhotos=Object.keys(galerieData).filter(function(id){return galerieData[id]&&galerieData[id].length>0;});
     if(etabsAvecPhotos.length>0){
       var eid=etabsAvecPhotos[0];
