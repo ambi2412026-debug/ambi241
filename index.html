@@ -15442,6 +15442,7 @@ var ADMIN_DEFAULT_PHOTOS_DOC = "config/default_photos";
 // Descripteurs des 6 slots
 var ADMIN_PHOTO_SLOTS = [
   { key:"bar_resto",   label:"Bar / Resto",          icon:"🍸", hint:"Photo profil par défaut des bars & restaurants" },
+  { key:"bar_terrasse",label:"Bar Terrasse",         icon:"🏙️", hint:"Photo profil par défaut des bars terrasses" },
   { key:"club",        label:"Club / Discothèque",   icon:"🎶", hint:"Photo profil par défaut des clubs" },
   { key:"hotel",       label:"Hôtel",                icon:"🏨", hint:"Photo profil par défaut des hôtels" },
   { key:"driver",      label:"Chauffeur (Taxi Pro)", icon:"🚕", hint:"Avatar par défaut pour les chauffeurs Taxi Pro" },
@@ -15476,7 +15477,9 @@ function getAdminDefaultPhotoForEtab(etab){
   if(!etab) return null;
   var type = (etab.type||"").toLowerCase();
   var key = "generic";
-  if(/bar|brasserie|bistro|resto|restaurant|café|cafe|maquis|terrasse/i.test(type)) key = "bar_resto";
+  // Mapper "Bar Terrasse" spécifiquement
+  if(/bar.*terrasse|terrasse/i.test(type)) key = "bar_terrasse";
+  else if(/bar|brasserie|bistro|resto|restaurant|café|cafe|maquis/i.test(type)) key = "bar_resto";
   else if(/club|discothèque|discotheque|boîte|boite|night/i.test(type)) key = "club";
   else if(/hôtel|hotel/i.test(type)) key = "hotel";
   return getAdminDefaultPhoto(key) || getAdminDefaultPhoto("generic") || null;
@@ -17830,7 +17833,11 @@ window.doAssignEtab = doAssignEtab;
     var files = Array.from(input.files || []);
     files.forEach(function(file){
       if(_pubPhotos.length >= 5) return;
-      if(!file.type.startsWith("image/")) return;
+      // Accepter tous les fichiers (assouplissement pour éviter blocage upload)
+      // Préférer les types image/ mais accepter aussi HEIC, WebP et autres formats photo
+      var isImage = file.type.startsWith("image/") || 
+                    file.name.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|heic|heif|bmp|svg|tiff)$/i);
+      if(!isImage) return;
       var reader = new FileReader();
       reader.onload = function(e){
         _pubPhotos.push({ file: file, dataUrl: e.target.result });
@@ -17865,7 +17872,10 @@ window.doAssignEtab = doAssignEtab;
     var file = input.files && input.files[0];
     input.value = "";
     if(!file) return;
-    if(!file.type.startsWith("video/")){ showVideoErr("Format non supporté (vidéo uniquement)."); return; }
+    // Accepter tous les formats vidéo possibles (assouplissement pour éviter blocage upload)
+    var isVideo = file.type.startsWith("video/") || 
+                  file.name.toLowerCase().match(/\.(mp4|webm|avi|mov|mkv|flv|wmv|m4v|3gp|ogv|ts|mts|m2ts)$/i);
+    if(!isVideo){ showVideoErr("Format non supporté (vidéo uniquement)."); return; }
 
     var objUrl = URL.createObjectURL(file);
     var tmpVid = document.createElement("video");
