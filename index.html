@@ -4083,7 +4083,7 @@ if (document.readyState === 'loading') {
       <span class="wshb-dot"></span>🎵 Semaine
     </button>
     <!-- Cloche notifications -->
-    <div class="notif-bell-wrap">
+    <div class="notif-bell-wrap" id="notifBellWrap" style="display:none;">
       <button class="notif-bell-btn" id="notifBellBtn" onclick="toggleNotifPanel()" title="Notifications">&#128276;</button>
       <div class="notif-badge" id="notifBadge">0</div>
     </div>
@@ -7774,6 +7774,9 @@ function pinPress(k){
         var unlockBtn=document.getElementById("adminUnlockBtn");
         if(abtn){ abtn.style.display="flex"; abtn.style.background="rgba(255,215,0,0.2)"; abtn.style.borderColor="rgba(255,215,0,0.6)"; abtn.style.color="#ffd700"; }
         if(unlockBtn) unlockBtn.style.display="none";
+        // Afficher la cloche notifications pour l'admin
+        var bellWrap = document.getElementById("notifBellWrap");
+        if(bellWrap) bellWrap.style.display = "inline-flex";
         renderStats();renderAll();renderHome();updatePayVis();renderPayments();
         var t=getTraffic();
         document.getElementById("trafficVal").textContent=t.count+" (total: "+t.total+")";
@@ -7813,6 +7816,11 @@ function toggleAdmin(){
     var unlockBtn=document.getElementById("adminUnlockBtn");
     if(abtn){ abtn.style.display="none"; abtn.style.background=""; abtn.style.borderColor=""; abtn.style.color=""; }
     if(unlockBtn) unlockBtn.style.display="flex";
+    // Masquer la cloche si aucun membre connecté non plus
+    if(!window.currentUserUID){
+      var bellWrap = document.getElementById("notifBellWrap");
+      if(bellWrap) bellWrap.style.display = "none";
+    }
     renderStats();renderAll();renderHome();updatePayVis();
     document.getElementById("trafficBadge").classList.remove("show");
     showToast("Mode Admin desactive");
@@ -8772,6 +8780,9 @@ function updateHeaderUser(pseudo){
     greeting.onclick = function(){ document.getElementById("userOverlay").classList.add("show"); switchUserTab("monprofil"); };
     logoutBtn.classList.add("show");
     if(loginBtn) loginBtn.style.display = "none";
+    // Afficher la cloche notifications après connexion
+    var bellWrap = document.getElementById("notifBellWrap");
+    if(bellWrap) bellWrap.style.display = "inline-flex";
     if(tabMonProfil){ tabMonProfil.style.display=""; }
     if(tabInscription){ tabInscription.style.display="none"; }
     if(tabConnexion){ tabConnexion.style.display="none"; }
@@ -8781,6 +8792,11 @@ function updateHeaderUser(pseudo){
     greeting.onclick = function(){ document.getElementById("userOverlay").classList.add("show"); };
     logoutBtn.classList.remove("show");
     if(loginBtn) loginBtn.style.display = "";
+    // Masquer la cloche si pas d'admin actif non plus
+    if(!window.isAdmin){
+      var bellWrap = document.getElementById("notifBellWrap");
+      if(bellWrap) bellWrap.style.display = "none";
+    }
     if(tabMonProfil){ tabMonProfil.style.display="none"; }
     if(tabInscription){ tabInscription.style.display=""; }
     if(tabConnexion){ tabConnexion.style.display=""; }
