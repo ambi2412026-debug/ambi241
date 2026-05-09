@@ -398,6 +398,26 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .wsp-prog-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--pink),var(--cyan));
   border-radius:0 2px 2px 0;transition:width 0.4s linear;}
 
+/* Bouton minimize player */
+.wsp-minimize-btn{background:none;border:none;color:rgba(255,255,255,0.3);
+  font-size:0.75rem;cursor:pointer;padding:0.15rem 0.3rem;flex-shrink:0;line-height:1;
+  border-radius:4px;transition:color 0.2s,background 0.2s;}
+.wsp-minimize-btn:active{color:var(--cyan);background:rgba(0,229,255,0.1);}
+
+/* Player minimisé : seulement la barre de progression + un mini-strip */
+#weekSongPlayer.minimized{padding:0;height:20px;align-items:stretch;gap:0;}
+#weekSongPlayer.minimized .wsp-art,
+#weekSongPlayer.minimized .wsp-info,
+#weekSongPlayer.minimized .wsp-wave,
+#weekSongPlayer.minimized .wsp-time,
+#weekSongPlayer.minimized .wsp-vol,
+#weekSongPlayer.minimized .wsp-controls,
+#weekSongPlayer.minimized .wsp-close-btn{display:none;}
+#weekSongPlayer.minimized .wsp-minimize-btn{display:flex;align-items:center;justify-content:center;
+  width:100%;height:20px;font-size:0.7rem;color:var(--pink);background:rgba(255,45,155,0.08);}
+#weekSongPlayer.minimized .wsp-prog-wrap{position:static;height:4px;flex:1;background:rgba(255,255,255,0.1);}
+#weekSongPlayer.minimized{flex-direction:column;}
+
 /* ── Modal Admin chanson ── */
 #weekSongAdminModal{
   display:none;position:fixed;inset:0;z-index:400;
@@ -4151,6 +4171,7 @@ if (document.readyState === 'loading') {
     <button class="wsp-btn play" id="wspPlayBtn" onclick="weekSongToggle()">▶</button>
     <button class="wsp-btn" onclick="weekSongSeek(10)" title="+10s">⏭</button>
   </div>
+  <button class="wsp-minimize-btn" id="wspMinimizeBtn" onclick="weekSongToggleMinimize()" title="Réduire / Agrandir">▼</button>
   <button class="wsp-close-btn" onclick="weekSongClose()" title="Fermer">✕</button>
   <div class="wsp-prog-wrap" id="wspProgWrap"><div class="wsp-prog-bar" id="wspProgBar"></div></div>
 </div>
@@ -4940,154 +4961,229 @@ window.fbAddDoc     = addDoc;
    • Vérification d'identité pour paiements
    ════════════════════════════════════════════════════════════════ */
 
-window._uploadUserPhoto = async function(type) {
+window._uploadUserPhoto = function(type) {
   // type: 'profile' ou 'identity'
   if (!window.currentUserUID) {
-    alert('Veuillez vous connecter');
+    if (typeof showToast === 'function') showToast('🔒 Veuillez vous connecter');
     return;
   }
 
-  const input = document.createElement('input');
+  // Créer un input file caché et l'ajouter au DOM (obligatoire sur iOS pour ouvrir la galerie)
+  var input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
-  // Pas de capture="" → ouvre la galerie du téléphone (pas la caméra directement)
+  // Pas de capture="" → ouvre la galerie (pas la caméra directement)
   input.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none;';
-  document.body.appendChild(input); // OBLIGATOIRE sur iOS pour ouvrir la galerie
-  input.onchange = async (e) => {
-    const file = e.target.files[0];
-    document.body.removeChild(input); // Nettoyage après sélection
+  document.body.appendChild(input);
+
+  input.onchange = function() {
+    var file = input.files && input.files[0];
+    // Nettoyage
+    try { document.body.removeChild(input); } catch(e) {}
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('⚠️ Image trop grande (max 5 MB)');
+    // Vérifier le format (JPG, PNG, WEBP)
+    var validTypes = ['image/jpeg','image/jpg','image/png','image/webp'];
+    if (validTypes.indexOf(file.type.toLowerCase()) === -1 &&
+        !/\.(jpe?g|png|webp)$/i.test(file.name)) {
+      if (typeof showToast === 'function') showToast('❌ Format non supporté (JPG, PNG, WEBP)');
       return;
     }
 
-    const loadingMsg = document.createElement('div');
+    if (file.size > 5 * 1024 * 1024) {
+      if (typeof showToast === 'function') showToast('⚠️ Image trop grande (max 5 MB)');
+      return;
+    }
+
+    var loadingMsg = document.createElement('div');
     loadingMsg.textContent = '⏳ Upload en cours...';
-    loadingMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);padding:1.5rem;border-radius:12px;z-index:9999;font-weight:700;';
+    loadingMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);border:1px solid rgba(255,45,155,0.4);border-radius:16px;padding:1.4rem 1.8rem;z-index:9999;font-weight:700;color:var(--text);font-family:Syne,sans-serif;font-size:0.92rem;box-shadow:0 8px 32px rgba(0,0,0,0.7);';
     document.body.appendChild(loadingMsg);
 
-    try {
-      const fileName = 'users/' + window.currentUserUID + '/' + type + '_' + Date.now() + '.jpg';
-      const fileRef = ref(storage, fileName);
-      
-      await uploadBytes(fileRef, file);
-      const photoURL = await getDownloadURL(fileRef);
+    function _done(msg, isErr) {
+      loadingMsg.textContent = msg;
+      loadingMsg.style.color = isErr ? 'var(--red)' : 'var(--green)';
+      setTimeout(function() {
+        try { document.body.removeChild(loadingMsg); } catch(e) {}
+        if (!isErr) {
+          if (typeof window._renderUserPhotosUI === 'function') window._renderUserPhotosUI();
+          if (typeof renderHome === 'function') renderHome();
+        }
+      }, isErr ? 2500 : 1200);
+    }
 
-      // Sauvegarder dans Firestore
-      const userDocRef = doc(db, 'users', window.currentUserUID);
-      const updateData = {};
-      if (type === 'profile') {
-        updateData.photoURL = photoURL;
-        updateData.photoProfileUpdated = new Date().toISOString();
-      } else if (type === 'identity') {
-        updateData.photoIdentityURL = photoURL;
-        updateData.identityVerified = false; // En attente de vérification admin
-        updateData.identitySubmittedAt = new Date().toISOString();
+    // Tentative Firebase Storage
+    if (window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL &&
+        window.db && window.fbDoc && window.fbUpdateDoc) {
+      try {
+        var fileName = 'users/' + window.currentUserUID + '/' + type + '_' + Date.now() + '.jpg';
+        var storageRef = window.fbRef(window.fbStorage, fileName);
+        window.fbUploadBytes(storageRef, file).then(function() {
+          return window.fbGetDownloadURL(storageRef);
+        }).then(function(photoURL) {
+          var userDocRef = window.fbDoc(window.db, 'users', window.currentUserUID);
+          var updateData = {};
+          if (type === 'profile') {
+            updateData.photoURL = photoURL;
+            updateData.photoProfileUpdated = new Date().toISOString();
+          } else {
+            updateData.photoIdentityURL = photoURL;
+            updateData.identityVerified = false;
+            updateData.identitySubmittedAt = new Date().toISOString();
+          }
+          return window.fbUpdateDoc(userDocRef, updateData);
+        }).then(function() {
+          _done('✅ Photo sauvegardée !', false);
+        }).catch(function(err) {
+          console.error('Erreur Firebase Storage:', err);
+          // Fallback base64 localStorage
+          _fallbackBase64(file, type, loadingMsg, _done);
+        });
+      } catch(e) {
+        _fallbackBase64(file, type, loadingMsg, _done);
       }
-
-      await updateDoc(userDocRef, updateData);
-      
-      loadingMsg.textContent = '✓ Photo sauvegardée !';
-      setTimeout(() => {
-        loadingMsg.remove();
-        // Recharger le profil
-        if (typeof renderUserProfile === 'function') renderUserProfile();
-        if (typeof renderHome === 'function') renderHome();
-      }, 1000);
-    } catch (err) {
-      console.error('Erreur upload:', err);
-      loadingMsg.textContent = '❌ Erreur : ' + err.message;
-      setTimeout(() => loadingMsg.remove(), 2000);
+    } else {
+      // Pas de Firebase Storage → fallback base64
+      _fallbackBase64(file, type, loadingMsg, _done);
     }
   };
+
+  // Déclencher le clic immédiatement (sur Android/iOS le clic doit être synchrone)
   input.click();
 };
 
-window._deleteUserPhoto = async function(type) {
+// Fallback : compression base64 + stockage localStorage
+function _fallbackBase64(file, type, loadingMsg, _done) {
+  if (typeof compressImage === 'function') {
+    compressImage(file, function(dataUrl) {
+      try {
+        localStorage.setItem('ambi241_user_photo_' + type + '_' + window.currentUserUID, dataUrl);
+      } catch(e) {}
+      // Mettre à jour Firestore si dispo
+      if (window.db && window.fbDoc && window.fbUpdateDoc && window.currentUserUID) {
+        var upd = {};
+        if (type === 'profile') { upd.photoURL = dataUrl; }
+        else { upd.photoIdentityURL = dataUrl; upd.identityVerified = false; upd.identitySubmittedAt = new Date().toISOString(); }
+        window.fbUpdateDoc(window.fbDoc(window.db, 'users', window.currentUserUID), upd).catch(function(){});
+      }
+      _done('✅ Photo sauvegardée !', false);
+    });
+  } else {
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var dataUrl = ev.target.result;
+      try { localStorage.setItem('ambi241_user_photo_' + type + '_' + window.currentUserUID, dataUrl); } catch(e) {}
+      _done('✅ Photo sauvegardée (locale) !', false);
+    };
+    reader.onerror = function() { _done('❌ Erreur lecture fichier', true); };
+    reader.readAsDataURL(file);
+  }
+}
+
+window._deleteUserPhoto = function(type) {
   if (!window.currentUserUID) return;
   if (!confirm('Supprimer cette photo ?')) return;
 
-  try {
-    const userDocRef = doc(db, 'users', window.currentUserUID);
-    const updateData = {};
-    
-    if (type === 'profile') {
-      updateData.photoURL = '';
-    } else if (type === 'identity') {
-      updateData.photoIdentityURL = '';
-      updateData.identityVerified = false;
-    }
+  if (!window.db || !window.fbDoc || !window.fbUpdateDoc) {
+    // Supprimer du localStorage uniquement
+    try { localStorage.removeItem('ambi241_user_photo_' + type + '_' + window.currentUserUID); } catch(e) {}
+    if (typeof window._renderUserPhotosUI === 'function') window._renderUserPhotosUI();
+    return;
+  }
 
-    await updateDoc(userDocRef, updateData);
-    
-    if (typeof renderUserProfile === 'function') renderUserProfile();
+  var userDocRef = window.fbDoc(window.db, 'users', window.currentUserUID);
+  var updateData = {};
+  if (type === 'profile') {
+    updateData.photoURL = '';
+  } else if (type === 'identity') {
+    updateData.photoIdentityURL = '';
+    updateData.identityVerified = false;
+  }
+  // Nettoyer aussi le localStorage
+  try { localStorage.removeItem('ambi241_user_photo_' + type + '_' + window.currentUserUID); } catch(e) {}
+
+  window.fbUpdateDoc(userDocRef, updateData).then(function() {
+    if (typeof window._renderUserPhotosUI === 'function') window._renderUserPhotosUI();
     if (typeof renderHome === 'function') renderHome();
-  } catch (err) {
+    if (typeof showToast === 'function') showToast('✅ Photo supprimée');
+  }).catch(function(err) {
     console.error('Erreur suppression:', err);
-  }
+    if (typeof showToast === 'function') showToast('❌ Erreur suppression');
+  });
 };
 
-window._getUserPhotoData = async function(uid) {
-  try {
-    const snap = await getDoc(doc(db, 'users', uid));
-    if (!snap.exists()) return null;
-    const data = snap.data();
-    return {
-      photoURL: data.photoURL || '',
-      photoIdentityURL: data.photoIdentityURL || '',
-      identityVerified: data.identityVerified || false,
-      identitySubmittedAt: data.identitySubmittedAt || null,
-    };
-  } catch (err) {
-    console.error('Erreur lecture photo:', err);
-    return null;
-  }
+window._getUserPhotoData = function(uid) {
+  return new Promise(function(resolve) {
+    if (!window.db || !window.fbDoc || !window.fbGetDoc) { resolve(null); return; }
+    window.fbGetDoc(window.fbDoc(window.db, 'users', uid)).then(function(snap) {
+      if (!snap.exists || !snap.exists()) { resolve(null); return; }
+      var data = snap.data();
+      // Fusionner avec données localStorage si présentes
+      var localProfile  = '';
+      var localIdentity = '';
+      try { localProfile  = localStorage.getItem('ambi241_user_photo_profile_' + uid) || ''; } catch(e) {}
+      try { localIdentity = localStorage.getItem('ambi241_user_photo_identity_' + uid) || ''; } catch(e) {}
+      resolve({
+        photoURL: data.photoURL || localProfile || '',
+        photoIdentityURL: data.photoIdentityURL || localIdentity || '',
+        identityVerified: data.identityVerified || false,
+        identitySubmittedAt: data.identitySubmittedAt || null
+      });
+    }).catch(function() {
+      // Fallback localStorage
+      var localProfile  = '';
+      var localIdentity = '';
+      try { localProfile  = localStorage.getItem('ambi241_user_photo_profile_' + uid) || ''; } catch(e) {}
+      try { localIdentity = localStorage.getItem('ambi241_user_photo_identity_' + uid) || ''; } catch(e) {}
+      resolve({ photoURL: localProfile, photoIdentityURL: localIdentity, identityVerified: false, identitySubmittedAt: null });
+    });
+  });
 };
 
-window._renderUserPhotosUI = async function() {
+window._renderUserPhotosUI = function() {
   if (!window.currentUserUID) return;
+  window._getUserPhotoData(window.currentUserUID).then(function(photoData) {
+    if (!photoData) return;
 
-  const photoData = await window._getUserPhotoData(window.currentUserUID);
-  if (!photoData) return;
-
-  // Photo de profil
-  const profilePhotoBox = document.getElementById('profilePhotoBox');
-  const deleteProfileBtn = document.getElementById('deleteProfilePhotoBtn');
-  if (profilePhotoBox) {
-    if (photoData.photoURL) {
-      profilePhotoBox.innerHTML = '<img src="' + photoData.photoURL + '" style="width:100%;height:100%;object-fit:cover;"/>';
-      if (deleteProfileBtn) deleteProfileBtn.style.display = 'block';
-    } else {
-      if (deleteProfileBtn) deleteProfileBtn.style.display = 'none';
+    // Photo de profil
+    var profilePhotoBox = document.getElementById('profilePhotoBox');
+    var deleteProfileBtn = document.getElementById('deleteProfilePhotoBtn');
+    if (profilePhotoBox) {
+      if (photoData.photoURL) {
+        profilePhotoBox.innerHTML = '<img src="' + photoData.photoURL + '" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;"/>';
+        if (deleteProfileBtn) deleteProfileBtn.style.display = 'block';
+      } else {
+        profilePhotoBox.innerHTML = '<div class="photo-upload-placeholder"><span>📷</span><small>Cliquer pour ajouter</small></div>';
+        if (deleteProfileBtn) deleteProfileBtn.style.display = 'none';
+      }
     }
-  }
 
-  // Photo d'identité
-  const identityPhotoBox = document.getElementById('identityPhotoBox');
-  const deleteIdentityBtn = document.getElementById('deleteIdentityPhotoBtn');
-  const verificationStatus = document.getElementById('identityVerificationStatus');
-  
-  if (identityPhotoBox) {
-    if (photoData.photoIdentityURL) {
-      identityPhotoBox.innerHTML = '<img src="' + photoData.photoIdentityURL + '" style="width:100%;height:100%;object-fit:cover;"/>';
-      if (deleteIdentityBtn) deleteIdentityBtn.style.display = 'block';
-    } else {
-      if (deleteIdentityBtn) deleteIdentityBtn.style.display = 'none';
-    }
-  }
+    // Photo d'identité
+    var identityPhotoBox = document.getElementById('identityPhotoBox');
+    var deleteIdentityBtn = document.getElementById('deleteIdentityPhotoBtn');
+    var verificationStatus = document.getElementById('identityVerificationStatus');
 
-  // Statut de vérification
-  if (verificationStatus) {
-    if (!photoData.photoIdentityURL) {
-      verificationStatus.innerHTML = '';
-    } else if (photoData.identityVerified) {
-      verificationStatus.innerHTML = '<div class="identity-verified-badge">✓ Identité vérifiée</div>';
-    } else if (photoData.identitySubmittedAt) {
-      verificationStatus.innerHTML = '<div class="identity-pending-badge">⏳ En attente de vérification</div>';
+    if (identityPhotoBox) {
+      if (photoData.photoIdentityURL) {
+        identityPhotoBox.innerHTML = '<img src="' + photoData.photoIdentityURL + '" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;"/>';
+        if (deleteIdentityBtn) deleteIdentityBtn.style.display = 'block';
+      } else {
+        identityPhotoBox.innerHTML = '<div class="photo-cni-placeholder"><span>🆔</span><small>CNI ou Passeport</small></div>';
+        if (deleteIdentityBtn) deleteIdentityBtn.style.display = 'none';
+      }
     }
-  }
+
+    // Statut vérification
+    if (verificationStatus) {
+      if (!photoData.photoIdentityURL) {
+        verificationStatus.innerHTML = '';
+      } else if (photoData.identityVerified) {
+        verificationStatus.innerHTML = '<div class="identity-verified-badge" style="font-size:0.72rem;color:var(--green);font-weight:700;margin-top:0.3rem;">✓ Identité vérifiée</div>';
+      } else if (photoData.identitySubmittedAt) {
+        verificationStatus.innerHTML = '<div class="identity-pending-badge" style="font-size:0.72rem;color:var(--amber);font-weight:700;margin-top:0.3rem;">⏳ En attente de vérification</div>';
+      }
+    }
+  });
 };
 
 /* ════════════════════════════════════════════════════════════════
@@ -25691,8 +25787,24 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
     if (_audio) _audio.pause();
     _active = false;
     var player = document.getElementById('weekSongPlayer');
-    if (player) player.classList.remove('show');
+    if (player) { player.classList.remove('show'); player.classList.remove('minimized'); }
     _setPlaying(false);
+  };
+
+  window.weekSongToggleMinimize = function() {
+    var player = document.getElementById('weekSongPlayer');
+    if (!player) return;
+    var isMin = player.classList.contains('minimized');
+    var btn = document.getElementById('wspMinimizeBtn');
+    if (isMin) {
+      player.classList.remove('minimized');
+      if (btn) btn.textContent = '▼';
+      if (btn) btn.title = 'Réduire';
+    } else {
+      player.classList.add('minimized');
+      if (btn) btn.textContent = '▲';
+      if (btn) btn.title = 'Agrandir';
+    }
   };
 
   function _setPlaying(playing) {
