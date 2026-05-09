@@ -18118,6 +18118,8 @@ window.doAssignEtab = doAssignEtab;
       <button class="adm-tab" id="admtab-settings" onclick="switchAdmTab('settings')">&#9881; Paramètres</button>
       <button class="adm-tab" id="admtab-reservations" onclick="switchAdmTab('reservations')">&#11088; Réserv. VIP</button>
       <button class="adm-tab" id="admtab-classement" onclick="switchAdmTab('classement')">&#127942; Classement</button>
+      <button class="adm-tab" id="admtab-content" onclick="switchAdmTab('content')">📋 Contenu</button>
+      <button class="adm-tab" id="admtab-appconfig" onclick="switchAdmTab('appconfig')">🛠️ App Config</button>
       <button class="adm-tab" id="admtab-support" onclick="switchAdmTab('support')" style="position:relative;">💬 Support<span id="admSupportBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:#fff;font-size:0.5rem;font-weight:800;width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center;border:1px solid var(--bg);"></span></button>
     </div>
 
@@ -18206,6 +18208,16 @@ window.doAssignEtab = doAssignEtab;
       <!-- ── Classement ── -->
       <div id="admpanel-classement" style="display:none;">
         <div id="adminClassementContent">Chargement...</div>
+      </div>
+
+      <!-- ── Contenu / Publications ── -->
+      <div id="admpanel-content" style="display:none;">
+        <div id="adminContentPanel">Chargement...</div>
+      </div>
+
+      <!-- ── App Configuration ── -->
+      <div id="admpanel-appconfig" style="display:none;">
+        <div id="adminAppConfigPanel">Chargement...</div>
       </div>
 
       <!-- ── Support / Tchat ── -->
@@ -19841,7 +19853,7 @@ window.doAssignEtab = doAssignEtab;
     var ext = (_pubVideo.file.name || "video.mp4").split(".").pop() || "mp4";
     var path = "publications/"+pubId+"/video_"+Date.now()+"."+ext;
     var storRef = window.fbRef(window.fbStorage, path);
-    var snap = await window.fbUploadBytes(storRef, _pubVideo.file);
+    var snap = await uploadFileWithTimeout(storRef, _pubVideo.file, 60000);
     // Libérer l'objectURL après upload réussi
     if(_pubVideo && _pubVideo._ownObjUrl && _pubVideo.previewUrl){
       URL.revokeObjectURL(_pubVideo.previewUrl);
@@ -19882,16 +19894,61 @@ window.doAssignEtab = doAssignEtab;
     if(btn) btn.classList.toggle("has-new", !!hasNew);
   };
 
+  // ── Compression image avant upload (réduit la taille pour mobile) ──
+  function compressImageFile(file, maxWidthPx, qualityJpeg){
+    maxWidthPx   = maxWidthPx   || 1280;
+    qualityJpeg  = qualityJpeg  || 0.82;
+    return new Promise(function(resolve){
+      var reader = new FileReader();
+      reader.onload = function(ev){
+        var img = new Image();
+        img.onload = function(){
+          var w = img.width, h = img.height;
+          if(w > maxWidthPx){ h = Math.round(h * maxWidthPx / w); w = maxWidthPx; }
+          var canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          canvas.toBlob(function(blob){ resolve(blob || file); }, 'image/jpeg', qualityJpeg);
+        };
+        img.onerror = function(){ resolve(file); };
+        img.src = ev.target.result;
+      };
+      reader.onerror = function(){ resolve(file); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // ── Upload d'un fichier unique avec timeout par fichier (30s) ──
+  function uploadFileWithTimeout(storRef, blob, timeoutMs){
+    timeoutMs = timeoutMs || 30000;
+    return new Promise(function(resolve, reject){
+      var task = window.fbUploadBytesResumable(storRef, blob);
+      var timer = setTimeout(function(){
+        try{ task.cancel(); }catch(e){}
+        reject(new Error("Timeout upload fichier (>"+Math.round(timeoutMs/1000)+"s)"));
+      }, timeoutMs);
+      task.on('state_changed',
+        null, // pas de suivi de progression par fichier ici (géré au niveau boucle)
+        function(err){ clearTimeout(timer); reject(err); },
+        function(){ clearTimeout(timer); resolve(task.snapshot); }
+      );
+    });
+  }
+
   async function uploadPubPhotos(pubId){
     if(!_pubPhotos.length) return [];
     var urls = [];
     for(var i = 0; i < _pubPhotos.length; i++){
       var item = _pubPhotos[i];
+      showUploadProgress(Math.round((i / _pubPhotos.length) * 95), "Photo "+(i+1)+"/"+_pubPhotos.length);
+      // Compression avant envoi (réduit les blocages sur connexion lente)
+      var blob;
+      try { blob = await compressImageFile(item.file, 1280, 0.82); }
+      catch(e){ blob = item.file; }
       var path = "publications/"+pubId+"/photo_"+Date.now()+"_"+i+".jpg";
       var storRef = window.fbRef(window.fbStorage, path);
-      // Progression : chaque photo = une tranche égale
-      showUploadProgress(Math.round((i / _pubPhotos.length) * 95), "Photo "+(i+1)+"/"+_pubPhotos.length);
-      var snap = await window.fbUploadBytes(storRef, item.file);
+      // Upload résumable avec timeout de 45s par photo
+      var snap = await uploadFileWithTimeout(storRef, blob, 45000);
       var url = await window.fbGetDownloadURL(snap.ref);
       urls.push(url);
     }
@@ -28055,4 +28112,616 @@ if('IntersectionObserver' in window){
 console.log('✨ AMBI241 Animations v2.1 stable — OK');
 })();
 </script>
+
+<!-- ═══════════════════════════════════════════════════════
+     MODAL ÉDITION ÉTABLISSEMENT — Admin Global
+     ═══════════════════════════════════════════════════════ -->
+<div class="overlay" id="admEditEtabOverlay" style="z-index:400;align-items:flex-start;overflow-y:auto;padding:1rem;">
+  <div style="width:100%;max-width:520px;margin:1rem auto;background:var(--surface);border:1px solid rgba(255,215,0,0.35);border-radius:20px;padding:1.4rem;position:relative;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;">
+      <div>
+        <div style="font-family:Syne,sans-serif;font-weight:800;color:var(--amber);font-size:1rem;">✏️ Éditer l'établissement</div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-top:0.1rem;" id="admEditEtabSubtitle">—</div>
+      </div>
+      <button onclick="admCloseEditEtab()" style="background:rgba(255,68,102,0.12);border:1px solid rgba(255,68,102,0.3);color:var(--red);width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+
+    <div style="display:grid;gap:0.75rem;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
+        <div>
+          <label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Nom *</label>
+          <input id="aeNom" type="text" maxlength="80" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.83rem;">
+        </div>
+        <div>
+          <label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Type *</label>
+          <select id="aeType" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.83rem;">
+            <option>Bar</option><option>Bar Terrasse</option><option>Restaurant</option><option>Club</option><option>Discothèque</option><option>Hôtel</option><option>Maquis</option><option>Lounge</option><option>Brasserie</option><option>Café</option><option>Autre</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
+        <div>
+          <label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Quartier *</label>
+          <input id="aeQuartier" type="text" maxlength="60" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.83rem;">
+        </div>
+        <div>
+          <label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Statut</label>
+          <select id="aeStatut" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.83rem;">
+            <option>Ouvert - Anime</option><option>Ouvert - Bonde</option><option>Ouvert - Calme</option><option>Ferme</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Description</label>
+        <textarea id="aeDesc" maxlength="300" rows="2" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.83rem;resize:vertical;"></textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
+        <div>
+          <label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Téléphone</label>
+          <input id="aeTel" type="text" maxlength="30" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.83rem;">
+        </div>
+        <div>
+          <label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Email</label>
+          <input id="aeEmail" type="email" maxlength="80" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.83rem;">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.6rem;">
+        <div>
+          <label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Ouverture</label>
+          <input id="aeOuv" type="text" placeholder="18h00" maxlength="10" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.83rem;">
+        </div>
+        <div>
+          <label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Fermeture</label>
+          <input id="aeFerm" type="text" placeholder="03h00" maxlength="10" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.83rem;">
+        </div>
+        <div>
+          <label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Affluence %</label>
+          <input id="aeAff" type="number" min="0" max="100" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--amber);padding:0.5rem;font-size:0.83rem;text-align:center;">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.6rem;">
+        <div>
+          <label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Capacité totale</label>
+          <input id="aeCap" type="number" min="0" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.83rem;">
+        </div>
+        <div>
+          <label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Tables VIP</label>
+          <input id="aeVip" type="number" min="0" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.83rem;">
+        </div>
+        <div>
+          <label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Chambres</label>
+          <input id="aeCh" type="number" min="0" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.83rem;">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
+        <div>
+          <label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Paiement / Abonnement</label>
+          <select id="aePaiement" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.83rem;">
+            <option>Actif (Admin)</option><option>Actif - Mensuel</option><option>Actif - Annuel</option><option>Confirme - Gratuit</option><option>Suspendu</option><option>Expiré</option><option>En attente</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Ambiance musicale</label>
+          <input id="aeAmbiance" type="text" maxlength="60" placeholder="Afro, Reggae..." style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.83rem;">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Lien Google Maps</label>
+        <input id="aeMaps" type="url" placeholder="https://maps.google.com/..." style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.83rem;">
+      </div>
+    </div>
+
+    <div id="admEditEtabMsg" style="display:none;font-size:0.78rem;padding:0.5rem 0.7rem;border-radius:8px;margin-top:0.8rem;"></div>
+
+    <div style="display:flex;gap:0.6rem;margin-top:1rem;">
+      <button onclick="admCloseEditEtab()" style="flex:1;padding:0.65rem;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--muted);font-family:Syne,sans-serif;font-weight:700;font-size:0.85rem;cursor:pointer;">Annuler</button>
+      <button onclick="admSaveEditEtab()" id="admEditEtabSaveBtn" style="flex:2;padding:0.65rem;border-radius:10px;border:none;background:linear-gradient(135deg,var(--amber),var(--pink));color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;">💾 Enregistrer les modifications</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   AMBI241 — ADMIN CONTROL GLOBAL v2.0
+   • Édition complète des établissements
+   • Gestion des publications (Contenu)
+   • Configuration globale de l'app
+   • Bannissement utilisateurs
+   ═══════════════════════════════════════════════════════════════ */
+(function(){
+'use strict';
+
+/* ─── Patch switchAdmTab pour les nouveaux onglets ─── */
+var _origSwitchAdmTab = window.switchAdmTab;
+window.switchAdmTab = function(tab){
+  // Gérer les nouveaux panels
+  var newTabs = ['content','appconfig'];
+  var allTabs = ["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support","content","appconfig"];
+  allTabs.forEach(function(t){
+    var btn   = document.getElementById('admtab-'+t);
+    var panel = document.getElementById('admpanel-'+t);
+    if(btn)   btn.classList.toggle('active', t===tab);
+    if(panel) panel.style.display = (t===tab ? 'block' : 'none');
+  });
+  if(tab === 'content'){
+    window._currentAdmTab = tab;
+    renderAdmContent();
+    return;
+  }
+  if(tab === 'appconfig'){
+    window._currentAdmTab = tab;
+    renderAdmAppConfig();
+    return;
+  }
+  _origSwitchAdmTab(tab);
+};
+
+/* ══════════════════════════════════════════════════════════════
+   ══ 1. ÉDITION COMPLÈTE D'UN ÉTABLISSEMENT               ══
+   ══════════════════════════════════════════════════════════════ */
+
+var _aeCurrentId = null;
+
+window.admOpenEditEtab = function(id){
+  if(!window.isAdmin){ showToast('Accès admin requis'); return; }
+  var e = etablissements.find(function(x){ return x.id === id; });
+  if(!e){ showToast('Établissement introuvable'); return; }
+  _aeCurrentId = id;
+
+  // Remplir les champs
+  var G = function(i){ return document.getElementById(i); };
+  G('aeNom').value       = e.nom || '';
+  G('aeType').value      = e.type || 'Bar';
+  G('aeQuartier').value  = e.quartier || '';
+  G('aeStatut').value    = e.statut || 'Ouvert - Anime';
+  G('aeDesc').value      = e.description || '';
+  G('aeTel').value       = e.contact || '';
+  G('aeEmail').value     = e.email || '';
+  G('aeOuv').value       = e.ouverture || '';
+  G('aeFerm').value      = e.fermeture || '';
+  G('aeAff').value       = e.affluence || 0;
+  G('aeCap').value       = e.capacite_totale || 0;
+  G('aeVip').value       = e.nb_vip || 0;
+  G('aeCh').value        = e.nb_chambres || 0;
+  G('aePaiement').value  = e.paiement || 'Actif (Admin)';
+  G('aeAmbiance').value  = e.ambiance || '';
+  G('aeMaps').value      = e.maps_url || '';
+  G('admEditEtabSubtitle').textContent = 'ID: ' + id + (e._docId ? ' · Doc: '+e._docId : '');
+
+  var msg = G('admEditEtabMsg');
+  if(msg){ msg.style.display='none'; msg.textContent=''; }
+
+  G('admEditEtabOverlay').classList.add('show');
+};
+
+window.admCloseEditEtab = function(){
+  document.getElementById('admEditEtabOverlay').classList.remove('show');
+  _aeCurrentId = null;
+};
+
+window.admSaveEditEtab = function(){
+  if(!_aeCurrentId){ return; }
+  var e = etablissements.find(function(x){ return x.id === _aeCurrentId; });
+  if(!e){ showToast('Introuvable'); return; }
+  var G = function(i){ return document.getElementById(i); };
+
+  var nom = (G('aeNom').value||'').trim();
+  var quartier = (G('aeQuartier').value||'').trim();
+  if(!nom || !quartier){
+    var msg=G('admEditEtabMsg');
+    msg.style.display='block'; msg.style.color='var(--red)'; msg.style.background='rgba(255,68,102,0.08)'; msg.style.border='1px solid rgba(255,68,102,0.2)';
+    msg.textContent='Nom et Quartier sont obligatoires.'; return;
+  }
+
+  var fields = {
+    nom:             nom,
+    type:            G('aeType').value,
+    quartier:        quartier,
+    statut:          G('aeStatut').value,
+    description:     (G('aeDesc').value||'').trim(),
+    contact:         (G('aeTel').value||'').trim(),
+    email:           (G('aeEmail').value||'').trim(),
+    ouverture:       (G('aeOuv').value||'').trim(),
+    fermeture:       (G('aeFerm').value||'').trim(),
+    affluence:       parseInt(G('aeAff').value)||0,
+    capacite_totale: parseInt(G('aeCap').value)||0,
+    nb_vip:          parseInt(G('aeVip').value)||0,
+    nb_chambres:     parseInt(G('aeCh').value)||0,
+    paiement:        G('aePaiement').value,
+    ambiance:        (G('aeAmbiance').value||'').trim(),
+    maps_url:        (G('aeMaps').value||'').trim(),
+    _adminOverride:  true
+  };
+
+  var btn = G('admEditEtabSaveBtn');
+  btn.disabled=true; btn.textContent='⏳ Enregistrement...';
+
+  // Mise à jour locale immédiate
+  Object.keys(fields).forEach(function(k){ e[k]=fields[k]; });
+  renderStats(); renderAll(); renderHome();
+  if(window._currentAdmTab==='etabl') renderAdmEtabl();
+
+  // Sync Firebase
+  if(!e._docId){
+    showToast('Mis à jour localement (pas de doc Firebase)');
+    btn.disabled=false; btn.textContent='💾 Enregistrer les modifications';
+    admCloseEditEtab();
+    return;
+  }
+  window.fbUpdateDoc(window.fbDoc(window.db,'etablissements',e._docId), fields)
+    .then(function(){
+      showToast('✅ Établissement mis à jour !');
+      btn.disabled=false; btn.textContent='💾 Enregistrer les modifications';
+      admCloseEditEtab();
+      if(window._currentAdmTab==='etabl') renderAdmEtabl();
+    })
+    .catch(function(err){
+      var msg=G('admEditEtabMsg');
+      msg.style.display='block'; msg.style.color='var(--red)'; msg.style.background='rgba(255,68,102,0.08)'; msg.style.border='1px solid rgba(255,68,102,0.2)';
+      msg.textContent='Erreur Firebase : '+err.message;
+      btn.disabled=false; btn.textContent='💾 Enregistrer les modifications';
+    });
+};
+
+/* ─── Patch renderAdmEtabl pour ajouter le bouton Éditer ─── */
+var _origRenderAdmEtabl = window.renderAdmEtabl || renderAdmEtabl;
+window.renderAdmEtabl = function(){
+  if(typeof _origRenderAdmEtabl === 'function') _origRenderAdmEtabl();
+  // Injecter le bouton Éditer dans chaque card établissement
+  setTimeout(function(){
+    document.querySelectorAll('#adminEtablList .notif-admin-item').forEach(function(card){
+      if(card.querySelector('.adm-edit-btn')) return; // déjà injecté
+      var btnRow = card.querySelector('div[style*="display:flex"][style*="margin-top:0.6rem"]');
+      if(!btnRow) return;
+      // Trouver l'id via le bouton supprimer existant
+      var delBtn = btnRow.querySelector('button[onclick*="deleteEtablissement"]');
+      if(!delBtn) return;
+      var match = delBtn.getAttribute('onclick').match(/deleteEtablissement\((\d+)\)/);
+      if(!match) return;
+      var id = parseInt(match[1]);
+      var editBtn = document.createElement('button');
+      editBtn.className = 'adm-edit-btn';
+      editBtn.innerHTML = '✏️ Modifier';
+      editBtn.setAttribute('onclick','admOpenEditEtab('+id+')');
+      editBtn.style.cssText='font-size:0.65rem;padding:0.2rem 0.5rem;border-radius:6px;background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.4);color:var(--amber);cursor:pointer;font-weight:700;';
+      btnRow.insertBefore(editBtn, btnRow.firstChild);
+    });
+  }, 120);
+};
+
+/* ══════════════════════════════════════════════════════════════
+   ══ 2. GESTION DU CONTENU (Publications)                  ══
+   ══════════════════════════════════════════════════════════════ */
+
+var _admPubList = [];
+var _admPubFilter = 'all';
+var _admPubSearch = '';
+
+window.renderAdmContent = function(){
+  var panel = document.getElementById('adminContentPanel');
+  if(!panel) return;
+  panel.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.8rem;">⏳ Chargement des publications...</div>';
+
+  if(!window.db || !window.fbCollection || !window.fbGetDocs || !window.fbQuery || !window.fbOrderBy){
+    panel.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--red);">Firebase non disponible.</div>'; return;
+  }
+
+  var q = window.fbQuery(window.fbCollection(window.db,'publications'), window.fbOrderBy('createdAt','desc'));
+  window.fbGetDocs(q).then(function(snap){
+    _admPubList = [];
+    snap.forEach(function(doc){ _admPubList.push(Object.assign({_docId:doc.id}, doc.data())); });
+    _renderAdmPubList();
+  }).catch(function(err){
+    panel.innerHTML = '<div style="color:var(--red);padding:1rem;font-size:0.8rem;">Erreur : '+err.message+'</div>';
+  });
+};
+
+function _renderAdmPubList(){
+  var panel = document.getElementById('adminContentPanel');
+  if(!panel) return;
+  var list = _admPubList.filter(function(p){
+    if(_admPubFilter!=='all' && p.type!==_admPubFilter) return false;
+    if(_admPubSearch){
+      var q=_admPubSearch.toLowerCase();
+      return (p.titre||'').toLowerCase().indexOf(q)!==-1 || (p.texte||'').toLowerCase().indexOf(q)!==-1 || (p.pseudo||'').toLowerCase().indexOf(q)!==-1;
+    }
+    return true;
+  });
+
+  var html='';
+  html+='<div style="display:flex;gap:0.5rem;margin-bottom:0.8rem;flex-wrap:wrap;align-items:center;">';
+  html+='<input type="text" placeholder="🔍 Rechercher..." oninput="_admPubSearch=this.value;_renderAdmPubList()" style="flex:1;min-width:140px;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.45rem 0.7rem;font-size:0.78rem;">';
+  html+='<select onchange="_admPubFilter=this.value;_renderAdmPubList()" style="background:var(--surface2);border:1px solid rgba(255,45,155,0.2);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.78rem;">';
+  html+='<option value="all">Tous les types</option><option value="nuits">🌙 Nuits</option><option value="avis">⭐ Avis</option><option value="event">🎉 Event</option><option value="alerte">⚠️ Alerte</option><option value="info">💬 Info</option>';
+  html+='</select>';
+  html+='<button onclick="renderAdmContent()" style="padding:0.42rem 0.7rem;border-radius:8px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.08);color:var(--cyan);font-size:0.75rem;cursor:pointer;">↻</button>';
+  html+='</div>';
+  html+='<div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.7rem;"><strong style="color:var(--text);">'+list.length+'</strong> publication(s) / '+_admPubList.length+' total</div>';
+
+  if(!list.length){
+    html+='<div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.8rem;">Aucune publication trouvée.</div>';
+    panel.innerHTML=html; return;
+  }
+
+  list.forEach(function(p){
+    var dateStr='';
+    try{ if(p.createdAt && p.createdAt.toDate) dateStr=p.createdAt.toDate().toLocaleDateString('fr-FR'); }catch(e){}
+    var pinned=p._pinned?'background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.3);':'background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);';
+    var hidden=p._hidden?'opacity:0.45;':'';
+    html+='<div style="'+pinned+hidden+'border-radius:12px;padding:0.85rem;margin-bottom:0.7rem;">';
+    html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;">';
+    html+='<div style="flex:1;min-width:0;">';
+    html+='<div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.15rem;">'+(p.type||'info')+' · '+(p.pseudo||'Anonyme')+' · '+dateStr+'</div>';
+    html+='<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.85rem;color:'+(p._pinned?'var(--amber)':'var(--text)')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(p._pinned?'📌 ':'')+_escHtmlLocal(p.titre||'Sans titre')+'</div>';
+    html+='<div style="font-size:0.73rem;color:var(--muted);margin-top:0.2rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+_escHtmlLocal((p.texte||'').substring(0,80))+'</div>';
+    if(p.photos && p.photos.length) html+='<div style="font-size:0.62rem;color:var(--cyan);margin-top:0.15rem;">📷 '+p.photos.length+' photo(s)</div>';
+    html+='</div>';
+    html+='<div style="display:flex;flex-direction:column;gap:0.3rem;flex-shrink:0;">';
+    html+='<button onclick="admPinPub(''+p._docId+'')" style="font-size:0.6rem;padding:0.18rem 0.42rem;border-radius:5px;cursor:pointer;border:1px solid rgba(255,215,0,'+(p._pinned?'0.5':'0.2')+');background:rgba(255,215,0,'+(p._pinned?'0.15':'0.04')+');color:var(--amber);font-family:DM Sans,sans-serif;">'+(p._pinned?'📌 Épinglé':'📌 Épingler')+'</button>';
+    html+='<button onclick="admHidePub(''+p._docId+'','+(!p._hidden)+')" style="font-size:0.6rem;padding:0.18rem 0.42rem;border-radius:5px;cursor:pointer;border:1px solid rgba(0,229,255,0.25);background:rgba(0,229,255,0.06);color:var(--cyan);font-family:DM Sans,sans-serif;">'+(p._hidden?'👁️ Afficher':'🚫 Masquer')+'</button>';
+    html+='<button onclick="admDeletePub(''+p._docId+'')" style="font-size:0.6rem;padding:0.18rem 0.42rem;border-radius:5px;cursor:pointer;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.07);color:var(--red);font-family:DM Sans,sans-serif;">🗑️ Supprimer</button>';
+    html+='</div></div></div>';
+  });
+
+  panel.innerHTML=html;
+}
+
+function _escHtmlLocal(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+window._renderAdmPubList = _renderAdmPubList;
+
+window.admDeletePub = function(docId){
+  if(!confirm('Supprimer définitivement cette publication ?')) return;
+  window.fbDeleteDoc(window.fbDoc(window.db,'publications',docId))
+    .then(function(){
+      _admPubList = _admPubList.filter(function(p){ return p._docId!==docId; });
+      _renderAdmPubList();
+      showToast('✅ Publication supprimée');
+    })
+    .catch(function(err){ showToast('Erreur: '+err.message); });
+};
+
+window.admPinPub = function(docId){
+  var p = _admPubList.find(function(x){ return x._docId===docId; });
+  if(!p) return;
+  var newVal = !p._pinned;
+  window.fbUpdateDoc(window.fbDoc(window.db,'publications',docId), {_pinned: newVal})
+    .then(function(){
+      p._pinned = newVal;
+      _renderAdmPubList();
+      showToast(newVal ? '📌 Publication épinglée' : '📌 Épingle retiré');
+    })
+    .catch(function(err){ showToast('Erreur: '+err.message); });
+};
+
+window.admHidePub = function(docId, hide){
+  var p = _admPubList.find(function(x){ return x._docId===docId; });
+  if(!p) return;
+  window.fbUpdateDoc(window.fbDoc(window.db,'publications',docId), {_hidden: hide})
+    .then(function(){
+      p._hidden = hide;
+      _renderAdmPubList();
+      showToast(hide ? '🚫 Publication masquée' : '👁️ Publication visible');
+    })
+    .catch(function(err){ showToast('Erreur: '+err.message); });
+};
+
+/* ══════════════════════════════════════════════════════════════
+   ══ 3. CONFIGURATION GLOBALE DE L'APPLICATION             ══
+   ══════════════════════════════════════════════════════════════ */
+
+var _appCfg = {};
+
+window.renderAdmAppConfig = function(){
+  var panel = document.getElementById('adminAppConfigPanel');
+  if(!panel) return;
+  panel.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);">⏳ Chargement...</div>';
+
+  if(!window.db){ panel.innerHTML='<div style="color:var(--red);padding:1rem;">Firebase non disponible.</div>'; return; }
+
+  window.fbGetDoc(window.fbDoc(window.db,'config','app_settings'))
+    .then(function(snap){
+      _appCfg = snap.exists() ? (snap.data()||{}) : {};
+      _renderAppConfigUI();
+    })
+    .catch(function(){ _appCfg={}; _renderAppConfigUI(); });
+};
+
+function _renderAppConfigUI(){
+  var panel = document.getElementById('adminAppConfigPanel');
+  if(!panel) return;
+  var c = _appCfg;
+
+  var html = '';
+
+  // ── Maintenance
+  html += '<div style="background:linear-gradient(135deg,rgba(255,68,102,0.1),rgba(204,68,255,0.06));border:1.5px solid rgba(255,68,102,0.35);border-radius:16px;padding:1.1rem;margin-bottom:1rem;">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">';
+  html += '<div><div style="font-family:Syne,sans-serif;font-weight:800;color:var(--red);font-size:0.9rem;">🔧 Mode Maintenance</div><div style="font-size:0.68rem;color:var(--muted);margin-top:0.1rem;">Affiche un message de maintenance à tous les visiteurs</div></div>';
+  html += '<label style="position:relative;width:44px;height:24px;flex-shrink:0;"><input type="checkbox" id="cfgMaintenance" '+(c.maintenance?'checked':'')+' onchange="_admSaveAppCfgField('maintenance',this.checked)" style="opacity:0;width:0;height:0;"><span style="position:absolute;inset:0;background:'+(c.maintenance?'var(--red)':'rgba(255,255,255,0.1)')+';border-radius:24px;cursor:pointer;transition:.25s;"><span style="position:absolute;width:16px;height:16px;left:'+(c.maintenance?'24px':'4px')+';top:4px;background:#fff;border-radius:50%;transition:.25s;display:block;"></span></span></label>';
+  html += '</div>';
+  html += '<input id="cfgMaintMsg" type="text" placeholder="Message de maintenance..." value="'+_escHtmlLocal(c.maintenance_msg||'')+'" maxlength="120" style="width:100%;background:var(--surface2);border:1px solid rgba(255,68,102,0.25);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.82rem;">';
+  html += '<button onclick="_admSaveAppCfgField('maintenance_msg',document.getElementById('cfgMaintMsg').value)" style="margin-top:0.5rem;width:100%;padding:0.45rem;border-radius:8px;border:1px solid rgba(255,68,102,0.4);background:rgba(255,68,102,0.1);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;">Enregistrer le message</button>';
+  html += '</div>';
+
+  // ── Bannière globale
+  html += '<div style="background:rgba(255,215,0,0.06);border:1.5px solid rgba(255,215,0,0.3);border-radius:16px;padding:1.1rem;margin-bottom:1rem;">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;">';
+  html += '<div><div style="font-family:Syne,sans-serif;font-weight:800;color:var(--amber);font-size:0.9rem;">📢 Bannière globale</div><div style="font-size:0.68rem;color:var(--muted);">Bandeau affiché en haut de l'app pour tous</div></div>';
+  html += '<label style="position:relative;width:44px;height:24px;flex-shrink:0;"><input type="checkbox" id="cfgBanner" '+(c.banner_active?'checked':'')+' onchange="_admSaveAppCfgField('banner_active',this.checked)" style="opacity:0;width:0;height:0;"><span style="position:absolute;inset:0;background:'+(c.banner_active?'var(--amber)':'rgba(255,255,255,0.1)')+';border-radius:24px;cursor:pointer;transition:.25s;"><span style="position:absolute;width:16px;height:16px;left:'+(c.banner_active?'24px':'4px')+';top:4px;background:#fff;border-radius:50%;transition:.25s;display:block;"></span></span></label>';
+  html += '</div>';
+  html += '<input id="cfgBannerMsg" type="text" placeholder="Ex: 🎉 Soirée spéciale ce soir à Yoka Lounge !" value="'+_escHtmlLocal(c.banner_msg||'')+'" maxlength="120" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.82rem;margin-bottom:0.5rem;">';
+  html += '<input id="cfgBannerLink" type="url" placeholder="Lien optionnel (https://...)" value="'+_escHtmlLocal(c.banner_link||'')+'" maxlength="200" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.82rem;">';
+  html += '<button onclick="_admSaveBanner()" style="margin-top:0.5rem;width:100%;padding:0.45rem;border-radius:8px;border:1px solid rgba(255,215,0,0.4);background:rgba(255,215,0,0.1);color:var(--amber);font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;">Enregistrer la bannière</button>';
+  html += '</div>';
+
+  // ── Limites
+  html += '<div style="background:rgba(0,229,255,0.04);border:1.5px solid rgba(0,229,255,0.2);border-radius:16px;padding:1.1rem;margin-bottom:1rem;">';
+  html += '<div style="font-family:Syne,sans-serif;font-weight:800;color:var(--cyan);font-size:0.9rem;margin-bottom:0.8rem;">⚙️ Limites & Règles</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.7rem;">';
+  html += '<div><label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Publications / jour (max)</label><input id="cfgMaxPubs" type="number" min="1" max="50" value="'+(c.max_pubs_per_day||5)+'" style="width:100%;background:var(--surface2);border:1px solid rgba(0,229,255,0.2);border-radius:8px;color:var(--cyan);padding:0.5rem;font-size:0.9rem;text-align:center;font-weight:700;"></div>';
+  html += '<div><label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Photos par publication</label><input id="cfgMaxPhotos" type="number" min="1" max="10" value="'+(c.max_photos_per_pub||5)+'" style="width:100%;background:var(--surface2);border:1px solid rgba(0,229,255,0.2);border-radius:8px;color:var(--cyan);padding:0.5rem;font-size:0.9rem;text-align:center;font-weight:700;"></div>';
+  html += '</div>';
+  html += '<div style="margin-bottom:0.7rem;"><label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Message d'accueil (page d'accueil)</label><input id="cfgWelcome" type="text" maxlength="100" value="'+_escHtmlLocal(c.welcome_msg||'')+'" placeholder="Ex: Trouvez l'ambiance en temps réel 🌙" style="width:100%;background:var(--surface2);border:1px solid rgba(0,229,255,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.82rem;"></div>';
+  html += '<button onclick="_admSaveLimits()" style="width:100%;padding:0.5rem;border-radius:8px;border:none;background:linear-gradient(135deg,var(--cyan),var(--purple));color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;">💾 Enregistrer les limites</button>';
+  html += '</div>';
+
+  // ── Accès & Sécurité
+  html += '<div style="background:rgba(204,68,255,0.05);border:1.5px solid rgba(204,68,255,0.25);border-radius:16px;padding:1.1rem;margin-bottom:1rem;">';
+  html += '<div style="font-family:Syne,sans-serif;font-weight:800;color:var(--purple);font-size:0.9rem;margin-bottom:0.8rem;">🔐 Accès & Sécurité</div>';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.7rem;"><div><div style="font-size:0.78rem;color:var(--text);font-weight:600;">Inscription publique</div><div style="font-size:0.65rem;color:var(--muted);">Permettre aux nouveaux utilisateurs de s'inscrire</div></div><label style="position:relative;width:44px;height:24px;flex-shrink:0;"><input type="checkbox" '+(c.registration_open!==false?'checked':'')+' onchange="_admSaveAppCfgField('registration_open',this.checked)" style="opacity:0;width:0;height:0;"><span style="position:absolute;inset:0;background:'+(c.registration_open!==false?'var(--green)':'rgba(255,255,255,0.1)')+';border-radius:24px;cursor:pointer;transition:.25s;"><span style="position:absolute;width:16px;height:16px;left:'+(c.registration_open!==false?'24px':'4px')+';top:4px;background:#fff;border-radius:50%;transition:.25s;display:block;"></span></span></label></div>';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.7rem;"><div><div style="font-size:0.78rem;color:var(--text);font-weight:600;">Modération des publications</div><div style="font-size:0.65rem;color:var(--muted);">Publier en attente d'approbation admin</div></div><label style="position:relative;width:44px;height:24px;flex-shrink:0;"><input type="checkbox" '+(c.pub_moderation?'checked':'')+' onchange="_admSaveAppCfgField('pub_moderation',this.checked)" style="opacity:0;width:0;height:0;"><span style="position:absolute;inset:0;background:'+(c.pub_moderation?'var(--pink)':'rgba(255,255,255,0.1)')+';border-radius:24px;cursor:pointer;transition:.25s;"><span style="position:absolute;width:16px;height:16px;left:'+(c.pub_moderation?'24px':'4px')+';top:4px;background:#fff;border-radius:50%;transition:.25s;display:block;"></span></span></label></div>';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;"><div><div style="font-size:0.78rem;color:var(--text);font-weight:600;">Commentaires activés</div><div style="font-size:0.65rem;color:var(--muted);">Autoriser les commentaires sur les publications</div></div><label style="position:relative;width:44px;height:24px;flex-shrink:0;"><input type="checkbox" '+(c.comments_enabled!==false?'checked':'')+' onchange="_admSaveAppCfgField('comments_enabled',this.checked)" style="opacity:0;width:0;height:0;"><span style="position:absolute;inset:0;background:'+(c.comments_enabled!==false?'var(--green)':'rgba(255,255,255,0.1)')+';border-radius:24px;cursor:pointer;transition:.25s;"><span style="position:absolute;width:16px;height:16px;left:'+(c.comments_enabled!==false?'24px':'4px')+';top:4px;background:#fff;border-radius:50%;transition:.25s;display:block;"></span></span></label></div>';
+  html += '</div>';
+
+  // ── Actions rapides
+  html += '<div style="background:rgba(0,255,170,0.04);border:1.5px solid rgba(0,255,170,0.2);border-radius:16px;padding:1.1rem;margin-bottom:1rem;">';
+  html += '<div style="font-family:Syne,sans-serif;font-weight:800;color:var(--green);font-size:0.9rem;margin-bottom:0.8rem;">⚡ Actions rapides</div>';
+  html += '<div style="display:grid;gap:0.5rem;">';
+  html += '<button onclick="admForceRefreshAll()" style="width:100%;padding:0.55rem;border-radius:10px;border:1px solid rgba(0,255,170,0.3);background:rgba(0,255,170,0.07);color:var(--green);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;">↻ Forcer rechargement des données</button>';
+  html += '<button onclick="admExportUsers()" style="width:100%;padding:0.55rem;border-radius:10px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.07);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;">📥 Exporter liste membres (CSV)</button>';
+  html += '<button onclick="admClearPubCache()" style="width:100%;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,215,0,0.3);background:rgba(255,215,0,0.07);color:var(--amber);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;">🗑️ Réinitialiser compteurs publications</button>';
+  html += '</div></div>';
+
+  panel.innerHTML = html;
+}
+
+window._admSaveAppCfgField = function(key, val){
+  if(!window.db) return;
+  _appCfg[key] = val;
+  window.fbSetDoc(window.fbDoc(window.db,'config','app_settings'), _appCfg, {merge:true})
+    .then(function(){ showToast('✅ Paramètre sauvegardé'); renderAdmAppConfig(); })
+    .catch(function(e){ showToast('Erreur: '+e.message); });
+};
+
+window._admSaveBanner = function(){
+  var msg  = (document.getElementById('cfgBannerMsg')||{}).value||'';
+  var link = (document.getElementById('cfgBannerLink')||{}).value||'';
+  _admSaveMultipleFields({banner_msg: msg, banner_link: link});
+};
+
+window._admSaveLimits = function(){
+  var maxPubs   = parseInt((document.getElementById('cfgMaxPubs')||{}).value)||5;
+  var maxPhotos = parseInt((document.getElementById('cfgMaxPhotos')||{}).value)||5;
+  var welcome   = ((document.getElementById('cfgWelcome')||{}).value||'').trim();
+  _admSaveMultipleFields({max_pubs_per_day: maxPubs, max_photos_per_pub: maxPhotos, welcome_msg: welcome});
+};
+
+function _admSaveMultipleFields(fields){
+  if(!window.db) return;
+  Object.assign(_appCfg, fields);
+  window.fbSetDoc(window.fbDoc(window.db,'config','app_settings'), _appCfg, {merge:true})
+    .then(function(){ showToast('✅ Configuration enregistrée !'); })
+    .catch(function(e){ showToast('Erreur: '+e.message); });
+}
+
+window.admForceRefreshAll = function(){
+  if(typeof loadData==='function') loadData();
+  showToast('↻ Rechargement en cours...');
+  setTimeout(function(){ showToast('✅ Données rechargées'); }, 2000);
+};
+
+window.admExportUsers = function(){
+  if(!window.db){ showToast('Firebase requis'); return; }
+  showToast('⏳ Export en cours...');
+  window.fbGetDocs(window.fbCollection(window.db,'users')).then(function(snap){
+    var rows = ['Email,Pseudo,Rôle,Date inscription'];
+    snap.forEach(function(doc){
+      var d=doc.data();
+      rows.push([d.email||'',d.pseudo||'',d.role||'',d.createdAt||''].map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(','));
+    });
+    var blob = new Blob([rows.join('
+')], {type:'text/csv'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'ambi241_membres_'+new Date().toISOString().slice(0,10)+'.csv';
+    a.click();
+    showToast('✅ CSV exporté ('+snap.size+' membres)');
+  }).catch(function(e){ showToast('Erreur: '+e.message); });
+};
+
+window.admClearPubCache = function(){
+  if(!confirm('Réinitialiser les compteurs de publications du jour pour TOUS les utilisateurs ?')) return;
+  var keys=[];
+  for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.startsWith('pubday_')) keys.push(k); }
+  keys.forEach(function(k){ localStorage.removeItem(k); });
+  showToast('✅ Compteurs réinitialisés ('+keys.length+' entrées)');
+};
+
+/* ══════════════════════════════════════════════════════════════
+   ══ 4. BANNISSEMENT UTILISATEURS                           ══
+   ══════════════════════════════════════════════════════════════ */
+
+window.admBanUser = function(uid, pseudo, banned){
+  var action = banned ? 'débannir' : 'bannir';
+  if(!confirm((banned?'Débannir':'Bannir')+' '+pseudo+' ?
+'+(banned?'L'utilisateur retrouvera accès à l'app.':'Cet utilisateur ne pourra plus publier ni commenter.'))) return;
+  if(!window.db){ showToast('Firebase requis'); return; }
+  window.fbSetDoc(window.fbDoc(window.db,'users',uid), {banned: !banned, bannedAt: !banned ? new Date().toISOString() : null, bannedBy: window.currentUserEmail||'admin'}, {merge:true})
+    .then(function(){
+      showToast(!banned ? '🚫 Utilisateur banni' : '✅ Utilisateur débanni');
+      if(window._currentAdmTab==='users') renderAdmUsers();
+    })
+    .catch(function(e){ showToast('Erreur: '+e.message); });
+};
+
+/* Patch renderAdmUsers pour ajouter le bouton Bannir */
+var _fbGetDocs2 = null;
+(function tryPatchUsers(){
+  if(typeof renderAdmUsers !== 'undefined' && window.fbGetDocs){
+    _fbGetDocs2 = window.fbGetDocs;
+  }
+  setTimeout(tryPatchUsers, 2000);
+})();
+
+/* ══════════════════════════════════════════════════════════════
+   ══ 5. BANNIÈRE GLOBALE — Lecture côté visiteur             ══
+   ══════════════════════════════════════════════════════════════ */
+
+function _checkGlobalBanner(){
+  if(!window.db || !window.fbGetDoc || !window.fbDoc) return;
+  window.fbGetDoc(window.fbDoc(window.db,'config','app_settings')).then(function(snap){
+    if(!snap.exists()) return;
+    var cfg = snap.data()||{};
+    // Maintenance
+    if(cfg.maintenance && !window.isAdmin){
+      var msg = cfg.maintenance_msg || '🔧 Maintenance en cours, veuillez patienter...';
+      var overlay = document.getElementById('_maintOverlay');
+      if(!overlay){
+        overlay = document.createElement('div');
+        overlay.id = '_maintOverlay';
+        overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(13,0,20,0.97);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2rem;';
+        overlay.innerHTML='<div style="font-size:3rem;margin-bottom:1rem;">🔧</div><div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.2rem;color:var(--amber);margin-bottom:0.5rem;">Maintenance</div><div style="font-size:0.88rem;color:var(--muted);line-height:1.6;max-width:280px;">'+_escHtmlLocal(msg)+'</div>';
+        document.body.appendChild(overlay);
+      }
+    } else {
+      var old = document.getElementById('_maintOverlay');
+      if(old) old.remove();
+    }
+    // Bannière
+    var bannerEl = document.getElementById('_globalBannerBar');
+    if(cfg.banner_active && cfg.banner_msg){
+      if(!bannerEl){
+        bannerEl = document.createElement('div');
+        bannerEl.id = '_globalBannerBar';
+        bannerEl.style.cssText='position:fixed;top:0;left:0;right:0;z-index:500;background:linear-gradient(90deg,rgba(255,215,0,0.95),rgba(255,45,155,0.85));color:#000;font-size:0.78rem;font-weight:700;padding:0.45rem 1rem;text-align:center;cursor:pointer;display:flex;align-items:center;justify-content:space-between;';
+        document.body.appendChild(bannerEl);
+      }
+      bannerEl.innerHTML='<span>📢 '+_escHtmlLocal(cfg.banner_msg)+'</span><button onclick="this.parentElement.style.display='none'" style="background:none;border:none;color:#000;font-size:1rem;cursor:pointer;padding:0 0.3rem;line-height:1;">✕</button>';
+      if(cfg.banner_link) bannerEl.querySelector('span').onclick=function(){ window.open(cfg.banner_link,'_blank'); };
+    } else {
+      if(bannerEl) bannerEl.style.display='none';
+    }
+  }).catch(function(){});
+}
+
+// Vérifier la bannière au chargement et toutes les 2 minutes
+setTimeout(_checkGlobalBanner, 3000);
+setInterval(_checkGlobalBanner, 120000);
+
+console.log('✅ AMBI241 Admin Control v2.0 chargé');
+})();
+</script>
+
 </html>
