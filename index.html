@@ -4589,6 +4589,11 @@ if (document.readyState === 'loading') {
     <!-- Panneau URL -->
     <div id="wsamPanelUrl">
       <label class="wsam-label">Lien MP3 (Google Drive, Dropbox, lien direct…)</label>
+      <div style="font-size:0.68rem;color:var(--cyan);background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.18);border-radius:8px;padding:0.45rem 0.65rem;margin-bottom:0.5rem;line-height:1.6;">
+        💡 <strong style="color:var(--text);">Comment obtenir un lien audio ?</strong><br>
+        <span style="color:var(--muted);">① Mettez votre MP3 sur <strong style="color:var(--text);">Dropbox</strong> ou <strong style="color:var(--text);">Google Drive</strong> → ② Partagez-le (accès "Toute personne avec le lien") → ③ Copiez le lien ici → ④ Cliquez <strong style="color:var(--amber);">🔄 Convertir</strong> puis <strong style="color:var(--green);">🎧 Tester</strong>.<br>
+        Dropbox est recommandé car plus fiable que Drive pour l'audio.</span>
+      </div>
       <input class="wsam-input" type="text" id="wsamAudioUrl" placeholder="https://drive.google.com/... ou https://..." oninput="wsamUrlChanged()">
       <div class="wsam-url-actions">
         <button class="wsam-url-btn" onclick="wsamConvertUrl()">🔄 Convertir Drive/Dropbox</button>
@@ -15858,9 +15863,12 @@ function renderAdmUsers(){
         var myEtab = etablissements.find(function(e){ return (e.email||"").toLowerCase().trim() === em; });
 
         var uData = { uid:u.uid||"", email:u.email||"", pseudo:u.pseudo||"", tel:u.tel||"", dob:u.dob||"", createdAt:u.createdAt||"", isAdmin:isAdminUser, etabNom:myEtab?myEtab.nom:"" };
-        var uDataStr = encodeURIComponent(JSON.stringify(uData));
-        h += "<div class='notif-admin-item' style='"+(isAdminUser?"border-color:rgba(255,215,0,0.2);":"")+"'>";
-        h += "<div style='display:flex;align-items:center;gap:0.6rem;cursor:pointer;' onclick=\"openUserProfile(decodeURIComponent('"+uDataStr+"'))\">";
+        /* Stocker dans le cache global pour eviter les problemes d encodage dans onclick */
+        window._memberCache = window._memberCache || {};
+        var _mKey = u.uid || u.email || Math.random().toString(36).slice(2);
+        window._memberCache[_mKey] = uData;
+        h += "<div class='notif-admin-item' data-mkey='"+escHtml(_mKey)+"' style='cursor:pointer;"+(isAdminUser?"border-color:rgba(255,215,0,0.2);":"")+"' onclick=\"if(!event.target.closest('button,input,select')){var k=this.getAttribute('data-mkey');if(window._memberCache&&window._memberCache[k])openUserProfile(window._memberCache[k]);}\">";
+        h += "<div style='display:flex;align-items:center;gap:0.6rem;'>";
 
         // Avatar — avec chargement photo réelle si disponible
         var avatarId = "admAvatar_"+escHtml(u.uid||u.email||"?");
@@ -15873,12 +15881,16 @@ function renderAdmUsers(){
         if(isSuperUser) h += " <span style='font-size:0.58rem;background:rgba(255,215,0,0.2);color:var(--amber);padding:0.05rem 0.35rem;border-radius:5px;border:1px solid rgba(255,215,0,0.4);'>👑 Propriétaire</span>";
         else if(isAdminUser) h += " <span style='font-size:0.58rem;background:rgba(255,215,0,0.12);color:var(--amber);padding:0.05rem 0.3rem;border-radius:5px;border:1px solid rgba(255,215,0,0.25);'>🔑 Admin</span>";
         if(myEtab) h += " <span style='font-size:0.58rem;background:rgba(255,45,155,0.12);color:var(--pink);padding:0.05rem 0.3rem;border-radius:5px;border:1px solid rgba(255,45,155,0.25);'>🏠 "+escHtml(myEtab.nom)+"</span>";
+        h += " <span style='font-size:0.58rem;color:var(--pink);border:1px solid rgba(255,45,155,0.3);padding:0.04rem 0.3rem;border-radius:4px;'>👁 Profil</span>";
         h += "</div>";
         h += "<div style='font-size:0.65rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>"+escHtml(u.email||"")+"</div>";
         if(u.tel) h += "<div style='font-size:0.62rem;color:var(--cyan);'>"+escHtml(u.tel)+"</div>";
         h += "</div>";
 
-        h += "<div style='text-align:right;font-size:0.6rem;color:var(--muted);flex-shrink:0;'>"+(u.createdAt?new Date(u.createdAt).toLocaleDateString("fr-FR"):"")+"</div>";
+        h += "<div style='text-align:right;font-size:0.6rem;color:var(--muted);flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:0.25rem;'>";
+        h += "<span style='font-size:1rem;color:rgba(255,45,155,0.5);'>›</span>";
+        h += "<span>"+(u.createdAt?new Date(u.createdAt).toLocaleDateString("fr-FR"):"")+"</span>";
+        h += "</div>";
         // Badge notifs non lues (si Firebase dispo, chargé en asynchrone)
         h += "<div id='_admNotifBadge_"+escHtml(u.uid||"")+"' style='flex-shrink:0;'></div>";
         h += "</div>";
@@ -27388,6 +27400,117 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
   }
 
   console.log('✅ Module Chanson de la Semaine chargé — v2.1 (CORS-fallback + audio-rebuild)');
+})();
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════
+     GESTION DU BOUTON RETOUR TÉLÉPHONE / NAVIGATION INTERNE
+     • Bouton retour Android → ferme modal/panneau ouvert ou
+       revient à l'onglet précédent, JAMAIS ne quitte sans confirmation
+     ══════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  /* ── Stack des états de navigation interne ── */
+  var _navStack = [];
+  var _exitOverlay = null;
+
+  /* Pousser un état dans l'historique du navigateur */
+  function _navPush(label){
+    _navStack.push(label);
+    history.pushState({ ambi241Nav: label }, '', window.location.href.split('#')[0] + '#' + label);
+  }
+  window._navPush = _navPush;
+
+  /* Créer l'overlay de confirmation de sortie */
+  function _ensureExitOverlay(){
+    if(_exitOverlay) return _exitOverlay;
+    _exitOverlay = document.createElement('div');
+    _exitOverlay.id = '_ambiExitConfirm';
+    _exitOverlay.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.88);backdrop-filter:blur(12px);align-items:center;justify-content:center;';
+    _exitOverlay.innerHTML =
+      '<div style="background:#230d35;border:1.5px solid rgba(255,45,155,0.4);border-radius:24px;padding:2rem 1.6rem;width:min(340px,90vw);text-align:center;box-shadow:0 0 60px rgba(255,45,155,0.2);animation:popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);">' +
+      '<div style="font-size:2.2rem;margin-bottom:0.7rem;">🚪</div>' +
+      '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.05rem;color:#fff0f8;margin-bottom:0.4rem;">Quitter AMBI241 ?</div>' +
+      '<div style="font-size:0.8rem;color:#b088c0;margin-bottom:1.4rem;line-height:1.5;">Vous êtes sur le point de quitter l\'application.<br>Voulez-vous vraiment partir ?</div>' +
+      '<div style="display:flex;gap:0.7rem;justify-content:center;">' +
+      '<button id="_ambiStayBtn" style="flex:1;padding:0.75rem;border-radius:12px;border:1.5px solid rgba(255,45,155,0.45);background:rgba(255,45,155,0.12);color:#ff2d9b;font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;">Rester</button>' +
+      '<button id="_ambiLeaveBtn" style="flex:1;padding:0.75rem;border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:#b088c0;font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;">Quitter</button>' +
+      '</div>' +
+      '</div>';
+    document.body.appendChild(_exitOverlay);
+    document.getElementById('_ambiStayBtn').addEventListener('click', function(){
+      _exitOverlay.style.display = 'none';
+      /* Repousser un état pour rester dans l'appli */
+      history.pushState({ ambi241Nav: 'main' }, '', window.location.href.split('#')[0] + '#main');
+    });
+    document.getElementById('_ambiLeaveBtn').addEventListener('click', function(){
+      _exitOverlay.style.display = 'none';
+      history.back(); /* Laisse vraiment sortir */
+    });
+    return _exitOverlay;
+  }
+
+  /* Trouver et fermer le premier modal/panneau ouvert */
+  function _closeTopLayer(){
+    /* Priorité 1 : overlay profil utilisateur */
+    var vp = document.getElementById('_userProfileOverlay');
+    if(vp){ vp.remove(); return true; }
+    /* Priorité 2 : modal admin panneaux */
+    var panels = [
+      document.getElementById('weekSongAdminModal'),
+      document.getElementById('guideOverlay'),
+      document.querySelector('.evt-modal-wrap.show') && document.querySelector('.overlay.show'),
+    ];
+    for(var i=0;i<panels.length;i++){
+      var p = panels[i];
+      if(p && (p.classList.contains('show') || p.style.display==='flex')){
+        p.classList.remove('show');
+        p.style.display='';
+        return true;
+      }
+    }
+    /* Priorité 3 : n'importe quel overlay visible */
+    var overlays = document.querySelectorAll('[id$="Modal"],[id$="Overlay"],[id$="Panel"]');
+    for(var j=0;j<overlays.length;j++){
+      if(overlays[j].classList.contains('show')){
+        overlays[j].classList.remove('show');
+        return true;
+      }
+    }
+    /* Priorité 4 : tableau de bord admin ouvert → retour à l'accueil */
+    var adm = document.getElementById('adminPanel');
+    if(adm && adm.style.display !== 'none' && adm.style.display !== ''){
+      if(typeof closeAdmin === 'function'){ closeAdmin(); return true; }
+    }
+    return false;
+  }
+
+  /* Pousser un état initial pour "être dans l'appli" */
+  function _initNav(){
+    /* Seulement si pas déjà de hash de navigation */
+    if(!window.location.hash || window.location.hash === '#'){
+      history.replaceState({ ambi241Nav: 'main' }, '', window.location.href.split('#')[0] + '#main');
+    }
+    /* Écouter le bouton retour */
+    window.addEventListener('popstate', function(e){
+      /* Si un modal est ouvert, le fermer et repousser l'état */
+      if(_closeTopLayer()){
+        history.pushState({ ambi241Nav: 'main' }, '', window.location.href.split('#')[0] + '#main');
+        return;
+      }
+      /* Sinon : montrer la confirmation de sortie */
+      _ensureExitOverlay();
+      _exitOverlay.style.display = 'flex';
+      /* Repousser un état pour garder le contrôle */
+      history.pushState({ ambi241Nav: 'exitConfirm' }, '', window.location.href.split('#')[0] + '#exitConfirm');
+    });
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', _initNav);
+  } else {
+    _initNav();
+  }
 })();
 </script>
 </html>
