@@ -1206,6 +1206,79 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .view-btn{padding:0.25rem 0.55rem;border-radius:6px;font-size:0.72rem;font-weight:700;border:none;background:transparent;color:var(--muted);cursor:pointer;transition:all 0.2s;}
 .view-btn.active{background:var(--pink);color:#000;}
 
+/* ══ VUE COMPACTE — lignes condensées déployables ══ */
+.compact-list{display:flex;flex-direction:column;gap:0;border:1px solid rgba(255,45,155,0.15);border-radius:14px;overflow:hidden;background:var(--surface);}
+.compact-row{
+  display:flex;align-items:center;gap:0.55rem;
+  padding:0.52rem 0.75rem;
+  border-bottom:1px solid rgba(255,255,255,0.05);
+  cursor:pointer;
+  transition:background 0.15s;
+  position:relative;
+  -webkit-tap-highlight-color:transparent;
+  user-select:none;
+}
+.compact-row:last-child{border-bottom:none;}
+.compact-row:active{background:rgba(255,45,155,0.07);}
+.compact-row.expanded{background:rgba(255,45,155,0.04);}
+/* Rang */
+.cr-rank{
+  font-family:'Syne',sans-serif;font-weight:900;font-size:0.58rem;
+  color:var(--muted);min-width:20px;text-align:center;flex-shrink:0;
+}
+.cr-rank.gold{color:#ffd700;}
+.cr-rank.silver{color:#c0c0c0;}
+.cr-rank.bronze{color:#cd7f32;}
+/* Icone type */
+.cr-icon{font-size:1.15rem;width:24px;text-align:center;flex-shrink:0;line-height:1;}
+/* Nom */
+.cr-name{
+  flex:1;min-width:0;
+  font-family:'DM Sans',sans-serif;font-weight:700;font-size:0.8rem;
+  color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+/* Statut pill */
+.cr-status{
+  font-size:0.55rem;font-weight:800;padding:0.12rem 0.38rem;
+  border-radius:100px;white-space:nowrap;flex-shrink:0;
+}
+.cr-status.bonde{background:rgba(255,68,102,0.15);color:var(--red);border:1px solid rgba(255,68,102,0.3);}
+.cr-status.anime{background:rgba(0,255,170,0.12);color:var(--green);border:1px solid rgba(0,255,170,0.25);}
+.cr-status.calme{background:rgba(255,215,0,0.12);color:var(--amber);border:1px solid rgba(255,215,0,0.25);}
+.cr-status.inconnu{background:rgba(255,255,255,0.06);color:var(--muted);border:1px solid rgba(255,255,255,0.1);}
+/* Score */
+.cr-score{
+  display:flex;align-items:center;gap:0.18rem;
+  font-family:'Syne',sans-serif;font-weight:800;font-size:0.7rem;
+  color:var(--amber);flex-shrink:0;min-width:34px;justify-content:flex-end;
+}
+/* Chevron expand */
+.cr-chevron{
+  font-size:0.6rem;color:var(--muted);flex-shrink:0;
+  transition:transform 0.2s;
+}
+.compact-row.expanded .cr-chevron{transform:rotate(180deg);}
+/* Panneau déployé */
+.compact-detail{
+  display:none;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  background:rgba(0,0,0,0.25);
+  animation:slideDown 0.22s ease;
+}
+.compact-detail.open{display:block;}
+.compact-detail .card-top{padding:0.75rem 0.9rem 0.55rem;}
+.compact-detail .card-photos{border-radius:0;}
+.compact-detail .card-contact-row{padding:0.5rem 0.9rem;}
+/* Barre de score compacte dans l'expanded */
+.cr-score-bar-wrap{
+  display:flex;align-items:center;gap:0.5rem;
+  padding:0.45rem 0.9rem 0.5rem;
+  border-top:1px solid rgba(255,255,255,0.05);
+  font-size:0.62rem;color:var(--muted);
+}
+.cr-score-bar{flex:1;background:rgba(255,255,255,0.07);border-radius:100px;height:5px;overflow:hidden;}
+.cr-score-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--pink),var(--amber));}
+
 /* ══ GPS / PRÈS DE CHEZ VOUS ══ */
 .gps-nearby-btn{display:flex;align-items:center;gap:0.5rem;width:100%;padding:0.75rem 1rem;border-radius:14px;border:2px solid rgba(0,229,255,0.35);background:linear-gradient(135deg,rgba(0,229,255,0.08),rgba(0,255,170,0.06));color:var(--cyan);font-family:'Syne',sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;transition:all 0.25s;margin-bottom:0.9rem;position:relative;overflow:hidden;}
 .gps-nearby-btn:active{transform:scale(0.97);}
@@ -4550,8 +4623,9 @@ if (document.readyState === 'loading') {
           <button class="sort-btn" data-sort="quartier">Quartier</button>
         </div>
         <div class="view-btns">
-          <button class="view-btn active" data-view="liste">&#8801;</button>
-          <button class="view-btn" data-view="groupe">&#9783;</button>
+          <button class="view-btn active" data-view="liste" title="Vue cartes complètes">&#8801;</button>
+          <button class="view-btn" data-view="compact" title="Vue compacte — lignes condensées">&#9776;</button>
+          <button class="view-btn" data-view="groupe" title="Vue par catégorie">&#9783;</button>
           <button class="view-btn" data-view="carte" title="Carte interactive">&#128205;</button>
         </div>
       </div>
@@ -7927,7 +8001,7 @@ function renderHomeImmediate(){
         : statut.indexOf("Calme") !== -1 ? "🟡" : "•";
       
       return '<div class="top6-card '+cardClass+'" onclick="goToEtab('+e.id+')" title="Voir '+escHtml(e.nom||'')+'">'
-        + '<div class="t6c-rank">N°'+(i+1)+'</div>'
+        + '<div class="t6c-rank">'+(i+1)+'</div>'
         + '<div class="t6c-icon">'+icon+'</div>'
         + '<div class="t6c-info">'
         +   '<div class="t6c-name">'+label+' • '+(e.nom||"—")+'</div>'
@@ -10101,6 +10175,121 @@ function buildLiveDispoBar(e, canManage){
   return html;
 }
 
+function buildCompactRow(e, rank){
+  var cat  = getCategory(e.type);
+  var ci   = getCatInfo(cat);
+  var sc   = computeRankScore(e);
+  var aff  = e.affluence || 0;
+  var st   = (e.statut || "").toLowerCase();
+
+  // Rang coloré
+  var rankCls = rank === 1 ? "gold" : rank === 2 ? "silver" : rank === 3 ? "bronze" : "";
+
+  // Statut pill
+  var statLabel = "", statCls = "inconnu";
+  if(st.indexOf("bond") !== -1 || st.indexOf("bonde") !== -1){ statLabel = "🔴 Bondé"; statCls = "bonde"; }
+  else if(st.indexOf("anime") !== -1 || st.indexOf("animé") !== -1){ statLabel = "🟢 Animé"; statCls = "anime"; }
+  else if(st.indexOf("calme") !== -1){ statLabel = "🟡 Calme"; statCls = "calme"; }
+  else if(aff > 70){ statLabel = "🔴 Bondé"; statCls = "bonde"; }
+  else if(aff > 35){ statLabel = "🟢 Animé"; statCls = "anime"; }
+  else if(aff > 0){ statLabel = "🟡 Calme"; statCls = "calme"; }
+
+  // Note étoile
+  var note = e.note ? e.note.toFixed(1) : "—";
+
+  // Score bar %
+  var scorePct = Math.min(100, sc.score);
+
+  // Photo miniature pour le panneau déployé
+  var permPhoto = e._photo_profile_approved || e.photo_interieur || e.photo_exterieur || getGooglePhotoUrl(e,'exterieur') || e._fallback_svg || "";
+  var canManage = isAdmin || isResponsable(e.id);
+
+  // Contact row compact
+  var contact = e.contact ? e.contact.replace(/\s/g,"") : "";
+  var waUrl = contact ? "https://wa.me/"+(contact.replace(/\+/g,""))+"?text="+encodeURIComponent("Bonjour "+escHtml(e.nom)+" (via AMBI241)") : "";
+  var telUrl = contact ? "tel:"+contact : "";
+
+  var html = "";
+
+  // ─ Ligne condensée ─
+  html += "<div class='compact-row' id='cr-"+e.id+"' onclick='toggleCompactDetail("+e.id+")'>";
+  html += "<div class='cr-rank "+rankCls+"'>"+rank+"</div>";
+  html += "<div class='cr-icon'>"+ci.icon+"</div>";
+  html += "<div class='cr-name'>"+escHtml(e.nom)+"</div>";
+  if(statLabel) html += "<div class='cr-status "+statCls+"'>"+statLabel+"</div>";
+  html += "<div class='cr-score'>⭐ "+note+"</div>";
+  html += "<div class='cr-chevron'>▼</div>";
+  html += "</div>";
+
+  // ─ Panneau déployé ─
+  html += "<div class='compact-detail' id='cd-"+e.id+"'>";
+
+  // Photo + infos
+  if(permPhoto){
+    html += "<div style='height:90px;overflow:hidden;position:relative;background:#000;cursor:pointer;' onclick='openFullscreenPhoto(\""+permPhoto.replace(/"/g,"&quot;").replace(/'/g,"\\'")+'",'+e.id+',"profile","'+escHtml(e.nom).replace(/"/g,"&quot;")+"\")'>";
+    html += "<img src='"+permPhoto+"' style='width:100%;height:100%;object-fit:cover;display:block;opacity:0.85;'>";
+    html += "<div style='position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0.6) 0%,transparent 50%);'></div>";
+    html += "<div style='position:absolute;left:0.7rem;top:50%;transform:translateY(-50%);'>";
+    html += "<div style='font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;color:#fff;'>"+escHtml(e.nom)+"</div>";
+    html += "<div style='font-size:0.62rem;color:rgba(255,255,255,0.7);margin-top:0.1rem;'>"+escHtml(e.type)+" · "+escHtml(e.quartier||"")+"</div>";
+    html += "</div>";
+    html += "</div>";
+  } else {
+    html += "<div style='padding:0.5rem 0.9rem;'>";
+    html += "<div style='font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;color:var(--text);'>"+escHtml(e.nom)+"</div>";
+    html += "<div style='font-size:0.62rem;color:var(--muted);margin-top:0.1rem;'>"+escHtml(e.type)+" · "+escHtml(e.quartier||"")+"</div>";
+    html += "</div>";
+  }
+
+  // Score bar
+  html += "<div class='cr-score-bar-wrap'>";
+  html += "<span>Score</span>";
+  html += "<div class='cr-score-bar'><div class='cr-score-fill' style='width:"+scorePct+"%'></div></div>";
+  html += "<span style='color:var(--amber);font-weight:800;'>"+sc.score+"</span>";
+  html += "</div>";
+
+  // Infos rapides
+  html += "<div style='display:flex;gap:0.5rem;flex-wrap:wrap;padding:0.45rem 0.9rem 0.5rem;font-size:0.65rem;color:var(--muted);border-top:1px solid rgba(255,255,255,0.05);'>";
+  if(e.ambiance) html += "<span>✨ "+escHtml(e.ambiance)+"</span>";
+  if(e.avis) html += "<span>💬 "+e.avis+" avis</span>";
+  if(e.affluence) html += "<span>👥 Affluence "+e.affluence+"%</span>";
+  html += "</div>";
+
+  // Contacts + bouton fiche complète
+  html += "<div style='display:flex;gap:0.4rem;padding:0.45rem 0.9rem 0.7rem;flex-wrap:wrap;border-top:1px solid rgba(255,255,255,0.05);'>";
+  if(waUrl) html += "<a href='"+waUrl+"' target='_blank' class='cc-btn cc-btn-wa' onclick=\"logContactClick('"+e.id+"','"+escHtml(e.nom).replace(/'/g,"\\'")+"','whatsapp')\">💬 WA</a>";
+  if(telUrl) html += "<a href='"+telUrl+"' class='cc-btn cc-btn-tel' onclick=\"logContactClick('"+e.id+"','"+escHtml(e.nom).replace(/'/g,"\\'")+"','telephone')\">📞 Appeler</a>";
+  if(e.maps_url) html += "<a href='"+e.maps_url+"' target='_blank' class='cc-btn cc-btn-mail' style='background:rgba(0,229,255,0.1);border-color:rgba(0,229,255,0.3);color:var(--cyan);'>📍 Maps</a>";
+  html += "<button class='cc-btn' style='background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);margin-left:auto;' onclick=\"event.stopPropagation();goToEtab("+e.id+")\">Fiche complète →</button>";
+  html += "</div>";
+
+  // Boutons admin
+  if(canManage){
+    html += "<div style='padding:0.35rem 0.9rem 0.55rem;border-top:1px solid rgba(255,255,255,0.05);display:flex;gap:0.4rem;flex-wrap:wrap;'>";
+    html += "<button onclick=\"event.stopPropagation();openEditPanel("+e.id+")\" style='background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);color:var(--amber);font-size:0.68rem;font-weight:700;padding:0.28rem 0.65rem;border-radius:8px;cursor:pointer;font-family:DM Sans,sans-serif;'>✏️ Modifier</button>";
+    html += "</div>";
+  }
+
+  html += "</div>"; // fin compact-detail
+  return html;
+}
+
+window.toggleCompactDetail = function(eid){
+  var row = document.getElementById("cr-"+eid);
+  var det = document.getElementById("cd-"+eid);
+  if(!row || !det) return;
+  var isOpen = det.classList.contains("open");
+  // Fermer tous les autres
+  document.querySelectorAll(".compact-detail.open").forEach(function(d){ d.classList.remove("open"); });
+  document.querySelectorAll(".compact-row.expanded").forEach(function(r){ r.classList.remove("expanded"); });
+  if(!isOpen){
+    det.classList.add("open");
+    row.classList.add("expanded");
+    // Scroll smooth vers la ligne
+    setTimeout(function(){ row.scrollIntoView({behavior:"smooth",block:"nearest"}); }, 50);
+  }
+};
+
 function buildCard(e,delay,compact,rank){
   delay=delay||0;compact=compact||false;
   var sc=statusClass(e.statut);
@@ -10636,7 +10825,7 @@ function buildCard(e,delay,compact,rank){
     photosHtml+
     "<div class=\"card-top\">"+
     "<div class=\"card-row1\"><div>"+
-    "<div class=\"card-num\">N°"+(rank!=null?rank:e.id)+"</div>"+
+    "<div class=\"card-num\">"+(rank!=null?rank:e.id)+"</div>"+
     "<div class=\"card-name\"><button class=\"etab-name-order-btn\" onclick=\"window['_etabOrderBtn_'+"+e.id+"] && window['_etabOrderBtn_'+"+e.id+"]()\" title=\"📋 Réserver à "+e.nom.replace(/"/g,'')+"\" style=\"font-family:'Syne',sans-serif;font-size:inherit;font-weight:inherit;\">"+e.nom+" <span class=\"etab-name-order-pulse\">+</span></button> <span onclick=\"openGalerie("+e.id+")\" title=\"Voir la galerie de "+(e.nom||"").replace(/"/g,'')+"\" style=\"cursor:pointer;display:inline-flex;align-items:center;gap:0.35rem;flex-wrap:wrap;transition:color 0.2s;\"><span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span>"+(e._distKm!=null?"<span class=\"dist-badge "+distClass(e._distKm)+"\">"+fmtDist(e._distKm)+"</span>":"")+"</span></div>"+
     "<span class=\"cat-badge "+ci.badge+"\" style=\"cursor:pointer;\" onclick=\"goToTypeFilter('"+getCategory(e.type)+"')\" title=\"Filtrer par "+ci.label+"\">"+ci.icon+" "+ci.label+"</span>"+
     "<div style=\"font-size:0.7rem;color:var(--cyan);margin-top:0.2rem;cursor:pointer;display:inline-flex;align-items:center;gap:0.2rem;\" onclick=\"goToQuartier('"+e.quartier.replace(/'/g,"")+"')\">&#128205; "+e.quartier+"<span style='font-size:0.55rem;opacity:0.6;'> ›</span></div>"+
@@ -11445,10 +11634,10 @@ function _buildRankCache(){
 function buildRankBadge(eid){
   if(!_rankCache) _buildRankCache();
   var pos = _rankCache[eid] || 99;
-  if(pos===1) return "<span class=\"ranking-badge rank-1\">🏆 N°1</span>";
-  if(pos===2) return "<span class=\"ranking-badge rank-2\">🥈 N°2</span>";
-  if(pos===3) return "<span class=\"ranking-badge rank-3\">🥉 N°3</span>";
-  return "<span class=\"ranking-badge rank-other\">#"+pos+"</span>";
+  if(pos===1) return "<span class=\"ranking-badge rank-1\">🏆 1</span>";
+  if(pos===2) return "<span class=\"ranking-badge rank-2\">🥈 2</span>";
+  if(pos===3) return "<span class=\"ranking-badge rank-3\">🥉 3</span>";
+  return "<span class=\"ranking-badge rank-other\">"+pos+"</span>";
 }
 
 /* ── Modal présence ── */
@@ -11681,7 +11870,17 @@ function renderAllImmediate(){
   }
 
   var html=gpsBannerHtml;
-  if(currentView==="liste"){
+  if(currentView==="compact"){
+    // Vue compacte : tri par score
+    if(!isAdmin){
+      data = data.slice().sort(function(a,b){
+        return computeRankScore(b).score - computeRankScore(a).score;
+      });
+    }
+    html+="<div class=\"compact-list\">";
+    data.forEach(function(e,i){ html+=buildCompactRow(e,i+1); });
+    html+="</div>";
+  } else if(currentView==="liste"){
     // Tri par score dans la vue liste (visiteurs)
     if(!isAdmin){
       data = data.slice().sort(function(a,b){
@@ -11727,6 +11926,11 @@ function renderAllImmediate(){
     if(window.openAmbiMap) setTimeout(function(){ window.openAmbiMap(); },50);
     return;
   }
+  // Autres vues : s'assurer que la carte est masquée et la liste visible
+  var _mc=document.getElementById("mapContainer");
+  var _ml=document.getElementById("mainList");
+  if(_mc) _mc.style.display="none";
+  if(_ml) _ml.style.display="";
   // Bandeau archivés en bas de liste
   html+=archivedHtml;
   document.getElementById("mainList").innerHTML=html;
