@@ -11682,6 +11682,12 @@ function renderAllImmediate(){
 
   var html=gpsBannerHtml;
   if(currentView==="liste"){
+    // Tri par score dans la vue liste (visiteurs)
+    if(!isAdmin){
+      data = data.slice().sort(function(a,b){
+        return computeRankScore(b).score - computeRankScore(a).score;
+      });
+    }
     html+="<div class=\"cards-list\">";
     data.forEach(function(e,i){html+=buildCard(e,i*0.02,false,i+1);}); // délai réduit 0.04→0.02
     html+="</div>";
@@ -11693,10 +11699,14 @@ function renderAllImmediate(){
     var globalRank=0;
     CATEGORIES.forEach(function(cat){
       if(groups[cat.key]&&groups[cat.key].length>0){
+        // ── Tri par score à l'intérieur de chaque catégorie ──
+        var groupSorted = groups[cat.key].slice().sort(function(a,b){
+          return computeRankScore(b).score - computeRankScore(a).score;
+        });
         catHtml+="<div class=\"cat-section\">";
-        catHtml+="<div class=\"cat-header\"><span class=\"cat-icon\">"+cat.icon+"</span><span class=\"cat-name\">"+cat.label+"</span><span class=\"cat-count\">"+groups[cat.key].length+" lieu"+(groups[cat.key].length>1?"x":"")+"</span></div>";
+        catHtml+="<div class=\"cat-header\"><span class=\"cat-icon\">"+cat.icon+"</span><span class=\"cat-name\">"+cat.label+"</span><span class=\"cat-count\">"+groupSorted.length+" lieu"+(groupSorted.length>1?"x":"")+"</span></div>";
         catHtml+="<div class=\"cards-list\">";
-        groups[cat.key].forEach(function(e,i){globalRank++;catHtml+=buildCard(e,i*0.04,false,globalRank);});
+        groupSorted.forEach(function(e,i){globalRank++;catHtml+=buildCard(e,i*0.04,false,globalRank);});
         catHtml+="</div></div>";
       }
     });
@@ -19639,6 +19649,17 @@ window.doAssignEtab = doAssignEtab;
             <li>Faire des demandes de réservation VIP</li>
             <li>Publier dans les discussions</li>
             <li>Recevoir des notifications personnalisées</li>
+          </ul>
+        </div>
+        <div class="guide-role-card">
+          <div class="guide-role-title" style="color:var(--amber)">&#128663; Membre Chauffeur</div>
+          <ul class="guide-role-list">
+            <li>Profil conducteur avec photo, véhicule et permis</li>
+            <li>Visible dans l'annuaire Taxi Pro AMBI241</li>
+            <li>Recevoir des demandes de courses via WhatsApp</li>
+            <li>Afficher son numéro et disponibilité en temps réel</li>
+            <li>Accéder aux statistiques de contacts reçus</li>
+            <li>Bénéficier du badge vérifié 🏅 Chauffeur Certifié</li>
           </ul>
         </div>
       </div>
