@@ -447,7 +447,39 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .wsam-tgl-s:before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:0.25s;}
 .wsam-tgl input:checked+.wsam-tgl-s{background:var(--pink);}
 .wsam-tgl input:checked+.wsam-tgl-s:before{transform:translateX(18px);}
+/* Cloudinary upload progress */
+.wsam-upload-progress{display:none;margin-bottom:0.65rem;}
+.wsam-upload-progress.show{display:block;}
+.wsam-upload-progress-bar-wrap{background:rgba(255,255,255,0.07);border-radius:20px;height:8px;overflow:hidden;margin-top:0.35rem;}
+.wsam-upload-progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--pink),var(--cyan));border-radius:20px;transition:width 0.3s ease;}
+.wsam-upload-progress-label{font-size:0.65rem;color:var(--muted);display:flex;justify-content:space-between;}
+/* Config Cloudinary */
+.wsam-cld-config{background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.18);border-radius:10px;padding:0.7rem 0.8rem;margin-bottom:0.65rem;}
+.wsam-cld-config summary{font-size:0.68rem;font-weight:700;color:var(--cyan);cursor:pointer;list-style:none;display:flex;align-items:center;gap:0.4rem;}
+.wsam-cld-config summary::before{content:'⚙️';}
+.wsam-cld-config[open] summary::before{content:'⚙️';}
+.wsam-cld-inner{margin-top:0.6rem;display:flex;flex-direction:column;gap:0.35rem;}
+.wsam-cld-config .wsam-input{margin-bottom:0;}
+.wsam-cld-hint{font-size:0.6rem;color:var(--muted);line-height:1.5;margin-top:0.3rem;}
+.wsam-cld-hint a{color:var(--cyan);text-decoration:none;}
+.wsam-cld-status{font-size:0.65rem;padding:0.25rem 0.5rem;border-radius:6px;display:inline-block;margin-top:0.3rem;}
+.wsam-cld-status.ok{background:rgba(0,255,170,0.1);color:var(--green);}
+.wsam-cld-status.nok{background:rgba(255,68,102,0.1);color:var(--red);}
 .wsam-btn-row{display:flex;gap:0.4rem;margin-top:1.1rem;}
+/* Onglets source audio */
+.wsam-src-tabs{display:flex;gap:0.35rem;margin-bottom:0.65rem;}
+.wsam-src-tab{flex:1;padding:0.45rem 0.5rem;border-radius:8px;border:1px solid rgba(255,45,155,0.2);background:rgba(255,45,155,0.04);color:var(--muted);font-size:0.72rem;font-weight:700;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;}
+.wsam-src-tab.active{background:rgba(255,45,155,0.15);border-color:var(--pink);color:var(--pink);}
+.wsam-src-tab:active{opacity:0.7;}
+.wsam-url-actions{display:flex;gap:0.35rem;margin-bottom:0.5rem;}
+.wsam-url-btn{flex:1;padding:0.42rem 0.5rem;border-radius:8px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.06);color:var(--cyan);font-size:0.68rem;font-weight:700;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;}
+.wsam-url-btn.test{border-color:rgba(0,255,170,0.3);background:rgba(0,255,170,0.06);color:var(--green);}
+.wsam-url-btn:active{opacity:0.7;}
+.wsam-url-guide{font-size:0.62rem;color:var(--muted);line-height:1.6;background:rgba(255,255,255,0.03);border-radius:8px;padding:0.55rem 0.7rem;margin-bottom:0.65rem;}
+.wsam-url-test-result{font-size:0.68rem;font-weight:700;padding:0.35rem 0.6rem;border-radius:7px;margin-bottom:0.45rem;display:none;}
+.wsam-url-test-result.ok{display:block;background:rgba(0,255,170,0.1);color:var(--green);border:1px solid rgba(0,255,170,0.2);}
+.wsam-url-test-result.err{display:block;background:rgba(255,68,102,0.1);color:var(--red);border:1px solid rgba(255,68,102,0.2);}
+.wsam-local-warn{font-size:0.65rem;color:var(--amber);background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);border-radius:8px;padding:0.45rem 0.65rem;margin-top:0.4rem;line-height:1.5;}
 .wsam-btn{flex:1;padding:0.7rem;border-radius:12px;border:none;
   font-family:'Syne',sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;transition:opacity 0.2s;}
 .wsam-btn:active{opacity:0.8;}
@@ -4147,15 +4179,41 @@ if (document.readyState === 'loading') {
     <input class="wsam-input" type="text" id="wsamArtUrl" placeholder="https://..." oninput="wsamPrevArt(this.value)">
 
     <!-- Audio -->
-    <div class="wsam-section">🎧 Fichier Audio</div>
-    <div class="wsam-audio-drop" id="wsamDrop">
-      <input type="file" accept="audio/*" onchange="wsamLoadFile(this)">
-      <div class="wad-icon">🎵</div>
-      <div class="wad-txt">Appuyez pour choisir MP3 / AAC / OGG depuis votre galerie</div>
+    <div class="wsam-section">🎧 Source Audio</div>
+
+    <!-- Onglets URL / Fichier local -->
+    <div class="wsam-src-tabs">
+      <button class="wsam-src-tab active" id="wsTabUrl"  onclick="wsamSrcTab('url')">🔗 URL distante</button>
+      <button class="wsam-src-tab"        id="wsTabFile" onclick="wsamSrcTab('file')">📁 Fichier local</button>
     </div>
-    <div class="wsam-audio-ok" id="wsamAudioOk">✅ <span id="wsamAudioOkTxt">Audio prêt</span></div>
-    <label class="wsam-label">Ou URL distante (Firebase, hébergement…)</label>
-    <input class="wsam-input" type="text" id="wsamAudioUrl" placeholder="https://.../chanson.mp3">
+
+    <!-- Panneau URL -->
+    <div id="wsamPanelUrl">
+      <label class="wsam-label">Lien MP3 (Google Drive, Dropbox, lien direct…)</label>
+      <input class="wsam-input" type="text" id="wsamAudioUrl" placeholder="https://drive.google.com/... ou https://..." oninput="wsamUrlChanged()">
+      <div class="wsam-url-actions">
+        <button class="wsam-url-btn" onclick="wsamConvertUrl()">🔄 Convertir Drive/Dropbox</button>
+        <button class="wsam-url-btn test" onclick="wsamTestUrl()">🎧 Tester</button>
+      </div>
+      <div id="wsamUrlTestResult" class="wsam-url-test-result"></div>
+      <div class="wsam-url-guide">
+        <b>Google Drive :</b> clic droit sur le fichier → Partager → Toute personne avec le lien → copier → coller ici puis cliquer Convertir<br>
+        <b>Dropbox :</b> Partager → Copier le lien → coller → cliquer Convertir<br>
+        <b>Lien direct :</b> toute URL se terminant par .mp3 fonctionne directement
+      </div>
+    </div>
+
+    <!-- Panneau Fichier local (session uniquement) -->
+    <div id="wsamPanelFile" style="display:none">
+      <div class="wsam-audio-drop" id="wsamDrop">
+        <input type="file" accept="audio/*" onchange="wsamLoadFile(this)">
+        <div class="wad-icon">📁</div>
+        <div class="wad-txt">Appuyez pour choisir MP3 / AAC / OGG</div>
+      </div>
+      <div class="wsam-local-warn">⚠️ Mode session uniquement — le son sera perdu au rechargement. Preferez une URL distante pour un effet permanent.</div>
+    </div>
+
+    <div class="wsam-audio-ok" id="wsamAudioOk">✅ <span id="wsamAudioOkTxt">Audio pret</span></div>
 
     <!-- Options -->
     <div class="wsam-section">⚙️ Options</div>
@@ -25697,128 +25755,155 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
   function _get(id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; }
   function _chk(id) { var e = document.getElementById(id); return e ? e.checked : false; }
 
-  /* Charger fichier local → upload Firebase Storage avec progression réelle */
-  var _wsamCurrentBlobUrl = null; /* blob URL de la session courante (fallback) */
+  /* ══════════════════════════════════════════════════════
+     OPTION B — URL DISTANTE (Google Drive, Dropbox, lien direct)
+  ══════════════════════════════════════════════════════ */
+
+  /* Basculer entre onglet URL et onglet Fichier local */
+  window.wsamSrcTab = function(tab) {
+    var tabUrl  = document.getElementById('wsTabUrl');
+    var tabFile = document.getElementById('wsTabFile');
+    var panUrl  = document.getElementById('wsamPanelUrl');
+    var panFile = document.getElementById('wsamPanelFile');
+    if (tab === 'url') {
+      if (tabUrl)  tabUrl.classList.add('active');
+      if (tabFile) tabFile.classList.remove('active');
+      if (panUrl)  panUrl.style.display  = '';
+      if (panFile) panFile.style.display = 'none';
+    } else {
+      if (tabUrl)  tabUrl.classList.remove('active');
+      if (tabFile) tabFile.classList.add('active');
+      if (panUrl)  panUrl.style.display  = 'none';
+      if (panFile) panFile.style.display = '';
+    }
+  };
+
+  /* Convertir automatiquement les liens Google Drive et Dropbox en lien direct */
+  window.wsamConvertUrl = function() {
+    var input = document.getElementById('wsamAudioUrl');
+    if (!input) return;
+    var url = (input.value || '').trim();
+    if (!url) { if (typeof showToast === 'function') showToast('⚠️ Collez d\'abord une URL'); return; }
+
+    var converted = url;
+
+    /* Google Drive — plusieurs formats possibles */
+    var gdMatch = url.match(/drive\.google\.com\/file\/d\/([^\/\?&]+)/);
+    if (!gdMatch) gdMatch = url.match(/drive\.google\.com\/open\?id=([^&]+)/);
+    if (!gdMatch) gdMatch = url.match(/id=([^&]+)/);
+    if (gdMatch && url.indexOf('drive.google.com') !== -1) {
+      converted = 'https://drive.google.com/uc?export=download&id=' + gdMatch[1];
+      input.value = converted;
+      _showTestResult('', '');
+      if (typeof showToast === 'function') showToast('✅ Lien Google Drive converti ! Cliquez Tester.');
+      return;
+    }
+
+    /* Dropbox */
+    if (url.indexOf('dropbox.com') !== -1) {
+      converted = url
+        .replace('www.dropbox.com', 'dl.dropboxusercontent.com')
+        .replace(/[?&]dl=0/, '')
+        .replace(/[?&]dl=1/, '');
+      if (converted.indexOf('?') === -1) converted += '?raw=1';
+      else converted += '&raw=1';
+      input.value = converted;
+      _showTestResult('', '');
+      if (typeof showToast === 'function') showToast('✅ Lien Dropbox converti ! Cliquez Tester.');
+      return;
+    }
+
+    if (typeof showToast === 'function') showToast('ℹ️ Lien déjà au format direct ou non reconnu');
+  };
+
+  /* Tester si l'URL est lisible comme audio */
+  window.wsamTestUrl = function() {
+    var url = (document.getElementById('wsamAudioUrl') || {}).value || '';
+    url = url.trim();
+    if (!url) { if (typeof showToast === 'function') showToast('⚠️ Entrez une URL d\'abord'); return; }
+
+    _showTestResult('⏳ Test en cours…', '');
+    if (typeof showToast === 'function') showToast('⏳ Test de l\'URL audio…');
+
+    var testAudio = new Audio();
+    var done = false;
+
+    var timeout = setTimeout(function() {
+      if (done) return; done = true;
+      testAudio.src = '';
+      _showTestResult('err', '❌ Timeout — URL trop lente ou inaccessible depuis ce navigateur');
+    }, 10000);
+
+    testAudio.addEventListener('canplay', function() {
+      if (done) return; done = true;
+      clearTimeout(timeout);
+      testAudio.src = '';
+      _showTestResult('ok', '✅ URL valide — audio lisible !');
+      /* Marquer l'audio comme prêt */
+      var ok  = document.getElementById('wsamAudioOk');
+      var okT = document.getElementById('wsamAudioOkTxt');
+      if (ok) ok.classList.add('show');
+      if (okT) okT.textContent = '✅ URL testée et fonctionnelle';
+      if (typeof showToast === 'function') showToast('✅ URL audio OK !');
+    });
+
+    testAudio.addEventListener('error', function() {
+      if (done) return; done = true;
+      clearTimeout(timeout);
+      var code = testAudio.error ? testAudio.error.code : '?';
+      var msgs = {1:'Lecture annulée',2:'Erreur réseau ou CORS',3:'Décodage impossible',4:'Format non supporté ou URL invalide'};
+      _showTestResult('err', '❌ ' + (msgs[code] || 'Erreur inconnue') + ' — vérifiez le lien et les droits de partage');
+      if (typeof showToast === 'function') showToast('❌ URL inaccessible');
+    });
+
+    testAudio.src = url;
+    testAudio.load();
+  };
+
+  function _showTestResult(cls, msg) {
+    var el = document.getElementById('wsamUrlTestResult');
+    if (!el) return;
+    el.className = 'wsam-url-test-result' + (cls ? ' ' + cls : '');
+    el.textContent = msg;
+  }
+
+  /* Réinitialiser l'indicateur quand l'URL change manuellement */
+  window.wsamUrlChanged = function() {
+    _showTestResult('', '');
+    var ok = document.getElementById('wsamAudioOk');
+    if (ok) ok.classList.remove('show');
+  };
+
+  /* Fichier local → blob URL (session uniquement) */
+  var _wsamCurrentBlobUrl = null;
 
   window.wsamLoadFile = function(input) {
     var file = input.files[0];
     if (!file) return;
 
-    /* Valider le type de fichier */
     if (!file.type.startsWith('audio/') && !/\.(mp3|aac|ogg|wav|m4a|flac)$/i.test(file.name)) {
       if (typeof showToast === 'function') showToast('⚠️ Format non supporté — MP3, AAC, OGG, WAV uniquement');
       return;
     }
 
-    var ok  = document.getElementById('wsamAudioOk');
-    var okT = document.getElementById('wsamAudioOkTxt');
-
-    /* ★ Créer le blob URL dès maintenant — sert de fallback si Firebase échoue */
     if (_wsamCurrentBlobUrl) { try { URL.revokeObjectURL(_wsamCurrentBlobUrl); } catch(e){} }
     _wsamCurrentBlobUrl = URL.createObjectURL(file);
 
-    /* Lire la durée du fichier */
-    var _duration = 0;
-    var tmpAudio = new Audio();
-    tmpAudio.addEventListener('loadedmetadata', function() {
-      _duration = tmpAudio.duration || 0;
-      tmpAudio.src = '';
-    });
-    tmpAudio.src = _wsamCurrentBlobUrl;
-
-    /* ── Fallback blob local ── */
-    function _useBlobFallback(reason) {
-      if (typeof showToast === 'function') showToast('⚠️ ' + (reason || 'Firebase indisponible') + ' — lecture locale (session uniquement)');
-      document.getElementById('wsamAudioUrl').value = _wsamCurrentBlobUrl;
+    /* Lire la durée */
+    var tmp = new Audio();
+    tmp.addEventListener('loadedmetadata', function() {
+      var label = '⚠️ ' + file.name + (tmp.duration > 0 ? ' · ' + _fmt(tmp.duration) : '') + ' (local — session uniquement)';
+      var ok  = document.getElementById('wsamAudioOk');
+      var okT = document.getElementById('wsamAudioOkTxt');
       if (ok) ok.classList.add('show');
-      setTimeout(function() {
-        var label = '⚠️ ' + file.name + ((_duration > 0) ? ' · ' + _fmt(_duration) : '') + ' (local — non permanent)';
-        if (okT) okT.textContent = label;
-      }, 500);
-    }
+      if (okT) okT.textContent = label;
+      tmp.src = '';
+    });
+    tmp.src = _wsamCurrentBlobUrl;
 
-    /* Vérifier Firebase Storage */
-    if (!window.fbStorage || !window.fbRef || !window.fbGetDownloadURL) {
-      _useBlobFallback('Firebase Storage non disponible');
-      return;
-    }
-
-    /* Indicateur de progression */
-    if (ok)  ok.classList.add('show');
-    if (okT) okT.textContent = '⏳ 0 %…';
-    if (typeof showToast === 'function') showToast('⏳ Upload de ' + file.name + '…');
-
-    /* Vider le champ URL pour éviter de publier un ancien blob */
-    document.getElementById('wsamAudioUrl').value = '';
-
-    /* Chemin unique dans Firebase Storage */
-    var safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    var path     = 'week_songs/' + Date.now() + '_' + safeName;
-    var storRef  = window.fbRef(window.fbStorage, path);
-
-    /* ★ Utiliser uploadBytesResumable si disponible (progression) sinon uploadBytes */
-    var uploadFn = window.fbUploadBytesResumable || window.fbUploadBytes;
-    var _uploadDone = false;
-
-    /* Timeout de sécurité : 45 secondes */
-    var _timeout = setTimeout(function() {
-      if (!_uploadDone) {
-        _uploadDone = true;
-        console.warn('[WeekSong] Upload timeout — basculement sur blob local');
-        _useBlobFallback('Upload trop lent (timeout 45 s)');
-      }
-    }, 45000);
-
-    if (window.fbUploadBytesResumable) {
-      /* ── Mode avec progression ── */
-      var task = window.fbUploadBytesResumable(storRef, file);
-      task.on('state_changed',
-        function(snap) {
-          var pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
-          if (okT) okT.textContent = '⏳ ' + pct + ' %…';
-        },
-        function(err) {
-          if (_uploadDone) return;
-          _uploadDone = true;
-          clearTimeout(_timeout);
-          console.error('[WeekSong] uploadBytesResumable error:', err);
-          _useBlobFallback('Échec upload (' + (err.code || err.message || err) + ')');
-        },
-        function() {
-          if (_uploadDone) return;
-          _uploadDone = true;
-          clearTimeout(_timeout);
-          window.fbGetDownloadURL(task.snapshot.ref).then(function(url) {
-            document.getElementById('wsamAudioUrl').value = url;
-            var label = '✅ ' + file.name + ((_duration > 0) ? ' · ' + _fmt(_duration) : '');
-            if (okT) okT.textContent = label;
-            if (typeof showToast === 'function') showToast('✅ ' + file.name + ' uploadé sur Firebase !');
-          }).catch(function(err2) {
-            console.error('[WeekSong] getDownloadURL error:', err2);
-            _useBlobFallback('URL introuvable après upload');
-          });
-        }
-      );
-    } else {
-      /* ── Mode simple (uploadBytes) avec timeout ── */
-      window.fbUploadBytes(storRef, file).then(function(snap) {
-        return window.fbGetDownloadURL(snap.ref || storRef);
-      }).then(function(url) {
-        if (_uploadDone) return;
-        _uploadDone = true;
-        clearTimeout(_timeout);
-        document.getElementById('wsamAudioUrl').value = url;
-        var label = '✅ ' + file.name + ((_duration > 0) ? ' · ' + _fmt(_duration) : '');
-        if (okT) okT.textContent = label;
-        if (typeof showToast === 'function') showToast('✅ ' + file.name + ' uploadé sur Firebase !');
-      }).catch(function(err) {
-        if (_uploadDone) return;
-        _uploadDone = true;
-        clearTimeout(_timeout);
-        console.error('[WeekSong] Firebase Storage upload error:', err);
-        _useBlobFallback('Échec upload (' + (err.message || err) + ')');
-      });
-    }
+    /* Mettre l'URL dans le champ caché pour wsamSave */
+    document.getElementById('wsamAudioUrl').value = _wsamCurrentBlobUrl;
+    if (typeof showToast === 'function') showToast('📁 ' + file.name + ' chargé (session)');
   };
 
   /* Preview pochette */
@@ -25829,11 +25914,9 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
     var title    = _get('wsamTitle');
     var audioUrl = _get('wsamAudioUrl');
     if (!title)    { if (typeof showToast==='function') showToast('⚠️ Saisissez un titre'); return; }
-    if (!audioUrl) { if (typeof showToast==='function') showToast('⚠️ Chargez un fichier audio ou saisissez une URL'); return; }
-    /* Avertir si l'URL est un blob (session uniquement) mais laisser passer */
+    if (!audioUrl) { if (typeof showToast==='function') showToast('⚠️ Entrez une URL audio ou choisissez un fichier local'); return; }
     if (audioUrl.startsWith('blob:')) {
-      if (typeof showToast==='function') showToast('⚠️ URL locale — la chanson sera perdue au rechargement. Uploadez sur Firebase pour la rendre permanente.');
-      /* On laisse continuer malgré tout pour permettre la lecture immédiate */
+      if (typeof showToast==='function') showToast('⚠️ Fichier local — actif uniquement cette session. Pour du permanent, utilisez une URL distante.');
     }
     var cfg = {
       title:    title,
