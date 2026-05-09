@@ -5294,6 +5294,8 @@ onAuthStateChanged(auth, function(user) {
     setTimeout(function(){
       if(typeof checkSecondaryAdminAccess === "function") checkSecondaryAdminAccess();
       if(typeof renderAll === "function") { renderAll(); renderHome(); }
+      // ── Synchroniser les notifications Firebase pour cet utilisateur ──
+      if(typeof _syncUserNotifsFromFirebase === "function") _syncUserNotifsFromFirebase();
     }, 2000);
   } else {
     window.currentUserEmail  = "";
@@ -14389,6 +14391,19 @@ function pushNotif(opts){
   renderNotifBadge();
   if(!notifPanelOpen) showNotifToast(item.icon+" "+item.title);
 
+  // ── Persistance Firebase pour les membres/établissements connectés ──
+  // Cela permet aux notifs admin d'être visibles sur tous les appareils de l'utilisateur
+  if(opts.fromAdmin && window.db && window.fbDoc && window.fbGetDoc && window.fbSetDoc && currentUserUID){
+    try{
+      var userNotifRef = window.fbDoc(window.db, "user_notifications", currentUserUID);
+      window.fbGetDoc(userNotifRef).then(function(snap){
+        var existing = snap.exists() ? (snap.data().items||[]) : [];
+        existing.push(item);
+        return window.fbSetDoc(userNotifRef, { items: existing.slice(-60), uid:currentUserUID, email:currentUserEmail||"", updatedAt:Date.now() });
+      }).catch(function(){});
+    }catch(ex){}
+  }
+
   // Push navigateur
   if((opts.channel==="push"||!opts.channel) && typeof Notification!=="undefined" && Notification.permission==="granted"){
     try{
@@ -14401,6 +14416,32 @@ function pushNotif(opts){
   // Toujours logger dans le journal admin (même si l'utilisateur courant n'est pas admin)
   saveToAdminLog(Object.assign({},item,{sentByRole:role}));
 }
+
+// ── Charger les notifs Firebase au login utilisateur ─────────────
+// Appelé après connexion pour synchroniser les notifs depuis Firebase
+function _syncUserNotifsFromFirebase(){
+  if(!window.db || !window.fbDoc || !window.fbGetDoc || !currentUserUID) return;
+  try{
+    var ref = window.fbDoc(window.db, "user_notifications", currentUserUID);
+    window.fbGetDoc(ref).then(function(snap){
+      if(!snap.exists()) return;
+      var fbItems = snap.data().items || [];
+      if(!fbItems.length) return;
+      // Fusionner avec les notifs locales (dédoublonnage par id)
+      var local = loadNotifs();
+      var localIds = local.map(function(n){ return n.id; });
+      var newItems = fbItems.filter(function(n){ return localIds.indexOf(n.id) === -1; });
+      if(newItems.length){
+        var merged = local.concat(newItems).slice(-60);
+        saveNotifs(merged);
+        renderNotifBadge();
+        if(newItems.length === 1) showNotifToast(newItems[0].icon+" "+newItems[0].title);
+        else showNotifToast("🔔 "+newItems.length+" nouvelle(s) notification(s)");
+      }
+    }).catch(function(){});
+  }catch(ex){}
+}
+window._syncUserNotifsFromFirebase = _syncUserNotifsFromFirebase;
 
 // ── Envoi admin vers un rôle spécifique (depuis le dashboard) ─
 function admSendNotif(){
@@ -14436,7 +14477,38 @@ function admSendNotif(){
     showNotifToast(icon+" "+title);
   }
 
-  showToast("✅ Notification envoyée aux "+target+"s");
+  // ── Persistance Firebase : stocker la notif pour chaque utilisateur ciblé ──
+  if(window.db && window.fbCollection && window.fbGetDocs && window.fbDoc && window.fbGetDoc && window.fbSetDoc){
+    window.fbGetDocs(window.fbCollection(window.db, "users")).then(function(snap){
+      var promises = [];
+      snap.forEach(function(d){
+        var u = Object.assign({uid:d.id}, d.data());
+        var uEmail = (u.email||"").toLowerCase();
+        // Déterminer le rôle de l'utilisateur
+        var uEtab = etablissements.find(function(e){ return (e.email||"").toLowerCase()===uEmail; });
+        var uRole = uEtab ? "etablissement" : "membre";
+        // Vérifier si l'utilisateur est ciblé
+        var targeted = (target==="all") || (target===uRole);
+        if(!targeted) return;
+        // Ajouter la notif dans le document Firebase de cet utilisateur
+        var ref = window.fbDoc(window.db, "user_notifications", d.id);
+        var p = window.fbGetDoc(ref).then(function(snap2){
+          var existing = snap2.exists() ? (snap2.data().items||[]) : [];
+          existing.push(item);
+          return window.fbSetDoc(ref, { items:existing.slice(-60), uid:d.id, email:u.email||"", updatedAt:Date.now() });
+        });
+        promises.push(p);
+      });
+      return Promise.all(promises);
+    }).then(function(){
+      showToast("✅ Notification diffusée à tous les "+target+"s !");
+    }).catch(function(err){
+      showToast("✅ Journalisé (Firebase push partiel: "+err.message+")");
+    });
+  } else {
+    showToast("✅ Notification envoyée aux "+target+"s");
+  }
+
   document.getElementById("admNotifTitle").value="";
   document.getElementById("admNotifMsg").value="";
   if(typeof renderAdminNotifs==="function") renderAdminNotifs();
@@ -15032,8 +15104,9 @@ function renderAdmUsers(){
         if(u.tel) h += "<div style='font-size:0.62rem;color:var(--cyan);'>"+escHtml(u.tel)+"</div>";
         h += "</div>";
 
-        // Date
         h += "<div style='text-align:right;font-size:0.6rem;color:var(--muted);flex-shrink:0;'>"+(u.createdAt?new Date(u.createdAt).toLocaleDateString("fr-FR"):"")+"</div>";
+        // Badge notifs non lues (si Firebase dispo, chargé en asynchrone)
+        h += "<div id='_admNotifBadge_"+escHtml(u.uid||"")+"' style='flex-shrink:0;'></div>";
         h += "</div>";
 
         // Boutons d'action (SuperAdmin uniquement, pas sur soi-même)
@@ -15089,6 +15162,19 @@ function renderAdmUsers(){
           };
           img.src = url;
         });
+
+        // 🔔 Charger les badges de notifications non lues depuis Firebase
+        if(window.db && window.fbDoc && window.fbGetDoc){
+          (function(userId){
+            window.fbGetDoc(window.fbDoc(window.db, "user_notifications", userId)).then(function(snap){
+              if(!snap.exists()) return;
+              var unread = (snap.data().items||[]).filter(function(n){ return n.unread; }).length;
+              if(!unread) return;
+              var badge = document.getElementById("_admNotifBadge_"+userId);
+              if(badge) badge.innerHTML = '<div style="background:var(--pink);color:#000;font-size:0.58rem;font-weight:800;padding:0.08rem 0.35rem;border-radius:10px;white-space:nowrap;">🔔 '+unread+' non lue'+(unread>1?"s":"")+'</div>';
+            }).catch(function(){});
+          })(u.uid);
+        }
       });
 
     }).catch(function(err){
@@ -15414,31 +15500,236 @@ window.memberViewMyTickets = memberViewMyTickets;
 
 // ── Notifications admin — journal complet + modération ─────────
 function renderAdminNotifs(){
-  var log=loadAdminLog().slice().reverse();
-  var html="";
-  if(!log.length){
-    html="<div style='text-align:center;padding:2rem;color:var(--muted);font-size:0.82rem;'>&#128276; Aucune notification dans le journal</div>";
-    document.getElementById("adminAllNotifs").innerHTML=html;
-    return;
+  var container = document.getElementById("adminAllNotifs");
+  if(!container) return;
+
+  // ── Onglets: Journal global | Par utilisateur | Envoyer
+  var tabs = ["log","users","send"];
+  var _admNotifTab = window._admNotifTab || "log";
+
+  var tabsHtml = '<div style="display:flex;gap:0.2rem;background:var(--surface2);border-radius:10px;padding:0.2rem;margin-bottom:1rem;">'
+    + '<button id="_anTab_log" onclick="window._admNotifTab=\'log\';renderAdminNotifs()" style="flex:1;padding:0.38rem;border-radius:7px;font-size:0.72rem;font-weight:700;cursor:pointer;border:none;background:'+(_admNotifTab==="log"?"var(--pink)":"transparent")+';color:'+(_admNotifTab==="log"?"#000":"var(--muted)")+';font-family:DM Sans,sans-serif;">📋 Journal</button>'
+    + '<button id="_anTab_users" onclick="window._admNotifTab=\'users\';renderAdminNotifs()" style="flex:1;padding:0.38rem;border-radius:7px;font-size:0.72rem;font-weight:700;cursor:pointer;border:none;background:'+(_admNotifTab==="users"?"var(--cyan)":"transparent")+';color:'+(_admNotifTab==="users"?"#000":"var(--muted)")+';font-family:DM Sans,sans-serif;">👥 Par membre</button>'
+    + '<button id="_anTab_send" onclick="window._admNotifTab=\'send\';renderAdminNotifs()" style="flex:1;padding:0.38rem;border-radius:7px;font-size:0.72rem;font-weight:700;cursor:pointer;border:none;background:'+(_admNotifTab==="send"?"var(--amber)":"transparent")+';color:'+(_admNotifTab==="send"?"#000":"var(--muted)")+';font-family:DM Sans,sans-serif;">📤 Envoyer</button>'
+    + '</div>';
+
+  var html = tabsHtml;
+
+  // ════ ONGLET JOURNAL ════
+  if(_admNotifTab === "log"){
+    var log = loadAdminLog().slice().reverse();
+    if(!log.length){
+      html += '<div style="text-align:center;padding:2.5rem;color:var(--muted);font-size:0.82rem;"><span style="font-size:2rem;display:block;margin-bottom:0.5rem;">🔔</span>Aucune notification dans le journal</div>';
+    } else {
+      var roleLabel={admin:"Admin",membre:"Membre",etablissement:"Établ.",visiteur:"Visiteur",all:"Tous"};
+      var roleColors={admin:"var(--amber)",membre:"var(--cyan)",etablissement:"var(--pink)",visiteur:"var(--muted)",all:"var(--green)"};
+      log.forEach(function(n,i){
+        html += '<div class="notif-admin-item" id="admnotif-'+i+'" style="position:relative;">';
+        html += '<div style="display:flex;align-items:flex-start;gap:0.5rem;">';
+        html += '<span style="font-size:1.1rem;flex-shrink:0;margin-top:0.05rem;">'+n.icon+'</span>';
+        html += '<div style="flex:1;min-width:0;">';
+        html += '<div style="font-weight:700;font-size:0.82rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escHtml(n.title)+'</div>';
+        html += '<div style="font-size:0.72rem;color:var(--muted);margin-top:0.1rem;line-height:1.3;">'+escHtml(n.msg)+'</div>';
+        html += '<div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;margin-top:0.3rem;">';
+        var rCol = roleColors[n.targetRole||"all"]||"var(--muted)";
+        html += '<span style="font-size:0.6rem;font-weight:700;color:'+rCol+';background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);padding:0.06rem 0.35rem;border-radius:4px;">→ '+(roleLabel[n.targetRole||"all"]||n.targetRole)+'</span>';
+        html += '<span style="font-size:0.58rem;color:rgba(255,255,255,0.3);">'+(typeof timeAgo==="function"?timeAgo(n.ts):"")+' · '+(n.channel||"push")+(n.fromAdmin?' · <span style="color:var(--amber);">Admin</span>':'')+'</span>';
+        html += '</div></div>';
+        html += '<button onclick="admDeleteNotif('+i+')" title="Supprimer" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:0.78rem;padding:0.1rem 0.3rem;flex-shrink:0;">🗑️</button>';
+        html += '</div></div>';
+      });
+      html += '<button onclick="admClearAllNotifLog()" style="width:100%;margin-top:0.6rem;padding:0.5rem;border-radius:10px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.06);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;">🗑️ Effacer tout le journal</button>';
+    }
   }
-  var roleLabel={admin:"Admin",membre:"Membre",etablissement:"Établ.",visiteur:"Visiteur",all:"Tous"};
-  log.forEach(function(n,i){
-    var targetCls="role-"+(n.targetRole||"all");
-    html+="<div class='notif-admin-item' id='admnotif-"+i+"'>";
-    html+="<div class='na-head'>";
-    html+="<span style='font-size:1rem;'>"+n.icon+"</span>";
-    html+="<span style='flex:1;font-weight:700;font-size:0.8rem;color:var(--text);'>"+escHtml(n.title)+"</span>";
-    html+="<span class='na-role "+targetCls+"'>→ "+(roleLabel[n.targetRole||"all"]||n.targetRole)+"</span>";
-    html+="<button onclick='admDeleteNotif("+i+")' title='Supprimer' style='background:none;border:none;color:var(--red);cursor:pointer;font-size:0.75rem;padding:0.1rem 0.3rem;'>&#128465;</button>";
-    html+="</div>";
-    html+="<div style='font-size:0.72rem;color:var(--muted);margin-left:1.5rem;'>"+escHtml(n.msg)+"</div>";
-    var chLabel={push:"Push",sms:"SMS",email:"Email",wa:"WhatsApp"};
-    html+="<div style='font-size:0.62rem;color:rgba(255,255,255,0.3);margin-left:1.5rem;margin-top:0.2rem;'>"+timeAgo(n.ts)+" · "+(chLabel[n.channel]||n.channel)+(n.fromAdmin?" · <span style=\"color:var(--amber);\">Envoi admin</span>":"")+"</div>";
-    html+="</div>";
-  });
-  html+="<button onclick='admClearAllNotifLog()' style='width:100%;margin-top:0.5rem;padding:0.5rem;border-radius:10px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.06);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;'>&#128465; Effacer tout le journal</button>";
-  document.getElementById("adminAllNotifs").innerHTML=html;
+
+  // ════ ONGLET PAR MEMBRE ════
+  else if(_admNotifTab === "users"){
+    html += '<div style="background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.18);border-radius:12px;padding:0.9rem;margin-bottom:1rem;">';
+    html += '<div style="font-family:Syne,sans-serif;font-weight:800;color:var(--cyan);font-size:0.8rem;margin-bottom:0.5rem;">👥 Notifications par Membre / Établissement</div>';
+    html += '<div style="font-size:0.72rem;color:var(--muted);line-height:1.5;">Seules les notifications envoyées via Firebase sont visibles ici. Cliquez sur un membre pour gérer ses notifications.</div>';
+    html += '</div>';
+
+    html += '<div id="_admNotifUserList"><div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.75rem;">⏳ Chargement des membres...</div></div>';
+  }
+
+  // ════ ONGLET ENVOYER ════
+  else if(_admNotifTab === "send"){
+    html += '<div style="background:rgba(255,45,155,0.05);border:1px solid rgba(255,45,155,0.2);border-radius:14px;padding:1rem;margin-bottom:1rem;">';
+    html += '<div style="font-family:Syne,sans-serif;font-weight:800;color:var(--pink);font-size:0.82rem;margin-bottom:0.8rem;">📢 Diffuser une notification</div>';
+
+    // Cible
+    html += '<div style="margin-bottom:0.7rem;">';
+    html += '<label style="font-size:0.65rem;color:var(--muted);display:block;margin-bottom:0.3rem;text-transform:uppercase;letter-spacing:0.05em;">Destinataires</label>';
+    html += '<select id="admNotifTarget" style="width:100%;background:var(--surface2);border:1px solid rgba(255,45,155,0.25);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.82rem;">';
+    html += '<option value="all">🌐 Tous les utilisateurs</option>';
+    html += '<option value="membre">👤 Membres inscrits uniquement</option>';
+    html += '<option value="etablissement">🏠 Établissements uniquement</option>';
+    html += '<option value="admin">🔑 Admins uniquement</option>';
+    html += '</select></div>';
+
+    // Icône
+    html += '<div style="margin-bottom:0.6rem;">';
+    html += '<label style="font-size:0.65rem;color:var(--muted);display:block;margin-bottom:0.3rem;text-transform:uppercase;letter-spacing:0.05em;">Icône</label>';
+    html += '<div style="display:flex;gap:0.3rem;flex-wrap:wrap;" id="_admNotifIconRow">';
+    ["📢","🔔","🎉","⚡","⚠️","✅","💳","🏆","📸","🎵","🔥","🌟"].forEach(function(ic,i){
+      html += '<button onclick="document.querySelectorAll(\'#_admNotifIconRow button\').forEach(function(b){b.style.background=\'rgba(255,255,255,0.04)\';b.style.borderColor=\'rgba(255,255,255,0.1)\'});this.style.background=\'rgba(255,45,155,0.2)\';this.style.borderColor=\'var(--pink)\';document.getElementById(\'admNotifIcon\').value=this.textContent;" style="font-size:1.05rem;padding:0.25rem 0.4rem;border-radius:7px;cursor:pointer;border:1px solid '+(i===0?'var(--pink)':'rgba(255,255,255,0.1)')+';background:'+(i===0?'rgba(255,45,155,0.18)':'rgba(255,255,255,0.04)')+';transition:all 0.15s;">'+ic+'</button>';
+    });
+    html += '</div><input type="hidden" id="admNotifIcon" value="📢"></div>';
+
+    // Titre
+    html += '<div style="margin-bottom:0.6rem;">';
+    html += '<label style="font-size:0.65rem;color:var(--muted);display:block;margin-bottom:0.3rem;text-transform:uppercase;letter-spacing:0.05em;">Titre <span style="color:var(--red);">*</span></label>';
+    html += '<input id="admNotifTitle" type="text" maxlength="60" placeholder="Ex: Mise à jour importante" style="width:100%;background:var(--surface2);border:1px solid rgba(255,45,155,0.2);border-radius:8px;color:var(--text);padding:0.5rem 0.7rem;font-size:0.82rem;font-family:DM Sans,sans-serif;outline:none;transition:border-color 0.2s;" onfocus="this.style.borderColor=\'rgba(255,45,155,0.5)\'" onblur="this.style.borderColor=\'rgba(255,45,155,0.2)\'">';
+    html += '</div>';
+
+    // Message
+    html += '<div style="margin-bottom:0.9rem;">';
+    html += '<label style="font-size:0.65rem;color:var(--muted);display:block;margin-bottom:0.3rem;text-transform:uppercase;letter-spacing:0.05em;">Message</label>';
+    html += '<textarea id="admNotifMsg" maxlength="200" rows="3" placeholder="Corps de la notification..." style="width:100%;background:var(--surface2);border:1px solid rgba(255,45,155,0.2);border-radius:8px;color:var(--text);padding:0.5rem 0.7rem;font-size:0.8rem;font-family:DM Sans,sans-serif;outline:none;resize:none;transition:border-color 0.2s;" onfocus="this.style.borderColor=\'rgba(255,45,155,0.5)\'" onblur="this.style.borderColor=\'rgba(255,45,155,0.2)\'"></textarea>';
+    html += '</div>';
+
+    html += '<button onclick="admSendNotif()" style="width:100%;padding:0.72rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;">📤 Envoyer la notification</button>';
+    html += '</div>';
+
+    // Aperçu des notifs récentes envoyées
+    var log = loadAdminLog().filter(function(n){ return n.fromAdmin; }).slice().reverse().slice(0,5);
+    if(log.length){
+      html += '<div style="font-family:Syne,sans-serif;font-weight:700;color:var(--muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.5rem;">Récemment envoyées</div>';
+      log.forEach(function(n){
+        var rColors = {admin:"var(--amber)",membre:"var(--cyan)",etablissement:"var(--pink)",all:"var(--green)"};
+        html += '<div style="display:flex;align-items:center;gap:0.5rem;padding:0.45rem 0;border-bottom:1px solid rgba(255,255,255,0.04);">';
+        html += '<span style="font-size:0.9rem;">'+n.icon+'</span>';
+        html += '<div style="flex:1;min-width:0;">';
+        html += '<div style="font-size:0.75rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escHtml(n.title)+'</div>';
+        html += '<div style="font-size:0.6rem;color:'+(rColors[n.targetRole||"all"]||"var(--muted)")+';">→ '+(n.targetRole||"all")+'</div>';
+        html += '</div>';
+        html += '<span style="font-size:0.58rem;color:rgba(255,255,255,0.3);flex-shrink:0;">'+(typeof timeAgo==="function"?timeAgo(n.ts):"")+'</span>';
+        html += '</div>';
+      });
+    }
+  }
+
+  container.innerHTML = html;
+
+  // Si onglet "par membre", charger depuis Firebase
+  if(_admNotifTab === "users" && window.db && window.fbCollection && window.fbGetDocs){
+    _admLoadNotifByUser();
+  } else if(_admNotifTab === "users"){
+    var el = document.getElementById("_admNotifUserList");
+    if(el) el.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--red);font-size:0.78rem;">❌ Firebase requis pour cette vue</div>';
+  }
 }
+window.renderAdminNotifs = renderAdminNotifs;
+
+// ── Charger les notifications par utilisateur depuis Firebase ──
+function _admLoadNotifByUser(){
+  var el = document.getElementById("_admNotifUserList");
+  if(!el) return;
+  var col = window.fbCollection(window.db, "user_notifications");
+  window.fbGetDocs(col).then(function(snap){
+    var docs = [];
+    snap.forEach(function(d){ docs.push(Object.assign({_uid:d.id}, d.data())); });
+    if(!docs.length){
+      el.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.78rem;">📭 Aucune notification stockée dans Firebase</div>';
+      return;
+    }
+    // Trier par les plus récentes
+    docs.sort(function(a,b){ return (b.updatedAt||0)-(a.updatedAt||0); });
+    var h = '';
+    docs.forEach(function(d){
+      var items = d.items || [];
+      var unreadCount = items.filter(function(n){ return n.unread; }).length;
+      var lastItem = items.length ? items[items.length-1] : null;
+      // Trouver le nom du membre/établissement
+      var etab = etablissements.find(function(e){ return (e.email||"").toLowerCase()===(d.email||"").toLowerCase(); });
+      var displayName = d.email || d._uid;
+      var roleLabel = etab ? "🏠 "+escHtml(etab.nom) : "👤 Membre";
+      h += '<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.8rem;margin-bottom:0.55rem;cursor:pointer;" onclick="_admOpenUserNotifs(\''+escHtml(d._uid)+'\',\''+escHtml(d.email||"")+'\',\''+escHtml(displayName)+'\')">';
+      h += '<div style="display:flex;align-items:center;gap:0.55rem;">';
+      h += '<div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.9rem;color:#fff;flex-shrink:0;">'+(displayName[0]||"?").toUpperCase()+'</div>';
+      h += '<div style="flex:1;min-width:0;">';
+      h += '<div style="font-weight:700;font-size:0.8rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escHtml(displayName)+'</div>';
+      h += '<div style="font-size:0.63rem;color:var(--muted);">'+roleLabel+' · '+items.length+' notif(s)'+(unreadCount>0?' · <span style="color:var(--pink);">'+unreadCount+' non lue(s)</span>':'')+'</div>';
+      if(lastItem) h += '<div style="font-size:0.62rem;color:rgba(255,255,255,0.3);margin-top:0.1rem;">Dernière : '+escHtml(lastItem.title)+'</div>';
+      h += '</div>';
+      if(unreadCount>0) h += '<div style="background:var(--pink);color:#000;font-size:0.62rem;font-weight:800;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+unreadCount+'</div>';
+      h += '<span style="color:var(--muted);font-size:1rem;flex-shrink:0;">›</span>';
+      h += '</div></div>';
+    });
+    el.innerHTML = h;
+  }).catch(function(err){
+    el.innerHTML = '<div style="color:var(--red);padding:1rem;text-align:center;font-size:0.78rem;">Erreur: '+err.message+'</div>';
+  });
+}
+
+// ── Ouvrir la gestion des notifs d'un utilisateur spécifique ──
+function _admOpenUserNotifs(uid, email, displayName){
+  if(!window.db || !window.fbDoc || !window.fbGetDoc) return;
+  var ref = window.fbDoc(window.db, "user_notifications", uid);
+  window.fbGetDoc(ref).then(function(snap){
+    var items = snap.exists() ? (snap.data().items||[]) : [];
+    var modal = document.createElement("div");
+    modal.id = "_admUserNotifModal";
+    modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:600;display:flex;align-items:center;justify-content:center;padding:1rem;";
+    var inner = '<div style="background:var(--surface);border:1px solid rgba(0,229,255,0.3);border-radius:20px;padding:1.4rem;width:min(400px,100%);max-height:88vh;overflow-y:auto;position:relative;animation:popIn 0.25s cubic-bezier(0.34,1.56,0.64,1);">';
+    inner += '<button onclick="document.getElementById(\'_admUserNotifModal\').remove()" style="position:absolute;top:0.8rem;right:0.8rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--muted);width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.85rem;display:flex;align-items:center;justify-content:center;">✕</button>';
+    inner += '<div style="font-family:Syne,sans-serif;font-weight:800;color:var(--cyan);font-size:0.9rem;margin-bottom:0.25rem;">🔔 Notifications de</div>';
+    inner += '<div style="font-size:0.78rem;color:var(--muted);margin-bottom:1rem;">'+escHtml(displayName||email)+'</div>';
+    // Bouton supprimer toutes les notifs de cet user
+    inner += '<div style="display:flex;gap:0.4rem;margin-bottom:1rem;flex-wrap:wrap;">';
+    inner += '<button onclick="_admMarkAllReadForUser(\''+escHtml(uid)+'\')" style="flex:1;padding:0.42rem;border-radius:8px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.07);color:var(--cyan);font-size:0.72rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">✓ Tout marquer lu</button>';
+    inner += '<button onclick="_admClearUserNotifs(\''+escHtml(uid)+'\')" style="flex:1;padding:0.42rem;border-radius:8px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.07);color:var(--red);font-size:0.72rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">🗑️ Effacer tout</button>';
+    inner += '</div>';
+    if(!items.length){
+      inner += '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.78rem;">📭 Aucune notification</div>';
+    } else {
+      items.slice().reverse().forEach(function(n, idx){
+        var ago = typeof timeAgo==="function"?timeAgo(n.ts):"";
+        inner += '<div style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.6rem;border-radius:10px;margin-bottom:0.4rem;background:'+(n.unread?"rgba(255,45,155,0.06)":"rgba(255,255,255,0.02)")+';border:1px solid '+(n.unread?"rgba(255,45,155,0.2)":"rgba(255,255,255,0.05)")+'">';
+        inner += '<span style="font-size:1rem;flex-shrink:0;margin-top:0.05rem;">'+n.icon+'</span>';
+        inner += '<div style="flex:1;min-width:0;">';
+        inner += '<div style="font-size:0.78rem;font-weight:700;color:'+(n.unread?"var(--text)":"var(--muted)")+';">'+escHtml(n.title)+'</div>';
+        if(n.msg) inner += '<div style="font-size:0.68rem;color:var(--muted);margin-top:0.1rem;">'+escHtml(n.msg)+'</div>';
+        inner += '<div style="font-size:0.58rem;color:rgba(255,255,255,0.28);margin-top:0.15rem;">'+ago+(n.fromAdmin?' · <span style="color:var(--amber);">Admin</span>':'')+'</div>';
+        inner += '</div>';
+        if(n.unread) inner += '<div style="width:7px;height:7px;border-radius:50%;background:var(--pink);flex-shrink:0;margin-top:0.25rem;"></div>';
+        inner += '</div>';
+      });
+    }
+    inner += '</div>';
+    modal.innerHTML = inner;
+    modal.addEventListener("click", function(e){ if(e.target===modal) modal.remove(); });
+    document.body.appendChild(modal);
+  }).catch(function(err){ showToast("❌ "+err.message); });
+}
+window._admOpenUserNotifs = _admOpenUserNotifs;
+
+function _admMarkAllReadForUser(uid){
+  if(!window.db || !window.fbDoc || !window.fbGetDoc || !window.fbSetDoc) return;
+  var ref = window.fbDoc(window.db, "user_notifications", uid);
+  window.fbGetDoc(ref).then(function(snap){
+    if(!snap.exists()) return;
+    var items = (snap.data().items||[]).map(function(n){ return Object.assign({},n,{unread:false}); });
+    return window.fbSetDoc(ref, Object.assign(snap.data(), { items:items }));
+  }).then(function(){
+    showToast("✓ Notifications marquées comme lues");
+    document.getElementById("_admUserNotifModal") && document.getElementById("_admUserNotifModal").remove();
+    _admLoadNotifByUser();
+  }).catch(function(err){ showToast("❌ "+err.message); });
+}
+window._admMarkAllReadForUser = _admMarkAllReadForUser;
+
+function _admClearUserNotifs(uid){
+  if(!confirm("Effacer toutes les notifications de cet utilisateur ?")) return;
+  if(!window.db || !window.fbDoc || !window.fbSetDoc) return;
+  var ref = window.fbDoc(window.db, "user_notifications", uid);
+  window.fbSetDoc(ref, { items:[], updatedAt:Date.now() }).then(function(){
+    showToast("🗑️ Notifications effacées");
+    document.getElementById("_admUserNotifModal") && document.getElementById("_admUserNotifModal").remove();
+    _admLoadNotifByUser();
+  }).catch(function(err){ showToast("❌ "+err.message); });
+}
+window._admClearUserNotifs = _admClearUserNotifs;
 function admDeleteNotif(idx){
   var log=loadAdminLog().slice().reverse();
   log.splice(idx,1);
@@ -16735,44 +17026,106 @@ function openUserProfile(userData){
   var dateStr  = created ? new Date(created).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}) : "—";
   var dobStr   = dob ? new Date(dob).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}) : "—";
   var iAmSuper = isAdmin && isSuperAdminUser();
+  // Store current member data for editing
+  window._editingMember = { uid:uid, email:email, pseudo:pseudo, tel:tel, dob:dob, isAdmin:isAdm, etabNom:etabNom };
 
-  // Avatar HTML — initiale en attendant le chargement
-  var avatarHtml = '<div class="vp-avatar"><div class="vp-avatar-init" id="_vpAvatarInit" style="width:66px;height:66px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-family:Syne,sans-serif;font-weight:800;font-size:1.6rem;color:#fff;overflow:hidden;">'+escHtml(initiale)+'</div></div>';
+  var avatarGrad = isAdm ? "linear-gradient(135deg,var(--amber),var(--cyan))" : "linear-gradient(135deg,var(--pink),var(--purple))";
+  var avatarHtml = '<div style="position:relative;display:inline-block;">'
+    + '<div id="_vpAvatarInit" style="width:72px;height:72px;border-radius:50%;background:'+avatarGrad+';display:flex;align-items:center;justify-content:center;font-family:Syne,sans-serif;font-weight:800;font-size:1.8rem;color:#fff;overflow:hidden;box-shadow:0 0 20px rgba(255,45,155,0.4);">'+escHtml(initiale)+'</div>'
+    + (iAmSuper ? '<div style="position:absolute;bottom:0;right:0;width:22px;height:22px;border-radius:50%;background:var(--surface);border:2px solid var(--amber);display:flex;align-items:center;justify-content:center;font-size:0.7rem;cursor:pointer;" onclick="document.getElementById(\'_vpEditPseudo\').focus()" title="Modifier">✏️</div>' : '')
+    + '</div>';
+
+  // Tabs: Infos / Activité / Notifications
+  var tabsHtml = '<div style="display:flex;gap:0.25rem;background:var(--surface2);border-radius:10px;padding:0.2rem;margin-bottom:1rem;">'
+    + '<button id="_vpTab_infos" onclick="_vpSwitchTab(\'infos\')" style="flex:1;padding:0.38rem;border-radius:7px;font-size:0.75rem;font-weight:700;cursor:pointer;border:none;background:var(--pink);color:#000;font-family:DM Sans,sans-serif;transition:all 0.2s;">👤 Infos</button>'
+    + '<button id="_vpTab_notifs" onclick="_vpSwitchTab(\'notifs\')" style="flex:1;padding:0.38rem;border-radius:7px;font-size:0.75rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--muted);font-family:DM Sans,sans-serif;transition:all 0.2s;">🔔 Notifs</button>'
+    + '<button id="_vpTab_actions" onclick="_vpSwitchTab(\'actions\')" style="flex:1;padding:0.38rem;border-radius:7px;font-size:0.75rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--muted);font-family:DM Sans,sans-serif;transition:all 0.2s;">⚡ Actions</button>'
+    + '</div>';
+
+  // TAB INFOS — formulaire éditable
+  var infoFields = '<div id="_vpPane_infos">';
+  if(iAmSuper){
+    infoFields += '<div style="display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1rem;">';
+    infoFields += _vpEditField("✉️","Email","_vpEditEmail","email",email,"text","email@exemple.com");
+    infoFields += _vpEditField("👤","Pseudo","_vpEditPseudo","text",pseudo,"text","Nom d'affichage");
+    infoFields += _vpEditField("📞","Téléphone","_vpEditTel","tel",tel,"tel","+241 XXXXXXXX");
+    infoFields += _vpEditField("🎂","Date de naissance","_vpEditDob","date",dob,"date","");
+    infoFields += '</div>';
+    infoFields += '<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:0.7rem;margin-bottom:0.8rem;">';
+    infoFields += _profileRow("📅","Membre depuis", dateStr);
+    if(etabNom) infoFields += _profileRow("🏠","Établissement", etabNom);
+    infoFields += _profileRow("🆔","UID Firebase", uid ? uid.substring(0,14)+"…" : "—");
+    if(isAdm) infoFields += _profileRow("🔑","Rôle", "Admin secondaire");
+    infoFields += '</div>';
+    // Bouton sauvegarder les modifications
+    infoFields += '<button onclick="_vpSaveMemberEdits()" style="width:100%;padding:0.65rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;margin-bottom:0.5rem;">💾 Sauvegarder les modifications</button>';
+  } else {
+    infoFields += '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:1rem;margin-bottom:1rem;">';
+    infoFields += _profileRow("📅","Membre depuis", dateStr);
+    if(etabNom) infoFields += _profileRow("🏠","Établissement", etabNom);
+    infoFields += '</div>';
+  }
+  infoFields += '</div>';
+
+  // TAB NOTIFS — envoyer une notification personnelle
+  var notifsPane = '<div id="_vpPane_notifs" style="display:none;">';
+  notifsPane += '<div style="background:rgba(255,45,155,0.05);border:1px solid rgba(255,45,155,0.2);border-radius:12px;padding:0.9rem;margin-bottom:0.9rem;">';
+  notifsPane += '<div style="font-family:Syne,sans-serif;font-weight:800;color:var(--pink);font-size:0.8rem;margin-bottom:0.6rem;">📨 Envoyer une notification à '+escHtml(pseudo)+'</div>';
+  notifsPane += '<div style="margin-bottom:0.5rem;"><label style="font-size:0.65rem;color:var(--muted);display:block;margin-bottom:0.25rem;text-transform:uppercase;letter-spacing:0.05em;">Icône</label>';
+  notifsPane += '<div style="display:flex;gap:0.3rem;flex-wrap:wrap;margin-bottom:0.5rem;" id="_vpNotifIconRow">';
+  ["📢","🔔","⚡","🎉","⚠️","✅","💳","🏆","📸","🎵"].forEach(function(ic,i){
+    notifsPane += '<button onclick="document.querySelectorAll(\'#_vpNotifIconRow button\').forEach(function(b){b.style.background=\'rgba(255,255,255,0.04)\';b.style.borderColor=\'rgba(255,255,255,0.1)\'});this.style.background=\'rgba(255,45,155,0.18)\';this.style.borderColor=\'var(--pink)\';document.getElementById(\'_vpNotifIconVal\').value=this.textContent;" style="font-size:1.05rem;padding:0.25rem 0.4rem;border-radius:7px;cursor:pointer;border:1px solid rgba(255,255,255,0.1);background:'+(i===0?'rgba(255,45,155,0.18)':'rgba(255,255,255,0.04)')+';transition:all 0.15s;">'+ic+'</button>';
+  });
+  notifsPane += '</div>';
+  notifsPane += '<input type="hidden" id="_vpNotifIconVal" value="📢">';
+  notifsPane += '</div>';
+  notifsPane += '<div style="margin-bottom:0.5rem;"><label style="font-size:0.65rem;color:var(--muted);display:block;margin-bottom:0.25rem;text-transform:uppercase;letter-spacing:0.05em;">Titre <span style="color:var(--red);">*</span></label><input id="_vpNotifTitle" type="text" maxlength="60" placeholder="Ex: Votre abonnement est expiré" style="width:100%;background:var(--surface2);border:1px solid rgba(255,45,155,0.2);border-radius:8px;color:var(--text);padding:0.5rem 0.7rem;font-size:0.82rem;font-family:DM Sans,sans-serif;outline:none;"></div>';
+  notifsPane += '<div style="margin-bottom:0.7rem;"><label style="font-size:0.65rem;color:var(--muted);display:block;margin-bottom:0.25rem;text-transform:uppercase;letter-spacing:0.05em;">Message</label><textarea id="_vpNotifMsg" maxlength="200" rows="2" placeholder="Corps du message..." style="width:100%;background:var(--surface2);border:1px solid rgba(255,45,155,0.2);border-radius:8px;color:var(--text);padding:0.5rem 0.7rem;font-size:0.8rem;font-family:DM Sans,sans-serif;outline:none;resize:none;"></textarea></div>';
+  notifsPane += '<button onclick="_vpSendPersonalNotif()" style="width:100%;padding:0.6rem;border-radius:10px;border:none;background:linear-gradient(135deg,var(--pink),var(--cyan));color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;">📤 Envoyer la notification</button>';
+  notifsPane += '</div>';
+  // Historique des notifs du membre (depuis Firebase)
+  notifsPane += '<div style="font-family:Syne,sans-serif;font-weight:700;color:var(--cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.5rem;">📋 Historique notifications</div>';
+  notifsPane += '<div id="_vpNotifHistory" style="font-size:0.73rem;color:var(--muted);text-align:center;padding:1rem;">⏳ Chargement...</div>';
+  notifsPane += '</div>';
+
+  // TAB ACTIONS
+  var actionsPane = '<div id="_vpPane_actions" style="display:none;display:none;">';
+  if(iAmSuper && email){
+    actionsPane += '<div style="display:flex;flex-direction:column;gap:0.5rem;">';
+    if(!isAdm){
+      actionsPane += '<button onclick="closeUserProfile();promoteToAdmin(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="display:flex;align-items:center;gap:0.6rem;padding:0.7rem 0.9rem;border-radius:12px;border:1px solid rgba(255,215,0,0.35);background:rgba(255,215,0,0.08);color:var(--amber);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;text-align:left;">🔑 <span><strong>Promouvoir Admin</strong><br><span style="font-size:0.68rem;font-weight:400;opacity:0.7;">Accès complet au tableau de bord</span></span></button>';
+      actionsPane += '<button onclick="closeUserProfile();designateSuccessor(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="display:flex;align-items:center;gap:0.6rem;padding:0.7rem 0.9rem;border-radius:12px;border:1px solid rgba(0,229,255,0.25);background:rgba(0,229,255,0.06);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;text-align:left;">🔮 <span><strong>Désigner Successeur</strong><br><span style="font-size:0.68rem;font-weight:400;opacity:0.7;">Héritier de la propriété</span></span></button>';
+    } else {
+      actionsPane += '<button onclick="closeUserProfile();revokeAdmin(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="display:flex;align-items:center;gap:0.6rem;padding:0.7rem 0.9rem;border-radius:12px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.08);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;text-align:left;">✕ <span><strong>Révoquer Admin</strong><br><span style="font-size:0.68rem;font-weight:400;opacity:0.7;">Retirer les droits admin</span></span></button>';
+      actionsPane += '<button onclick="closeUserProfile();transferOwnership(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="display:flex;align-items:center;gap:0.6rem;padding:0.7rem 0.9rem;border-radius:12px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.05);color:var(--amber);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;text-align:left;">👑 <span><strong>Céder la Propriété</strong><br><span style="font-size:0.68rem;font-weight:400;opacity:0.7;">Transférer le compte SuperAdmin</span></span></button>';
+    }
+    if(!etabNom){
+      actionsPane += '<button onclick="closeUserProfile();openAssignEtabModal(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="display:flex;align-items:center;gap:0.6rem;padding:0.7rem 0.9rem;border-radius:12px;border:1px solid rgba(255,45,155,0.3);background:rgba(255,45,155,0.06);color:var(--pink);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;text-align:left;">🏠 <span><strong>Assigner Établissement</strong><br><span style="font-size:0.68rem;font-weight:400;opacity:0.7;">Lier cet établissement au membre</span></span></button>';
+    }
+    actionsPane += '<button onclick="_vpResetMemberPwd()" style="display:flex;align-items:center;gap:0.6rem;padding:0.7rem 0.9rem;border-radius:12px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.06);color:var(--amber);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;text-align:left;">🔑 <span><strong>Réinitialiser le Mot de Passe</strong><br><span style="font-size:0.68rem;font-weight:400;opacity:0.7;">Générer un MDP temporaire</span></span></button>';
+    actionsPane += '<hr style="border:none;border-top:1px solid rgba(255,68,102,0.15);margin:0.3rem 0;">';
+    actionsPane += '<button onclick="closeUserProfile();deleteMember(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="display:flex;align-items:center;gap:0.6rem;padding:0.7rem 0.9rem;border-radius:12px;border:1px solid rgba(255,68,102,0.4);background:rgba(255,68,102,0.08);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;text-align:left;">🗑️ <span><strong>Supprimer le Membre</strong><br><span style="font-size:0.68rem;font-weight:400;opacity:0.7;">Action irréversible — supprime le compte</span></span></button>';
+    actionsPane += '</div>';
+  } else {
+    actionsPane += '<div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:0.8rem;">⛔ Accès SuperAdmin requis pour les actions</div>';
+  }
+  actionsPane += '</div>';
 
   var html =
-    '<div id="_userProfileOverlay" style="position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:1rem;" onclick="if(event.target===this)closeUserProfile()">' +
-    '<div style="background:var(--surface);border:1px solid rgba(255,45,155,0.3);border-radius:24px;padding:1.6rem 1.4rem;width:min(380px,100%);max-height:88vh;overflow-y:auto;box-shadow:0 0 40px rgba(255,45,155,0.2);animation:popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);position:relative;">' +
+    '<div id="_userProfileOverlay" style="position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);display:flex;align-items:flex-start;justify-content:center;padding:1rem;overflow-y:auto;" onclick="if(event.target===this)closeUserProfile()">' +
+    '<div style="background:var(--surface);border:1px solid rgba(255,45,155,0.3);border-radius:24px;padding:1.6rem 1.4rem;width:min(400px,100%);box-shadow:0 0 50px rgba(255,45,155,0.2);animation:popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);position:relative;margin:auto;">' +
     '<button onclick="closeUserProfile()" style="position:absolute;top:1rem;right:1rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--muted);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:0.9rem;display:flex;align-items:center;justify-content:center;">✕</button>' +
-
+    // Header profil
     '<div style="text-align:center;margin-bottom:1.2rem;">' +
     avatarHtml +
-    '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.05rem;color:var(--text);margin-top:0.5rem;">'+escHtml(pseudo)+'</div>' +
-    (isAdm ? '<span style="display:inline-block;font-size:0.65rem;font-weight:700;background:rgba(255,215,0,0.15);color:var(--amber);padding:0.15rem 0.5rem;border-radius:6px;border:1px solid rgba(255,215,0,0.3);margin-top:0.3rem;">🔑 Admin secondaire</span>' : '') +
-    (etabNom ? '<span style="display:inline-block;font-size:0.65rem;font-weight:700;background:rgba(255,45,155,0.12);color:var(--pink);padding:0.15rem 0.5rem;border-radius:6px;border:1px solid rgba(255,45,155,0.25);margin-top:0.3rem;margin-left:0.3rem;">🏠 '+escHtml(etabNom)+'</span>' : '') +
+    '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;color:var(--text);margin-top:0.6rem;">'+escHtml(pseudo)+'</div>' +
+    '<div style="font-size:0.7rem;color:var(--muted);margin-top:0.15rem;">'+escHtml(email||"—")+'</div>' +
+    '<div style="display:flex;gap:0.3rem;justify-content:center;flex-wrap:wrap;margin-top:0.4rem;">' +
+    (isAdm ? '<span style="font-size:0.62rem;font-weight:700;background:rgba(255,215,0,0.15);color:var(--amber);padding:0.12rem 0.45rem;border-radius:6px;border:1px solid rgba(255,215,0,0.3);">🔑 Admin</span>' : '<span style="font-size:0.62rem;font-weight:700;background:rgba(0,229,255,0.1);color:var(--cyan);padding:0.12rem 0.45rem;border-radius:6px;border:1px solid rgba(0,229,255,0.25);">👤 Membre</span>') +
+    (etabNom ? '<span style="font-size:0.62rem;font-weight:700;background:rgba(255,45,155,0.12);color:var(--pink);padding:0.12rem 0.45rem;border-radius:6px;border:1px solid rgba(255,45,155,0.25);">🏠 '+escHtml(etabNom)+'</span>' : '') +
     '</div>' +
-
-    '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:1rem;margin-bottom:1rem;">' +
-    (iAmSuper ? _profileRow("✉️","Email", email||"—") : '') +
-    (iAmSuper && tel ? _profileRow("📞","Téléphone", tel) : '') +
-    (dob ? _profileRow("🎂","Date de naissance", dobStr) : '') +
-    _profileRow("📅","Membre depuis", dateStr) +
-    (etabNom ? _profileRow("🏠","Établissement", etabNom) : '') +
-    (iAmSuper ? _profileRow("🆔","UID Firebase", uid ? uid.substring(0,16)+"…" : "—") : '') +
     '</div>' +
-
-    (iAmSuper && email ? (
-      '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;">' +
-      (!isAdm ?
-        '<button onclick="closeUserProfile();promoteToAdmin(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="flex:1;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,215,0,0.35);background:rgba(255,215,0,0.1);color:var(--amber);font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;">🔑 Promouvoir Admin</button>' :
-        '<button onclick="closeUserProfile();revokeAdmin(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="flex:1;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.1);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;">✕ Révoquer Admin</button>'
-      ) +
-      (!etabNom ?
-        '<button onclick="closeUserProfile();openAssignEtabModal(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="flex:1;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,45,155,0.3);background:rgba(255,45,155,0.08);color:var(--pink);font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;">🏠 Assigner établissement</button>' : ''
-      ) +
-      '<button onclick="closeUserProfile();designateSuccessor(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="flex:1;padding:0.55rem;border-radius:10px;border:1px solid rgba(0,229,255,0.25);background:rgba(0,229,255,0.07);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;">🔮 Successeur</button>' +
-      '</div>'
-    ) : '') +
-
+    tabsHtml + infoFields + notifsPane + actionsPane +
     '</div></div>';
 
   var wrap = document.createElement("div");
@@ -16785,13 +17138,149 @@ function openUserProfile(userData){
     loadUserAvatar(uid, function(url){
       var initEl = document.getElementById("_vpAvatarInit");
       if(!initEl) return;
-      var ring = initEl.parentElement;
       if(url){
-        ring.innerHTML = '<img src="'+url+'" style="width:66px;height:66px;border-radius:50%;object-fit:cover;display:block;">';
+        initEl.innerHTML = '';
+        initEl.style.background = 'none';
+        var imgEl = document.createElement("img");
+        imgEl.src = url;
+        imgEl.style.cssText = "width:72px;height:72px;border-radius:50%;object-fit:cover;display:block;";
+        initEl.appendChild(imgEl);
       }
     });
   }
+
+  // Charger l'historique des notifications du membre
+  _vpLoadNotifHistory(uid, email);
 }
+
+// ── Champ éditable pour le profil membre ──────────────────────
+function _vpEditField(icon, label, id, type, value, inputType, placeholder){
+  return '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.5rem 0.65rem;transition:border-color 0.2s;" onfocusin="this.style.borderColor=\'rgba(255,45,155,0.4)\'" onfocusout="this.style.borderColor=\'rgba(255,255,255,0.08)\'">'
+    + '<div style="display:flex;align-items:center;gap:0.5rem;">'
+    + '<span style="font-size:0.9rem;flex-shrink:0;">'+icon+'</span>'
+    + '<div style="flex:1;">'
+    + '<div style="font-size:0.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.1rem;">'+label+'</div>'
+    + '<input id="'+id+'" type="'+inputType+'" value="'+escHtml(value)+'" placeholder="'+placeholder+'" style="background:none;border:none;outline:none;color:var(--text);font-size:0.83rem;font-family:DM Sans,sans-serif;width:100%;padding:0;">'
+    + '</div>'
+    + '<span style="font-size:0.65rem;color:var(--muted);">✏️</span>'
+    + '</div></div>';
+}
+
+// ── Sauvegarder les modifications admin sur un membre ──────────
+function _vpSaveMemberEdits(){
+  var m = window._editingMember;
+  if(!m || !m.uid) { showToast("❌ Aucun membre sélectionné"); return; }
+  if(!window.db || !window.fbDoc || !window.fbUpdateDoc){ showToast("Firebase requis"); return; }
+  var newPseudo = (document.getElementById("_vpEditPseudo")||{}).value || m.pseudo;
+  var newEmail  = (document.getElementById("_vpEditEmail")||{}).value  || m.email;
+  var newTel    = (document.getElementById("_vpEditTel")||{}).value    || m.tel;
+  var newDob    = (document.getElementById("_vpEditDob")||{}).value    || m.dob;
+  var docRef = window.fbDoc(window.db, "users", m.uid);
+  window.fbUpdateDoc(docRef, { pseudo:newPseudo, email:newEmail, tel:newTel, dob:newDob, updatedAt:new Date().toISOString(), updatedByAdmin:true })
+    .then(function(){
+      showToast("✅ Profil de "+newPseudo+" mis à jour !");
+      // Mettre à jour aussi les établissements liés si l'email a changé
+      if(newEmail !== m.email){
+        var etab = etablissements.find(function(e){ return (e.email||"").toLowerCase()===m.email.toLowerCase(); });
+        if(etab) updateField(etab.id, { email: newEmail });
+      }
+      // Enregistrer la notif dans le log admin
+      if(typeof saveToAdminLog === "function"){
+        saveToAdminLog({ icon:"✏️", title:"Profil modifié — "+newPseudo, msg:"Pseudo/email/tel/dob mis à jour par l'admin.", targetRole:"admin", channel:"push", ts:Date.now(), fromAdmin:true });
+      }
+      closeUserProfile();
+      setTimeout(renderAdmUsers, 500);
+    })
+    .catch(function(err){ showToast("❌ Erreur : "+err.message); });
+}
+window._vpSaveMemberEdits = _vpSaveMemberEdits;
+
+// ── Envoyer une notification personnelle à un membre ──────────
+function _vpSendPersonalNotif(){
+  var m = window._editingMember;
+  if(!m) return;
+  var icon  = (document.getElementById("_vpNotifIconVal")||{}).value || "📢";
+  var title = ((document.getElementById("_vpNotifTitle")||{}).value||"").trim();
+  var msg   = ((document.getElementById("_vpNotifMsg")||{}).value||"").trim();
+  if(!title){ showToast("⚠️ Titre requis"); return; }
+  // Stocker la notif dans Firebase sous la clé de l'utilisateur cible
+  if(window.db && window.fbDoc && window.fbSetDoc && m.uid){
+    var notifDoc = window.fbDoc(window.db, "user_notifications", m.uid);
+    window.fbGetDoc && window.fbGetDoc(notifDoc).then(function(snap){
+      var existing = snap.exists() ? (snap.data().items || []) : [];
+      var newItem = { id:Date.now()+"_adm", icon:icon, title:title, msg:msg, ts:Date.now(), unread:true, fromAdmin:true };
+      existing.push(newItem);
+      return window.fbSetDoc(notifDoc, { items: existing.slice(-60), uid:m.uid, email:m.email });
+    }).then(function(){
+      showToast("✅ Notification envoyée à "+m.pseudo+" !");
+      if(typeof saveToAdminLog==="function") saveToAdminLog({ icon:icon, title:"[Perso → "+m.pseudo+"] "+title, msg:msg, targetRole:"membre", channel:"push", ts:Date.now(), fromAdmin:true });
+      document.getElementById("_vpNotifTitle").value="";
+      document.getElementById("_vpNotifMsg").value="";
+      _vpLoadNotifHistory(m.uid, m.email);
+    }).catch(function(err){ showToast("❌ "+err.message); });
+  } else {
+    // Fallback : log admin seulement
+    if(typeof saveToAdminLog==="function") saveToAdminLog({ icon:icon, title:title, msg:msg, targetRole:"membre", channel:"push", ts:Date.now(), fromAdmin:true });
+    showToast("✅ Notification journalisée (Firebase non dispo)");
+  }
+}
+window._vpSendPersonalNotif = _vpSendPersonalNotif;
+
+// ── Charger l'historique notifs d'un membre depuis Firebase ───
+function _vpLoadNotifHistory(uid, email){
+  var container = document.getElementById("_vpNotifHistory");
+  if(!container) return;
+  if(!window.db || !window.fbDoc || !window.fbGetDoc || !uid){
+    container.innerHTML = '<div style="text-align:center;padding:0.7rem;color:var(--muted);font-size:0.73rem;">Connectez Firebase pour voir l\'historique</div>';
+    return;
+  }
+  var docRef = window.fbDoc(window.db, "user_notifications", uid);
+  window.fbGetDoc(docRef).then(function(snap){
+    if(!snap.exists() || !(snap.data().items||[]).length){
+      container.innerHTML = '<div style="text-align:center;padding:0.7rem;color:var(--muted);font-size:0.73rem;">📭 Aucune notification</div>';
+      return;
+    }
+    var items = (snap.data().items||[]).slice().reverse().slice(0,10);
+    var h = '';
+    items.forEach(function(n){
+      var ago = typeof timeAgo==="function" ? timeAgo(n.ts) : new Date(n.ts).toLocaleString("fr-FR");
+      h += '<div style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.5rem;border-bottom:1px solid rgba(255,255,255,0.04);">'
+        + '<span style="font-size:1rem;flex-shrink:0;">'+n.icon+'</span>'
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:0.75rem;font-weight:700;color:'+(n.unread?'var(--text)':'var(--muted)')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escHtml(n.title)+'</div>'
+        + (n.msg ? '<div style="font-size:0.65rem;color:var(--muted);">'+escHtml(n.msg)+'</div>' : '')
+        + '<div style="font-size:0.58rem;color:rgba(255,255,255,0.28);margin-top:0.1rem;">'+ago+(n.fromAdmin?' · <span style="color:var(--amber);">Admin</span>':'')+'</div>'
+        + '</div>'
+        + (n.unread ? '<div style="width:6px;height:6px;border-radius:50%;background:var(--pink);flex-shrink:0;margin-top:0.2rem;"></div>' : '')
+        + '</div>';
+    });
+    container.innerHTML = h;
+  }).catch(function(){
+    container.innerHTML = '<div style="text-align:center;padding:0.7rem;color:var(--muted);font-size:0.73rem;">Impossible de charger</div>';
+  });
+}
+
+// ── Reset MDP depuis le profil ─────────────────────────────────
+function _vpResetMemberPwd(){
+  var m = window._editingMember;
+  if(!m) return;
+  resetMemberPassword(m.uid, m.email, m.pseudo, null);
+}
+window._vpResetMemberPwd = _vpResetMemberPwd;
+
+// ── Switcher d'onglets du profil ──────────────────────────────
+function _vpSwitchTab(tab){
+  ["infos","notifs","actions"].forEach(function(t){
+    var pane = document.getElementById("_vpPane_"+t);
+    var btn  = document.getElementById("_vpTab_"+t);
+    if(pane){ pane.style.display = (t===tab?"block":"none"); }
+    if(btn){
+      btn.style.background = (t===tab?"var(--pink)":"transparent");
+      btn.style.color = (t===tab?"#000":"var(--muted)");
+    }
+  });
+}
+window._vpSwitchTab = _vpSwitchTab;
 
 
 
