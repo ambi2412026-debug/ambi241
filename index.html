@@ -27366,6 +27366,29 @@ window.togglePub = function(docId, active){
 };
 
 /* ─── Fiche admin éditable d'un établissement ─── */
+function buildAdmExtraFields(etab){
+  var ageOpts = ['','18-25 ans','25-35 ans','35-45 ans','45+ ans','Mixte'];
+  var ageHtml = '<div style="margin-bottom:0.7rem;"><label style="font-size:0.68rem;color:var(--muted);font-weight:600;display:block;margin-bottom:0.25rem;">👥 Âge moyen clientèle</label>'
+    +'<select id="etabAdm_age_clientele" style="width:100%;background:var(--surface2);border:1px solid rgba(255,45,155,0.2);border-radius:10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.83rem;padding:0.55rem 0.8rem;outline:none;box-sizing:border-box;">'
+    +ageOpts.map(function(o){return '<option value="'+o+'"'+(etab.age_clientele===o?' selected':'')+'>'+( o||'Non précisé')+'</option>';}).join('')
+    +'</select></div>';
+  var dressOpts = ['','Casual','Smart casual','Tenue de soirée','Tenue africaine'];
+  var dressHtml = '<div style="margin-bottom:0.7rem;"><label style="font-size:0.68rem;color:var(--muted);font-weight:600;display:block;margin-bottom:0.25rem;">👔 Dress code</label>'
+    +'<select id="etabAdm_dress_code" style="width:100%;background:var(--surface2);border:1px solid rgba(255,45,155,0.2);border-radius:10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.83rem;padding:0.55rem 0.8rem;outline:none;box-sizing:border-box;">'
+    +dressOpts.map(function(o){return '<option value="'+o+'"'+(etab.dress_code===o?' selected':'')+'>'+( o||'Non précisé')+'</option>';}).join('')
+    +'</select></div>';
+  var allGenres = ['Afrobeats','Rumba','Ndombolo','R&B','Hip-Hop','Coupé-Décalé','Zouk','Electronic','Reggae','Jazz','Variété','Ambiance live'];
+  var curGenres = etab.genres_musicaux || [];
+  var genresHtml = '<div style="margin-bottom:0.7rem;"><label style="font-size:0.68rem;color:var(--muted);font-weight:600;display:block;margin-bottom:0.4rem;">🎵 Genres musicaux</label>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:0.3rem;" id="etabAdm_genres_wrap">'
+    +allGenres.map(function(g){
+      var chk = curGenres.indexOf(g)!==-1;
+      return '<label style="display:flex;align-items:center;gap:0.2rem;font-size:0.68rem;color:var(--text);background:'+(chk?'rgba(204,68,255,0.15)':'rgba(255,255,255,0.04)')+';border:1px solid '+(chk?'rgba(204,68,255,0.4)':'rgba(255,255,255,0.1)')+';border-radius:20px;padding:0.22rem 0.5rem;cursor:pointer;">'
+        +'<input type="checkbox" class="etabAdmGenre" value="'+escHtml(g)+'" '+(chk?'checked':'')+' style="width:12px;height:12px;accent-color:var(--purple);">'+escHtml(g)+'</label>';
+    }).join('')
+    +'</div></div>';
+  return ageHtml+dressHtml+genresHtml;
+}
 window.openEtabAdminProfile = function(eid){
   var etab = (window.etablissements||[]).find(function(e){ return String(e.id)===String(eid); });
   if(!etab){ if(typeof showToast==='function') showToast('Établissement introuvable'); return; }
@@ -27378,7 +27401,9 @@ window.openEtabAdminProfile = function(eid){
     {key:'description',label:'Description',type:'textarea'},
     {key:'ouverture',label:'Heure ouverture',type:'text'},
     {key:'fermeture',label:'Heure fermeture',type:'text'},
-    {key:'capacite_totale',label:'Capacité totale',type:'number'},
+    {key:'capacite_totale',label:'🪑 Places totales',type:'number'},
+    {key:'nb_vip',label:'🏆 Espaces VIP',type:'number'},
+    {key:'nb_chambres',label:'🛏️ Chambres',type:'number'},
     {key:'maps_url',label:'Lien Google Maps',type:'url'}
   ];
   var inputs = fields.map(function(f){
@@ -27411,7 +27436,7 @@ window.openEtabAdminProfile = function(eid){
     +'<button onclick="closeEtabAdminProfile()" style="position:absolute;top:1rem;right:1rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--muted);width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.85rem;display:flex;align-items:center;justify-content:center;">✕</button>'
     +'<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1rem;color:var(--pink);margin-bottom:0.2rem;">✏️ Fiche Admin</div>'
     +'<div style="font-size:0.72rem;color:var(--muted);margin-bottom:1.2rem;">Modifier les informations de <strong style="color:var(--text);">'+escHtml(etab.nom||'—')+'</strong></div>'
-    +inputs + statutHtml + paiementHtml
+    +inputs + buildAdmExtraFields(etab) + statutHtml + paiementHtml
     +'<div style="display:flex;gap:0.5rem;margin-top:1.1rem;">'
     +'<button onclick="saveEtabAdminProfile(\''+escHtml(String(eid))+'\')" style="flex:2;padding:0.75rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;">💾 Sauvegarder</button>'
     +'<button onclick="closeEtabAdminProfile()" style="flex:1;padding:0.75rem;border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--muted);font-family:Syne,sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;">Annuler</button>'
@@ -27425,12 +27450,18 @@ window.closeEtabAdminProfile = function(){
 window.saveEtabAdminProfile = function(eid){
   var etab = (window.etablissements||[]).find(function(e){ return String(e.id)===String(eid); });
   if(!etab){ if(typeof showToast==='function') showToast('Établissement introuvable'); return; }
-  var fields=['nom','type','quartier','contact','description','ouverture','fermeture','capacite_totale','maps_url'];
+  var numFields=['capacite_totale','nb_vip','nb_chambres'];
+  var txtFields=['nom','type','quartier','contact','description','ouverture','fermeture','maps_url','age_clientele','dress_code'];
   var updates = {};
-  fields.forEach(function(k){
+  txtFields.forEach(function(k){
     var el = document.getElementById('etabAdm_'+k);
-    if(el) updates[k] = k==='capacite_totale' ? parseInt(el.value)||0 : el.value.trim();
+    if(el) updates[k] = el.value.trim ? el.value.trim() : el.value;
   });
+  numFields.forEach(function(k){
+    var el = document.getElementById('etabAdm_'+k);
+    if(el) updates[k] = parseInt(el.value)||0;
+  });
+  updates.genres_musicaux = Array.from(document.querySelectorAll('.etabAdmGenre:checked')).map(function(c){return c.value;});
   updates.statut = window.__etabAdmNewStatut || etab.statut;
   updates.paiement = window.__etabAdmNewPaiement || etab.paiement;
   Object.assign(etab, updates);
