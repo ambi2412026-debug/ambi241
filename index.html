@@ -750,6 +750,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 @keyframes shimmerCard{0%{background-position:-200% 0}100%{background-position:200% 0}}
 @keyframes rippleOut{0%{transform:scale(0);opacity:0.45}100%{transform:scale(3.5);opacity:0}}
 @keyframes slideInRight{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:translateX(0)}}
+@keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
 @keyframes floatUp{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
 @keyframes glowPulse{0%,100%{box-shadow:0 0 12px rgba(255,45,155,0.3)}50%{box-shadow:0 0 24px rgba(255,45,155,0.65),0 0 40px rgba(204,68,255,0.25)}}
 
@@ -4096,95 +4097,165 @@ if (document.readyState === 'loading') {
       </div>
       <div id="loginMsg" style="font-size:0.78rem;text-align:center;margin-top:0.5rem;display:none;"></div>
     </div>
-    <!-- MON PROFIL -->
+    <!-- MON PROFIL — FICHE COMPLÈTE MODERNE -->
     <div id="formMonProfil" style="display:none;">
-      <div style="text-align:center;margin-bottom:0.9rem;">
 
-        <!-- ── Zone avatar cliquable + drag-drop ── -->
-        <div id="avatarDropArea" class="avatar-drop-zone" title="Changer ma photo de profil"
-          style="border:none;padding:0;display:inline-block;background:none;">
-          <div style="position:relative;width:96px;margin:0 auto 0.5rem;">
-            <div id="myAvatarWrap" class="user-avatar-ring" onclick="triggerAvatarUpload()" style="cursor:pointer;">
-              <div id="myAvatarInner" class="user-avatar-initiale">?</div>
+      <!-- ══ HERO BANNER ══ -->
+      <div style="position:relative;margin:-0.1rem -0.1rem 0;border-radius:18px 18px 0 0;overflow:hidden;height:80px;background:linear-gradient(135deg,rgba(255,45,155,0.35) 0%,rgba(204,68,255,0.25) 50%,rgba(0,229,255,0.2) 100%);">
+        <div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 8px,rgba(255,255,255,0.02) 8px,rgba(255,255,255,0.02) 16px);"></div>
+        <!-- Glow orbs -->
+        <div style="position:absolute;width:80px;height:80px;border-radius:50%;background:rgba(255,45,155,0.3);filter:blur(20px);top:-20px;left:20px;"></div>
+        <div style="position:absolute;width:60px;height:60px;border-radius:50%;background:rgba(0,229,255,0.25);filter:blur(16px);top:-10px;right:30px;"></div>
+      </div>
+
+      <!-- ══ AVATAR + IDENTITÉ ══ -->
+      <div style="position:relative;padding:0 1rem 0.8rem;margin-top:-44px;">
+        <div style="display:flex;align-items:flex-end;gap:0.9rem;margin-bottom:0.75rem;">
+
+          <!-- Avatar cliquable -->
+          <div id="avatarDropArea" class="avatar-drop-zone" title="Changer ma photo" style="border:none;padding:0;background:none;flex-shrink:0;">
+            <div style="position:relative;width:80px;height:80px;">
+              <div id="myAvatarWrap" class="user-avatar-ring" onclick="triggerAvatarUpload()" style="cursor:pointer;width:80px;height:80px;border:3px solid var(--surface2);border-radius:50%;background:rgba(255,45,155,0.15);box-shadow:0 4px 20px rgba(255,45,155,0.4),0 0 0 2px rgba(255,45,155,0.3);overflow:hidden;display:flex;align-items:center;justify-content:center;">
+                <div id="myAvatarInner" class="user-avatar-initiale" style="font-size:2rem;">?</div>
+              </div>
+              <div onclick="triggerAvatarUpload()" style="position:absolute;bottom:0;right:0;width:24px;height:24px;border-radius:50%;background:var(--pink);border:2px solid var(--surface2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:0.75rem;">📷</div>
             </div>
-            <!-- Overlay caméra -->
-            <div class="avatar-cam-overlay" onclick="triggerAvatarUpload()" style="cursor:pointer;">
-              <span>🖼️</span>
-              <small>Galerie</small>
-            </div>
-            <!-- Badge crayon -->
-            <div class="user-avatar-edit-btn" onclick="triggerAvatarUpload()" style="cursor:pointer;">✏️</div>
           </div>
-          <!-- Bouton galerie explicite mobile -->
-          <button onclick="triggerAvatarUpload()" style="margin-top:0.5rem;padding:0.4rem 1rem;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.35);border-radius:10px;color:var(--pink);font-family:'DM Sans',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:0.35rem;">
-            🖼️ Choisir depuis la galerie
+          <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="onAvatarFileSelected(this)">
+
+          <!-- Nom + badge -->
+          <div style="flex:1;min-width:0;padding-bottom:0.2rem;">
+            <div id="myProfilePseudo" style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.1rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+            <div id="myProfileEmail" style="font-size:0.68rem;color:var(--muted);margin-top:0.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+            <div id="myProfileBadge" style="margin-top:0.3rem;display:flex;flex-wrap:wrap;gap:0.3rem;"></div>
+          </div>
+
+          <!-- Bouton éditer pseudo -->
+          <button onclick="openEditPseudoModal()" style="flex-shrink:0;padding:0.4rem 0.75rem;border-radius:10px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.07);color:var(--cyan);font-family:'DM Sans',sans-serif;font-size:0.7rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:0.3rem;">
+            ✏️ Modifier
           </button>
-          <div id="avatarStatus" style="font-size:0.62rem;color:var(--muted);margin-top:0.4rem;min-height:1rem;"></div>
         </div>
 
-        <!-- accept="image/*" sans capture → ouvre la galerie sur mobile (pas la caméra) -->
-        <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="onAvatarFileSelected(this)">
-        <div id="myProfilePseudo" style="font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;color:var(--text);margin-top:0.5rem;"></div>
-        <div id="myProfileEmail" style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;"></div>
-        <div id="myProfileBadge" style="margin-top:0.4rem;"></div>
-      </div>
-      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:0.9rem;margin-bottom:1rem;">
-        <div id="myProfileInfoRows"></div>
-      </div>
+        <!-- ══ ONGLETS ══ -->
+        <div style="display:flex;gap:0.2rem;background:rgba(255,255,255,0.04);border-radius:12px;padding:0.22rem;margin-bottom:1rem;" id="mpTabBar">
+          <button onclick="_mpSwitchTab('infos')" id="_mpTab_infos" style="flex:1;padding:0.38rem 0.3rem;border-radius:9px;font-size:0.72rem;font-weight:700;cursor:pointer;border:none;background:var(--pink);color:#000;font-family:'DM Sans',sans-serif;transition:all 0.2s;">👤 Profil</button>
+          <button onclick="_mpSwitchTab('docs')" id="_mpTab_docs" style="flex:1;padding:0.38rem 0.3rem;border-radius:9px;font-size:0.72rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;transition:all 0.2s;">🔐 Docs</button>
+          <button onclick="_mpSwitchTab('support')" id="_mpTab_support" style="flex:1;padding:0.38rem 0.3rem;border-radius:9px;font-size:0.72rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;transition:all 0.2s;">🆘 Support</button>
+        </div>
 
-      <!-- ════ PHOTOS D'IDENTITÉ POUR PAIEMENTS ════ -->
-      <div id="userPhotosSection" style="background:rgba(0,229,255,0.03);border:1px solid rgba(0,229,255,0.2);border-radius:12px;padding:0.8rem;margin-bottom:0.8rem;">
-        <div style="font-family:Syne,sans-serif;font-weight:800;color:var(--cyan);font-size:0.75rem;margin-bottom:0.8rem;text-transform:uppercase;letter-spacing:0.1em;">🔐 Photos &amp; Vérification d'Identité</div>
-        
-        <!-- Photo de profil secondaire -->
-        <div style="margin-bottom:0.8rem;">
-          <div style="font-size:0.68rem;font-weight:700;color:var(--cyan);margin-bottom:0.5rem;">📸 Photo de Profil</div>
-          <div onclick="_uploadUserPhoto('profile')" class="photo-upload-box" id="profilePhotoBox">
-            <div class="photo-upload-placeholder">
-              <span>📷</span>
-              <small>Cliquer pour ajouter</small>
+        <!-- ══ PANE PROFIL ══ -->
+        <div id="_mpPane_infos">
+          <!-- Infos dynamiques depuis Firestore -->
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:0.9rem;margin-bottom:0.9rem;">
+            <div style="font-family:'Syne',sans-serif;font-size:0.7rem;font-weight:800;color:var(--pink);text-transform:uppercase;letter-spacing:0.09em;margin-bottom:0.65rem;display:flex;align-items:center;gap:0.4rem;">
+              Mes informations
+              <div style="flex:1;height:1px;background:rgba(255,45,155,0.15);"></div>
+            </div>
+            <div id="myProfileInfoRows">
+              <div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem;">Chargement…</div>
             </div>
           </div>
-          <button id="deleteProfilePhotoBtn" onclick="_deleteUserPhoto('profile')" style="margin-top:0.4rem;width:100%;padding:0.3rem;font-size:0.6rem;background:rgba(255,68,102,0.15);border:1px solid rgba(255,68,102,0.3);color:var(--red);border-radius:6px;cursor:pointer;display:none;">✕ Supprimer photo</button>
+
+          <!-- Badges / statut -->
+          <div id="mpBadgesSection" style="display:none;background:rgba(255,215,0,0.04);border:1px solid rgba(255,215,0,0.15);border-radius:14px;padding:0.85rem;margin-bottom:0.9rem;">
+            <div style="font-family:'Syne',sans-serif;font-size:0.7rem;font-weight:800;color:var(--amber);text-transform:uppercase;letter-spacing:0.09em;margin-bottom:0.6rem;">🏅 Mes badges</div>
+            <div id="mpBadgesList" style="display:flex;flex-wrap:wrap;gap:0.4rem;"></div>
+          </div>
+
+          <!-- Établissement lié -->
+          <div id="mpEtabSection" style="display:none;background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.15);border-radius:14px;padding:0.85rem;margin-bottom:0.9rem;">
+            <div style="font-family:'Syne',sans-serif;font-size:0.7rem;font-weight:800;color:var(--cyan);text-transform:uppercase;letter-spacing:0.09em;margin-bottom:0.6rem;">🏠 Mon établissement</div>
+            <div id="mpEtabInfo" style="font-size:0.82rem;color:var(--text);font-weight:600;"></div>
+          </div>
+
+          <!-- Boutons rapides -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem;">
+            <button onclick="triggerAvatarUpload()" style="padding:0.6rem 0.5rem;border-radius:12px;border:1px solid rgba(255,45,155,0.3);background:rgba(255,45,155,0.07);color:var(--pink);font-family:'DM Sans',sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.35rem;transition:background 0.2s;">📷 Changer photo</button>
+            <button onclick="openEditPseudoModal()" style="padding:0.6rem 0.5rem;border-radius:12px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.07);color:var(--cyan);font-family:'DM Sans',sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.35rem;transition:background 0.2s;">✏️ Modifier pseudo</button>
+          </div>
+          <div id="avatarUploadStatus" style="font-size:0.68rem;min-height:1rem;text-align:center;color:var(--cyan);"></div>
+          <div id="avatarStatus" style="font-size:0.62rem;color:var(--muted);text-align:center;min-height:0.8rem;margin-top:0.2rem;"></div>
         </div>
 
-        <!-- Photo d'identité (CNI/Passeport) -->
-        <div>
-          <div style="font-size:0.68rem;font-weight:700;color:var(--green);margin-bottom:0.5rem;">🆔 Pièce d'Identité (CNI/Passeport)</div>
-          <div style="font-size:0.6rem;color:var(--muted);margin-bottom:0.4rem;">Requise pour les transactions &amp; paiements</div>
-          <div onclick="_uploadUserPhoto('identity')" class="photo-cni-box" id="identityPhotoBox">
-            <div class="photo-cni-placeholder">
-              <span>🆔</span>
-              <small>CNI ou Passeport</small>
+        <!-- ══ PANE DOCS / IDENTITÉ ══ -->
+        <div id="_mpPane_docs" style="display:none;">
+          <div style="background:rgba(0,229,255,0.03);border:1px solid rgba(0,229,255,0.18);border-radius:14px;padding:0.9rem;margin-bottom:0.9rem;">
+            <div style="font-family:'Syne',sans-serif;font-size:0.7rem;font-weight:800;color:var(--cyan);text-transform:uppercase;letter-spacing:0.09em;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.4rem;">
+              🔐 Vérification d'identité
+              <div style="flex:1;height:1px;background:rgba(0,229,255,0.12);"></div>
+            </div>
+
+            <!-- Photo de profil secondaire -->
+            <div style="margin-bottom:1rem;">
+              <div style="font-size:0.68rem;font-weight:700;color:var(--cyan);margin-bottom:0.45rem;display:flex;align-items:center;gap:0.35rem;">
+                📸 Photo de Profil
+                <span style="font-size:0.58rem;color:var(--muted);font-weight:400;">Visible publiquement</span>
+              </div>
+              <div onclick="_uploadUserPhoto('profile')" class="photo-upload-box" id="profilePhotoBox" style="border-radius:12px;cursor:pointer;min-height:80px;">
+                <div class="photo-upload-placeholder"><span>📷</span><small>Cliquer pour ajouter</small></div>
+              </div>
+              <button id="deleteProfilePhotoBtn" onclick="_deleteUserPhoto('profile')" style="margin-top:0.4rem;width:100%;padding:0.3rem;font-size:0.62rem;background:rgba(255,68,102,0.12);border:1px solid rgba(255,68,102,0.28);color:var(--red);border-radius:8px;cursor:pointer;display:none;">✕ Supprimer</button>
+            </div>
+
+            <!-- Pièce d'identité -->
+            <div>
+              <div style="font-size:0.68rem;font-weight:700;color:var(--green);margin-bottom:0.3rem;display:flex;align-items:center;gap:0.35rem;">
+                🆔 Pièce d'Identité
+                <span style="font-size:0.58rem;color:var(--muted);font-weight:400;">CNI ou Passeport</span>
+              </div>
+              <div style="font-size:0.6rem;color:var(--muted);margin-bottom:0.4rem;">Requise pour les transactions &amp; paiements. Confidentielle.</div>
+              <div onclick="_uploadUserPhoto('identity')" class="photo-cni-box" id="identityPhotoBox" style="border-radius:12px;cursor:pointer;">
+                <div class="photo-cni-placeholder"><span>🆔</span><small>CNI ou Passeport</small></div>
+              </div>
+              <div id="identityVerificationStatus" style="margin-top:0.45rem;"></div>
+              <button id="deleteIdentityPhotoBtn" onclick="_deleteUserPhoto('identity')" style="margin-top:0.4rem;width:100%;padding:0.3rem;font-size:0.62rem;background:rgba(255,68,102,0.12);border:1px solid rgba(255,68,102,0.28);color:var(--red);border-radius:8px;cursor:pointer;display:none;">✕ Supprimer pièce</button>
             </div>
           </div>
-          <div id="identityVerificationStatus" style="margin-top:0.5rem;"></div>
-          <button id="deleteIdentityPhotoBtn" onclick="_deleteUserPhoto('identity')" style="margin-top:0.4rem;width:100%;padding:0.3rem;font-size:0.6rem;background:rgba(255,68,102,0.15);border:1px solid rgba(255,68,102,0.3);color:var(--red);border-radius:6px;cursor:pointer;display:none;">✕ Supprimer pièce d'identité</button>
+          <div id="userPhotosSection" style="display:none;"></div><!-- kept for JS compat -->
         </div>
-      </div>
 
-      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.5rem;">
-        <button onclick="openEditPseudoModal()" style="flex:1;padding:0.5rem;border-radius:10px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.07);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;transition:background 0.15s;">✏️ Modifier pseudo</button>
-        <button onclick="triggerAvatarUpload()" style="flex:1;padding:0.5rem;border-radius:10px;border:1px solid rgba(255,45,155,0.3);background:rgba(255,45,155,0.07);color:var(--pink);font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;transition:background 0.15s;">📷 Changer photo</button>
-      </div>
-      <!-- ── Support membre ── -->
-      <div style="background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:0.75rem;margin-bottom:0.5rem;">
-        <div style="font-family:Syne,sans-serif;font-weight:700;color:var(--amber);font-size:0.75rem;margin-bottom:0.5rem;">🆘 Assistance &amp; Support</div>
-        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
-          <button id="memberSupportBadge" onclick="openSupportRequestModal('reset_password')" style="flex:1;padding:0.45rem 0.5rem;border-radius:9px;border:1px solid rgba(255,215,0,0.3);background:rgba(255,215,0,0.08);color:var(--amber);font-family:DM Sans,sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;">🔑 Réinitialiser mon MDP</button>
-          <button onclick="openSupportRequestModal('autre')" style="flex:1;padding:0.45rem 0.5rem;border-radius:9px;border:1px solid rgba(204,68,255,0.3);background:rgba(204,68,255,0.07);color:var(--purple);font-family:DM Sans,sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;">💬 Contacter support</button>
+        <!-- ══ PANE SUPPORT ══ -->
+        <div id="_mpPane_support" style="display:none;">
+          <div style="background:rgba(255,215,0,0.04);border:1px solid rgba(255,215,0,0.18);border-radius:14px;padding:0.9rem;margin-bottom:0.8rem;">
+            <div style="font-family:'Syne',sans-serif;font-size:0.7rem;font-weight:800;color:var(--amber);text-transform:uppercase;letter-spacing:0.09em;margin-bottom:0.75rem;">🆘 Assistance &amp; Support</div>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;">
+              <button id="memberSupportBadge" onclick="openSupportRequestModal('reset_password')" style="padding:0.65rem 0.9rem;border-radius:12px;border:1px solid rgba(255,215,0,0.3);background:rgba(255,215,0,0.07);color:var(--amber);font-family:'DM Sans',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:0.5rem;text-align:left;">
+                🔑 <span><strong>Réinitialiser mon mot de passe</strong></span>
+              </button>
+              <button onclick="openSupportRequestModal('autre')" style="padding:0.65rem 0.9rem;border-radius:12px;border:1px solid rgba(204,68,255,0.3);background:rgba(204,68,255,0.06);color:var(--purple);font-family:'DM Sans',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:0.5rem;text-align:left;">
+                💬 <span><strong>Contacter le support</strong></span>
+              </button>
+              <button onclick="memberViewMyTickets()" style="padding:0.65rem 0.9rem;border-radius:12px;border:1px solid rgba(0,229,255,0.2);background:rgba(0,229,255,0.04);color:var(--cyan);font-family:'DM Sans',sans-serif;font-size:0.78rem;cursor:pointer;display:flex;align-items:center;gap:0.5rem;text-align:left;">
+                📋 <span>Voir mes demandes en cours</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Zone danger -->
+          <div style="border:1px solid rgba(255,68,102,0.2);border-radius:14px;padding:0.9rem;">
+            <div style="font-family:'Syne',sans-serif;font-size:0.7rem;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:0.09em;margin-bottom:0.65rem;">⚠️ Zone sensible</div>
+            <button onclick="openLeaveAppModal()" style="width:100%;padding:0.65rem;border-radius:12px;border:1px solid rgba(255,68,102,0.35);background:rgba(255,68,102,0.07);color:var(--red);font-family:'Syne',sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.45rem;transition:background 0.15s;">
+              🚪 Quitter l'application
+            </button>
+            <div style="font-size:0.6rem;color:var(--muted);text-align:center;margin-top:0.4rem;">Votre compte et vos données seront supprimés définitivement.</div>
+          </div>
         </div>
-        <button onclick="memberViewMyTickets()" style="width:100%;margin-top:0.4rem;padding:0.4rem;border-radius:9px;border:1px solid rgba(0,229,255,0.2);background:rgba(0,229,255,0.05);color:var(--cyan);font-family:DM Sans,sans-serif;font-size:0.72rem;cursor:pointer;">📋 Voir mes demandes en cours</button>
-      </div>
-      <div id="avatarUploadStatus"></div>
 
-      <!-- ── Quitter l'application ── -->
-      <div style="margin-top:1rem;padding-top:0.8rem;border-top:1px solid rgba(255,68,102,0.15);">
-        <button onclick="openLeaveAppModal()" style="width:100%;padding:0.6rem;border-radius:10px;border:1px solid rgba(255,68,102,0.35);background:rgba(255,68,102,0.07);color:var(--red);font-family:'Syne',sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.45rem;transition:background 0.15s;">
-          🚪 Quitter l'application
-        </button>
-      </div>
+      </div><!-- fin padding wrapper -->
     </div>
+
+    <!-- JS pour le switch d'onglets Mon Profil -->
+    <script>
+    function _mpSwitchTab(tab){
+      ['infos','docs','support'].forEach(function(t){
+        var p=document.getElementById('_mpPane_'+t);
+        var b=document.getElementById('_mpTab_'+t);
+        if(p) p.style.display=(t===tab?'block':'none');
+        if(b){ b.style.background=(t===tab?'var(--pink)':'transparent'); b.style.color=(t===tab?'#000':'var(--muted)'); }
+      });
+    }
+    window._mpSwitchTab=_mpSwitchTab;
+    </script>
   </div>
 </div>
 
@@ -8770,24 +8841,55 @@ function _renderMyProfileTab(){
   var el2 = document.getElementById("myProfileEmail");
   if(el2) el2.textContent = email;
 
-  // Badge admin
+  // Badges (admin + établissement)
   var badge = document.getElementById("myProfileBadge");
-  if(badge) badge.innerHTML = isAdmin
-    ? '<span style="font-size:0.65rem;font-weight:700;background:rgba(255,215,0,0.15);color:var(--amber);padding:0.15rem 0.5rem;border-radius:6px;border:1px solid rgba(255,215,0,0.3);">🔑 Admin</span>'
-    : '';
+  if(badge){
+    var badgeHtml = '';
+    if(isAdmin) badgeHtml += '<span style="font-size:0.62rem;font-weight:700;background:rgba(255,215,0,0.15);color:var(--amber);padding:0.18rem 0.55rem;border-radius:20px;border:1px solid rgba(255,215,0,0.35);">🔑 Admin</span>';
+    var myEtab = etablissements.find(function(e){ return e.responsable_email===email; });
+    if(myEtab) badgeHtml += '<span style="font-size:0.62rem;font-weight:700;background:rgba(0,229,255,0.1);color:var(--cyan);padding:0.18rem 0.55rem;border-radius:20px;border:1px solid rgba(0,229,255,0.25);">🏠 Gérant</span>';
+    badge.innerHTML = badgeHtml;
+  }
 
   // Infos depuis Firestore
   if(uid && window.db){
     window.fbGetDoc(window.fbDoc(window.db,"users",uid)).then(function(snap){
       var d = snap.exists() ? snap.data() : {};
       var rows = "";
+      // Ligne email
+      rows += _profileRow("✉️","Email",email||"—");
       if(d.tel) rows += _profileRow("📞","Téléphone",d.tel);
-      if(d.dob) rows += _profileRow("🎂","Naissance",new Date(d.dob).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}));
+      if(d.dob) rows += _profileRow("🎂","Date de naissance",new Date(d.dob).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}));
       if(d.createdAt) rows += _profileRow("📅","Membre depuis",new Date(d.createdAt).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}));
-      var etab = etablissements.find(function(e){ return e.responsable_email===email; });
-      if(etab) rows += _profileRow("🏠","Établissement",etab.nom);
       var infoEl = document.getElementById("myProfileInfoRows");
       if(infoEl) infoEl.innerHTML = rows||'<div style="font-size:0.78rem;color:var(--muted);text-align:center;">Aucune info supplémentaire</div>';
+
+      // Établissement
+      var etab = etablissements.find(function(e){ return e.responsable_email===email; });
+      var etabSec = document.getElementById("mpEtabSection");
+      var etabInfo = document.getElementById("mpEtabInfo");
+      if(etab && etabSec && etabInfo){
+        etabSec.style.display="block";
+        etabInfo.innerHTML = '<div style="display:flex;align-items:center;gap:0.6rem;">'
+          +'<span style="font-size:1.4rem;">'+( etab.photo_interieur || etab.photo_exterieur ? '' : '🏠')+'</span>'
+          +'<div><div style="font-weight:700;color:var(--text);">'+escHtml(etab.nom)+'</div>'
+          +'<div style="font-size:0.68rem;color:var(--muted);">'+escHtml(etab.type)+' · '+escHtml(etab.quartier||'')+'</div></div></div>';
+      }
+
+      // Badges section
+      var badges = [];
+      if(isAdmin) badges.push({icon:'🔑',label:'Admin',col:'var(--amber)',bg:'rgba(255,215,0,0.12)',brd:'rgba(255,215,0,0.3)'});
+      if(etab) badges.push({icon:'🏠',label:'Gérant',col:'var(--cyan)',bg:'rgba(0,229,255,0.1)',brd:'rgba(0,229,255,0.25)'});
+      if(d.verified) badges.push({icon:'✅',label:'Vérifié',col:'var(--green)',bg:'rgba(0,255,170,0.1)',brd:'rgba(0,255,170,0.25)'});
+      if(d.createdAt && Date.now()-d.createdAt>86400000*30) badges.push({icon:'⭐',label:'Fidèle',col:'var(--purple)',bg:'rgba(204,68,255,0.1)',brd:'rgba(204,68,255,0.25)'});
+      var badgeSec = document.getElementById("mpBadgesSection");
+      var badgeList = document.getElementById("mpBadgesList");
+      if(badges.length && badgeSec && badgeList){
+        badgeSec.style.display="block";
+        badgeList.innerHTML = badges.map(function(b){
+          return '<span style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.3rem 0.65rem;border-radius:20px;background:'+b.bg+';border:1px solid '+b.brd+';color:'+b.col+';font-size:0.7rem;font-weight:700;">'+b.icon+' '+b.label+'</span>';
+        }).join('');
+      }
     }).catch(function(){});
   }
 
@@ -17584,7 +17686,7 @@ function designateSuccessor(uid, email, pseudo){
 window.assignEtablissementToUser = assignEtablissementToUser;
 window.designateSuccessor        = designateSuccessor;
 
-// ── Modal profil utilisateur (clic sur un membre) ─────────────────
+// ── Fiche publique membre (bottom-sheet moderne) ──────────────────
 function openUserProfile(userData){
   if(typeof userData === "string"){ try{ userData=JSON.parse(userData); }catch(e){ return; } }
   var uid      = userData.uid      || "";
@@ -17599,39 +17701,53 @@ function openUserProfile(userData){
   var dateStr  = created ? new Date(created).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}) : "—";
   var dobStr   = dob ? new Date(dob).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}) : "—";
   var iAmSuper = isAdmin && isSuperAdminUser();
-  // Store current member data for editing
   window._editingMember = { uid:uid, email:email, pseudo:pseudo, tel:tel, dob:dob, isAdmin:isAdm, etabNom:etabNom };
 
-  var avatarGrad = isAdm ? "linear-gradient(135deg,var(--amber),var(--cyan))" : "linear-gradient(135deg,var(--pink),var(--purple))";
-  var avatarHtml = '<div style="position:relative;display:inline-block;">'
-    + '<div id="_vpAvatarInit" style="width:72px;height:72px;border-radius:50%;background:'+avatarGrad+';display:flex;align-items:center;justify-content:center;font-family:Syne,sans-serif;font-weight:800;font-size:1.8rem;color:#fff;overflow:hidden;box-shadow:0 0 20px rgba(255,45,155,0.4);">'+escHtml(initiale)+'</div>'
-    + (iAmSuper ? '<div style="position:absolute;bottom:0;right:0;width:22px;height:22px;border-radius:50%;background:var(--surface);border:2px solid var(--amber);display:flex;align-items:center;justify-content:center;font-size:0.7rem;cursor:pointer;" onclick="document.getElementById(\'_vpEditPseudo\').focus()" title="Modifier">✏️</div>' : '')
-    + '</div>';
+  var avatarGrad = isAdm
+    ? "linear-gradient(135deg,var(--amber),var(--cyan))"
+    : "linear-gradient(135deg,var(--pink),var(--purple))";
 
-  // Tabs: Infos / Activité / Notifications
-  var tabsHtml = '<div style="display:flex;gap:0.25rem;background:var(--surface2);border-radius:10px;padding:0.2rem;margin-bottom:1rem;">'
-    + '<button id="_vpTab_infos" onclick="_vpSwitchTab(\'infos\')" style="flex:1;padding:0.38rem;border-radius:7px;font-size:0.75rem;font-weight:700;cursor:pointer;border:none;background:var(--pink);color:#000;font-family:DM Sans,sans-serif;transition:all 0.2s;">👤 Infos</button>'
-    + '<button id="_vpTab_notifs" onclick="_vpSwitchTab(\'notifs\')" style="flex:1;padding:0.38rem;border-radius:7px;font-size:0.75rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--muted);font-family:DM Sans,sans-serif;transition:all 0.2s;">🔔 Notifs</button>'
-    + '<button id="_vpTab_actions" onclick="_vpSwitchTab(\'actions\')" style="flex:1;padding:0.38rem;border-radius:7px;font-size:0.75rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--muted);font-family:DM Sans,sans-serif;transition:all 0.2s;">⚡ Actions</button>'
-    + '</div>';
+  /* ── AVATAR HTML ── */
+  var avatarHtml =
+    '<div style="position:relative;display:inline-block;">'
+    +'<div id="_vpAvatarInit" style="width:76px;height:76px;border-radius:50%;background:'+avatarGrad+';display:flex;align-items:center;justify-content:center;font-family:Syne,sans-serif;font-weight:800;font-size:2rem;color:#fff;overflow:hidden;box-shadow:0 0 24px rgba(255,45,155,0.45),0 0 0 3px rgba(255,255,255,0.08);">'+escHtml(initiale)+'</div>'
+    +(isAdm?'<div style="position:absolute;bottom:0;right:0;width:22px;height:22px;border-radius:50%;background:var(--amber);border:2px solid var(--surface);display:flex;align-items:center;justify-content:center;font-size:0.75rem;">🔑</div>':'<div style="position:absolute;bottom:2px;right:2px;width:14px;height:14px;border-radius:50%;background:var(--green);border:2px solid var(--surface);box-shadow:0 0 6px rgba(0,255,170,0.6);"></div>')
+    +'</div>';
 
-  // TAB INFOS — formulaire éditable
+  /* ── BADGES ROW ── */
+  var badgesHtml = '<div style="display:flex;gap:0.3rem;justify-content:center;flex-wrap:wrap;margin:0.45rem 0;">';
+  if(isAdm) badgesHtml += '<span style="font-size:0.6rem;font-weight:700;background:rgba(255,215,0,0.15);color:var(--amber);padding:0.15rem 0.5rem;border-radius:20px;border:1px solid rgba(255,215,0,0.35);">🔑 Admin</span>';
+  else badgesHtml += '<span style="font-size:0.6rem;font-weight:700;background:rgba(0,229,255,0.1);color:var(--cyan);padding:0.15rem 0.5rem;border-radius:20px;border:1px solid rgba(0,229,255,0.25);">👤 Membre</span>';
+  if(etabNom) badgesHtml += '<span style="font-size:0.6rem;font-weight:700;background:rgba(255,45,155,0.12);color:var(--pink);padding:0.15rem 0.5rem;border-radius:20px;border:1px solid rgba(255,45,155,0.28);">🏠 Gérant</span>';
+  if(created && Date.now()-created>86400000*30) badgesHtml += '<span style="font-size:0.6rem;font-weight:700;background:rgba(204,68,255,0.1);color:var(--purple);padding:0.15rem 0.5rem;border-radius:20px;border:1px solid rgba(204,68,255,0.25);">⭐ Fidèle</span>';
+  badgesHtml += '</div>';
+
+  /* ── TABS ── */
+  var tabsHtml =
+    '<div style="display:flex;gap:0.2rem;background:rgba(255,255,255,0.04);border-radius:11px;padding:0.2rem;margin-bottom:1rem;">'
+    +'<button id="_vpTab_infos" onclick="_vpSwitchTab(\'infos\')" style="flex:1;padding:0.38rem;border-radius:8px;font-size:0.72rem;font-weight:700;cursor:pointer;border:none;background:var(--pink);color:#000;font-family:DM Sans,sans-serif;transition:all 0.2s;">👤 Infos</button>'
+    +'<button id="_vpTab_notifs" onclick="_vpSwitchTab(\'notifs\')" style="flex:1;padding:0.38rem;border-radius:8px;font-size:0.72rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--muted);font-family:DM Sans,sans-serif;transition:all 0.2s;">🔔 Notifs</button>'
+    +'<button id="_vpTab_actions" onclick="_vpSwitchTab(\'actions\')" style="flex:1;padding:0.38rem;border-radius:8px;font-size:0.72rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--muted);font-family:DM Sans,sans-serif;transition:all 0.2s;">⚡ Actions</button>'
+    +'</div>';
+
+  /* ── PANE INFOS ── */
   var infoFields = '<div id="_vpPane_infos">';
   if(iAmSuper){
-    infoFields += '<div style="display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1rem;">';
+    // Champs éditables pour super admin
+    infoFields += '<div style="font-family:Syne,sans-serif;font-size:0.65rem;font-weight:800;color:var(--pink);text-transform:uppercase;letter-spacing:0.09em;margin-bottom:0.6rem;display:flex;align-items:center;gap:0.4rem;">Modifier le profil<div style="flex:1;height:1px;background:rgba(255,45,155,0.15);"></div></div>';
+    infoFields += '<div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">';
     infoFields += _vpEditField("✉️","Email","_vpEditEmail","email",email,"text","email@exemple.com");
     infoFields += _vpEditField("👤","Pseudo","_vpEditPseudo","text",pseudo,"text","Nom d'affichage");
     infoFields += _vpEditField("📞","Téléphone","_vpEditTel","tel",tel,"tel","+241 XXXXXXXX");
     infoFields += _vpEditField("🎂","Date de naissance","_vpEditDob","date",dob,"date","");
     infoFields += '</div>';
-    infoFields += '<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:0.7rem;margin-bottom:0.8rem;">';
+    infoFields += '<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:0.75rem;margin-bottom:0.85rem;">';
     infoFields += _profileRow("📅","Membre depuis", dateStr);
     if(etabNom) infoFields += _profileRow("🏠","Établissement", etabNom);
-    infoFields += _profileRow("🆔","UID Firebase", uid ? uid.substring(0,14)+"…" : "—");
+    infoFields += _profileRow("🆔","UID", uid ? uid.substring(0,14)+"…" : "—");
     if(isAdm) infoFields += _profileRow("🔑","Rôle", "Admin secondaire");
     infoFields += '</div>';
-    // Bouton sauvegarder les modifications
-    infoFields += '<button onclick="_vpSaveMemberEdits()" style="width:100%;padding:0.65rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;margin-bottom:0.5rem;">💾 Sauvegarder les modifications</button>';
+    infoFields += '<button onclick="_vpSaveMemberEdits()" style="width:100%;padding:0.65rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;letter-spacing:0.02em;box-shadow:0 4px 16px rgba(255,45,155,0.3);">💾 Sauvegarder</button>';
   } else {
     infoFields += '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:1rem;margin-bottom:1rem;">';
     infoFields += _profileRow("📅","Membre depuis", dateStr);
@@ -17640,66 +17756,70 @@ function openUserProfile(userData){
   }
   infoFields += '</div>';
 
-  // TAB NOTIFS — envoyer une notification personnelle
+  /* ── PANE NOTIFS ── */
   var notifsPane = '<div id="_vpPane_notifs" style="display:none;">';
-  notifsPane += '<div style="background:rgba(255,45,155,0.05);border:1px solid rgba(255,45,155,0.2);border-radius:12px;padding:0.9rem;margin-bottom:0.9rem;">';
-  notifsPane += '<div style="font-family:Syne,sans-serif;font-weight:800;color:var(--pink);font-size:0.8rem;margin-bottom:0.6rem;">📨 Envoyer une notification à '+escHtml(pseudo)+'</div>';
-  notifsPane += '<div style="margin-bottom:0.5rem;"><label style="font-size:0.65rem;color:var(--muted);display:block;margin-bottom:0.25rem;text-transform:uppercase;letter-spacing:0.05em;">Icône</label>';
-  notifsPane += '<div style="display:flex;gap:0.3rem;flex-wrap:wrap;margin-bottom:0.5rem;" id="_vpNotifIconRow">';
+  notifsPane += '<div style="background:rgba(255,45,155,0.05);border:1px solid rgba(255,45,155,0.18);border-radius:14px;padding:0.9rem;margin-bottom:0.9rem;">';
+  notifsPane += '<div style="font-family:Syne,sans-serif;font-weight:800;color:var(--pink);font-size:0.78rem;margin-bottom:0.6rem;">📨 Notification à '+escHtml(pseudo)+'</div>';
+  notifsPane += '<div style="margin-bottom:0.45rem;"><div style="display:flex;gap:0.25rem;flex-wrap:wrap;margin-bottom:0.45rem;" id="_vpNotifIconRow">';
   ["📢","🔔","⚡","🎉","⚠️","✅","💳","🏆","📸","🎵"].forEach(function(ic,i){
-    notifsPane += '<button onclick="document.querySelectorAll(\'#_vpNotifIconRow button\').forEach(function(b){b.style.background=\'rgba(255,255,255,0.04)\';b.style.borderColor=\'rgba(255,255,255,0.1)\'});this.style.background=\'rgba(255,45,155,0.18)\';this.style.borderColor=\'var(--pink)\';document.getElementById(\'_vpNotifIconVal\').value=this.textContent;" style="font-size:1.05rem;padding:0.25rem 0.4rem;border-radius:7px;cursor:pointer;border:1px solid rgba(255,255,255,0.1);background:'+(i===0?'rgba(255,45,155,0.18)':'rgba(255,255,255,0.04)')+';transition:all 0.15s;">'+ic+'</button>';
+    notifsPane += '<button onclick="document.querySelectorAll(\'#_vpNotifIconRow button\').forEach(function(b){b.style.background=\'rgba(255,255,255,0.04)\';b.style.borderColor=\'rgba(255,255,255,0.1)\'});this.style.background=\'rgba(255,45,155,0.18)\';this.style.borderColor=\'var(--pink)\';document.getElementById(\'_vpNotifIconVal\').value=this.textContent;" style="font-size:1.05rem;padding:0.22rem 0.38rem;border-radius:7px;cursor:pointer;border:1px solid rgba(255,255,255,0.1);background:'+(i===0?'rgba(255,45,155,0.18)':'rgba(255,255,255,0.04)')+';transition:all 0.15s;">'+ic+'</button>';
   });
+  notifsPane += '</div><input type="hidden" id="_vpNotifIconVal" value="📢"></div>';
+  notifsPane += '<div style="margin-bottom:0.4rem;"><input id="_vpNotifTitle" type="text" maxlength="60" placeholder="Titre *" style="width:100%;background:var(--surface2);border:1px solid rgba(255,45,155,0.2);border-radius:9px;color:var(--text);padding:0.5rem 0.7rem;font-size:0.82rem;font-family:DM Sans,sans-serif;outline:none;box-sizing:border-box;"></div>';
+  notifsPane += '<div style="margin-bottom:0.65rem;"><textarea id="_vpNotifMsg" maxlength="200" rows="2" placeholder="Message (optionnel)..." style="width:100%;background:var(--surface2);border:1px solid rgba(255,45,155,0.2);border-radius:9px;color:var(--text);padding:0.5rem 0.7rem;font-size:0.8rem;font-family:DM Sans,sans-serif;outline:none;resize:none;box-sizing:border-box;"></textarea></div>';
+  notifsPane += '<button onclick="_vpSendPersonalNotif()" style="width:100%;padding:0.6rem;border-radius:10px;border:none;background:linear-gradient(135deg,var(--pink),var(--cyan));color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;">📤 Envoyer</button>';
   notifsPane += '</div>';
-  notifsPane += '<input type="hidden" id="_vpNotifIconVal" value="📢">';
-  notifsPane += '</div>';
-  notifsPane += '<div style="margin-bottom:0.5rem;"><label style="font-size:0.65rem;color:var(--muted);display:block;margin-bottom:0.25rem;text-transform:uppercase;letter-spacing:0.05em;">Titre <span style="color:var(--red);">*</span></label><input id="_vpNotifTitle" type="text" maxlength="60" placeholder="Ex: Votre abonnement est expiré" style="width:100%;background:var(--surface2);border:1px solid rgba(255,45,155,0.2);border-radius:8px;color:var(--text);padding:0.5rem 0.7rem;font-size:0.82rem;font-family:DM Sans,sans-serif;outline:none;"></div>';
-  notifsPane += '<div style="margin-bottom:0.7rem;"><label style="font-size:0.65rem;color:var(--muted);display:block;margin-bottom:0.25rem;text-transform:uppercase;letter-spacing:0.05em;">Message</label><textarea id="_vpNotifMsg" maxlength="200" rows="2" placeholder="Corps du message..." style="width:100%;background:var(--surface2);border:1px solid rgba(255,45,155,0.2);border-radius:8px;color:var(--text);padding:0.5rem 0.7rem;font-size:0.8rem;font-family:DM Sans,sans-serif;outline:none;resize:none;"></textarea></div>';
-  notifsPane += '<button onclick="_vpSendPersonalNotif()" style="width:100%;padding:0.6rem;border-radius:10px;border:none;background:linear-gradient(135deg,var(--pink),var(--cyan));color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;">📤 Envoyer la notification</button>';
-  notifsPane += '</div>';
-  // Historique des notifs du membre (depuis Firebase)
-  notifsPane += '<div style="font-family:Syne,sans-serif;font-weight:700;color:var(--cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.5rem;">📋 Historique notifications</div>';
-  notifsPane += '<div id="_vpNotifHistory" style="font-size:0.73rem;color:var(--muted);text-align:center;padding:1rem;">⏳ Chargement...</div>';
+  notifsPane += '<div style="font-family:Syne,sans-serif;font-weight:800;color:var(--cyan);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.45rem;">📋 Historique</div>';
+  notifsPane += '<div id="_vpNotifHistory" style="font-size:0.73rem;color:var(--muted);text-align:center;padding:0.8rem;">⏳ Chargement…</div>';
   notifsPane += '</div>';
 
-  // TAB ACTIONS
-  var actionsPane = '<div id="_vpPane_actions" style="display:none;display:none;">';
+  /* ── PANE ACTIONS ── */
+  var actionsPane = '<div id="_vpPane_actions" style="display:none;">';
   if(iAmSuper && email){
-    actionsPane += '<div style="display:flex;flex-direction:column;gap:0.5rem;">';
+    actionsPane += '<div style="display:flex;flex-direction:column;gap:0.4rem;">';
     if(!isAdm){
-      actionsPane += '<button onclick="closeUserProfile();promoteToAdmin(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="display:flex;align-items:center;gap:0.6rem;padding:0.7rem 0.9rem;border-radius:12px;border:1px solid rgba(255,215,0,0.35);background:rgba(255,215,0,0.08);color:var(--amber);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;text-align:left;">🔑 <span><strong>Promouvoir Admin</strong><br><span style="font-size:0.68rem;font-weight:400;opacity:0.7;">Accès complet au tableau de bord</span></span></button>';
-      actionsPane += '<button onclick="closeUserProfile();designateSuccessor(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="display:flex;align-items:center;gap:0.6rem;padding:0.7rem 0.9rem;border-radius:12px;border:1px solid rgba(0,229,255,0.25);background:rgba(0,229,255,0.06);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;text-align:left;">🔮 <span><strong>Désigner Successeur</strong><br><span style="font-size:0.68rem;font-weight:400;opacity:0.7;">Héritier de la propriété</span></span></button>';
+      actionsPane += _vpActionBtn('🔑','Promouvoir Admin','Accès complet au tableau de bord','var(--amber)','rgba(255,215,0,0.35)','rgba(255,215,0,0.08)',"closeUserProfile();promoteToAdmin('"+escHtml(uid)+"','"+escHtml(email)+"','"+escHtml(pseudo)+"')");
+      actionsPane += _vpActionBtn('🔮','Désigner Successeur','Héritier de la propriété','var(--cyan)','rgba(0,229,255,0.25)','rgba(0,229,255,0.06)',"closeUserProfile();designateSuccessor('"+escHtml(uid)+"','"+escHtml(email)+"','"+escHtml(pseudo)+"')");
     } else {
-      actionsPane += '<button onclick="closeUserProfile();revokeAdmin(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="display:flex;align-items:center;gap:0.6rem;padding:0.7rem 0.9rem;border-radius:12px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.08);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;text-align:left;">✕ <span><strong>Révoquer Admin</strong><br><span style="font-size:0.68rem;font-weight:400;opacity:0.7;">Retirer les droits admin</span></span></button>';
-      actionsPane += '<button onclick="closeUserProfile();transferOwnership(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="display:flex;align-items:center;gap:0.6rem;padding:0.7rem 0.9rem;border-radius:12px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.05);color:var(--amber);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;text-align:left;">👑 <span><strong>Céder la Propriété</strong><br><span style="font-size:0.68rem;font-weight:400;opacity:0.7;">Transférer le compte SuperAdmin</span></span></button>';
+      actionsPane += _vpActionBtn('✕','Révoquer Admin','Retirer les droits admin','var(--red)','rgba(255,68,102,0.35)','rgba(255,68,102,0.08)',"closeUserProfile();revokeAdmin('"+escHtml(uid)+"','"+escHtml(email)+"','"+escHtml(pseudo)+"')");
+      actionsPane += _vpActionBtn('👑','Céder la Propriété','Transférer le compte SuperAdmin','var(--amber)','rgba(255,215,0,0.25)','rgba(255,215,0,0.05)',"closeUserProfile();transferOwnership('"+escHtml(uid)+"','"+escHtml(email)+"','"+escHtml(pseudo)+"')");
     }
-    if(!etabNom){
-      actionsPane += '<button onclick="closeUserProfile();openAssignEtabModal(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="display:flex;align-items:center;gap:0.6rem;padding:0.7rem 0.9rem;border-radius:12px;border:1px solid rgba(255,45,155,0.3);background:rgba(255,45,155,0.06);color:var(--pink);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;text-align:left;">🏠 <span><strong>Assigner Établissement</strong><br><span style="font-size:0.68rem;font-weight:400;opacity:0.7;">Lier cet établissement au membre</span></span></button>';
-    }
-    actionsPane += '<button onclick="_vpResetMemberPwd()" style="display:flex;align-items:center;gap:0.6rem;padding:0.7rem 0.9rem;border-radius:12px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.06);color:var(--amber);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;text-align:left;">🔑 <span><strong>Réinitialiser le Mot de Passe</strong><br><span style="font-size:0.68rem;font-weight:400;opacity:0.7;">Générer un MDP temporaire</span></span></button>';
-    actionsPane += '<hr style="border:none;border-top:1px solid rgba(255,68,102,0.15);margin:0.3rem 0;">';
-    actionsPane += '<button onclick="closeUserProfile();deleteMember(\''+escHtml(uid)+'\',\''+escHtml(email)+'\',\''+escHtml(pseudo)+'\')" style="display:flex;align-items:center;gap:0.6rem;padding:0.7rem 0.9rem;border-radius:12px;border:1px solid rgba(255,68,102,0.4);background:rgba(255,68,102,0.08);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;text-align:left;">🗑️ <span><strong>Supprimer le Membre</strong><br><span style="font-size:0.68rem;font-weight:400;opacity:0.7;">Action irréversible — supprime le compte</span></span></button>';
+    if(!etabNom) actionsPane += _vpActionBtn('🏠','Assigner Établissement','Lier un établissement à ce membre','var(--pink)','rgba(255,45,155,0.3)','rgba(255,45,155,0.06)',"closeUserProfile();openAssignEtabModal('"+escHtml(uid)+"','"+escHtml(email)+"','"+escHtml(pseudo)+"')");
+    actionsPane += _vpActionBtn('🔑','Réinitialiser MDP','Générer un nouveau mot de passe','var(--amber)','rgba(255,215,0,0.25)','rgba(255,215,0,0.06)',"_vpResetMemberPwd()");
+    actionsPane += '<div style="height:1px;background:rgba(255,68,102,0.15);margin:0.2rem 0;"></div>';
+    actionsPane += _vpActionBtn('🗑️','Supprimer le Membre','Action irréversible','var(--red)','rgba(255,68,102,0.4)','rgba(255,68,102,0.07)',"closeUserProfile();deleteMember('"+escHtml(uid)+"','"+escHtml(email)+"','"+escHtml(pseudo)+"')");
     actionsPane += '</div>';
   } else {
-    actionsPane += '<div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:0.8rem;">⛔ Accès SuperAdmin requis pour les actions</div>';
+    actionsPane += '<div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:0.8rem;">⛔ Accès SuperAdmin requis</div>';
   }
   actionsPane += '</div>';
 
+  /* ── STRUCTURE BOTTOM-SHEET ── */
   var html =
-    '<div id="_userProfileOverlay" style="position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);display:flex;align-items:flex-start;justify-content:center;padding:1rem;overflow-y:auto;" onclick="if(event.target===this)closeUserProfile()">' +
-    '<div style="background:var(--surface);border:1px solid rgba(255,45,155,0.3);border-radius:24px;padding:1.6rem 1.4rem;width:min(400px,100%);box-shadow:0 0 50px rgba(255,45,155,0.2);animation:popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);position:relative;margin:auto;">' +
-    '<button onclick="closeUserProfile()" style="position:absolute;top:1rem;right:1rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--muted);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:0.9rem;display:flex;align-items:center;justify-content:center;">✕</button>' +
-    // Header profil
-    '<div style="text-align:center;margin-bottom:1.2rem;">' +
-    avatarHtml +
-    '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;color:var(--text);margin-top:0.6rem;">'+escHtml(pseudo)+'</div>' +
-    '<div style="font-size:0.7rem;color:var(--muted);margin-top:0.15rem;">'+escHtml(email||"—")+'</div>' +
-    '<div style="display:flex;gap:0.3rem;justify-content:center;flex-wrap:wrap;margin-top:0.4rem;">' +
-    (isAdm ? '<span style="font-size:0.62rem;font-weight:700;background:rgba(255,215,0,0.15);color:var(--amber);padding:0.12rem 0.45rem;border-radius:6px;border:1px solid rgba(255,215,0,0.3);">🔑 Admin</span>' : '<span style="font-size:0.62rem;font-weight:700;background:rgba(0,229,255,0.1);color:var(--cyan);padding:0.12rem 0.45rem;border-radius:6px;border:1px solid rgba(0,229,255,0.25);">👤 Membre</span>') +
-    (etabNom ? '<span style="font-size:0.62rem;font-weight:700;background:rgba(255,45,155,0.12);color:var(--pink);padding:0.12rem 0.45rem;border-radius:6px;border:1px solid rgba(255,45,155,0.25);">🏠 '+escHtml(etabNom)+'</span>' : '') +
-    '</div>' +
-    '</div>' +
-    tabsHtml + infoFields + notifsPane + actionsPane +
-    '</div></div>';
+    '<div id="_userProfileOverlay" style="position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.82);backdrop-filter:blur(10px);display:flex;align-items:flex-end;justify-content:center;" onclick="if(event.target===this)closeUserProfile()">'
+    +'<div style="background:var(--surface);border:1.5px solid rgba(255,45,155,0.22);border-radius:26px 26px 0 0;width:min(480px,100%);max-height:90vh;overflow-y:auto;animation:slideUp 0.32s cubic-bezier(0.34,1.1,0.64,1);position:relative;">'
+    // Drag handle
+    +'<div style="width:40px;height:4px;border-radius:2px;background:rgba(255,255,255,0.15);margin:0.65rem auto 0;"></div>'
+    // Bouton fermer
+    +'<button onclick="closeUserProfile()" style="position:absolute;top:0.85rem;right:1rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--muted);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:0.9rem;display:flex;align-items:center;justify-content:center;">✕</button>'
+    // Hero banner
+    +'<div style="position:relative;height:70px;margin:0.5rem 0;background:linear-gradient(135deg,rgba(255,45,155,0.28),rgba(204,68,255,0.18));overflow:hidden;margin:0.3rem 0.8rem;border-radius:18px;">'
+    +'<div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 8px,rgba(255,255,255,0.02) 8px,rgba(255,255,255,0.02) 16px);"></div>'
+    +'</div>'
+    // Avatar + identité
+    +'<div style="display:flex;align-items:flex-end;gap:0.8rem;padding:0 1.2rem;margin-top:-36px;margin-bottom:0.75rem;">'
+    +avatarHtml
+    +'<div style="flex:1;min-width:0;padding-bottom:0.15rem;">'
+    +'<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.05rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escHtml(pseudo)+'</div>'
+    +'<div style="font-size:0.65rem;color:var(--muted);margin-top:0.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(iAmSuper?escHtml(email||"—"):'Membre AMBI241')+'</div>'
+    +badgesHtml
+    +'</div>'
+    +'</div>'
+    // Tabs + panes
+    +'<div style="padding:0 1.1rem 2rem;">'
+    +tabsHtml+infoFields+notifsPane+actionsPane
+    +'</div>'
+    +'</div></div>';
 
   var wrap = document.createElement("div");
   wrap.id = "_userProfileWrap";
@@ -17725,6 +17845,12 @@ function openUserProfile(userData){
   // Charger l'historique des notifications du membre
   _vpLoadNotifHistory(uid, email);
 }
+
+// ── Bouton action dans le profil membre (helper) ───────────────
+function _vpActionBtn(icon, title, sub, color, border, bg, onclick){
+  return '<button onclick="'+onclick+'" style="display:flex;align-items:center;gap:0.65rem;padding:0.7rem 0.9rem;border-radius:13px;border:1px solid '+border+';background:'+bg+';color:'+color+';font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;text-align:left;width:100%;transition:opacity 0.2s;"><span style="font-size:1.1rem;flex-shrink:0;">'+icon+'</span><span><span style="display:block;">'+title+'</span><span style="font-size:0.65rem;font-weight:400;opacity:0.7;">'+sub+'</span></span></button>';
+}
+window._vpActionBtn = _vpActionBtn;
 
 // ── Champ éditable pour le profil membre ──────────────────────
 function _vpEditField(icon, label, id, type, value, inputType, placeholder){
