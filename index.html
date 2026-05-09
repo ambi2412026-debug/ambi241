@@ -325,7 +325,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 
 /* Mini-player fixe en bas */
 #weekSongPlayer{
-  position:fixed;bottom:64px;left:0;right:0;z-index:145;
+  position:fixed;bottom:70px;left:0;right:0;z-index:145;
   background:rgba(13,3,20,0.96);
   backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
   border-top:1.5px solid rgba(255,45,155,0.3);
@@ -404,8 +404,8 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
   border-radius:4px;transition:color 0.2s,background 0.2s;}
 .wsp-minimize-btn:active{color:var(--cyan);background:rgba(0,229,255,0.1);}
 
-/* Player minimisé : seulement la barre de progression + un mini-strip */
-#weekSongPlayer.minimized{padding:0;height:20px;align-items:stretch;gap:0;}
+/* Player minimisé */
+#weekSongPlayer.minimized{padding:0;height:24px;align-items:stretch;gap:0;bottom:70px;}
 #weekSongPlayer.minimized .wsp-art,
 #weekSongPlayer.minimized .wsp-info,
 #weekSongPlayer.minimized .wsp-wave,
@@ -413,10 +413,15 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 #weekSongPlayer.minimized .wsp-vol,
 #weekSongPlayer.minimized .wsp-controls,
 #weekSongPlayer.minimized .wsp-close-btn{display:none;}
-#weekSongPlayer.minimized .wsp-minimize-btn{display:flex;align-items:center;justify-content:center;
-  width:100%;height:20px;font-size:0.7rem;color:var(--pink);background:rgba(255,45,155,0.08);}
-#weekSongPlayer.minimized .wsp-prog-wrap{position:static;height:4px;flex:1;background:rgba(255,255,255,0.1);}
-#weekSongPlayer.minimized{flex-direction:column;}
+#weekSongPlayer.minimized .wsp-minimize-btn{
+  display:flex;align-items:center;justify-content:center;gap:0.35rem;
+  width:100%;height:24px;font-size:0.68rem;font-weight:800;
+  color:var(--pink);background:rgba(255,45,155,0.1);letter-spacing:0.04em;}
+#weekSongPlayer.minimized .wsp-prog-wrap{position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(255,255,255,0.1);}
+#weekSongPlayer.minimized{flex-direction:row;}
+/* Ajustement body quand lecteur visible */
+body.wsp-open{padding-bottom:160px;}
+body.wsp-open.wsp-minimized{padding-bottom:100px;}
 
 /* ── Modal Admin chanson ── */
 #weekSongAdminModal{
@@ -4171,7 +4176,7 @@ if (document.readyState === 'loading') {
     <button class="wsp-btn play" id="wspPlayBtn" onclick="weekSongToggle()">▶</button>
     <button class="wsp-btn" onclick="weekSongSeek(10)" title="+10s">⏭</button>
   </div>
-  <button class="wsp-minimize-btn" id="wspMinimizeBtn" onclick="weekSongToggleMinimize()" title="Réduire / Agrandir">▼</button>
+  <button class="wsp-minimize-btn" id="wspMinimizeBtn" onclick="weekSongToggleMinimize()" title="Réduire">&#x2014;</button>
   <button class="wsp-close-btn" onclick="weekSongClose()" title="Fermer">✕</button>
   <div class="wsp-prog-wrap" id="wspProgWrap"><div class="wsp-prog-bar" id="wspProgBar"></div></div>
 </div>
@@ -26213,7 +26218,7 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
     }
     _active = true;
     var player = document.getElementById('weekSongPlayer');
-    if (player) player.classList.add('show');
+    if (player) { player.classList.add('show'); document.body.classList.add('wsp-open'); }
 
     /* ★ CORRECTIF PRINCIPAL : si l'audio n'est pas encore initialisé
        (ex. Firebase sync pas encore terminée, ou premier clic après reload),
@@ -26248,7 +26253,7 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
   function _play() {
     if (!_audio) return;
     var player = document.getElementById('weekSongPlayer');
-    if (player) player.classList.add('show');
+    if (player) { player.classList.add('show'); document.body.classList.add('wsp-open'); }
     /* Si la piste est terminée (ended), revenir au début */
     if (!_audio.loop && _audio.currentTime >= (_audio.duration || 0) && _audio.duration > 0) {
       _audio.currentTime = 0;
@@ -26277,6 +26282,8 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
     _active = false;
     var player = document.getElementById('weekSongPlayer');
     if (player) { player.classList.remove('show'); player.classList.remove('minimized'); }
+    document.body.classList.remove('wsp-open');
+    document.body.classList.remove('wsp-minimized');
     _setPlaying(false);
   };
 
@@ -26287,12 +26294,12 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
     var btn = document.getElementById('wspMinimizeBtn');
     if (isMin) {
       player.classList.remove('minimized');
-      if (btn) btn.textContent = '▼';
-      if (btn) btn.title = 'Réduire';
+      document.body.classList.remove('wsp-minimized');
+      if (btn) { btn.innerHTML = '&#x2014;'; btn.title = 'R\u00e9duire'; }
     } else {
       player.classList.add('minimized');
-      if (btn) btn.textContent = '▲';
-      if (btn) btn.title = 'Agrandir';
+      document.body.classList.add('wsp-minimized');
+      if (btn) { btn.innerHTML = '&#x25a1;&nbsp;&#x25b6;&nbsp;<span id="wspMinTitle" style="font-size:0.62rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (document.getElementById('wspTitle') ? document.getElementById('wspTitle').textContent : '') + '</span>'; btn.title = 'Agrandir'; }
     }
   };
 
