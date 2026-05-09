@@ -324,19 +324,58 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 }
 
 /* Mini-player fixe en bas */
+/* ══ LECTEUR SEMAINE — structure colonne ══ */
 #weekSongPlayer{
   position:fixed;bottom:70px;left:0;right:0;z-index:145;
-  background:rgba(13,3,20,0.96);
+  background:rgba(13,3,20,0.97);
   backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
   border-top:1.5px solid rgba(255,45,155,0.3);
-  padding:0.5rem 0.9rem 0.55rem;
-  display:none;align-items:center;gap:0.65rem;
+  display:none;flex-direction:column;
   box-shadow:0 -4px 24px rgba(0,0,0,0.7);
   animation:wspSlideUp 0.35s cubic-bezier(0.34,1.56,0.64,1);
-  max-width:100vw;box-sizing:border-box;
+  max-width:100vw;box-sizing:border-box;overflow:hidden;
 }
 #weekSongPlayer.show{display:flex;}
 @keyframes wspSlideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* ── Barre de titre toujours visible (minimize + titre + close) ── */
+.wsp-topbar{
+  display:flex;align-items:center;gap:0.5rem;
+  padding:0.28rem 0.7rem;
+  background:rgba(255,45,155,0.07);
+  border-bottom:1px solid rgba(255,45,155,0.12);
+  min-height:30px;flex-shrink:0;
+}
+.wsp-minimize-btn{
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,45,155,0.15);
+  border:1.5px solid rgba(255,45,155,0.45);
+  color:var(--pink);font-size:1.1rem;font-weight:900;line-height:1;
+  width:32px;height:22px;border-radius:6px;cursor:pointer;
+  flex-shrink:0;transition:all 0.2s;padding:0;
+}
+.wsp-minimize-btn:active{background:rgba(255,45,155,0.35);transform:scale(0.93);}
+.wsp-topbar-label{
+  flex:1;min-width:0;
+  font-size:0.6rem;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;
+  color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.wsp-topbar-label span{color:var(--pink);}
+.wsp-close-btn{
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,68,102,0.12);border:1.5px solid rgba(255,68,102,0.3);
+  color:rgba(255,68,102,0.8);font-size:0.85rem;
+  width:26px;height:22px;border-radius:6px;cursor:pointer;
+  flex-shrink:0;transition:all 0.2s;
+}
+.wsp-close-btn:active{background:rgba(255,68,102,0.35);color:#fff;}
+
+/* ── Corps du lecteur (caché quand minimisé) ── */
+.wsp-body{
+  display:flex;align-items:center;gap:0.55rem;
+  padding:0.45rem 0.75rem 0.5rem;
+  position:relative;
+}
 
 /* Pochette */
 .wsp-art{
@@ -370,17 +409,17 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 @keyframes wspWave{0%,100%{transform:scaleY(0.35)}50%{transform:scaleY(1)}}
 
 /* Temps */
-.wsp-time{font-size:0.55rem;color:var(--muted);font-weight:700;white-space:nowrap;flex-shrink:0;min-width:56px;text-align:center;}
+.wsp-time{font-size:0.55rem;color:var(--muted);font-weight:700;white-space:nowrap;flex-shrink:0;min-width:52px;text-align:center;}
 
 /* Volume */
-.wsp-vol{-webkit-appearance:none;appearance:none;width:48px;height:3px;
+.wsp-vol{-webkit-appearance:none;appearance:none;width:44px;height:3px;
   border-radius:3px;background:rgba(255,255,255,0.1);cursor:pointer;outline:none;flex-shrink:0;}
 .wsp-vol::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;
   border-radius:50%;background:var(--pink);cursor:pointer;}
 .wsp-vol::-moz-range-thumb{width:11px;height:11px;border-radius:50%;background:var(--pink);border:none;}
 
 /* Contrôles */
-.wsp-controls{display:flex;align-items:center;gap:0.35rem;flex-shrink:0;}
+.wsp-controls{display:flex;align-items:center;gap:0.3rem;flex-shrink:0;}
 .wsp-btn{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);
   color:var(--text);width:30px;height:30px;border-radius:50%;cursor:pointer;
   display:flex;align-items:center;justify-content:center;font-size:0.8rem;
@@ -388,9 +427,6 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .wsp-btn:active{transform:scale(0.88);}
 .wsp-btn.play{background:linear-gradient(135deg,var(--pink),var(--purple));border:none;
   width:36px;height:36px;font-size:0.95rem;box-shadow:0 2px 10px rgba(255,45,155,0.4);}
-.wsp-close-btn{background:none;border:none;color:rgba(255,255,255,0.3);
-  font-size:1rem;cursor:pointer;padding:0.15rem;flex-shrink:0;}
-.wsp-close-btn:active{color:var(--red);}
 
 /* Barre progression */
 .wsp-prog-wrap{position:absolute;bottom:0;left:0;right:0;height:3px;
@@ -398,30 +434,21 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .wsp-prog-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--pink),var(--cyan));
   border-radius:0 2px 2px 0;transition:width 0.4s linear;}
 
-/* Bouton minimize player */
-.wsp-minimize-btn{background:none;border:none;color:rgba(255,255,255,0.3);
-  font-size:0.75rem;cursor:pointer;padding:0.15rem 0.3rem;flex-shrink:0;line-height:1;
-  border-radius:4px;transition:color 0.2s,background 0.2s;}
-.wsp-minimize-btn:active{color:var(--cyan);background:rgba(0,229,255,0.1);}
+/* ── État minimisé : seule la topbar reste visible ── */
+#weekSongPlayer.minimized .wsp-body{display:none;}
+#weekSongPlayer.minimized .wsp-topbar{
+  background:rgba(255,45,155,0.1);
+  border-bottom:none;
+}
+/* Barre de prog en bas de la topbar quand minimisé */
+#weekSongPlayer.minimized .wsp-prog-wrap{
+  position:absolute;bottom:0;left:0;right:0;height:3px;
+  background:rgba(255,255,255,0.08);
+}
 
-/* Player minimisé */
-#weekSongPlayer.minimized{padding:0;height:24px;align-items:stretch;gap:0;bottom:70px;}
-#weekSongPlayer.minimized .wsp-art,
-#weekSongPlayer.minimized .wsp-info,
-#weekSongPlayer.minimized .wsp-wave,
-#weekSongPlayer.minimized .wsp-time,
-#weekSongPlayer.minimized .wsp-vol,
-#weekSongPlayer.minimized .wsp-controls,
-#weekSongPlayer.minimized .wsp-close-btn{display:none;}
-#weekSongPlayer.minimized .wsp-minimize-btn{
-  display:flex;align-items:center;justify-content:center;gap:0.35rem;
-  width:100%;height:24px;font-size:0.68rem;font-weight:800;
-  color:var(--pink);background:rgba(255,45,155,0.1);letter-spacing:0.04em;}
-#weekSongPlayer.minimized .wsp-prog-wrap{position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(255,255,255,0.1);}
-#weekSongPlayer.minimized{flex-direction:row;}
 /* Ajustement body quand lecteur visible */
-body.wsp-open{padding-bottom:160px;}
-body.wsp-open.wsp-minimized{padding-bottom:100px;}
+body.wsp-open{padding-bottom:168px;}
+body.wsp-open.wsp-minimized{padding-bottom:105px;}
 
 /* ── Modal Admin chanson ── */
 #weekSongAdminModal{
@@ -4160,25 +4187,32 @@ if (document.readyState === 'loading') {
 
 <!-- Mini-player bas d'écran -->
 <div id="weekSongPlayer">
-  <div class="wsp-art" id="wspArt">🎵</div>
-  <div class="wsp-info">
-    <div class="wsp-eyebrow">Chanson de la semaine</div>
-    <div class="wsp-title" id="wspTitle">Aucune chanson chargée</div>
-    <div class="wsp-artist" id="wspArtist">AMBI241</div>
+  <!-- Barre de contrôle toujours visible -->
+  <div class="wsp-topbar">
+    <button class="wsp-minimize-btn" id="wspMinimizeBtn" onclick="weekSongToggleMinimize()" title="Réduire">&#x2014;</button>
+    <div class="wsp-topbar-label">🎵 <span id="wspTopbarTitle">Chanson de la semaine</span></div>
+    <button class="wsp-close-btn" onclick="weekSongClose()" title="Fermer">✕</button>
   </div>
-  <div class="wsp-wave" id="wspWave">
-    <span></span><span></span><span></span><span></span><span></span>
+  <!-- Corps du lecteur (masqué quand minimisé) -->
+  <div class="wsp-body">
+    <div class="wsp-art" id="wspArt">🎵</div>
+    <div class="wsp-info">
+      <div class="wsp-eyebrow">Chanson de la semaine</div>
+      <div class="wsp-title" id="wspTitle">Aucune chanson chargée</div>
+      <div class="wsp-artist" id="wspArtist">AMBI241</div>
+    </div>
+    <div class="wsp-wave" id="wspWave">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <div class="wsp-time" id="wspTime">0:00 / 0:00</div>
+    <input type="range" class="wsp-vol" id="wspVol" min="0" max="100" value="80" title="Volume">
+    <div class="wsp-controls">
+      <button class="wsp-btn" onclick="weekSongSeek(-10)" title="-10s">⏮</button>
+      <button class="wsp-btn play" id="wspPlayBtn" onclick="weekSongToggle()">▶</button>
+      <button class="wsp-btn" onclick="weekSongSeek(10)" title="+10s">⏭</button>
+    </div>
+    <div class="wsp-prog-wrap" id="wspProgWrap"><div class="wsp-prog-bar" id="wspProgBar"></div></div>
   </div>
-  <div class="wsp-time" id="wspTime">0:00 / 0:00</div>
-  <input type="range" class="wsp-vol" id="wspVol" min="0" max="100" value="80" title="Volume">
-  <div class="wsp-controls">
-    <button class="wsp-btn" onclick="weekSongSeek(-10)" title="-10s">⏮</button>
-    <button class="wsp-btn play" id="wspPlayBtn" onclick="weekSongToggle()">▶</button>
-    <button class="wsp-btn" onclick="weekSongSeek(10)" title="+10s">⏭</button>
-  </div>
-  <button class="wsp-minimize-btn" id="wspMinimizeBtn" onclick="weekSongToggleMinimize()" title="Réduire">&#x2014;</button>
-  <button class="wsp-close-btn" onclick="weekSongClose()" title="Fermer">✕</button>
-  <div class="wsp-prog-wrap" id="wspProgWrap"><div class="wsp-prog-bar" id="wspProgBar"></div></div>
 </div>
 
 <!-- Modal Admin -->
@@ -26194,8 +26228,10 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
     var t = document.getElementById('wspTitle');
     var ar = document.getElementById('wspArtist');
     var art = document.getElementById('wspArt');
+    var topT = document.getElementById('wspTopbarTitle');
     if (t)  t.textContent  = _cfg.title  || 'Chanson de la semaine';
     if (ar) ar.textContent = _cfg.artist || 'AMBI241';
+    if (topT) topT.textContent = _cfg.title || 'Chanson de la semaine';
     if (art) {
       var u = _cfg.artUrl;
       art.innerHTML = (u && (u.startsWith('http') || u.startsWith('data:')))
@@ -26292,14 +26328,19 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
     if (!player) return;
     var isMin = player.classList.contains('minimized');
     var btn = document.getElementById('wspMinimizeBtn');
+    var topTitle = document.getElementById('wspTopbarTitle');
     if (isMin) {
       player.classList.remove('minimized');
       document.body.classList.remove('wsp-minimized');
       if (btn) { btn.innerHTML = '&#x2014;'; btn.title = 'R\u00e9duire'; }
+      if (topTitle) topTitle.textContent = 'Chanson de la semaine';
     } else {
       player.classList.add('minimized');
       document.body.classList.add('wsp-minimized');
-      if (btn) { btn.innerHTML = '&#x25a1;&nbsp;&#x25b6;&nbsp;<span id="wspMinTitle" style="font-size:0.62rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (document.getElementById('wspTitle') ? document.getElementById('wspTitle').textContent : '') + '</span>'; btn.title = 'Agrandir'; }
+      var titre = document.getElementById('wspTitle');
+      var label = (titre && titre.textContent) ? titre.textContent : 'Chanson de la semaine';
+      if (btn) { btn.innerHTML = '&#x25a1;'; btn.title = 'Agrandir'; }
+      if (topTitle) topTitle.textContent = label;
     }
   };
 
