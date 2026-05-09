@@ -685,6 +685,77 @@ header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0
 .rate-btn{background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.3);color:var(--amber);font-size:0.72rem;font-weight:700;padding:0.28rem 0.6rem;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;display:inline-flex;align-items:center;gap:0.25rem;}
 .rate-btn:active{opacity:0.75;}
 
+/* ══ PANNEAU PROFIL ÉTABLISSEMENT — ACCORDÉON COMPACT ══ */
+.etab-profile-accord{
+  border-top:1px solid rgba(255,255,255,0.06);
+  background:rgba(0,0,0,0.18);
+}
+.etab-profile-toggle{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0.42rem 0.75rem;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;user-select:none;
+  transition:background 0.18s;
+}
+.etab-profile-toggle:active{background:rgba(255,255,255,0.04);}
+.etab-profile-toggle-left{
+  display:flex;align-items:center;gap:0.45rem;
+}
+.etab-profile-toggle-icon{font-size:0.78rem;}
+.etab-profile-toggle-label{
+  font-family:'Syne',sans-serif;font-weight:700;font-size:0.65rem;
+  color:var(--cyan);text-transform:uppercase;letter-spacing:0.07em;
+}
+.etab-profile-summary{
+  display:flex;align-items:center;gap:0.3rem;flex-wrap:wrap;
+}
+.etab-profile-summary-chip{
+  font-size:0.6rem;font-weight:700;
+  padding:0.1rem 0.38rem;border-radius:100px;
+  background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);
+  color:var(--cyan);white-space:nowrap;
+}
+.etab-profile-chevron{
+  font-size:0.6rem;color:var(--muted);
+  transition:transform 0.25s;flex-shrink:0;
+}
+.etab-profile-accord.open .etab-profile-chevron{transform:rotate(180deg);}
+.etab-profile-body{
+  display:none;
+  padding:0.55rem 0.75rem 0.65rem;
+  border-top:1px solid rgba(255,255,255,0.05);
+}
+.etab-profile-accord.open .etab-profile-body{display:block;}
+.etab-profile-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:0.35rem 0.5rem;
+  margin-bottom:0.5rem;
+}
+.etab-profile-item{
+  display:flex;align-items:flex-start;gap:0.35rem;
+  background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);
+  border-radius:9px;padding:0.4rem 0.55rem;
+}
+.etab-profile-item-icon{font-size:0.9rem;flex-shrink:0;margin-top:0.05rem;line-height:1;}
+.etab-profile-item-body{min-width:0;}
+.etab-profile-item-val{
+  font-family:'Syne',sans-serif;font-weight:800;font-size:0.8rem;
+  color:var(--text);line-height:1.1;
+}
+.etab-profile-item-lbl{
+  font-size:0.56rem;color:var(--muted);margin-top:0.06rem;
+  text-transform:uppercase;letter-spacing:0.04em;
+}
+.etab-profile-music{
+  display:flex;flex-wrap:wrap;gap:0.28rem;margin-top:0.15rem;
+}
+.etab-profile-genre{
+  font-size:0.6rem;font-weight:700;
+  padding:0.15rem 0.42rem;border-radius:100px;
+  background:rgba(204,68,255,0.1);border:1px solid rgba(204,68,255,0.25);
+  color:var(--purple);white-space:nowrap;
+}
+/* ── chips dans la barre déjà existante (etab-info-strip) masquées si panneau présent ── */
+.etab-info-strip-hidden{display:none!important;}
+
 /* MAIN */
 main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;width:100%;box-sizing:border-box;}
 @keyframes cardHighlight{0%{box-shadow:0 0 0 3px rgba(255,45,155,0.9),0 8px 40px rgba(255,45,155,0.35)}50%{box-shadow:0 0 0 5px rgba(255,45,155,0.6),0 12px 50px rgba(255,45,155,0.25)}100%{box-shadow:none}}
@@ -10112,24 +10183,87 @@ window.proLoadAvis     = window.proLoadAvis;
 window.proLoadContacts = window.proLoadContacts;
 // ══ fin Espace Gérant Pro JS ══
 function buildEtabInfoStrip(e){
-  var chips = [];
+  // Conservée pour compatibilité mais non utilisée directement (remplacée par buildEtabProfilePanel)
+  return "";
+}
+
+function buildEtabProfilePanel(e){
+  // Vérifier s'il y a des données à afficher
+  var hasData = (e.capacite_totale && e.capacite_totale > 0)
+    || (e.nb_vip && e.nb_vip > 0)
+    || (e.nb_chambres && e.nb_chambres > 0)
+    || (e.genres_musicaux && e.genres_musicaux.length)
+    || e.age_clientele
+    || e.dress_code;
+  if(!hasData) return "";
+
+  var id = "etabProf-" + e.id;
+
+  // ── Résumé visible sur la barre toggle ──
+  var summaryChips = [];
   if(e.capacite_totale && e.capacite_totale > 0)
-    chips.push("<span class='eic eic-cap'>🪑 "+e.capacite_totale+" places</span>");
+    summaryChips.push("<span class='etab-profile-summary-chip'>🪑 "+e.capacite_totale+"</span>");
   if(e.nb_vip && e.nb_vip > 0)
-    chips.push("<span class='eic eic-vip'>🏆 "+e.nb_vip+" VIP</span>");
-  if(e.nb_chambres && e.nb_chambres > 0)
-    chips.push("<span class='eic eic-rooms'>🛏️ "+e.nb_chambres+" chambres</span>");
-  if(e.genres_musicaux && e.genres_musicaux.length){
-    var gLabels = e.genres_musicaux.slice(0,3).join(" · ");
-    var plus = e.genres_musicaux.length > 3 ? " +" + (e.genres_musicaux.length-3) : "";
-    chips.push("<span class='eic eic-music'>🎵 "+escHtml(gLabels+plus)+"</span>");
+    summaryChips.push("<span class='etab-profile-summary-chip'>🏆 "+e.nb_vip+" VIP</span>");
+  if(e.genres_musicaux && e.genres_musicaux.length)
+    summaryChips.push("<span class='etab-profile-summary-chip'>🎵 "+e.genres_musicaux.length+" genres</span>");
+
+  var html = "<div class='etab-profile-accord' id='"+id+"'>";
+
+  // ── Barre toggle ──
+  html += "<div class='etab-profile-toggle' onclick=\"(function(){var a=document.getElementById('"+id+"');a&&a.classList.toggle('open');})()\">";
+  html += "<div class='etab-profile-toggle-left'>";
+  html += "<span class='etab-profile-toggle-icon'>📋</span>";
+  html += "<span class='etab-profile-toggle-label'>Profil de l'établissement</span>";
+  if(summaryChips.length){
+    html += "<div class='etab-profile-summary'>"+summaryChips.join("")+"</div>";
   }
+  html += "</div>";
+  html += "<span class='etab-profile-chevron'>▼</span>";
+  html += "</div>";
+
+  // ── Corps déployé ──
+  html += "<div class='etab-profile-body'>";
+
+  // Grille capacité / VIP / Chambres / Âge
+  var gridItems = [];
+  if(e.capacite_totale && e.capacite_totale > 0)
+    gridItems.push({icon:"🪑", val:e.capacite_totale, lbl:"Places totales"});
+  if(e.nb_vip && e.nb_vip > 0)
+    gridItems.push({icon:"🏆", val:e.nb_vip, lbl:"Espaces VIP"});
+  if(e.nb_chambres && e.nb_chambres > 0)
+    gridItems.push({icon:"🛏️", val:e.nb_chambres, lbl:"Chambres"});
   if(e.age_clientele)
-    chips.push("<span class='eic eic-age'>👥 "+escHtml(e.age_clientele)+"</span>");
+    gridItems.push({icon:"👥", val:escHtml(e.age_clientele), lbl:"Âge moyen"});
   if(e.dress_code)
-    chips.push("<span class='eic eic-dress'>👔 "+escHtml(e.dress_code)+"</span>");
-  if(!chips.length) return "";
-  return "<div class='etab-info-strip'>"+chips.join("")+"</div>";
+    gridItems.push({icon:"👔", val:escHtml(e.dress_code), lbl:"Dress code"});
+
+  if(gridItems.length){
+    html += "<div class='etab-profile-grid'>";
+    gridItems.forEach(function(item){
+      html += "<div class='etab-profile-item'>"
+        +"<span class='etab-profile-item-icon'>"+item.icon+"</span>"
+        +"<div class='etab-profile-item-body'>"
+        +"<div class='etab-profile-item-val'>"+item.val+"</div>"
+        +"<div class='etab-profile-item-lbl'>"+item.lbl+"</div>"
+        +"</div></div>";
+    });
+    html += "</div>";
+  }
+
+  // Genres musicaux
+  if(e.genres_musicaux && e.genres_musicaux.length){
+    html += "<div style='margin-top:0.1rem;'>"
+      +"<div style='font-size:0.58rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.3rem;'>🎵 Genres musicaux</div>"
+      +"<div class='etab-profile-music'>";
+    e.genres_musicaux.forEach(function(g){
+      html += "<span class='etab-profile-genre'>"+escHtml(g)+"</span>";
+    });
+    html += "</div></div>";
+  }
+
+  html += "</div></div>"; // fin body + accord
+  return html;
 }
 
 // ── Barre live : places dispo + tendance affluence + musique ce soir ──
@@ -10832,7 +10966,7 @@ function buildCard(e,delay,compact,rank){
     "</div>"+(e.statut ? "<span class=\"status-pill "+sc+"\">"+e.statut+"</span>" : "")+"</div>"+
     affBar+
     buildDispoPublicStrip(e)+
-    buildEtabInfoStrip(e)+
+    buildEtabProfilePanel(e)+
     buildLiveDispoBar(e, canManage)+
     // ── Bandeau Offre spéciale du jour (pro_data.promo_jour) ──
     (function(){
