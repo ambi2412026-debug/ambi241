@@ -13407,150 +13407,238 @@ function _syncProfilSection(){
 window._syncProfilSection = _syncProfilSection;
 
 /* ══════════════════════════════════════════════════════════════
-   PATCH — Cohérence des vues Profil selon le rôle réel
-   Corrige : données statiques fictives, doublon de vues,
-   onglets accessibles à tort, incohérences statut/coordonnées.
+   PATCH v2 — Cohérence complète des vues Profil
+   Corrige : données fictives sur TOUTES les vues (membre/chauffeur/étab),
+   statut disponibilité chauffeur, initiales, modals, coordonnées.
    ══════════════════════════════════════════════════════════════ */
 (function(){
 
-  /* ── 1. Surcharge de _syncProfilSection : on complète avec les données chauffeur ── */
+  /* ─── Surcharge _syncProfilSection ─── */
   var _origSync = window._syncProfilSection;
   window._syncProfilSection = function(){
     if(typeof _origSync === 'function') _origSync.apply(this, arguments);
-    _patchProfilCoherence();
+    _patchAll();
   };
 
-  /* ── 2. Patch principal de cohérence ── */
-  function _patchProfilCoherence(){
+  /* ─── Utilitaires ─── */
+  function _esc(s){
+    return typeof escHtml==='function' ? escHtml(s) : String(s||'')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function _initiales(str){
+    if(!str) return '?';
+    return str.split(/\s+/).map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2) || str[0].toUpperCase();
+  }
+  function _setEl(id, val){ var el=document.getElementById(id); if(el && val!=null) el.textContent=val; }
+  function _setHtml(id, val){ var el=document.getElementById(id); if(el && val!=null) el.innerHTML=val; }
+  function _setAttr(id, attr, val){ var el=document.getElementById(id); if(el && val!=null) el[attr]=val; }
+
+  /* ─── Patch principal ─── */
+  function _patchAll(){
     var uid   = window.currentUserUID;
     var email = (window.currentUserEmail || '').toLowerCase().trim();
-    if(!uid && !email) return; // visiteur : rien à faire
+    if(!uid && !email) return;
 
-    var role = (typeof getUserRole === 'function') ? getUserRole() : 'membre';
+    var role = (typeof getUserRole==='function') ? getUserRole() : 'membre';
 
-    /* — 2a. Masquer strictement les onglets de rôle (nav inutile pour user connecté) — */
+    /* 1. Masquer nav onglets rôle */
     var navTabs = document.querySelector('#sec-profil .demo-nav-profil');
-    if(navTabs){
-      navTabs.style.display = 'none'; // invisible, mais pSwitchRole fonctionne encore en interne
-    }
+    if(navTabs) navTabs.style.display = 'none';
 
-    /* — 2b. S'assurer que la bonne vue est active — */
+    /* 2. Router vers la bonne vue */
     var roleToView = {
-      admin:          'membre',
-      super_admin:    'membre',
-      etablissement:  'etab',
-      chauffeur:      'chauffeur',
-      membre:         'membre',
-      user:           'membre'
+      admin:'membre', super_admin:'membre',
+      etablissement:'etab', chauffeur:'chauffeur',
+      membre:'membre', user:'membre'
     };
-    var targetView = roleToView[role] || 'membre';
-    if(typeof pSwitchRole === 'function') pSwitchRole(targetView);
+    var view = roleToView[role] || 'membre';
+    if(typeof pSwitchRole==='function') pSwitchRole(view);
 
-    /* — 2c. Injecter les données réelles dans la vue Chauffeur si applicable — */
-    if(role === 'chauffeur'){
-      _injectChauffeurData(email, uid);
-    }
-
-    /* — 2d. Injecter email/coordonnées réelles dans la vue Membre — */
-    _injectMembreCoordonnees(uid, email, role);
+    /* 3. Dispatch injection par rôle */
+    if(view === 'chauffeur') _injectChauffeur(email, uid);
+    else if(view === 'etab') _injectEtab(email, uid);
+    else                     _injectMembre(uid, email, role);
   }
 
-  /* ── 3. Injection données chauffeur ── */
-  function _injectChauffeurData(email, uid){
-    /* Chercher dans _chauffeurDrivers (localStorage + mémoire) */
+  /* ══ CHAUFFEUR ══ */
+  function _injectChauffeur(email, uid){
     var drivers = window._chauffeurDrivers ? Object.values(window._chauffeurDrivers) : [];
     var driver  = drivers.find(function(d){
-      return (d.email || '').toLowerCase().trim() === email ||
-             (d.uid   || '') === uid;
+      return (d.email||'').toLowerCase().trim()===email || (d.uid||'')===uid;
     });
-    if(!driver) return;
 
-    var pseudo = driver.pseudo || driver.name || driver.prenom || email.split('@')[0];
-    var phone  = driver.phone  || driver.tel  || '';
-    var city   = driver.zone   || driver.quartier || 'Libreville';
-    var bio    = driver.bio    || driver.description || '';
+    var pseudo  = (driver && (driver.pseudo||driver.name||driver.prenom)) || (window.currentUserPseudo) || email.split('@')[0];
+    var phone   = (driver && (driver.phone||driver.tel)) || '';
+    var zone    = (driver && (driver.zone||driver.quartier||driver.ville)) || 'Libreville';
+    var bio     = (driver && (driver.bio||driver.description)) || '';
+    var vehic   = (driver && (driver.vehicule||driver.voiture||driver.car)) || '';
+    var immat   = (driver && (driver.immat||driver.plaque||driver.immatriculation)) || '';
+    var couleur = (driver && (driver.couleur||driver.color)) || '';
+    var avail   = driver ? (driver.status==='approved' && driver.available!==false) : false;
+    var init    = _initiales(pseudo);
+    var mois    = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
 
-    /* Nom */
-    var nameEl = document.getElementById('pv-chauffeur-name');
-    if(nameEl){
-      nameEl.innerHTML = _esc(pseudo) + ' <span class="verified-icon vi-gold" title="Chauffeur certifié AMBI241">✓</span>';
+    /* Vue — Nom */
+    _setHtml('pv-chauffeur-name', _esc(pseudo)+' <span class="verified-icon vi-gold" title="Chauffeur certifié AMBI241">✓</span>');
+
+    /* Vue — Handle */
+    var handleParts = ['Chauffeur AMBI241', zone];
+    if(driver && driver.createdAt){ try{ var dt=new Date(driver.createdAt); handleParts.push('Depuis '+mois[dt.getMonth()]+' '+dt.getFullYear()); }catch(e){} }
+    _setHtml('pv-chauffeur-handle', handleParts.map(function(p){ return '<span>'+_esc(p)+'</span>'; }).join('<span class="handle-sep">·</span>'));
+
+    /* Vue — Bio */
+    var bioEl = document.getElementById('pv-chauffeur-bio');
+    if(bioEl){ if(bio){bioEl.textContent=bio;bioEl.style.fontStyle='normal';bioEl.style.opacity='1';}else{bioEl.textContent='Chauffeur professionnel disponible 7j/7.';bioEl.style.fontStyle='italic';bioEl.style.opacity='0.6';} }
+
+    /* Vue — Avatar initiales */
+    var avInitEl = document.getElementById('pav-chauffeur-initials');
+    if(avInitEl) avInitEl.textContent = init;
+    var avModal = document.getElementById('pmodal-av-chauffeur-init');
+    if(avModal) avModal.textContent = init;
+
+    /* Vue — Compte */
+    _setEl('pv-chauffeur-email', email || '—');
+    _setEl('pv-chauffeur-phone', phone || '—');
+
+    /* Vue — Disponibilité (toggle) */
+    var toggleEl = document.getElementById('p-dispo-toggle');
+    if(toggleEl){ toggleEl.checked = avail; }
+    var dotEl = document.getElementById('p-dispo-dot');
+    if(dotEl) dotEl.classList.toggle('off', !avail);
+    var txtEl = document.getElementById('p-dispo-text');
+    if(txtEl) txtEl.textContent = avail ? 'Disponible' : 'Hors service';
+    var subEl = document.getElementById('p-dispo-sub');
+    if(subEl) subEl.textContent = avail ? 'Vous recevez des demandes de course' : 'Activez pour recevoir des courses';
+
+    /* Modal — Pré-remplissage */
+    _setAttr('pmodal-chauffeur-prenom','value', pseudo.split(' ')[0]||pseudo);
+    _setAttr('pmodal-chauffeur-nom','value', pseudo.split(' ').slice(1).join(' ')||'');
+    var bioTA = document.getElementById('pmodal-chauffeur-bio');
+    if(bioTA) bioTA.value = bio;
+    _setAttr('pmodal-chauffeur-vehicule','value', vehic);
+    _setAttr('pmodal-chauffeur-immat','value', immat);
+    _setAttr('pmodal-chauffeur-couleur','value', couleur);
+
+    /* Vue — Avis (vider les fictifs) */
+    _clearFictifAvis('pv-chauffeur-avis-list');
+  }
+
+  /* ══ ÉTABLISSEMENT ══ */
+  function _injectEtab(email, uid){
+    if(typeof etablissements==='undefined') return;
+    var etab = etablissements.find(function(e){
+      return (e.email||e.responsable_email||'').toLowerCase().trim()===email;
+    });
+    if(!etab) return;
+
+    var nom     = etab.nom || etab.name || '—';
+    var type    = etab.type || etab.categorie || 'Établissement';
+    var desc    = etab.description || etab.bio || '';
+    var adresse = etab.adresse || etab.address || etab.quartier || '—';
+    var tel     = etab.telephone || etab.tel || etab.phone || '—';
+    var social  = etab.instagram || etab.social || etab.reseaux || '—';
+    var entree  = etab.entree || etab.prix_entree || '—';
+    var parking = etab.parking ? 'Disponible' : (etab.parking===false ? 'Non disponible' : '—');
+    var init    = _initiales(nom);
+
+    /* Vue — Nom */
+    _setHtml('pv-etab-name', _esc(nom)+' <span class="verified-icon vi-pink" title="Établissement vérifié">✓</span>');
+
+    /* Vue — Handle */
+    var handle = etab.handle || etab.instagram ? ('@'+(etab.handle||etab.instagram||'').replace('@','')) : ('@'+nom.toLowerCase().replace(/\s+/g,'_').slice(0,15));
+    _setHtml('pv-etab-handle',
+      '<span>'+_esc(handle)+'</span><span class="handle-sep">·</span>'
+      +'<span>📍 '+_esc(adresse)+'</span><span class="handle-sep">·</span>'
+      +'<span id="pv-etab-type">'+_esc(type)+'</span>');
+
+    /* Vue — Bio */
+    var bioEl = document.getElementById('pv-etab-bio');
+    if(bioEl){ if(desc){bioEl.textContent=desc;bioEl.style.fontStyle='normal';bioEl.style.opacity='1';}else{bioEl.textContent='Description non renseignée.';bioEl.style.fontStyle='italic';bioEl.style.opacity='0.5';} }
+
+    /* Vue — Avatar initiales */
+    var avInitEl = document.getElementById('pav-etab-initials');
+    if(avInitEl) avInitEl.textContent = init;
+    var avModal = document.getElementById('pmodal-av-etab-init');
+    if(avModal) avModal.textContent = init;
+
+    /* Vue — Infos */
+    _setEl('pv-etab-address', adresse);
+    _setEl('pv-etab-phone',   tel);
+    _setEl('pv-etab-social',  social);
+    _setEl('pv-etab-entree',  entree);
+    _setEl('pv-etab-parking', parking);
+
+    /* Modal — Pré-remplissage */
+    _setAttr('pmodal-etab-nom','value', nom);
+    var descTA = document.getElementById('pmodal-etab-desc');
+    if(descTA) descTA.value = desc;
+    _setAttr('pmodal-etab-adresse','value', adresse);
+    _setAttr('pmodal-etab-tel','value', tel);
+    _setAttr('pmodal-etab-prix','value', entree);
+
+    /* Vue — Avis (vider les fictifs) */
+    _clearFictifAvis('pv-etab-avis-list');
+  }
+
+  /* ══ MEMBRE ══ */
+  function _injectMembre(uid, email, role){
+    var pseudo = window.currentUserPseudo || email.split('@')[0] || '—';
+    var init   = _initiales(pseudo);
+
+    /* Avatar */
+    var avInitEl = document.getElementById('pav-membre-initials');
+    if(avInitEl) avInitEl.textContent = init;
+    var avModal = document.getElementById('pmodal-av-membre-init');
+    if(avModal) avModal.textContent = init;
+
+    /* Nom — si pas déjà injecté par _syncProfilSection (qui lit Firebase) */
+    var nameEl = document.getElementById('pv-membre-name');
+    if(nameEl && nameEl.textContent.trim() === '—'){
+      nameEl.innerHTML = _esc(pseudo)+' <span class="verified-icon vi-cyan" title="Compte vérifié">✓</span>';
     }
 
     /* Handle */
-    var handleEl = document.getElementById('pv-chauffeur-handle');
-    if(handleEl){
-      var parts = ['Chauffeur AMBI241', city];
-      if(driver.createdAt){
-        try{
-          var dt = new Date(driver.createdAt);
-          var mois = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
-          parts.push('Depuis ' + mois[dt.getMonth()] + ' ' + dt.getFullYear());
-        }catch(e){}
-      }
-      handleEl.innerHTML = parts.map(function(p){ return '<span>' + _esc(p) + '</span>'; })
-                                 .join('<span class="handle-sep">·</span>');
-    }
-
-    /* Bio */
-    var bioEl = document.getElementById('pv-chauffeur-bio');
-    if(bioEl){
-      if(bio){ bioEl.textContent = bio; bioEl.style.fontStyle = 'normal'; bioEl.style.opacity = '1'; }
-      else   { bioEl.style.fontStyle = 'italic'; bioEl.style.opacity = '0.5'; }
-    }
-
-    /* Avatar initiales */
-    var av = document.getElementById('pav-chauffeur');
-    if(av){
-      var initiales = pseudo.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2);
-      Array.from(av.childNodes).forEach(function(n){ if(n.nodeType === 3) n.textContent = initiales; });
-    }
-
-    /* Compte (email / tel) */
-    var emailEl = document.getElementById('pv-chauffeur-email');
-    if(emailEl && email) emailEl.textContent = email;
-    var phoneEl = document.getElementById('pv-chauffeur-phone');
-    if(phoneEl && phone) phoneEl.textContent = phone;
-  }
-
-  /* ── 4. Injection coordonnées dans la vue Membre ── */
-  function _injectMembreCoordonnees(uid, email, role){
-    if(role !== 'membre' && role !== 'admin') return;
-    /* Compléter le handle avec l'email réel si pas de pseudo chargé */
-    var handleEl = document.querySelector('#pv-membre .profile-handle');
-    if(handleEl && email && !handleEl.dataset.synced){
+    var handleEl = document.getElementById('pv-membre-handle');
+    if(handleEl && !handleEl.dataset.synced){
       handleEl.dataset.synced = '1';
-      /* Ne pas écraser si déjà rempli par _syncProfilSection avec pseudo Firebase */
-      /* On laisse _syncProfilSection gérer — juste vérifier la cohérence */
+      var h = '@'+pseudo.toLowerCase().replace(/\s+/g,'_');
+      handleEl.innerHTML = '<span>'+_esc(h)+'</span><span class="handle-sep">·</span><span>Libreville, Gabon</span>';
     }
-    /* Vérifier badge rôle : si admin mais affiché comme Membre, corriger */
-    var roleBadge = document.querySelector('#pv-membre .p-role-badge');
-    if(roleBadge && role === 'admin'){
-      roleBadge.className = 'p-role-badge rb-membre';
-      roleBadge.innerHTML = '<span class="rb-dot"></span>⭐ Administrateur';
+
+    /* Badge admin */
+    if(role==='admin'){
+      var badge = document.querySelector('#pv-membre .p-role-badge');
+      if(badge){ badge.className='p-role-badge rb-membre'; badge.innerHTML='<span class="rb-dot"></span>⭐ Administrateur'; }
     }
+
+    /* Modal pré-remplissage */
+    var parts = pseudo.split(' ');
+    _setAttr('pmodal-membre-prenom','value', parts[0]||pseudo);
+    _setAttr('pmodal-membre-nom','value', parts.slice(1).join(' ')||'');
+    _setAttr('pmodal-membre-pseudo','value', '@'+pseudo.toLowerCase().replace(/\s+/g,'_'));
   }
 
-  /* ── 5. Utilitaire escHtml local ── */
-  function _esc(s){
-    return typeof escHtml === 'function' ? escHtml(s) : String(s)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  /* ══ Effacer les avis fictifs ══ */
+  function _clearFictifAvis(containerId){
+    var el = document.getElementById(containerId);
+    if(!el) return;
+    /* Garder seulement si le contenu a déjà été chargé dynamiquement (pas le placeholder) */
+    if(el.querySelector('.activity-item')) return; // déjà des vrais avis ou injectés
+    el.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:0.8rem;font-style:italic;">Aucun avis pour le moment.</div>';
   }
 
-  /* ── 6. Re-patcher à chaque connexion/déconnexion Firebase ── */
-  var _origOnAuth = window._ambi241_onAuthCb;
-  // Hook sur onAuthStateChanged en surveillant currentUserUID
+  /* ── Surveiller connexion/déconnexion ── */
   var _prevUID = null;
   setInterval(function(){
     var uid = window.currentUserUID || null;
     if(uid !== _prevUID){
       _prevUID = uid;
-      if(uid && document.querySelector('#sec-profil.active-section, #sec-profil:not(.section-hidden)')){
-        setTimeout(_patchProfilCoherence, 400);
-      }
+      if(uid){ setTimeout(_patchAll, 500); }
     }
   }, 800);
 
-  console.log('[AMBI241] ✅ Patch cohérence Profil actif — rôle/vues synchronisés');
+  window._patchProfilCoherence = _patchAll;
+  console.log('[AMBI241] ✅ Patch Profil v2 — toutes vues synchronisées (membre/chauffeur/étab)');
 })();
 
 function navHandleProfil(btn){
@@ -30308,7 +30396,7 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
     <div class="avatar-zone">
       <div class="avatar-wrap">
         <div class="p-avatar" id="pav-membre" onclick="pOpenEditModal('membre')" style="background:linear-gradient(135deg,#230d35,#1a0a28);color:#00e5ff;">
-          KM
+          <span id="pav-membre-initials">?</span>
           <div class="avatar-upload-btn" onclick="event.stopPropagation();document.getElementById('pFileAvatar').click()">📷</div>
           <div class="avatar-status-dot"></div>
         </div>
@@ -30318,12 +30406,10 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
       </div>
     </div>
     <div class="profile-header">
-      <div class="profile-name">Koumba Mba <span class="verified-icon vi-cyan" title="Compte vérifié">✓</span></div>
-      <div class="profile-handle"><span>@koumba_lib</span><span class="handle-sep">·</span><span>Libreville, Gabon</span><span class="handle-sep">·</span><span>Membre depuis janv. 2024</span></div>
-      <p class="profile-bio">Amatrice de sorties nocturnes 🌙 Je teste tous les nouveaux spots de Lib' pour vous ! Fan de jazz, cocktails créatifs et ambiances feutrées.</p>
-      <div class="profile-tags">
-        <span class="ptag-item">🎶 Jazz &amp; Soul</span><span class="ptag-item">🍹 Cocktails</span><span class="ptag-item">📸 Photos</span><span class="ptag-item">🌙 Nightlife</span>
-      </div>
+      <div class="profile-name" id="pv-membre-name">— <span class="verified-icon vi-cyan" title="Compte vérifié">✓</span></div>
+      <div class="profile-handle" id="pv-membre-handle"><span>@—</span><span class="handle-sep">·</span><span>Libreville, Gabon</span></div>
+      <p class="profile-bio" style="font-style:italic;opacity:0.5;">✏️ Complétez votre bio dans Mon Profil</p>
+      <div class="profile-tags" id="pv-membre-tags"></div>
     </div>
     <div class="profile-actions">
       <button class="btn-p-primary btn-p-edit" onclick="pOpenEditModal('membre')">✏️ Modifier le profil</button>
@@ -30413,7 +30499,7 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
     <div class="avatar-zone">
       <div class="avatar-wrap">
         <div class="p-avatar" id="pav-chauffeur" onclick="pOpenEditModal('chauffeur')" style="background:linear-gradient(135deg,#2a1e00,#1a0a28);color:#ffd700;">
-          JO
+          <span id="pav-chauffeur-initials">?</span>
           <div class="avatar-upload-btn" style="background:#ffd700;" onclick="event.stopPropagation();document.getElementById('pFileAvatar').click()">📷</div>
           <div class="avatar-status-dot"></div>
         </div>
@@ -30483,10 +30569,8 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
     <div id="pc-tab-avis" style="display:none;">
       <div class="p-section-block">
         <div class="section-head"><span class="section-title">💬 Avis clients</span></div>
-        <div class="activity-list">
-          <div class="activity-item"><div class="act-avatar" style="background:linear-gradient(135deg,rgba(0,229,255,.3),rgba(204,68,255,.2));">FM</div><div class="act-body"><div class="act-name">Félicienne M.</div><div class="act-msg">"Chauffeur très professionnel, voiture impeccable et ponctuel. Je recommande !"</div><div class="act-stars">★★★★★</div><div class="act-time">Il y a 2 heures</div></div></div>
-          <div class="p-divider"></div>
-          <div class="activity-item"><div class="act-avatar" style="background:linear-gradient(135deg,rgba(255,45,155,.3),rgba(255,215,0,.2));">PO</div><div class="act-body"><div class="act-name">Patrick O.</div><div class="act-msg">"Parfait pour rentrer du Jazz Corner. Conduite douce et musique sympa !"</div><div class="act-stars">★★★★★</div><div class="act-time">Hier</div></div></div>
+        <div class="activity-list" id="pv-chauffeur-avis-list">
+          <div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:0.8rem;font-style:italic;">Chargement des avis…</div>
         </div>
       </div>
     </div>
@@ -30515,7 +30599,7 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
     <div class="avatar-zone">
       <div class="avatar-wrap">
         <div class="p-avatar" id="pav-etab" onclick="pOpenEditModal('etab')" style="background:linear-gradient(135deg,#200819,#0d1a2a);color:var(--pink);border-radius:22px;">
-          JC
+          <span id="pav-etab-initials">—</span>
           <div class="avatar-upload-btn" onclick="event.stopPropagation();document.getElementById('pFileAvatar').click()">📷</div>
           <div class="avatar-status-dot"></div>
         </div>
@@ -30523,10 +30607,10 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
       <div class="avatar-meta"><span class="p-role-badge rb-etab"><span class="rb-dot"></span>Établissement Partenaire</span></div>
     </div>
     <div class="profile-header">
-      <div class="profile-name">Jazz Corner Libreville <span class="verified-icon vi-pink" title="Établissement vérifié">✓</span></div>
-      <div class="profile-handle"><span>@jazzcorner_lib</span><span class="handle-sep">·</span><span>📍 Owendo, Libreville</span><span class="handle-sep">·</span><span>Bar / Live Music</span></div>
-      <p class="profile-bio">Le rendez-vous incontournable des amateurs de jazz et musiques live à Libreville. Cocktails signature, terrasse vue mer, concerts du mardi au dimanche. 🎷🌊</p>
-      <div class="profile-tags"><span class="ptag-item">🎷 Jazz Live</span><span class="ptag-item">🍸 Cocktails</span><span class="ptag-item">🌊 Vue Mer</span><span class="ptag-item">🅿️ Parking</span><span class="ptag-item">🎤 Scène</span></div>
+      <div class="profile-name" id="pv-etab-name">— <span class="verified-icon vi-pink" title="Établissement vérifié">✓</span></div>
+      <div class="profile-handle" id="pv-etab-handle"><span>@—</span><span class="handle-sep">·</span><span>📍 Libreville</span><span class="handle-sep">·</span><span id="pv-etab-type">Établissement</span></div>
+      <p class="profile-bio" id="pv-etab-bio" style="font-style:italic;opacity:0.5;">Description de l'établissement…</p>
+      <div class="profile-tags" id="pv-etab-tags"><span class="ptag-item">🎷 Jazz Live</span><span class="ptag-item">🍸 Cocktails</span><span class="ptag-item">🌊 Vue Mer</span><span class="ptag-item">🅿️ Parking</span><span class="ptag-item">🎤 Scène</span></div>
     </div>
     <div class="ambiance-live">
       <div class="al-pulse">🔥</div>
@@ -30576,11 +30660,11 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
       <div class="p-section-block" style="margin-top:1rem;">
         <div class="section-head"><span class="section-title">📋 Informations</span><button class="section-action" onclick="pOpenEditModal('etab')">Modifier</button></div>
         <div class="info-list">
-          <div class="info-row"><div class="info-icon">📍</div><div class="info-text"><div class="info-label">Adresse</div><div class="info-value">Avenue du 17 Août, Owendo, Libreville</div></div></div>
-          <div class="info-row"><div class="info-icon">📞</div><div class="info-text"><div class="info-label">Téléphone</div><div class="info-value">+241 01 44 78 92</div></div></div>
-          <div class="info-row"><div class="info-icon">🌐</div><div class="info-text"><div class="info-label">Réseaux sociaux</div><div class="info-value">@jazzcorner.lbv</div></div></div>
-          <div class="info-row"><div class="info-icon">💵</div><div class="info-text"><div class="info-label">Entrée</div><div class="info-value">Gratuite / Conso min. 5 000 F</div></div></div>
-          <div class="info-row"><div class="info-icon">🅿️</div><div class="info-text"><div class="info-label">Parking</div><div class="info-value">Gratuit · 80 places</div></div></div>
+          <div class="info-row"><div class="info-icon">📍</div><div class="info-text"><div class="info-label">Adresse</div><div class="info-value" id="pv-etab-address">—</div></div></div>
+          <div class="info-row"><div class="info-icon">📞</div><div class="info-text"><div class="info-label">Téléphone</div><div class="info-value" id="pv-etab-phone">—</div></div></div>
+          <div class="info-row"><div class="info-icon">🌐</div><div class="info-text"><div class="info-label">Réseaux sociaux</div><div class="info-value" id="pv-etab-social">—</div></div></div>
+          <div class="info-row"><div class="info-icon">💵</div><div class="info-text"><div class="info-label">Entrée</div><div class="info-value" id="pv-etab-entree">—</div></div></div>
+          <div class="info-row"><div class="info-icon">🅿️</div><div class="info-text"><div class="info-label">Parking</div><div class="info-value" id="pv-etab-parking">—</div></div></div>
         </div>
       </div>
     </div>
@@ -30608,10 +30692,8 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
       </div>
       <div class="p-section-block">
         <div class="section-head"><span class="section-title">💬 Avis récents</span><button class="section-action">Tous les avis</button></div>
-        <div class="activity-list">
-          <div class="activity-item"><div class="act-avatar" style="background:linear-gradient(135deg,rgba(0,229,255,.3),rgba(204,68,255,.2));">KM</div><div class="act-body"><div class="act-name">Koumba M. <span style="font-size:.65rem;color:#00e5ff;">Membre Premium</span></div><div class="act-msg">"Ambiance fantastique ce vendredi soir, DJ set incroyable !"</div><div class="act-stars">★★★★★</div><div class="act-time">Il y a 2 heures</div></div></div>
-          <div class="p-divider"></div>
-          <div class="activity-item"><div class="act-avatar" style="background:linear-gradient(135deg,rgba(255,215,0,.2),rgba(255,45,155,.2));">RL</div><div class="act-body"><div class="act-name">Régine L.</div><div class="act-msg">"Vue mer magnifique depuis la terrasse. Service impeccable, je reviendrai !"</div><div class="act-stars">★★★★★</div><div class="act-time">Hier</div></div></div>
+        <div class="activity-list" id="pv-etab-avis-list">
+          <div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:0.8rem;font-style:italic;">Chargement des avis…</div>
         </div>
       </div>
     </div>
@@ -30627,16 +30709,16 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
     <div class="profil-modal-handle"></div>
     <div class="profil-modal-head"><span class="profil-modal-title">✏️ Modifier mon profil</span><button class="profil-modal-close" onclick="pCloseModal('membre')">✕</button></div>
     <div class="profil-avatar-editor">
-      <div class="profil-avatar-edit-preview" id="pmodal-av-membre" style="background:linear-gradient(135deg,#230d35,#1a0a28);color:#00e5ff;">KM<div class="p-overlay">📷</div></div>
+      <div class="profil-avatar-edit-preview" id="pmodal-av-membre" style="background:linear-gradient(135deg,#230d35,#1a0a28);color:#00e5ff;"><span id="pmodal-av-membre-init">?</span><div class="p-overlay">📷</div></div>
       <div class="profil-avatar-actions"><button class="profil-btn-upload" onclick="document.getElementById('pFileAvatar').click()">📷 Changer la photo</button><button class="profil-btn-remove">🗑️ Supprimer</button></div>
     </div>
     <div class="profil-form-body">
       <div class="profil-form-group"><label class="profil-form-label">Photo de couverture</label><div class="profil-upload-zone" onclick="document.getElementById('pFileCover').click()"><span style="font-size:2rem;">🌅</span><span style="font-size:.82rem;color:var(--muted);">Cliquer pour changer la couverture</span><span style="font-size:.7rem;color:var(--muted);">JPG, PNG · Max 5 Mo</span></div></div>
       <div class="profil-form-row">
-        <div class="profil-form-group"><label class="profil-form-label">Prénom</label><input class="profil-form-input" type="text" value="Koumba" placeholder="Votre prénom"></div>
-        <div class="profil-form-group"><label class="profil-form-label">Nom</label><input class="profil-form-input" type="text" value="Mba" placeholder="Votre nom"></div>
+        <div class="profil-form-group"><label class="profil-form-label">Prénom</label><input class="profil-form-input" id="pmodal-membre-prenom" type="text" value="" placeholder="Votre prénom"></div>
+        <div class="profil-form-group"><label class="profil-form-label">Nom</label><input class="profil-form-input" id="pmodal-membre-nom" type="text" value="" placeholder="Votre nom"></div>
       </div>
-      <div class="profil-form-group"><label class="profil-form-label">Nom d'utilisateur</label><input class="profil-form-input" type="text" value="@koumba_lib" placeholder="@votre_pseudo"></div>
+      <div class="profil-form-group"><label class="profil-form-label">Nom d'utilisateur</label><input class="profil-form-input" id="pmodal-membre-pseudo" type="text" value="" placeholder="@votre_pseudo"></div>
       <div class="profil-form-group"><label class="profil-form-label">Bio</label><textarea class="profil-form-textarea" placeholder="Décrivez-vous en quelques mots…">Amatrice de sorties nocturnes 🌙 Je teste tous les nouveaux spots de Lib' pour vous !</textarea></div>
       <div class="profil-form-group"><label class="profil-form-label">Téléphone</label><input class="profil-form-input" type="tel" value="+241 06 12 34 56" placeholder="+241 xx xx xx xx"></div>
       <div class="profil-form-group"><label class="profil-form-label">Centres d'intérêt</label><div class="profil-chips-row"><span class="profil-chip selected">🎷 Jazz</span><span class="profil-chip selected">🍹 Cocktails</span><span class="profil-chip selected">📸 Photos</span><span class="profil-chip">🎤 Concerts</span><span class="profil-chip">🌙 Nightlife</span><span class="profil-chip">🍽️ Gastronomie</span></div></div>
@@ -30650,19 +30732,19 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
     <div class="profil-modal-handle"></div>
     <div class="profil-modal-head"><span class="profil-modal-title">✏️ Mon profil chauffeur</span><button class="profil-modal-close" onclick="pCloseModal('chauffeur')">✕</button></div>
     <div class="profil-avatar-editor">
-      <div class="profil-avatar-edit-preview" id="pmodal-av-chauffeur" style="background:linear-gradient(135deg,#2a1e00,#1a0a28);color:#ffd700;">JO<div class="p-overlay">📷</div></div>
+      <div class="profil-avatar-edit-preview" id="pmodal-av-chauffeur" style="background:linear-gradient(135deg,#2a1e00,#1a0a28);color:#ffd700;"><span id="pmodal-av-chauffeur-init">?</span><div class="p-overlay">📷</div></div>
       <div class="profil-avatar-actions"><button class="profil-btn-upload" style="color:#ffd700;border-color:rgba(255,215,0,.4);background:rgba(255,215,0,.1);" onclick="document.getElementById('pFileAvatar').click()">📷 Changer la photo</button><button class="profil-btn-remove">🗑️ Supprimer</button></div>
     </div>
     <div class="profil-form-body">
       <div class="profil-form-row">
-        <div class="profil-form-group"><label class="profil-form-label">Prénom</label><input class="profil-form-input" type="text" value="Jean-Olivier" placeholder="Prénom"></div>
-        <div class="profil-form-group"><label class="profil-form-label">Nom</label><input class="profil-form-input" type="text" value="Nze" placeholder="Nom"></div>
+        <div class="profil-form-group"><label class="profil-form-label">Prénom</label><input class="profil-form-input" id="pmodal-chauffeur-prenom" type="text" value="" placeholder="Prénom"></div>
+        <div class="profil-form-group"><label class="profil-form-label">Nom</label><input class="profil-form-input" id="pmodal-chauffeur-nom" type="text" value="" placeholder="Nom"></div>
       </div>
-      <div class="profil-form-group"><label class="profil-form-label">Bio courte</label><textarea class="profil-form-textarea" placeholder="Décrivez votre service…">Chauffeur professionnel disponible 7j/7. Confort garanti, ponctualité assurée.</textarea></div>
-      <div class="profil-form-group"><label class="profil-form-label">Marque du véhicule</label><input class="profil-form-input" type="text" value="Toyota Camry 2022" placeholder="Ex: Toyota Camry 2022"></div>
+      <div class="profil-form-group"><label class="profil-form-label">Bio courte</label><textarea class="profil-form-textarea" id="pmodal-chauffeur-bio" placeholder="Décrivez votre service…"></textarea></div>
+      <div class="profil-form-group"><label class="profil-form-label">Marque du véhicule</label><input class="profil-form-input" id="pmodal-chauffeur-vehicule" type="text" value="" placeholder="Ex: Toyota Camry 2022"></div>
       <div class="profil-form-row">
-        <div class="profil-form-group"><label class="profil-form-label">Immatriculation</label><input class="profil-form-input" type="text" value="GA 4521 LBV" placeholder="Plaque"></div>
-        <div class="profil-form-group"><label class="profil-form-label">Couleur</label><input class="profil-form-input" type="text" value="Noir" placeholder="Couleur"></div>
+        <div class="profil-form-group"><label class="profil-form-label">Immatriculation</label><input class="profil-form-input" id="pmodal-chauffeur-immat" type="text" value="" placeholder="Plaque"></div>
+        <div class="profil-form-group"><label class="profil-form-label">Couleur</label><input class="profil-form-input" id="pmodal-chauffeur-couleur" type="text" value="" placeholder="Couleur"></div>
       </div>
       <div class="profil-form-group"><label class="profil-form-label">Services proposés</label><div class="profil-chips-row"><span class="profil-chip selected">🌙 Sorties nocturnes</span><span class="profil-chip selected">✈️ Aéroport</span><span class="profil-chip selected">💼 Business</span><span class="profil-chip">👪 Famille</span></div></div>
       <button class="profil-form-save" style="background:linear-gradient(135deg,#ffd700,#cc9900);color:#000;box-shadow:0 4px 20px rgba(255,215,0,.35);" onclick="pSaveProfile('chauffeur')">💾 Enregistrer les modifications</button>
@@ -30675,17 +30757,17 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
     <div class="profil-modal-handle"></div>
     <div class="profil-modal-head"><span class="profil-modal-title">✏️ Mon établissement</span><button class="profil-modal-close" onclick="pCloseModal('etab')">✕</button></div>
     <div class="profil-avatar-editor">
-      <div class="profil-avatar-edit-preview" id="pmodal-av-etab" style="background:linear-gradient(135deg,#200819,#0d1a2a);color:var(--pink);border-radius:22px;">JC<div class="p-overlay">📷</div></div>
+      <div class="profil-avatar-edit-preview" id="pmodal-av-etab" style="background:linear-gradient(135deg,#200819,#0d1a2a);color:var(--pink);border-radius:22px;"><span id="pmodal-av-etab-init">—</span><div class="p-overlay">📷</div></div>
       <div class="profil-avatar-actions"><button class="profil-btn-upload" onclick="document.getElementById('pFileAvatar').click()">📷 Changer le logo</button><button class="profil-btn-remove">🗑️ Supprimer</button></div>
     </div>
     <div class="profil-form-body">
-      <div class="profil-form-group"><label class="profil-form-label">Nom de l'établissement</label><input class="profil-form-input" type="text" value="Jazz Corner Libreville" placeholder="Nom officiel"></div>
-      <div class="profil-form-group"><label class="profil-form-label">Type d'établissement</label><select class="profil-form-select"><option selected>Bar / Live Music</option><option>Restaurant</option><option>Discothèque / Club</option><option>Rooftop Bar</option><option>Lounge</option></select></div>
-      <div class="profil-form-group"><label class="profil-form-label">Description</label><textarea class="profil-form-textarea" placeholder="Décrivez votre établissement…">Le rendez-vous incontournable des amateurs de jazz et musiques live à Libreville.</textarea></div>
-      <div class="profil-form-group"><label class="profil-form-label">Adresse complète</label><input class="profil-form-input" type="text" value="Avenue du 17 Août, Owendo, Libreville" placeholder="Adresse"></div>
+      <div class="profil-form-group"><label class="profil-form-label">Nom de l'établissement</label><input class="profil-form-input" id="pmodal-etab-nom" type="text" value="" placeholder="Nom officiel"></div>
+      <div class="profil-form-group"><label class="profil-form-label">Type d'établissement</label><select class="profil-form-select" id="pmodal-etab-type"><option selected>Bar / Live Music</option><option>Restaurant</option><option>Discothèque / Club</option><option>Rooftop Bar</option><option>Lounge</option></select></div>
+      <div class="profil-form-group"><label class="profil-form-label">Description</label><textarea class="profil-form-textarea" id="pmodal-etab-desc" placeholder="Décrivez votre établissement…"></textarea></div>
+      <div class="profil-form-group"><label class="profil-form-label">Adresse complète</label><input class="profil-form-input" id="pmodal-etab-adresse" type="text" value="" placeholder="Adresse"></div>
       <div class="profil-form-row">
-        <div class="profil-form-group"><label class="profil-form-label">Téléphone</label><input class="profil-form-input" type="tel" value="+241 01 44 78 92" placeholder="+241 xx xx xx xx"></div>
-        <div class="profil-form-group"><label class="profil-form-label">Entrée / Prix</label><input class="profil-form-input" type="text" value="Gratuite / 5 000 F" placeholder="Ex: 5 000 F"></div>
+        <div class="profil-form-group"><label class="profil-form-label">Téléphone</label><input class="profil-form-input" id="pmodal-etab-tel" type="tel" value="" placeholder="+241 xx xx xx xx"></div>
+        <div class="profil-form-group"><label class="profil-form-label">Entrée / Prix</label><input class="profil-form-input" id="pmodal-etab-prix" type="text" value="" placeholder="Ex: 5 000 F"></div>
       </div>
       <div class="profil-form-group"><label class="profil-form-label">Ambiances &amp; Services</label><div class="profil-chips-row"><span class="profil-chip selected">🎷 Jazz Live</span><span class="profil-chip selected">🍸 Cocktails</span><span class="profil-chip selected">🌊 Vue Mer</span><span class="profil-chip selected">🅿️ Parking</span><span class="profil-chip">🍽️ Restaurant</span><span class="profil-chip">💃 Dancefloor</span></div></div>
       <button class="profil-form-save" onclick="pSaveProfile('etab')">💾 Enregistrer les modifications</button>
