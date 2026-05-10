@@ -8117,6 +8117,8 @@ function loadData(){
     // Appliquer le statut dynamique basé sur l'affluence réelle
     etablissements.forEach(function(e){ applyDynamicStatus(e); });
     setSyncing(false);renderStats();renderAll();renderHome();renderPayments();updateSyncTime();if(typeof i18n!=="undefined")i18n.applyTranslations();
+    /* ── Rafraîchir la vue d'ensemble admin si elle est ouverte ── */
+    if(isAdmin && (_currentAdmTab==='overview'||window._currentAdmTab==='overview') && typeof renderAdmOverview==='function'){ renderAdmOverview(); }
     // Lancer le fetch automatique des photos Google Places pour tous les établissements sans photo
     setTimeout(autoFetchAllGooglePhotos, 400);
     // Charger les photos de profil approuvées depuis Firebase
@@ -15482,6 +15484,17 @@ window.loadData=loadData;
 // ── Vue d'ensemble ─────────────────────────────────────────────
 function renderAdmOverview(){
   var d=etablissements;
+  /* Si les données ne sont pas encore chargées, afficher un loader et réessayer */
+  if(!d || d.length === 0){
+    var overviewElCheck = document.getElementById("adminOverviewContent");
+    if(overviewElCheck && overviewElCheck.innerHTML.indexOf('kpi') === -1){
+      overviewElCheck.innerHTML = "<div style='text-align:center;padding:2.5rem 1rem;color:var(--muted);font-size:0.85rem;'>⏳ Chargement des données…</div>";
+    }
+    setTimeout(function(){
+      if((_currentAdmTab==='overview'||window._currentAdmTab==='overview') && typeof renderAdmOverview==='function') renderAdmOverview();
+    }, 800);
+    return;
+  }
   var actifs=d.filter(function(e){return e.paiement&&e.paiement.indexOf("Actif")!==-1;}).length;
   var bondes=d.filter(function(e){return e.statut&&e.statut.indexOf("Bonde")!==-1;}).length;
   var animes=d.filter(function(e){return e.statut&&e.statut.indexOf("Anime")!==-1;}).length;
@@ -27822,9 +27835,20 @@ window.saveEtabAdminProfile = function(eid){
   var _cooldown = false;
   var COOLDOWN_MS = 400;
 
+  /* ── Vérifie si un élément est réellement visible à l'écran ── */
+  function isVisible(el){
+    if(!el) return false;
+    var s = el.style;
+    var cs = window.getComputedStyle(el);
+    if(s.display === 'none' || cs.display === 'none') return false;
+    if(s.visibility === 'hidden' || cs.visibility === 'hidden') return false;
+    if(parseFloat(s.opacity||cs.opacity) === 0) return false;
+    return true;
+  }
+
   /* ── Ferme le premier overlay/modal ouvert et retourne true ── */
   function closeTopModal(){
-    /* Ordre de priorité : overlays generiques → panels spéciaux → modals inline */
+    /* Ordre de priorité : overlays génériques d'abord */
     var selectors = [
       '.overlay.show',
       '.perm-lightbox.show',
@@ -27837,29 +27861,43 @@ window.saveEtabAdminProfile = function(eid){
     ];
     for(var i=0;i<selectors.length;i++){
       var el = document.querySelector(selectors[i]);
-      if(el){
+      /* Exclure androidExitOverlay lui-même pour éviter boucle infinie */
+      if(el && el.id !== 'androidExitOverlay' && isVisible(el)){
         el.classList.remove('show','open');
         el.style.display = 'none';
         return true;
       }
     }
-    /* Panels spéciaux via fonctions globales */
-    var closers = [
-      'closeAdminDashboard','closeUserModal','closeGalerie','closeInvit',
-      'closeLightbox','closeFullscreenPhoto','closePhotoModal',
-      'closeRatingModal','closePresenceModal','closeEventFlashModal',
-      'closeGpsDetailModal','closeNearbyMode','closeLegalModal',
-      'closeSupportRequestModal','closeReservationModal','closeUserProfile',
-      'closeAssignEtabModal','closeLeaveAppModal','closeForgotModal',
-      'closeEtabAdminProfile'
+    /* Panels spéciaux — appeler SEULEMENT si l'élément est réellement visible */
+    var closerMap = [
+      ['closeAdminDashboard',   'adminDashOverlay'],
+      ['closeUserModal',        'userModal'],
+      ['closeGalerie',          'galerieOverlay'],
+      ['closeInvit',            'invitOverlay'],
+      ['closeLightbox',         null],
+      ['closeFullscreenPhoto',  null],
+      ['closePhotoModal',       'photoModal'],
+      ['closeRatingModal',      'ratingModal'],
+      ['closePresenceModal',    'presenceModal'],
+      ['closeEventFlashModal',  'eventFlashModal'],
+      ['closeGpsDetailModal',   'gpsDetailModal'],
+      ['closeNearbyMode',       'nearbyOverlay'],
+      ['closeLegalModal',       'legalModal'],
+      ['closeSupportRequestModal','supportRequestModal'],
+      ['closeReservationModal', 'reservationModal'],
+      ['closeUserProfile',      'userProfileModal'],
+      ['closeAssignEtabModal',  'assignEtabModal'],
+      ['closeLeaveAppModal',    'leaveAppOverlay'],
+      ['closeForgotModal',      'forgotModal'],
+      ['closeEtabAdminProfile', 'etabAdminProfileOverlay']
     ];
-    for(var j=0;j<closers.length;j++){
-      if(typeof window[closers[j]]==='function'){
-        try{
-          /* Appelle seulement si quelque chose est visible */
-          var result = window[closers[j]]();
-          if(result !== false) { /* consider called */ }
-        }catch(e){}
+    for(var j=0;j<closerMap.length;j++){
+      var fn = closerMap[j][0];
+      var elId = closerMap[j][1];
+      var visible = elId ? isVisible(document.getElementById(elId)) : false;
+      if(visible && typeof window[fn]==='function'){
+        try{ window[fn](); }catch(e){}
+        return true;
       }
     }
     return false;
