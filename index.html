@@ -5592,6 +5592,7 @@ if (document.readyState === 'loading') {
   <button class="nav-item" data-section="publications" onclick="switchSection('publications',this)"><span class="nav-disc-badge"></span><span class="nav-icon">&#128247;&#127916;</span>Discussions</button>
   <button class="nav-item" onclick="switchSection('profil',this)"><span class="nav-icon">&#128100;</span>Profil</button>
   <button class="nav-item" onclick="switchSection('profil',this)"><span class="nav-icon">&#128179;</span>Comptes</button>
+  <button class="nav-item" id="navAdminSettings" style="display:none;" onclick="toggleAdmin()"><span class="nav-icon">&#9881;</span>Paramètres</button>
 </nav>
 
 
@@ -8646,9 +8647,11 @@ function pinPress(k){
         var unlockBtn=document.getElementById("adminUnlockBtn");
         if(abtn){ abtn.style.display="flex"; abtn.style.background="rgba(255,215,0,0.2)"; abtn.style.borderColor="rgba(255,215,0,0.6)"; abtn.style.color="#ffd700"; }
         if(unlockBtn) unlockBtn.style.display="none";
-        // Afficher la cloche notifications pour l'admin
+        // Afficher la cloche notifications et le bouton paramètres pour l'admin
         var bellWrap = document.getElementById("notifBellWrap");
         if(bellWrap) bellWrap.style.display = "inline-flex";
+        var navSettings = document.getElementById("navAdminSettings");
+        if(navSettings) navSettings.style.display = "flex";
         renderStats();renderAll();renderHome();updatePayVis();renderPayments();
         var t=getTraffic();
         document.getElementById("trafficVal").textContent=t.count+" (total: "+t.total+")";
@@ -8688,11 +8691,11 @@ function toggleAdmin(){
     var unlockBtn=document.getElementById("adminUnlockBtn");
     if(abtn){ abtn.style.display="none"; abtn.style.background=""; abtn.style.borderColor=""; abtn.style.color=""; }
     if(unlockBtn) unlockBtn.style.display="flex";
-    // Masquer la cloche si aucun membre connecté non plus
-    if(!window.currentUserUID){
-      var bellWrap = document.getElementById("notifBellWrap");
-      if(bellWrap) bellWrap.style.display = "none";
-    }
+    // Masquer la cloche et le bouton paramètres à la désactivation admin
+    var bellWrap = document.getElementById("notifBellWrap");
+    if(bellWrap) bellWrap.style.display = "none";
+    var navSettings = document.getElementById("navAdminSettings");
+    if(navSettings) navSettings.style.display = "none";
     renderStats();renderAll();renderHome();updatePayVis();
     document.getElementById("trafficBadge").classList.remove("show");
     showToast("Mode Admin desactive");
@@ -9699,9 +9702,7 @@ function updateHeaderUser(pseudo){
     greeting.onclick = function(){ document.getElementById("userOverlay").classList.add("show"); switchUserTab("monprofil"); };
     logoutBtn.classList.add("show");
     if(loginBtn) loginBtn.style.display = "none";
-    // Afficher la cloche notifications après connexion
-    var bellWrap = document.getElementById("notifBellWrap");
-    if(bellWrap) bellWrap.style.display = "inline-flex";
+    // La cloche notifications est réservée aux admins uniquement (affichée via PIN)
     if(tabMonProfil){ tabMonProfil.style.display=""; }
     if(tabInscription){ tabInscription.style.display="none"; }
     if(tabConnexion){ tabConnexion.style.display="none"; }
