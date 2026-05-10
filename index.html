@@ -5592,7 +5592,7 @@ if (document.readyState === 'loading') {
   <button class="nav-item" data-section="publications" onclick="switchSection('publications',this)"><span class="nav-disc-badge"></span><span class="nav-icon">&#128247;&#127916;</span>Discussions</button>
   <button class="nav-item" onclick="switchSection('profil',this)"><span class="nav-icon">&#128100;</span>Profil</button>
   <button class="nav-item" onclick="switchSection('profil',this)"><span class="nav-icon">&#128179;</span>Comptes</button>
-  <button class="nav-item" id="navAdminSettings" style="display:none;" onclick="switchSection('paiements',this);switchAdminTab('paiements');"><span class="nav-icon">&#9881;</span>Paramètres</button>
+  <button class="nav-item" id="navAdminSettings" style="display:none;" onclick="openAdminDashboard(this)"><span class="nav-icon">&#9881;</span>Paramètres</button>
 </nav>
 
 
@@ -8707,10 +8707,14 @@ function toggleAdmin(){
 function updatePayVis(){
   var vis=document.getElementById("payVisitor");
   var tabs=document.getElementById("adminTabs");
+  /* Toujours masquer l'ancien système adminTabs — le vrai dashboard est adminDashOverlay */
   if(vis)vis.style.display=isAdmin?"none":"block";
-  if(tabs)tabs.style.display=isAdmin?"block":"none";
-  if(isAdmin){renderVisitors();renderStatsAdmin();}
-
+  if(tabs)tabs.style.display="none";
+  if(isAdmin){
+    renderVisitors();renderStatsAdmin();
+    /* Ouvrir automatiquement le vrai dashboard admin */
+    if(typeof openAdminDashboard==="function") openAdminDashboard();
+  }
 }
 
 function switchAdminTab(tab){
@@ -15422,6 +15426,114 @@ function admSendNotif(){
 }
 window.admSendNotif = admSendNotif;
 
+// ══════════════════════════════════════════════════════════════
+// ══  NOTIFICATIONS URGENTES & TEMPLATES                       ══
+// ══════════════════════════════════════════════════════════════
+
+/* Templates urgents */
+var _urgentTemplates = {
+  fermeture:  { title:"🔒 Fermeture exceptionnelle",  msg:"L'application est temporairement fermée pour maintenance urgente. Merci de votre compréhension." },
+  incident:   { title:"⚠️ Incident en cours",         msg:"Un incident technique est en cours de résolution. Certaines fonctionnalités peuvent être indisponibles." },
+  maintenance:{ title:"🔧 Maintenance programmée",    msg:"Une maintenance est en cours. L'application sera de retour dans quelques minutes." },
+  securite:   { title:"🛡️ Alerte sécurité",           msg:"Nous avons détecté une activité inhabituelle. Veuillez vérifier vos informations de connexion." }
+};
+
+/* Templates standards */
+var _notifTemplates = {
+  soiree:     { icon:"🎉", type:"event",  title:"🔥 Soirée exceptionnelle ce soir !",  msg:"Des établissements organisent des événements spéciaux ce soir. Découvrez l'ambiance en temps réel !" },
+  promo:      { icon:"🎁", type:"promo",  title:"🎁 Offre exclusive pour vous !",       msg:"Profitez d'offres spéciales dans les établissements partenaires AMBI241 ce week-end." },
+  classement: { icon:"🏆", type:"info",   title:"🏆 Nouveau classement disponible !",  msg:"Le classement hebdomadaire des établissements vient d'être mis à jour. Découvrez le top 10 !" },
+  nouveaute:  { icon:"✨", type:"update", title:"✨ Nouvelle fonctionnalité AMBI241",  msg:"Une nouvelle mise à jour est disponible. Découvrez les nouvelles fonctionnalités de l'application !" },
+  bienvenue:  { icon:"👋", type:"info",   title:"👋 Bienvenue sur AMBI241 !",          msg:"Trouvez l'ambiance des meilleurs bars et restaurants de Libreville en temps réel. Bonne découverte !" }
+};
+
+function admApplyUrgentTemplate(key){
+  var tpl = _urgentTemplates[key];
+  if(!tpl) return;
+  var t = document.getElementById("admUrgentTitle");
+  var m = document.getElementById("admUrgentMsg");
+  if(t) t.value = tpl.title;
+  if(m) m.value = tpl.msg;
+}
+window.admApplyUrgentTemplate = admApplyUrgentTemplate;
+
+function admApplyTemplate(key){
+  var tpl = _notifTemplates[key];
+  if(!tpl) return;
+  var t = document.getElementById("admNotifTitle");
+  var m = document.getElementById("admNotifMsg");
+  var ic = document.getElementById("admNotifIcon");
+  var ty = document.getElementById("admNotifType");
+  if(t) t.value = tpl.title;
+  if(m) m.value = tpl.msg;
+  if(ic) ic.value = tpl.icon;
+  if(ty) ty.value = tpl.type;
+}
+window.admApplyTemplate = admApplyTemplate;
+
+function admSendUrgentNotif(){
+  var title = (document.getElementById("admUrgentTitle").value||"").trim();
+  var msg   = (document.getElementById("admUrgentMsg").value||"").trim();
+  if(!title||!msg){ showToast("Titre et message requis pour l'alerte urgente"); return; }
+
+  var item = {
+    id: Date.now()+"_urg",
+    key:"admin_urgent",
+    icon:"🚨",
+    title:title,
+    msg:msg,
+    channel:"push",
+    targetRole:"all",
+    priority:"urgent",
+    ts:Date.now(),
+    unread:true,
+    fromAdmin:true,
+    sentByRole:"admin"
+  };
+  saveToAdminLog(item);
+
+  /* Injection locale */
+  var notifs = loadNotifs();
+  notifs.unshift(item); /* urgent en tête */
+  saveNotifs(notifs);
+  renderNotifBadge();
+  showNotifToast("🚨 "+title);
+
+  /* Diffusion Firebase */
+  if(window.db && window.fbCollection && window.fbGetDocs && window.fbDoc && window.fbGetDoc && window.fbSetDoc){
+    window.fbGetDocs(window.fbCollection(window.db,"users")).then(function(snap){
+      var proms=[];
+      snap.forEach(function(d){
+        var ref=window.fbDoc(window.db,"user_notifications",d.id);
+        var p=window.fbGetDoc(ref).then(function(s2){
+          var ex=s2.exists()?(s2.data().items||[]):[];
+          ex.unshift(item);
+          return window.fbSetDoc(ref,{items:ex.slice(0,60),uid:d.id,updatedAt:Date.now()});
+        });
+        proms.push(p);
+      });
+      return Promise.all(proms);
+    }).then(function(){ showToast("🚨 Alerte urgente diffusée à tous !"); })
+      .catch(function(){ showToast("🚨 Alerte urgente envoyée (Firebase partiel)"); });
+  } else {
+    showToast("🚨 Alerte urgente envoyée !");
+  }
+
+  document.getElementById("admUrgentTitle").value="";
+  document.getElementById("admUrgentMsg").value="";
+  if(typeof renderAdminNotifs==="function") renderAdminNotifs();
+}
+window.admSendUrgentNotif = admSendUrgentNotif;
+
+function admClearAllNotifs(){
+  if(!confirm("Effacer tout l'historique des notifications admin ?")) return;
+  try{ localStorage.removeItem("ambi241_admin_notif_log"); }catch(e){}
+  var el=document.getElementById("adminAllNotifs");
+  if(el) el.innerHTML="<div style='text-align:center;padding:1.5rem;color:var(--muted);font-size:0.8rem;'>📭 Aucune notification</div>";
+  showToast("🗑️ Historique effacé");
+}
+window.admClearAllNotifs = admClearAllNotifs;
+
 // ── Toast de notification ─────────────────────────────────────
 var _notifToastTimer;
 function showNotifToast(msg){
@@ -17228,7 +17340,46 @@ function renderAdmSettings(){
   html+="<div style='font-size:0.75rem;color:var(--muted);margin-bottom:1rem;'>PIN Admin actuel : <strong style='color:var(--amber);letter-spacing:0.2em;'>••••</strong></div>";
   html+="<div style='margin-bottom:0.8rem;'><label style='font-size:0.72rem;color:var(--muted);display:block;margin-bottom:0.3rem;'>Nouveau PIN (4 chiffres)</label>";
   html+="<input id='newPinInput' type='password' maxlength='4' pattern='[0-9]{4}' placeholder='Entrez 4 chiffres' style='width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.85rem;'></div>";
-  html+="<button onclick='changeAdminPin()' style='width:100%;padding:0.55rem;border-radius:10px;border:none;background:linear-gradient(135deg,var(--amber),var(--pink));color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;'>&#128272; Changer le PIN</button>";
+  html+="<button onclick='changeAdminPin()' style='width:100%;padding:0.55rem;border-radius:10px;border:none;background:linear-gradient(135deg,var(--amber),var(--pink));color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;'>🔐 Changer le PIN</button>";
+  html+="</div>";
+
+  // ── MODE APP ──
+  var _appMode = (typeof lsGet==="function") ? (lsGet("ambi241_app_mode","live")) : "live";
+  var modes = [{v:"live",l:"🟢 Live — Application normale",c:"var(--green)"},{v:"prelancement",l:"🔵 Pré-lancement",c:"var(--cyan)"},{v:"maintenance",l:"🔴 Maintenance",c:"var(--red)"}];
+  html+="<div style='background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.2);border-radius:14px;padding:1rem;margin-bottom:1rem;'>";
+  html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--cyan);font-size:0.85rem;margin-bottom:0.7rem;'>🌐 Mode de l'application</div>";
+  modes.forEach(function(m){
+    var active = _appMode===m.v;
+    html+="<div onclick='setAppMode(\""+m.v+"\");renderAdmSettings();' style='display:flex;align-items:center;gap:0.6rem;padding:0.55rem 0.7rem;border-radius:9px;border:1.5px solid "+(active?"rgba(0,229,255,0.4)":"rgba(255,255,255,0.06)")+";background:"+(active?"rgba(0,229,255,0.08)":"rgba(255,255,255,0.02)")+";cursor:pointer;margin-bottom:0.35rem;transition:all 0.2s;'>";
+    html+="<div style='width:10px;height:10px;border-radius:50%;background:"+m.c+";flex-shrink:0;"+(active?"box-shadow:0 0 8px "+m.c+";":"opacity:0.3;")+";'></div>";
+    html+="<span style='font-size:0.78rem;color:"+(active?"var(--text)":"var(--muted)")+";font-weight:"+(active?"700":"400")+";'>"+m.l+"</span>";
+    if(active) html+="<span style='margin-left:auto;font-size:0.6rem;color:var(--cyan);font-weight:800;'>ACTIF</span>";
+    html+="</div>";
+  });
+  html+="</div>";
+
+  // ── TOGGLES FONCTIONNALITÉS ──
+  var featureKeys = [
+    {k:"feat_votes",      l:"👍 Votes utilisateurs",           def:true,  c:"var(--green)"},
+    {k:"feat_presences",  l:"📍 Présences signalées",          def:true,  c:"var(--cyan)"},
+    {k:"feat_reserv",     l:"⭐ Réservations VIP",             def:true,  c:"var(--amber)"},
+    {k:"feat_taxi",       l:"🚕 Module Taxi Pro",              def:true,  c:"var(--taxi-gold)"},
+    {k:"feat_notifs",     l:"🔔 Notifications push",           def:true,  c:"var(--pink)"},
+    {k:"feat_evenements", l:"🎉 Événements flash",             def:true,  c:"var(--purple)"},
+    {k:"feat_weeksong",   l:"🎵 Chanson de la semaine",        def:true,  c:"var(--pink)"},
+    {k:"feat_classement", l:"🏆 Classement public",            def:true,  c:"var(--amber)"},
+    {k:"feat_map",        l:"🗺️ Carte interactive",            def:true,  c:"var(--cyan)"},
+    {k:"feat_avis",       l:"💬 Avis et commentaires",         def:true,  c:"var(--green)"}
+  ];
+  html+="<div style='background:rgba(204,68,255,0.04);border:1px solid rgba(204,68,255,0.2);border-radius:14px;padding:1rem;margin-bottom:1rem;'>";
+  html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--purple);font-size:0.85rem;margin-bottom:0.7rem;'>🧩 Fonctionnalités actives</div>";
+  featureKeys.forEach(function(f){
+    var isOn = (typeof lsGet==="function") ? (lsGet(f.k,"1")==="1") : true;
+    html+="<div style='display:flex;align-items:center;justify-content:space-between;padding:0.45rem 0;border-bottom:1px solid rgba(255,255,255,0.04);'>";
+    html+="<span style='font-size:0.78rem;color:var(--text);'>"+f.l+"</span>";
+    html+="<label class='notif-toggle'><input type='checkbox'"+(isOn?" checked":"")+" onchange='toggleFeature(\""+f.k+"\",this.checked)'><span class='notif-toggle-slider' style='"+(isOn?"background:"+f.c+";":""+"'")+"></span></label>";
+    html+="</div>";
+  });
   html+="</div>";
 
   // Infos Firebase
@@ -17273,10 +17424,63 @@ function renderAdmSettings(){
   html += "<button onclick=\"weekSongOpenAdmin()\" style='width:100%;padding:0.65rem;border-radius:10px;border:1.5px solid rgba(255,45,155,0.45);background:rgba(255,45,155,0.1);color:var(--pink);font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;transition:all 0.2s;'>🎵 Configurer / Changer la chanson</button>";
   html += "</div>";
 
+  // ══ RESET TOTAL — NOUVEAU CYCLE ══
+  html += renderAdmResetPanel();
+
   document.getElementById("adminSettingsContent").innerHTML=html;
   // Init des aperçus après injection du HTML
   setTimeout(initAdminDefaultPhotosPreviews, 80);
 }
+
+
+// ══════════════════════════════════════════════════════════════
+// ══  PANNEAU RESET TOTAL — NOUVEAU CYCLE                      ══
+// ══════════════════════════════════════════════════════════════
+function renderAdmResetPanel(){
+  var cycleTs = parseInt(localStorage.getItem("ambi241_cycle_start")||"0");
+  var cycleInfo = cycleTs > 0
+    ? "Cycle actif depuis le " + new Date(cycleTs).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"})
+      + " \u00e0 " + new Date(cycleTs).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})
+    : "Aucun cycle enregistr\u00e9";
+  var html = "<div style='background:linear-gradient(135deg,rgba(255,68,102,0.08),rgba(204,68,255,0.05));border:2px solid rgba(255,68,102,0.4);border-radius:16px;padding:1.15rem;margin-bottom:1rem;position:relative;overflow:hidden;'>";
+  html += "<div style='position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--red),var(--purple),var(--red));'></div>";
+  html += "<div style='display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem;'>";
+  html += "<span style='font-size:1.2rem;'>\uD83D\uDD04</span>";
+  html += "<span style='font-family:Syne,sans-serif;font-weight:800;color:var(--red);font-size:0.9rem;'>R\u00e9initialisation \u2014 Nouveau cycle</span>";
+  html += "</div>";
+  html += "<div style='font-size:0.68rem;color:rgba(255,255,255,0.3);margin-bottom:0.9rem;'>\uD83D\uDCC5 "+cycleInfo+"</div>";
+  return html + renderAdmResetButtons() + "</div>";
+}
+function renderAdmResetButtons(){
+  var types=[
+    {fn:"resetDataMembres",    l:"\uD83D\uDC64 Membres simples",         d:"Scores, activit\u00e9, pr\u00e9sences membres"},
+    {fn:"resetDataChauffeurs", l:"\uD83D\uDE95 Chauffeurs Taxi Pro",      d:"Courses, notes, classement chauffeurs"},
+    {fn:"resetDataGerants",    l:"\uD83C\uDFD9 G\u00e9rants \u00e9tablissements",d:"Scores affluence, votes, pr\u00e9sences"},
+    {fn:"resetCycleClassement",l:"\uD83C\uDFC6 Classement \u00e9tablissements",d:"Pr\u00e9sences + votes lieux"}
+  ];
+  var h="<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.85rem;'>";
+  types.forEach(function(r){
+    h+="<button onclick='"+r.fn+"()' style='padding:0.6rem 0.5rem;border-radius:10px;border:1.5px solid rgba(255,68,102,0.35);background:rgba(255,68,102,0.05);color:var(--text);font-size:0.68rem;font-weight:700;cursor:pointer;text-align:left;line-height:1.4;font-family:DM Sans,sans-serif;'>";
+    h+="<div style='font-size:0.72rem;font-weight:800;margin-bottom:0.2rem;'>"+r.l+"</div>";
+    h+="<div style='font-size:0.6rem;color:var(--muted);font-weight:400;'>"+r.d+"</div></button>";
+  });
+  h+="</div>";
+  h+="<button onclick='resetAllDataComplet()' style='width:100%;padding:0.75rem;border-radius:10px;border:none;background:linear-gradient(135deg,#cc1133,var(--red));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;box-shadow:0 4px 18px rgba(255,68,102,0.3);'>\uD83D\uDDD1\uFE0F Reset TOTAL \u2014 Nouveau cycle complet</button>";
+  return h;
+}
+window.renderAdmResetPanel=renderAdmResetPanel;
+function setAppMode(mode){ try{localStorage.setItem("ambi241_app_mode",mode);}catch(e){} var l={live:"\uD83D\uDFE2 Mode Live activ\u00e9",prelancement:"\uD83D\uDD35 Mode Pr\u00e9-lancement activ\u00e9",maintenance:"\uD83D\uDD34 Maintenance activ\u00e9e"}; showToast(l[mode]||"Mode mis \u00e0 jour"); }
+window.setAppMode=setAppMode;
+function toggleFeature(key,val){ try{localStorage.setItem(key,val?"1":"0");}catch(e){} showToast((val?"\u2705 ":"\uD83D\uDD15 ")+key.replace("feat_","").replace(/_/g," ")+(val?" activ\u00e9":" d\u00e9sactiv\u00e9")); }
+window.toggleFeature=toggleFeature;
+function resetDataMembres(){ if(!confirm("R\u00e9initialiser les donn\u00e9es des membres simples ?")) return; var keys=[]; for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(!k)continue;if(k.indexOf("ambi241_lastpres_")===0||k.indexOf("ambi241_vcd_")===0||k.indexOf("ambi241_membre_score_")===0||k.indexOf("ambi241_membre_activity_")===0)keys.push(k);} keys.forEach(function(k){try{localStorage.removeItem(k);}catch(e){}});showToast("\u2705 Membres simples r\u00e9initialis\u00e9s ("+keys.length+" cl\u00e9s)"); }
+window.resetDataMembres=resetDataMembres;
+function resetDataChauffeurs(){ if(!confirm("R\u00e9initialiser les donn\u00e9es des chauffeurs Taxi Pro ?")) return; var keys=[]; for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(!k)continue;if(k.indexOf("ambi241_driver_")===0||k.indexOf("ambi241_taxi_cycle_")===0)keys.push(k);} keys.forEach(function(k){try{localStorage.removeItem(k);}catch(e){}});if(window.db&&window.fbCollection&&window.fbGetDocs&&window.fbDeleteDoc){try{window.fbGetDocs(window.fbCollection(window.db,"taxi_scores")).then(function(s){s.forEach(function(d){window.fbDeleteDoc(d.ref).catch(function(){});});}).catch(function(){});}catch(e){}}showToast("\u2705 Chauffeurs r\u00e9initialis\u00e9s"); }
+window.resetDataChauffeurs=resetDataChauffeurs;
+function resetDataGerants(){ if(!confirm("R\u00e9initialiser les donn\u00e9es des g\u00e9rants ?")) return; if(typeof etablissements!=="undefined"&&etablissements)etablissements.forEach(function(e){e.affluence=0;if(e._voteData)e._voteData={pos:0,neg:0};}); var keys=[]; for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(!k)continue;if(k.indexOf("ambi241_gerant_")===0||k.indexOf("ambi241_etab_aff_")===0)keys.push(k);} keys.forEach(function(k){try{localStorage.removeItem(k);}catch(e){}}); if(typeof renderAll==="function")setTimeout(renderAll,300); showToast("\u2705 G\u00e9rants r\u00e9initialis\u00e9s"); }
+window.resetDataGerants=resetDataGerants;
+function resetAllDataComplet(){ if(!confirm("\u26A0\uFE0F RESET TOTAL\n\nCette action r\u00e9initialise :\n\u2022 Classement \u00e9tablissements\n\u2022 Membres simples\n\u2022 Chauffeurs Taxi Pro\n\u2022 G\u00e9rants\u2019 scores\n\nProfils et photos resteront intacts.\n\nConfirmer ?")) return; try{localStorage.removeItem("ambi241_all_presence");localStorage.removeItem("ambi241_all_votes");}catch(e){} var del=[]; for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(!k)continue;if(k.indexOf("ambi241_lastpres_")===0||k.indexOf("ambi241_vcd_")===0||k.indexOf("ambi241_anon_presence_")===0||k.indexOf("ambi241_membre_score_")===0||k.indexOf("ambi241_membre_activity_")===0||k.indexOf("ambi241_driver_")===0||k.indexOf("ambi241_taxi_cycle_")===0||k.indexOf("ambi241_gerant_")===0||k.indexOf("ambi241_etab_aff_")===0)del.push(k);} del.forEach(function(k){try{localStorage.removeItem(k);}catch(e){}}); var ss=[]; for(var j=0;j<sessionStorage.length;j++){var sk=sessionStorage.key(j);if(sk&&sk.indexOf("ambi241_anon_")===0)ss.push(sk);} ss.forEach(function(k){try{sessionStorage.removeItem(k);}catch(e){}}); if(typeof etablissements!=="undefined"&&etablissements)etablissements.forEach(function(e){e.affluence=0;if(e._voteData)e._voteData={pos:0,neg:0};}); if(window.db&&window.fbCollection&&window.fbGetDocs&&window.fbDeleteDoc){["presences","votes","taxi_scores"].forEach(function(col){try{window.fbGetDocs(window.fbCollection(window.db,col)).then(function(s){s.forEach(function(d){window.fbDeleteDoc(d.ref).catch(function(){});});}).catch(function(){});}catch(e){}});} var now=Date.now(); try{localStorage.setItem("ambi241_cycle_start",String(now));localStorage.setItem("ambi241_cycle_reset_count",String(parseInt(localStorage.getItem("ambi241_cycle_reset_count")||"0")+1));}catch(e){} if(typeof _rankSort!=="undefined")_rankSort={col:"score",asc:false}; showToast("\u2705 Reset total \u2014 nouveau cycle d\u00e9marr\u00e9 !"); setTimeout(function(){if(typeof renderAll==="function")renderAll();if(typeof renderAdmClassement==="function")renderAdmClassement();renderAdmSettings();},400); }
+window.resetAllDataComplet=resetAllDataComplet;
 
 function changeAdminPin(){
   var inp=document.getElementById("newPinInput");
@@ -18446,34 +18650,85 @@ window.doAssignEtab = doAssignEtab;
 
       <!-- ══ Notifications ══ -->
       <div id="admpanel-notifs" class="adm-panel" style="display:none;">
-        <div class="card amber-border" style="margin-bottom:1rem;">
-          <div class="card-title" style="color:var(--amber);">📨 Envoyer une notification</div>
-          <div class="field">
-            <label>Destinataires</label>
-            <select id="admNotifTarget">
-              <option value="all">📢 Tous les utilisateurs</option>
-              <option value="membre">👤 Membres uniquement</option>
-              <option value="etablissement">🏙️ Établissements uniquement</option>
-              <option value="visiteur">👁️ Visiteurs uniquement</option>
-            </select>
+
+        <!-- ══ 🚨 NOTIFICATIONS URGENTES ══ -->
+        <div style="background:linear-gradient(135deg,rgba(255,68,102,0.12),rgba(255,45,155,0.07));border:2px solid rgba(255,68,102,0.55);border-radius:16px;padding:1.1rem;margin-bottom:1rem;position:relative;overflow:hidden;">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--red),var(--pink),var(--red));animation:evtShimmer 1.8s infinite;"></div>
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+            <span style="font-size:1.3rem;animation:pulse 1.2s infinite;">🚨</span>
+            <span style="font-family:Syne,sans-serif;font-weight:800;color:var(--red);font-size:0.9rem;letter-spacing:0.02em;">Notification URGENTE</span>
+            <span style="margin-left:auto;font-size:0.6rem;background:rgba(255,68,102,0.2);border:1px solid rgba(255,68,102,0.5);color:var(--red);padding:0.15rem 0.45rem;border-radius:20px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;">Priorité MAX</span>
           </div>
-          <div class="field">
-            <label>Titre <span style="color:var(--red);">*</span></label>
-            <input id="admNotifTitle" type="text" placeholder="Ex: Soirée spéciale ce soir !" maxlength="60">
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.85rem;line-height:1.5;">Diffusée immédiatement à tous — apparaît en bannière rouge persistante sur chaque écran utilisateur.</div>
+          <!-- Templates rapides urgents -->
+          <div style="font-size:0.65rem;font-weight:800;color:rgba(255,68,102,0.8);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem;">⚡ Templates rapides</div>
+          <div style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-bottom:0.85rem;">
+            <button onclick="admApplyUrgentTemplate('fermeture')" style="font-size:0.65rem;padding:0.28rem 0.55rem;border-radius:8px;border:1px solid rgba(255,68,102,0.35);background:rgba(255,68,102,0.08);color:var(--red);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;">🔒 Fermeture</button>
+            <button onclick="admApplyUrgentTemplate('incident')" style="font-size:0.65rem;padding:0.28rem 0.55rem;border-radius:8px;border:1px solid rgba(255,68,102,0.35);background:rgba(255,68,102,0.08);color:var(--red);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;">⚠️ Incident</button>
+            <button onclick="admApplyUrgentTemplate('maintenance')" style="font-size:0.65rem;padding:0.28rem 0.55rem;border-radius:8px;border:1px solid rgba(255,68,102,0.35);background:rgba(255,68,102,0.08);color:var(--red);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;">🔧 Maintenance</button>
+            <button onclick="admApplyUrgentTemplate('securite')" style="font-size:0.65rem;padding:0.28rem 0.55rem;border-radius:8px;border:1px solid rgba(255,68,102,0.35);background:rgba(255,68,102,0.08);color:var(--red);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;">🛡️ Sécurité</button>
           </div>
-          <div class="field">
-            <label>Message</label>
-            <textarea id="admNotifMsg" placeholder="Entrez votre message..." maxlength="200" style="resize:vertical;min-height:60px;width:100%;"></textarea>
+          <div style="margin-bottom:0.55rem;">
+            <input id="admUrgentTitle" type="text" maxlength="60" placeholder="Titre de l'alerte urgente…" style="width:100%;background:rgba(255,68,102,0.07);border:1.5px solid rgba(255,68,102,0.35);border-radius:9px;color:var(--text);padding:0.55rem 0.75rem;font-size:0.82rem;font-family:DM Sans,sans-serif;">
           </div>
-          <div style="display:flex;gap:0.5rem;align-items:center;">
-            <select id="admNotifIcon" style="background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:1rem;">
-              <option>🔥</option><option>🎉</option><option>✨</option><option>✅</option><option>📣</option><option>🏆</option>
-            </select>
-            <button class="btn btn-primary btn-full" onclick="admSendNotif()">📨 Envoyer</button>
+          <div style="margin-bottom:0.7rem;">
+            <textarea id="admUrgentMsg" maxlength="250" placeholder="Message d'urgence — soyez concis et clair…" style="width:100%;background:rgba(255,68,102,0.07);border:1.5px solid rgba(255,68,102,0.35);border-radius:9px;color:var(--text);padding:0.55rem 0.75rem;font-size:0.8rem;resize:vertical;min-height:65px;font-family:DM Sans,sans-serif;"></textarea>
           </div>
+          <button onclick="admSendUrgentNotif()" style="width:100%;padding:0.72rem;border-radius:11px;border:none;background:linear-gradient(135deg,var(--red),#cc2244);color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.45rem;box-shadow:0 4px 18px rgba(255,68,102,0.35);">🚨 Envoyer alerte urgente à TOUS</button>
         </div>
-        <div class="sec-title" style="color:var(--pink);">📜 Toutes les notifications</div>
-        <div id="adminAllNotifs">Chargement...</div>
+
+        <!-- ══ 📨 NOTIFICATION STANDARD ══ -->
+        <div style="background:rgba(255,215,0,0.04);border:1.5px solid rgba(255,215,0,0.3);border-radius:16px;padding:1.1rem;margin-bottom:1rem;">
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.8rem;">
+            <span style="font-size:1.1rem;">📨</span>
+            <span style="font-family:Syne,sans-serif;font-weight:800;color:var(--amber);font-size:0.88rem;">Notification standard</span>
+          </div>
+          <!-- Templates standards -->
+          <div style="font-size:0.65rem;font-weight:800;color:rgba(255,215,0,0.7);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem;">📋 Templates</div>
+          <div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.75rem;">
+            <button onclick="admApplyTemplate('soiree')" style="font-size:0.63rem;padding:0.25rem 0.5rem;border-radius:7px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.06);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;">🎉 Soirée</button>
+            <button onclick="admApplyTemplate('promo')" style="font-size:0.63rem;padding:0.25rem 0.5rem;border-radius:7px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.06);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;">🎁 Promo</button>
+            <button onclick="admApplyTemplate('classement')" style="font-size:0.63rem;padding:0.25rem 0.5rem;border-radius:7px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.06);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;">🏆 Classement</button>
+            <button onclick="admApplyTemplate('nouveaute')" style="font-size:0.63rem;padding:0.25rem 0.5rem;border-radius:7px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.06);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;">✨ Nouveauté</button>
+            <button onclick="admApplyTemplate('bienvenue')" style="font-size:0.63rem;padding:0.25rem 0.5rem;border-radius:7px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.06);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;">👋 Bienvenue</button>
+          </div>
+          <div style="margin-bottom:0.55rem;">
+            <label style="font-size:0.7rem;color:var(--muted);display:block;margin-bottom:0.3rem;font-weight:700;">Destinataires</label>
+            <select id="admNotifTarget" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:9px;color:var(--text);padding:0.5rem 0.7rem;font-size:0.82rem;">
+              <option value="all">📢 Tous les utilisateurs</option>
+              <option value="membre">👤 Membres simples</option>
+              <option value="etablissement">🏙️ Gérants d'établissements</option>
+              <option value="chauffeur">🚕 Chauffeurs Taxi Pro</option>
+              <option value="visiteur">👁️ Visiteurs anonymes</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:0.5rem;margin-bottom:0.55rem;">
+            <select id="admNotifType" style="flex-shrink:0;width:130px;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:9px;color:var(--text);padding:0.5rem;font-size:0.78rem;">
+              <option value="info">ℹ️ Info</option>
+              <option value="event">🎉 Événement</option>
+              <option value="promo">🎁 Promo</option>
+              <option value="alerte">⚠️ Alerte</option>
+              <option value="update">🆕 Mise à jour</option>
+            </select>
+            <select id="admNotifIcon" style="flex-shrink:0;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:9px;color:var(--text);padding:0.5rem;font-size:1rem;width:65px;">
+              <option>🔥</option><option>🎉</option><option>✨</option><option>✅</option><option>📣</option><option>🏆</option><option>💜</option><option>🌟</option><option>🎵</option><option>🍸</option>
+            </select>
+          </div>
+          <div style="margin-bottom:0.55rem;">
+            <input id="admNotifTitle" type="text" placeholder="Titre de la notification *" maxlength="60" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:9px;color:var(--text);padding:0.55rem 0.75rem;font-size:0.82rem;">
+          </div>
+          <div style="margin-bottom:0.7rem;">
+            <textarea id="admNotifMsg" placeholder="Message complet…" maxlength="200" style="resize:vertical;min-height:65px;width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:9px;color:var(--text);padding:0.55rem 0.75rem;font-size:0.8rem;font-family:DM Sans,sans-serif;"></textarea>
+          </div>
+          <button onclick="admSendNotif()" style="width:100%;padding:0.68rem;border-radius:11px;border:none;background:linear-gradient(135deg,var(--amber),var(--pink));color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;">📨 Envoyer la notification</button>
+        </div>
+
+        <!-- ══ 🔔 HISTORIQUE & GESTION ══ -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;">
+          <div style="font-family:Syne,sans-serif;font-weight:800;color:var(--pink);font-size:0.85rem;">📜 Historique des notifications</div>
+          <button onclick="admClearAllNotifs()" style="font-size:0.65rem;color:var(--muted);background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:7px;padding:0.25rem 0.55rem;cursor:pointer;font-family:DM Sans,sans-serif;">🗑️ Tout effacer</button>
+        </div>
+        <div id="adminAllNotifs" style="min-height:60px;">Chargement...</div>
       </div>
 
       <!-- ══ Config App ══ -->
