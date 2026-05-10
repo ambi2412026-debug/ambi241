@@ -5374,7 +5374,7 @@ if (document.readyState === 'loading') {
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
 import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query, where, getDoc, addDoc, onSnapshot, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
 import { getStorage, ref, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-storage.js";
 
 const firebaseConfig = {
@@ -5390,6 +5390,9 @@ const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
+
+// ── Persistance locale : la session survit au refresh ──
+setPersistence(auth, browserLocalPersistence).catch(function(){});
 
 // ── Expose tout en global pour le script classique ci-dessous ──
 window.db           = db;
@@ -28235,6 +28238,9 @@ console.log('✨ AMBI241 Animations v2.1 stable — OK');
 /* ─── Patch switchAdmTab pour les nouveaux onglets ─── */
 var _origSwitchAdmTab = window.switchAdmTab;
 window.switchAdmTab = function(tab){
+  // Synchroniser les deux variables (locale + window)
+  window._currentAdmTab = tab;
+  try{ _currentAdmTab = tab; }catch(e){}
   // Gérer les nouveaux panels
   var newTabs = ['content','appconfig'];
   var allTabs = ["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support","content","appconfig"];
@@ -28245,13 +28251,11 @@ window.switchAdmTab = function(tab){
     if(panel) panel.style.display = (t===tab ? 'block' : 'none');
   });
   if(tab === 'content'){
-    window._currentAdmTab = tab;
-    renderAdmContent();
+    renderAdmContent(0);
     return;
   }
   if(tab === 'appconfig'){
-    window._currentAdmTab = tab;
-    renderAdmAppConfig();
+    renderAdmAppConfig(0);
     return;
   }
   _origSwitchAdmTab(tab);
@@ -28398,14 +28402,28 @@ var _admPubList = [];
 var _admPubFilter = 'all';
 var _admPubSearch = '';
 
-window.renderAdmContent = function(){
+window.renderAdmContent = function(attempt){
+  attempt = attempt || 0;
   var panel = document.getElementById('adminContentPanel');
   if(!panel) return;
-  panel.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.8rem;">⏳ Chargement des publications...</div>';
+  // Vérifier que l'onglet content est toujours actif (les deux variables)
+  var isActive = (window._currentAdmTab==='content') || (typeof _currentAdmTab!=='undefined' && _currentAdmTab==='content');
 
   if(!window.db || !window.fbCollection || !window.fbGetDocs || !window.fbQuery || !window.fbOrderBy){
-    panel.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--red);">Firebase non disponible.</div>'; return;
+    if(attempt === 0){
+      panel.innerHTML = '<div style="text-align:center;padding:2.5rem 1rem;color:var(--muted);font-size:0.82rem;">⏳ Connexion Firebase en cours…<br><span style="font-size:0.72rem;opacity:0.6;">Nouvelle tentative automatique</span></div>';
+    }
+    if(attempt < 15){
+      setTimeout(function(){
+        var stillActive = (window._currentAdmTab==='content') || (typeof _currentAdmTab!=='undefined' && _currentAdmTab==='content');
+        if(stillActive) window.renderAdmContent(attempt + 1);
+      }, 1000);
+    } else {
+      panel.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--red);font-size:0.82rem;">⚠️ Firebase indisponible.<br><button onclick="window.renderAdmContent(0)" style="margin-top:0.7rem;padding:0.4rem 1rem;border-radius:8px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.08);color:var(--cyan);cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.78rem;">↻ Réessayer</button></div>';
+    }
+    return;
   }
+  panel.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.8rem;">⏳ Chargement des publications...</div>';
 
   var q = window.fbQuery(window.fbCollection(window.db,'publications'), window.fbOrderBy('createdAt','desc'));
   window.fbGetDocs(q).then(function(snap){
@@ -28513,12 +28531,26 @@ window.admHidePub = function(docId, hide){
 
 var _appCfg = {};
 
-window.renderAdmAppConfig = function(){
+window.renderAdmAppConfig = function(attempt){
+  attempt = attempt || 0;
   var panel = document.getElementById('adminAppConfigPanel');
   if(!panel) return;
-  panel.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);">⏳ Chargement...</div>';
 
-  if(!window.db){ panel.innerHTML='<div style="color:var(--red);padding:1rem;">Firebase non disponible.</div>'; return; }
+  if(!window.db){
+    if(attempt === 0){
+      panel.innerHTML = '<div style="text-align:center;padding:2.5rem 1rem;color:var(--muted);font-size:0.82rem;">⏳ Connexion Firebase en cours…<br><span style="font-size:0.72rem;opacity:0.6;">Nouvelle tentative automatique</span></div>';
+    }
+    if(attempt < 15){
+      setTimeout(function(){
+        var stillActive = (window._currentAdmTab==='appconfig') || (typeof _currentAdmTab!=='undefined' && _currentAdmTab==='appconfig');
+        if(stillActive) window.renderAdmAppConfig(attempt + 1);
+      }, 1000);
+    } else {
+      panel.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--red);font-size:0.82rem;">⚠️ Firebase indisponible.<br><button onclick="window.renderAdmAppConfig(0)" style="margin-top:0.7rem;padding:0.4rem 1rem;border-radius:8px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.08);color:var(--cyan);cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.78rem;">↻ Réessayer</button></div>';
+    }
+    return;
+  }
+  panel.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);">⏳ Chargement...</div>';
 
   window.fbGetDoc(window.fbDoc(window.db,'config','app_settings'))
     .then(function(snap){
@@ -28721,6 +28753,73 @@ setTimeout(_checkGlobalBanner, 3000);
 setInterval(_checkGlobalBanner, 120000);
 
 console.log('✅ AMBI241 Admin Control v2.0 chargé');
+})();
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   ══ PROTECTION FERMETURE / NAVIGATION ACCIDENTELLE         ══
+   ══════════════════════════════════════════════════════════════
+   Affiche la boîte de confirmation native du navigateur
+   si l'utilisateur est connecté et tente de :
+     • fermer l'onglet / la fenêtre
+     • rafraîchir la page (F5, Ctrl+R)
+     • naviguer vers une URL externe
+   Le message affiché dépend du navigateur (non personnalisable
+   pour des raisons de sécurité) mais la boîte apparaît bien.
+   Le logout volontaire (bouton "Quitter") désactive la garde.
+*/
+(function(){
+  var _guardActive = false;
+
+  // Active la garde dès qu'un utilisateur est connecté
+  function _enableGuard(){
+    if(_guardActive) return;
+    _guardActive = true;
+    window.addEventListener('beforeunload', _onBeforeUnload);
+  }
+
+  // Désactive la garde (appelé avant signOut volontaire)
+  function _disableGuard(){
+    _guardActive = false;
+    window.removeEventListener('beforeunload', _onBeforeUnload);
+  }
+
+  function _onBeforeUnload(e){
+    if(!_guardActive) return;
+    // currentUserUID est exposé par le bloc Firebase module
+    if(!window.currentUserUID) return;
+    e.preventDefault();
+    e.returnValue = ''; // requis par Chrome / Edge
+    return '';          // requis par Firefox / Safari
+  }
+
+  // Surveille la connexion dès que window.currentUserUID change
+  var _guardPoll = setInterval(function(){
+    if(window.currentUserUID){
+      _enableGuard();
+    } else {
+      _disableGuard();
+    }
+  }, 1000);
+
+  // Désactiver la garde avant un logout volontaire
+  // On enveloppe logoutUser pour couper la garde avant signOut
+  document.addEventListener('DOMContentLoaded', function(){
+    var _interval = setInterval(function(){
+      if(typeof window.logoutUser === 'function'){
+        clearInterval(_interval);
+        var _origLogout = window.logoutUser;
+        window.logoutUser = function(){
+          _disableGuard();
+          _origLogout.apply(this, arguments);
+        };
+      }
+    }, 500);
+  });
+
+  window._enableBeforeUnloadGuard  = _enableGuard;
+  window._disableBeforeUnloadGuard = _disableGuard;
 })();
 </script>
 
