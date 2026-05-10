@@ -16,7 +16,28 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 <style>
 :root{--bg:#1a0a28;--surface:#230d35;--surface2:#2c1040;--border:rgba(255,45,155,0.15);--text:#fff0f8;--muted:#b088c0;--pink:#ff2d9b;--cyan:#00e5ff;--amber:#ffd700;--green:#00ffaa;--red:#ff4466;--purple:#cc44ff;--taxi-gold:#ffd700;--taxi-dark:#1a0a28;}
-html{overflow-x:hidden;max-width:100vw;}
+/* ══ BANNIÈRE HORS RÉSEAU ══ */
+#offlineBanner{
+  display:none;position:fixed;top:0;left:0;right:0;z-index:9999;
+  background:linear-gradient(90deg,rgba(255,68,102,0.97),rgba(204,30,80,0.97));
+  color:#fff;font-family:'DM Sans',sans-serif;font-size:0.78rem;font-weight:700;
+  padding:0.55rem 1rem;text-align:center;
+  box-shadow:0 2px 16px rgba(255,68,102,0.45);
+  animation:slideDown 0.35s ease;
+  align-items:center;justify-content:center;gap:0.5rem;
+}
+#offlineBanner.show{display:flex;}
+#offlineBanner .ob-icon{font-size:1rem;}
+#offlineBanner .ob-msg{flex:1;text-align:center;}
+#offlineBanner .ob-queue{
+  background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.4);
+  color:#fff;font-size:0.68rem;font-weight:800;padding:0.18rem 0.55rem;
+  border-radius:20px;cursor:default;white-space:nowrap;
+}
+/* Décale le contenu quand la bannière est visible */
+body.is-offline{padding-top:calc(116px + 34px);}
+
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;padding-bottom:62px;padding-top:116px;max-width:100vw;}
 body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(255,45,155,0.12) 0%,transparent 50%),radial-gradient(ellipse at 90% 30%,rgba(0,229,255,0.10) 0%,transparent 50%),radial-gradient(ellipse at 50% 90%,rgba(204,68,255,0.08) 0%,transparent 50%);pointer-events:none;z-index:0;will-change:transform;}
@@ -4938,6 +4959,13 @@ if (document.readyState === 'loading') {
 <div class="notif-toast" id="notifToast"></div>
 
 <!-- ══ BANNER INSTALL IOS ══ -->
+<!-- ══ BANNIÈRE HORS RÉSEAU ══ -->
+<div id="offlineBanner">
+  <span class="ob-icon">📡</span>
+  <span class="ob-msg">Pas de connexion — affichage des données en cache</span>
+  <span class="ob-queue" id="offlineQueueCount" style="display:none;">0 action(s) en attente</span>
+</div>
+
 <div id="iosBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:rgba(13,0,20,0.97);border-top:1px solid rgba(204,68,255,0.4);padding:0.9rem 1rem;z-index:450;display:none;align-items:center;gap:0.7rem;box-shadow:0 -4px 24px rgba(204,68,255,0.2);">
   <div style="font-size:1.6rem;flex-shrink:0;">&#128640;</div>
   <div style="flex:1;">
@@ -5606,7 +5634,7 @@ if (document.readyState === 'loading') {
 <!-- ══ FIREBASE SDK (module isolé) ══ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query, where, getDoc, addDoc, onSnapshot, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query, where, getDoc, addDoc, onSnapshot, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
 import { getStorage, ref, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-storage.js";
 
@@ -5620,7 +5648,21 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db  = getFirestore(app);
+// ── Persistance Firestore offline : cache IndexedDB multi-onglets ──
+let db;
+try {
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  });
+} catch(e) {
+  // Fallback si multi-tab non supporté (ex. Private Browsing sur Firefox)
+  try {
+    db = initializeFirestore(app, { localCache: persistentLocalCache() });
+  } catch(e2) {
+    const { getFirestore: _gfs } = await import("https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js");
+    db = _gfs(app);
+  }
+}
 const auth = getAuth(app);
 const storage = getStorage(app);
 
@@ -8442,29 +8484,146 @@ function updateField(id,fields){
     if(!window.db||typeof window.fbAddDoc!=="function"){setSyncing(false);showToast("Mis à jour localement");return;}
     var newDoc=Object.assign({},e);
     delete newDoc._docId;
-    window.fbAddDoc(window.fbCollection(window.db,"etablissements"),newDoc).then(function(ref){
-      e._docId=ref.id;
-      showToast("✅ Créé dans Firebase !");setSyncing(false);updateSyncTime();
-    }).catch(function(err){
-      console.error("Firebase addDoc:",err);
-      showToast("Mis à jour localement");setSyncing(false);
-    });
+    var _eFn=(function(eRef,nd){ return function(){ return window.fbAddDoc(window.fbCollection(window.db,"etablissements"),nd).then(function(ref){ eRef._docId=ref.id; showToast("✅ Créé dans Firebase !"); setSyncing(false); updateSyncTime(); }); }; })(e,newDoc);
+    window.safeWrite(_eFn,"Création établissement").catch(function(err){ console.error("Firebase addDoc:",err); showToast("Mis à jour localement"); setSyncing(false); });
     return;
   }
   var docRef=window.fbDoc(window.db,"etablissements",e._docId);
-  window.fbUpdateDoc(docRef,fields).then(function(){
-    showToast("Mis à jour !");setSyncing(false);updateSyncTime();
-  }).catch(function(err){
-    console.error("Firebase updateField:",err);
-    showToast("Mis à jour localement");setSyncing(false);
-  });
+  var _uFn=(function(dr,f){ return function(){ return window.fbUpdateDoc(dr,f).then(function(){ showToast("Mis à jour !"); setSyncing(false); updateSyncTime(); }); }; })(docRef,fields);
+  window.safeWrite(_uFn,"Mise à jour établissement").catch(function(err){ console.error("Firebase updateField:",err); showToast("Mis à jour localement"); setSyncing(false); });
 }
 
 function setSyncing(v){
   document.getElementById("syncSpinner").style.display=v?"block":"none";
   var statusEl=document.getElementById("syncStatus");
-  if(statusEl) statusEl.textContent=v?(typeof i18n!=="undefined"?i18n.t("sync_ing"):"Synchronisation..."):(typeof i18n!=="undefined"?i18n.t("sync_live"):"Données en direct");
+  if(statusEl && !window._isOffline) statusEl.textContent=v?(typeof i18n!=="undefined"?i18n.t("sync_ing"):"Synchronisation..."):(typeof i18n!=="undefined"?i18n.t("sync_live"):"Données en direct");
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   🔌 SYSTÈME OFFLINE — détection réseau + file d'attente + UI
+   ══════════════════════════════════════════════════════════════════ */
+(function(){
+
+  /* ── État global ── */
+  window._isOffline   = !navigator.onLine;
+  window._offlineQueue = []; // { fn, label }
+
+  /* ── Éléments UI ── */
+  function _getBanner(){ return document.getElementById('offlineBanner'); }
+  function _getQueueBadge(){ return document.getElementById('offlineQueueCount'); }
+  function _getSyncStatus(){ return document.getElementById('syncStatus'); }
+
+  /* ── Mise à jour du badge file d'attente ── */
+  function _updateQueueBadge(){
+    var badge = _getQueueBadge();
+    if(!badge) return;
+    var n = window._offlineQueue.length;
+    if(n > 0){
+      badge.style.display = '';
+      badge.textContent = n + ' action' + (n > 1 ? 's' : '') + ' en attente';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  /* ── Afficher/masquer la bannière ── */
+  function _showOfflineBanner(){
+    var b = _getBanner();
+    if(b) b.classList.add('show');
+    document.body.classList.add('is-offline');
+    var ss = _getSyncStatus();
+    if(ss){ ss.textContent = '📡 Hors ligne'; ss.style.color = 'var(--red)'; }
+    _updateQueueBadge();
+  }
+  function _hideOfflineBanner(){
+    var b = _getBanner();
+    if(b) b.classList.remove('show');
+    document.body.classList.remove('is-offline');
+    var ss = _getSyncStatus();
+    if(ss){ ss.style.color = ''; ss.textContent = 'Données en direct'; }
+  }
+
+  /* ── Vider la file d'attente ── */
+  function _drainQueue(){
+    if(!window._offlineQueue.length) return;
+    var queue = window._offlineQueue.slice();
+    window._offlineQueue = [];
+    _updateQueueBadge();
+    showToast('🔄 Reconnexion — ' + queue.length + ' action(s) en cours…');
+    queue.forEach(function(item){
+      try {
+        var p = item.fn();
+        if(p && typeof p.catch === 'function'){
+          p.catch(function(){
+            // Remettre en queue si ça échoue encore
+            window._offlineQueue.push(item);
+            _updateQueueBadge();
+          });
+        }
+      } catch(e) {
+        window._offlineQueue.push(item);
+        _updateQueueBadge();
+      }
+    });
+    setTimeout(function(){
+      if(!window._offlineQueue.length){
+        showToast('✅ Synchronisation terminée');
+      }
+    }, 2000);
+  }
+
+  /* ── Helper global : exécuter ou mettre en file ── */
+  window.safeWrite = function(fn, label){
+    if(window._isOffline){
+      window._offlineQueue.push({ fn: fn, label: label || 'Action' });
+      _updateQueueBadge();
+      showToast('📥 Sauvegardé localement — envoi à la reconnexion');
+      return Promise.resolve();
+    }
+    return Promise.resolve(fn()).catch(function(err){
+      // Si c'est une erreur réseau, mettre en file
+      if(err && (err.code === 'unavailable' || err.message && err.message.toLowerCase().indexOf('network') !== -1)){
+        window._offlineQueue.push({ fn: fn, label: label || 'Action' });
+        _updateQueueBadge();
+        showToast('📥 Firebase indisponible — mis en attente');
+      } else {
+        throw err;
+      }
+    });
+  };
+
+  /* ── Événements réseau ── */
+  window.addEventListener('offline', function(){
+    window._isOffline = true;
+    _showOfflineBanner();
+    showToast('📡 Connexion perdue — mode hors ligne activé');
+  });
+
+  window.addEventListener('online', function(){
+    window._isOffline = false;
+    _hideOfflineBanner();
+    showToast('✅ Connexion rétablie !');
+    // Recharger les données fraîches
+    if(typeof loadData === 'function'){
+      setTimeout(loadData, 600);
+    }
+    // Vider la file d'attente
+    setTimeout(_drainQueue, 1200);
+  });
+
+  /* ── État initial au chargement ── */
+  if(!navigator.onLine){
+    // Attendre que le DOM soit prêt
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', _showOfflineBanner);
+    } else {
+      setTimeout(_showOfflineBanner, 300);
+    }
+  }
+
+  console.log('[AMBI241] ✅ Système offline chargé — persistance Firestore + file d\'attente active');
+})();
+
 function updateSyncTime(){
   document.getElementById("syncTime").textContent=new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
 }
