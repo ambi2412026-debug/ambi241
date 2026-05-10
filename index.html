@@ -18,7 +18,7 @@
 :root{--bg:#1a0a28;--surface:#230d35;--surface2:#2c1040;--border:rgba(255,45,155,0.15);--text:#fff0f8;--muted:#b088c0;--pink:#ff2d9b;--cyan:#00e5ff;--amber:#ffd700;--green:#00ffaa;--red:#ff4466;--purple:#cc44ff;--taxi-gold:#ffd700;--taxi-dark:#1a0a28;}
 html{overflow-x:hidden;max-width:100vw;}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;padding-bottom:80px;padding-top:116px;max-width:100vw;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;padding-bottom:62px;padding-top:116px;max-width:100vw;}
 body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(255,45,155,0.12) 0%,transparent 50%),radial-gradient(ellipse at 90% 30%,rgba(0,229,255,0.10) 0%,transparent 50%),radial-gradient(ellipse at 50% 90%,rgba(204,68,255,0.08) 0%,transparent 50%);pointer-events:none;z-index:0;will-change:transform;}
 /* Optimisation GPU pour les éléments animés */
 .live-dot,.heb-dot,.dispo-updated-dot,.cef-live,.hero-eyebrow-dot{will-change:opacity,transform;}
@@ -2018,8 +2018,8 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   flex-shrink:0;
 }
 /* BOTTOM NAV */
-.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:50;background:rgba(13,0,20,0.97);backdrop-filter:blur(20px);border-top:1px solid rgba(255,45,155,0.15);display:flex;height:70px;padding:0 0.25rem;width:100%;box-sizing:border-box;overflow:hidden;}
-.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.15rem;cursor:pointer;color:var(--muted);font-size:0.56rem;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;padding:0.4rem;transition:color 0.2s,transform 0.15s;border:none;background:none;font-family:'DM Sans',sans-serif;-webkit-tap-highlight-color:transparent;user-select:none;}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:50;background:rgba(13,0,20,0.97);backdrop-filter:blur(20px);border-top:1px solid rgba(255,45,155,0.15);display:flex;height:54px;padding:0 0.25rem;width:100%;box-sizing:border-box;overflow:hidden;}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.1rem;cursor:pointer;color:var(--muted);font-size:0.52rem;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;padding:0.3rem;transition:color 0.2s,transform 0.15s;border:none;background:none;font-family:'DM Sans',sans-serif;-webkit-tap-highlight-color:transparent;user-select:none;}
 .nav-item:active{transform:scale(0.88);opacity:0.75;}
 .nav-item .nav-icon{font-size:1.1rem;transition:transform 0.2s;}
 .nav-item.active .nav-icon{transform:scale(1.18);}
@@ -5989,6 +5989,8 @@ onAuthStateChanged(auth, function(user) {
       if(typeof _syncUserNotifsFromFirebase === "function") _syncUserNotifsFromFirebase();
       // ── Mettre à jour le label nav Connexion → Profil ──
       if(typeof updateNavLabels === "function") updateNavLabels();
+      // ── Pré-remplir sec-profil avec les vraies données utilisateur ──
+      if(typeof _syncProfilSection === "function") setTimeout(_syncProfilSection, 400);
     }, 2000);
   } else {
     window.currentUserEmail  = "";
@@ -13105,9 +13107,133 @@ function switchSection(name,btn){
 /* ══ NAVIGATION PROFIL / CONNEXION ══════════════════════════════
    — Connexion : utilisateur non connecté → ouvre le modal login
    — Profil    : utilisateur connecté → affiche sa section profil  */
+
+/* Synchronise les données réelles de l'utilisateur connecté dans sec-profil */
+function _syncProfilSection(){
+  var uid    = window.currentUserUID;
+  var email  = window.currentUserEmail  || '';
+  var pseudo = window.currentUserPseudo || email || '';
+
+  /* Initiales (1 ou 2 mots) */
+  var initials = pseudo.trim().split(/\s+/).slice(0,2)
+    .map(function(w){ return w[0] || ''; }).join('').toUpperCase()
+    || (email[0] || '?').toUpperCase();
+
+  var secProfil = document.getElementById('sec-profil');
+  if(!secProfil) return;
+
+  /* ── Avatar : initiales + tentative de chargement photo ── */
+  var avEl = document.getElementById('pav-membre');
+  if(avEl){
+    /* Remplacer le texte brut "KM" par les vraies initiales */
+    Array.from(avEl.childNodes).forEach(function(n){
+      if(n.nodeType === 3) n.textContent = initials;
+    });
+    avEl.style.color = '#00e5ff';
+    /* Charger la vraie photo si disponible */
+    if(uid && typeof loadUserAvatar === 'function'){
+      loadUserAvatar(uid, function(url){
+        var av2 = document.getElementById('pav-membre');
+        if(!av2) return;
+        if(url){
+          var img = av2.querySelector('img');
+          if(!img){ img = document.createElement('img'); av2.prepend(img); }
+          img.src = url;
+          img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%;z-index:1;';
+          /* Masquer le texte d'initiales */
+          Array.from(av2.childNodes).forEach(function(n){ if(n.nodeType === 3) n.textContent = ''; });
+        } else {
+          var img2 = av2.querySelector('img');
+          if(img2) img2.remove();
+          Array.from(av2.childNodes).forEach(function(n){ if(n.nodeType === 3) n.textContent = initials; });
+        }
+      });
+    }
+  }
+
+  /* ── Nom affiché ── */
+  var nameEl = secProfil.querySelector('#pv-membre .profile-name');
+  if(nameEl){
+    var displayName = pseudo || email;
+    nameEl.innerHTML = (typeof escHtml === 'function' ? escHtml(displayName) : displayName)
+      + ' <span class="verified-icon vi-cyan" title="Compte vérifié">✓</span>';
+  }
+
+  /* ── Handle / sous-titre ── */
+  var handleEl = secProfil.querySelector('#pv-membre .profile-handle');
+  if(handleEl){
+    var handle = pseudo ? '@' + pseudo.toLowerCase().replace(/\s+/g,'_') : (email ? '@' + email.split('@')[0] : '');
+    var city   = 'Libreville, Gabon';
+    var parts  = [handle, city].filter(Boolean);
+    handleEl.innerHTML = parts.map(function(p){
+      return '<span>' + (typeof escHtml === 'function' ? escHtml(p) : p) + '</span>';
+    }).join('<span class="handle-sep">·</span>');
+  }
+
+  /* ── Charger les données Firestore (bio, date inscription, etc.) ── */
+  if(uid && window.db && window.fbGetDoc && window.fbDoc){
+    window.fbGetDoc(window.fbDoc(window.db, 'users', uid)).then(function(snap){
+      var d = snap.exists() ? snap.data() : {};
+
+      /* Bio */
+      var bioEl = secProfil.querySelector('#pv-membre .profile-bio');
+      if(bioEl){
+        var bio = d.bio || d.description || '';
+        bioEl.textContent = bio || '✏️ Complétez votre bio dans Mon Profil';
+        bioEl.style.fontStyle = bio ? 'normal' : 'italic';
+        bioEl.style.opacity   = bio ? '1' : '0.55';
+      }
+
+      /* Date membre */
+      if(d.createdAt && handleEl){
+        try {
+          var dt   = new Date(d.createdAt);
+          var mois = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+          var sinceStr = 'Membre depuis ' + mois[dt.getMonth()] + ' ' + dt.getFullYear();
+          var parts2   = [handle, city, sinceStr].filter(Boolean);
+          handleEl.innerHTML = parts2.map(function(p){
+            return '<span>' + (typeof escHtml === 'function' ? escHtml(p) : p) + '</span>';
+          }).join('<span class="handle-sep">·</span>');
+        } catch(e){}
+      }
+
+      /* Tags */
+      var tagsEl = secProfil.querySelector('#pv-membre .profile-tags');
+      if(tagsEl && d.interests && Array.isArray(d.interests) && d.interests.length){
+        tagsEl.innerHTML = d.interests.slice(0,5).map(function(tag){
+          return '<span class="ptag-item">' + (typeof escHtml === 'function' ? escHtml(tag) : tag) + '</span>';
+        }).join('');
+      }
+
+      /* Badge rôle */
+      var roleBadge = secProfil.querySelector('#pv-membre .p-role-badge');
+      if(roleBadge){
+        var role = (typeof getUserRole === 'function') ? getUserRole() : 'membre';
+        var roleMap = {
+          admin:          {cls:'rb-membre', label:'⭐ Admin'},
+          super_admin:    {cls:'rb-membre', label:'🔑 Super Admin'},
+          establishment:  {cls:'rb-etab',   label:'🏛️ Établissement'},
+          chauffeur:      {cls:'rb-chauffeur', label:'🚕 Chauffeur'},
+          membre:         {cls:'rb-membre', label:'● Membre Premium'},
+          user:           {cls:'rb-membre', label:'● Membre'}
+        };
+        var rm = roleMap[role] || roleMap['user'];
+        roleBadge.className = 'p-role-badge ' + rm.cls;
+        roleBadge.innerHTML = '<span class="rb-dot"></span>' + rm.label;
+      }
+
+    }).catch(function(){});
+  }
+
+  /* ── Basculer sur l'onglet Membre (rôle par défaut) ── */
+  if(typeof pSwitchRole === 'function') pSwitchRole('membre');
+}
+window._syncProfilSection = _syncProfilSection;
+
 function navHandleProfil(btn){
   var connected = !!(window.currentUserUID);
   if(connected){
+    _syncProfilSection();   /* ← injecter les vraies données AVANT d'afficher */
     switchSection('profil', btn);
   } else {
     /* Ouvrir le modal connexion/inscription */
