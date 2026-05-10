@@ -9401,22 +9401,22 @@ function onAvatarFileSelected(input){
 window.onAvatarFileSelected = onAvatarFileSelected;
 
 // Traitement fichier avatar (commun upload + drag-drop)
-// Méthode simple : FileReader + Canvas → base64 → Firestore (même logique que admin photos)
 function _processAvatarFile(file){
   if(!file) return;
+  // Accepter tous les formats image (JPEG, PNG, WEBP, GIF, HEIC, AVIF, BMP, TIFF, SVG…)
   var isImgType = file.type.startsWith("image/") ||
     /\.(jpe?g|png|webp|gif|heic|heif|avif|bmp|tiff?|svg|ico)$/i.test(file.name);
   if(!isImgType){ _setAvatarStatus("error","❌ Fichier non reconnu comme image"); return; }
   if(file.size > 10*1024*1024){ _setAvatarStatus("error","❌ Image trop grande (max 10 Mo)"); return; }
   var uid = window.currentUserUID;
   if(!uid){ _setAvatarStatus("error","❌ Connectez-vous d'abord"); return; }
-  _setAvatarStatus("uploading","⏳ Traitement…");
+  _setAvatarStatus("uploading","⏳ Upload en cours…");
+  showUploadProgress(10, "Avatar...");
 
   var reader = new FileReader();
   reader.onload = function(ev){
     var img = new Image();
     img.onload = function(){
-      // Recadrage carré centré + compression (identique à adminDefaultPhotoSelected)
       var canvas = document.createElement("canvas");
       var size = 240;
       canvas.width = size; canvas.height = size;
@@ -9424,37 +9424,33 @@ function _processAvatarFile(file){
       var s = Math.min(img.width, img.height);
       var sx = (img.width-s)/2, sy = (img.height-s)/2;
       ctx2.drawImage(img, sx, sy, s, s, 0, 0, size, size);
-      var dataUrl = canvas.toDataURL("image/jpeg", 0.88);
-
-      // Sauvegarder en Firestore (avatarUrl) si disponible, sinon localStorage
-      function applyAvatar(url){
-        _userAvatarCache[uid] = url;
-        // Mise à jour localStorage comme cache local
-        try { localStorage.setItem("ambi241_user_photo_profile_"+uid, url); } catch(e){}
-        var pseudo = window.currentUserPseudo||window.currentUserEmail||"?";
-        var initiale = (pseudo||"?")[0].toUpperCase();
-        _renderMyAvatar(uid, initiale);
-        _setAvatarStatus("success","✅ Photo mise à jour !");
-        setTimeout(function(){ _setAvatarStatus("",""); }, 3500);
-        showToast("📷 Photo de profil mise à jour !");
-      }
-
-      if(window.db && window.fbUpdateDoc && window.fbDoc){
-        window.fbUpdateDoc(window.fbDoc(window.db,"users",uid),{ avatarUrl: dataUrl })
-          .then(function(){ applyAvatar(dataUrl); })
-          .catch(function(e){
-            // Fallback localStorage si Firestore échoue
-            applyAvatar(dataUrl);
-          });
-      } else {
-        // Pas de Firebase dispo : utiliser localStorage
-        applyAvatar(dataUrl);
-      }
+      canvas.toBlob(function(blob){
+        var path = "avatars/"+uid+"/avatar.jpg";
+        var storRef = window.fbRef(window.fbStorage, path);
+        showUploadProgress(40, "Upload...");
+        window.fbUploadBytes(storRef, blob).then(function(){
+          showUploadProgress(80, "Finalisation...");
+          return window.fbGetDownloadURL(storRef);
+        }).then(function(downloadUrl){
+          return window.fbUpdateDoc(window.fbDoc(window.db,"users",uid),{ avatarUrl: downloadUrl })
+            .then(function(){ return downloadUrl; });
+        }).then(function(downloadUrl){
+          hideUploadProgress(700);
+          _userAvatarCache[uid] = downloadUrl;
+          var pseudo = window.currentUserPseudo||window.currentUserEmail||"?";
+          var initiale = (pseudo||"?")[0].toUpperCase();
+          _renderMyAvatar(uid, initiale);
+          _setAvatarStatus("success","✅ Photo mise à jour !");
+          setTimeout(function(){ _setAvatarStatus("",""); }, 3500);
+          showToast("📷 Photo de profil mise à jour !");
+        }).catch(function(e){
+          hideUploadProgress(0);
+          _setAvatarStatus("error","❌ Erreur : "+(e.message||""));
+        });
+      }, "image/jpeg", 0.88);
     };
-    img.onerror = function(){ _setAvatarStatus("error","❌ Impossible de lire l'image"); };
     img.src = ev.target.result;
   };
-  reader.onerror = function(){ _setAvatarStatus("error","❌ Erreur lecture fichier"); };
   reader.readAsDataURL(file);
 }
 window._processAvatarFile = _processAvatarFile;
@@ -18415,10 +18411,7 @@ function deleteAdminDefaultPhoto(key){
   window.fbSetDoc(window.fbDoc(window.db,"config","default_photos"), _adminDefaultPhotos, {merge:false})
     .then(function(){
       showToast("🗑️ Photo par défaut supprimée");
-      var el = document.getElementById('adminDefaultPhotosSection');
-      if(el && typeof renderAdminDefaultPhotosSection === 'function'){
-        el.innerHTML = renderAdminDefaultPhotosSection();
-      }
+      renderAdmSettings();
     })
     .catch(function(e){ showToast("❌ Erreur: " + (e.message||"")); });
 }
@@ -18500,14 +18493,8 @@ function adminDefaultPhotoSelected(input, key){
               previewEl.parentNode.replaceChild(imgEl, previewEl);
             }
           }
-          // Re-rendre la section pour mettre a jour le bouton Changer vs Choisir
-          setTimeout(function(){
-            var el = document.getElementById('adminDefaultPhotosSection');
-            if(el && typeof renderAdminDefaultPhotosSection === 'function'){
-              el.innerHTML = renderAdminDefaultPhotosSection();
-            }
-            showToast('✅ Photo mise à jour !');
-          }, 400);
+          // Re-rendre la section pour mettre à jour le bouton Changer vs Choisir
+          setTimeout(function(){ renderAdmSettings(); }, 400);
         }
       });
     };
@@ -21382,24 +21369,47 @@ window.doAssignEtab = doAssignEtab;
     });
   }
 
+  // Convertit une photo en base64 compressé (identique à adminDefaultPhotoSelected)
+  function compressPubPhotoToBase64(file){
+    return new Promise(function(resolve, reject){
+      var reader = new FileReader();
+      reader.onload = function(ev){
+        var img = new Image();
+        img.onload = function(){
+          var MAX = 1024;
+          var w = img.width, h = img.height;
+          if(w > MAX || h > MAX){
+            if(w > h){ h = Math.round(h * MAX / w); w = MAX; }
+            else { w = Math.round(w * MAX / h); h = MAX; }
+          }
+          var canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL("image/jpeg", 0.82));
+        };
+        img.onerror = function(){ resolve(ev.target.result); };
+        img.src = ev.target.result;
+      };
+      reader.onerror = function(){ reject(new Error("Lecture fichier impossible")); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Publie les photos en base64 directement dans Firestore (sans Firebase Storage)
   async function uploadPubPhotos(pubId){
     if(!_pubPhotos.length) return [];
-    var urls = [];
+    var base64Urls = [];
     for(var i = 0; i < _pubPhotos.length; i++){
       var item = _pubPhotos[i];
-      showUploadProgress(Math.round((i / _pubPhotos.length) * 95), "Photo "+(i+1)+"/"+_pubPhotos.length);
-      // Compression avant envoi (réduit les blocages sur connexion lente)
-      var blob;
-      try { blob = await compressImageFile(item.file, 1280, 0.82); }
-      catch(e){ blob = item.file; }
-      var path = "publications/"+pubId+"/photo_"+Date.now()+"_"+i+".jpg";
-      var storRef = window.fbRef(window.fbStorage, path);
-      // Upload résumable avec timeout de 90s par photo (connexions lentes Gabon)
-      var snap = await uploadFileWithTimeout(storRef, blob, 90000);
-      var url = await window.fbGetDownloadURL(snap.ref);
-      urls.push(url);
+      // Utiliser le dataUrl déjà chargé si disponible, sinon compresser
+      var dataUrl = item.dataUrl || await compressPubPhotoToBase64(item.file);
+      // Recompresser si la dataUrl est trop grande (> 600 Ko en base64)
+      if(dataUrl.length > 800000){
+        try { dataUrl = await compressPubPhotoToBase64(item.file); } catch(e){}
+      }
+      base64Urls.push(dataUrl);
     }
-    return urls;
+    return base64Urls;
   }
 
   function escHtml(s){ return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
@@ -21457,8 +21467,6 @@ window.doAssignEtab = doAssignEtab;
     renderPubVideoPreview();
     var msg = document.getElementById("pubMsg");
     if(msg){ msg.style.display="none"; }
-    // S'assurer que la barre de progression est cachée
-    hideUploadProgress(0);
   };
 
   window.submitPub = async function(){
@@ -21472,20 +21480,27 @@ window.doAssignEtab = doAssignEtab;
     var btn = document.getElementById("pubSubmitBtn");
     var msg = document.getElementById("pubMsg");
     btn.disabled = true;
+    btn.textContent = "⏳ Envoi...";
     if(msg){ msg.style.display="none"; }
-    var hasMedia = _pubPhotos.length || _pubVideo;
-    btn.textContent = hasMedia ? "⬆ Upload médias..." : "⏳ Envoi...";
-    if(hasMedia) showUploadProgress(5, "Envoi...");
-    // Timeout de sécurité : 60s max pour éviter un freeze infini
+
+    // Timeout sécurité 60s
     var _aborted = false;
     var _safetyTimer = setTimeout(function(){
       _aborted = true;
       btn.disabled = false;
       btn.textContent = "🚀 Publier";
-      hideUploadProgress(0);
       if(msg){ msg.textContent = "⏱ Délai dépassé — vérifiez votre connexion et réessayez."; msg.style.display="block"; msg.style.color="var(--red)"; }
     }, 60000);
+
     try {
+      // Préparer les photos en base64 AVANT d'écrire dans Firestore
+      var photoUrls = [];
+      if(_pubPhotos.length){
+        btn.textContent = "📷 Compression photos...";
+        photoUrls = await uploadPubPhotos(null);
+        if(_aborted) return;
+      }
+
       var data = {
         pseudo: window.currentUserPseudo || window.currentUserEmail || "Anonyme",
         uid: window.currentUserUID,
@@ -21498,31 +21513,30 @@ window.doAssignEtab = doAssignEtab;
         comments: 0,
         createdAt: window.fbServerTimestamp()
       };
+      if(photoUrls.length){ data.photos = photoUrls; }
+
+      btn.textContent = "📡 Publication...";
       var docRef = await window.fbAddDoc(window.fbCollection(window.db, "publications"), data);
       if(_aborted) return;
-      var updates = {};
-      if(_pubPhotos.length){
-        btn.textContent = "⬆ Photos "+1+"/"+_pubPhotos.length+"...";
-        var photoUrls = await uploadPubPhotos(docRef.id);
-        if(_aborted) return;
-        if(photoUrls.length){ updates.photos = photoUrls; }
-      }
+
+      // Vidéo : upload Firebase Storage uniquement pour la vidéo (pas de base64 pour les vidéos)
       if(_pubVideo){
         btn.textContent = "⬆ Vidéo...";
         showUploadProgress(50, "Vidéo...");
         var videoUrl = await uploadPubVideo(docRef.id);
         if(_aborted) return;
-        if(videoUrl){ updates.video = videoUrl; updates.videoDuration = _pubVideo.duration; }
+        if(videoUrl){
+          await window.fbUpdateDoc(window.fbDoc(window.db, "publications", docRef.id), {
+            video: videoUrl, videoDuration: _pubVideo.duration
+          });
+        }
+        hideUploadProgress(600);
       }
-      if(Object.keys(updates).length){
-        await window.fbUpdateDoc(window.fbDoc(window.db, "publications", docRef.id), updates);
-      }
+
       clearTimeout(_safetyTimer);
       incTodayPubCount(window.currentUserUID);
       btn.disabled = false;
       btn.textContent = "🚀 Publier";
-      if(hasMedia) hideUploadProgress(800);
-      else hideUploadProgress(0);
       window.closePubCompose();
       showToast("Publication envoyée ✓");
     } catch(e) {
@@ -26883,23 +26897,23 @@ function uploadProfilePhoto(event) {
   var file = event.target && event.target.files && event.target.files[0];
   if (event.target) event.target.value = '';
   if (!file) return;
-  // Deleger a _processAvatarFile (sans barre de progression globale)
+  // Réutiliser _processAvatarFile qui gère Firebase Storage + progress bar + fallback
   if (typeof window._processAvatarFile === 'function') {
     window._processAvatarFile(file);
   } else {
-    // Fallback minimal sans barre de progression
+    // Fallback minimal si _processAvatarFile pas encore chargé
     var uid = window.currentUserUID;
     if (!uid) { if(typeof showToast==='function') showToast('🔒 Connectez-vous d\'abord'); return; }
-    if(typeof showToast==='function') showToast('⏳ Traitement...');
-    var reader = new FileReader();
-    reader.onload = function(ev){
-      var dataUrl = ev.target.result;
-      try{ localStorage.setItem('ambi241_user_photo_profile_'+uid, dataUrl); }catch(e){}
-      var img=document.getElementById('profilePhotoImg');
-      if(img) img.src=dataUrl;
-      if(typeof showToast==='function') showToast('✅ Photo de profil mise a jour !');
-    };
-    reader.readAsDataURL(file);
+    if(typeof showUploadProgress==='function') showUploadProgress(10,'Upload...');
+    if(typeof compressImage==='function'){
+      compressImage(file, function(dataUrl){
+        try{ localStorage.setItem('ambi241_avatar_'+uid, dataUrl); }catch(e){}
+        if(typeof hideUploadProgress==='function') hideUploadProgress(700);
+        var img=document.getElementById('profilePhotoImg');
+        if(img) img.src=dataUrl;
+        if(typeof showToast==='function') showToast('✅ Photo de profil mise à jour !');
+      });
+    }
   }
 }
 
