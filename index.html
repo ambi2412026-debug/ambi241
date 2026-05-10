@@ -16,28 +16,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 <style>
 :root{--bg:#1a0a28;--surface:#230d35;--surface2:#2c1040;--border:rgba(255,45,155,0.15);--text:#fff0f8;--muted:#b088c0;--pink:#ff2d9b;--cyan:#00e5ff;--amber:#ffd700;--green:#00ffaa;--red:#ff4466;--purple:#cc44ff;--taxi-gold:#ffd700;--taxi-dark:#1a0a28;}
-/* ══ BANNIÈRE HORS RÉSEAU ══ */
-#offlineBanner{
-  display:none;position:fixed;top:0;left:0;right:0;z-index:9999;
-  background:linear-gradient(90deg,rgba(255,68,102,0.97),rgba(204,30,80,0.97));
-  color:#fff;font-family:'DM Sans',sans-serif;font-size:0.78rem;font-weight:700;
-  padding:0.55rem 1rem;text-align:center;
-  box-shadow:0 2px 16px rgba(255,68,102,0.45);
-  animation:slideDown 0.35s ease;
-  align-items:center;justify-content:center;gap:0.5rem;
-}
-#offlineBanner.show{display:flex;}
-#offlineBanner .ob-icon{font-size:1rem;}
-#offlineBanner .ob-msg{flex:1;text-align:center;}
-#offlineBanner .ob-queue{
-  background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.4);
-  color:#fff;font-size:0.68rem;font-weight:800;padding:0.18rem 0.55rem;
-  border-radius:20px;cursor:default;white-space:nowrap;
-}
-/* Décale le contenu quand la bannière est visible */
-body.is-offline{padding-top:calc(116px + 34px);}
-
-
+html{overflow-x:hidden;max-width:100vw;}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;padding-bottom:62px;padding-top:116px;max-width:100vw;}
 body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(255,45,155,0.12) 0%,transparent 50%),radial-gradient(ellipse at 90% 30%,rgba(0,229,255,0.10) 0%,transparent 50%),radial-gradient(ellipse at 50% 90%,rgba(204,68,255,0.08) 0%,transparent 50%);pointer-events:none;z-index:0;will-change:transform;}
@@ -3008,7 +2987,109 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 
 
 /* ════════════════════════════════════════════════════════════════════════════ */
-/* ════════════════ PROFIL UTILISATEUR & GALERIE IDENTITÉ ════════════════════ */
+/* ── Profil : cacher onglets rôle quand membre connecté ── */
+#sec-profil .demo-nav-profil.role-locked { display: none !important; }
+
+/* ══ ÉCRAN VISITEUR — choix d'inscription depuis l'onglet Profil ══ */
+#profil-visitor-screen {
+  display: none;
+  padding: 2rem 1.2rem 6rem;
+  max-width: 480px;
+  margin: 0 auto;
+  text-align: center;
+}
+#profil-visitor-screen.show { display: block; }
+#profil-visitor-screen .pvs-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 0.4rem;
+}
+#profil-visitor-screen .pvs-sub {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-bottom: 1.8rem;
+  line-height: 1.6;
+}
+.pvs-cards { display: flex; flex-direction: column; gap: 0.85rem; }
+.pvs-card {
+  background: var(--surface2);
+  border-radius: 20px;
+  padding: 1.2rem 1.4rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  cursor: pointer;
+  border: 1.5px solid rgba(255,255,255,0.06);
+  transition: all 0.22s;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+}
+.pvs-card:active { transform: scale(0.97); }
+.pvs-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.22s;
+}
+.pvs-card:hover::before { opacity: 1; }
+.pvs-card.c-membre  { border-color: rgba(0,229,255,0.25); }
+.pvs-card.c-membre::before  { background: rgba(0,229,255,0.05); }
+.pvs-card.c-chauffeur { border-color: rgba(255,215,0,0.25); }
+.pvs-card.c-chauffeur::before { background: rgba(255,215,0,0.05); }
+.pvs-card.c-gerant  { border-color: rgba(255,45,155,0.25); }
+.pvs-card.c-gerant::before  { background: rgba(255,45,155,0.05); }
+.pvs-card-icon {
+  font-size: 2.4rem;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pvs-card.c-membre  .pvs-card-icon { background: rgba(0,229,255,0.12); }
+.pvs-card.c-chauffeur .pvs-card-icon { background: rgba(255,215,0,0.12); }
+.pvs-card.c-gerant  .pvs-card-icon { background: rgba(255,45,155,0.12); }
+.pvs-card-body { flex: 1; }
+.pvs-card-title {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--text);
+  margin-bottom: 0.2rem;
+}
+.pvs-card.c-membre  .pvs-card-title { color: #00e5ff; }
+.pvs-card.c-chauffeur .pvs-card-title { color: #ffd700; }
+.pvs-card.c-gerant  .pvs-card-title { color: var(--pink); }
+.pvs-card-desc {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.pvs-card-arrow {
+  font-size: 1.2rem;
+  color: rgba(255,255,255,0.2);
+  flex-shrink: 0;
+}
+.pvs-login-link {
+  margin-top: 1.6rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.pvs-login-link button {
+  background: none; border: none;
+  color: var(--cyan); cursor: pointer;
+  font-size: 0.78rem; font-weight: 700;
+  font-family: 'DM Sans', sans-serif;
+  text-decoration: underline;
+}
+
+
 /* ════════════════════════════════════════════════════════════════════════════ */
 
 .user-profile-modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:500;align-items:center;justify-content:center;padding:1rem;animation:fadeIn 0.25s;}
@@ -4959,13 +5040,6 @@ if (document.readyState === 'loading') {
 <div class="notif-toast" id="notifToast"></div>
 
 <!-- ══ BANNER INSTALL IOS ══ -->
-<!-- ══ BANNIÈRE HORS RÉSEAU ══ -->
-<div id="offlineBanner">
-  <span class="ob-icon">📡</span>
-  <span class="ob-msg">Pas de connexion — affichage des données en cache</span>
-  <span class="ob-queue" id="offlineQueueCount" style="display:none;">0 action(s) en attente</span>
-</div>
-
 <div id="iosBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:rgba(13,0,20,0.97);border-top:1px solid rgba(204,68,255,0.4);padding:0.9rem 1rem;z-index:450;display:none;align-items:center;gap:0.7rem;box-shadow:0 -4px 24px rgba(204,68,255,0.2);">
   <div style="font-size:1.6rem;flex-shrink:0;">&#128640;</div>
   <div style="flex:1;">
@@ -5634,7 +5708,7 @@ if (document.readyState === 'loading') {
 <!-- ══ FIREBASE SDK (module isolé) ══ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query, where, getDoc, addDoc, onSnapshot, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query, where, getDoc, addDoc, onSnapshot, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
 import { getStorage, ref, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-storage.js";
 
@@ -5648,21 +5722,7 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-// ── Persistance Firestore offline : cache IndexedDB multi-onglets ──
-let db;
-try {
-  db = initializeFirestore(app, {
-    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
-  });
-} catch(e) {
-  // Fallback si multi-tab non supporté (ex. Private Browsing sur Firefox)
-  try {
-    db = initializeFirestore(app, { localCache: persistentLocalCache() });
-  } catch(e2) {
-    const { getFirestore: _gfs } = await import("https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js");
-    db = _gfs(app);
-  }
-}
+const db  = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 
@@ -8484,146 +8544,29 @@ function updateField(id,fields){
     if(!window.db||typeof window.fbAddDoc!=="function"){setSyncing(false);showToast("Mis à jour localement");return;}
     var newDoc=Object.assign({},e);
     delete newDoc._docId;
-    var _eFn=(function(eRef,nd){ return function(){ return window.fbAddDoc(window.fbCollection(window.db,"etablissements"),nd).then(function(ref){ eRef._docId=ref.id; showToast("✅ Créé dans Firebase !"); setSyncing(false); updateSyncTime(); }); }; })(e,newDoc);
-    window.safeWrite(_eFn,"Création établissement").catch(function(err){ console.error("Firebase addDoc:",err); showToast("Mis à jour localement"); setSyncing(false); });
+    window.fbAddDoc(window.fbCollection(window.db,"etablissements"),newDoc).then(function(ref){
+      e._docId=ref.id;
+      showToast("✅ Créé dans Firebase !");setSyncing(false);updateSyncTime();
+    }).catch(function(err){
+      console.error("Firebase addDoc:",err);
+      showToast("Mis à jour localement");setSyncing(false);
+    });
     return;
   }
   var docRef=window.fbDoc(window.db,"etablissements",e._docId);
-  var _uFn=(function(dr,f){ return function(){ return window.fbUpdateDoc(dr,f).then(function(){ showToast("Mis à jour !"); setSyncing(false); updateSyncTime(); }); }; })(docRef,fields);
-  window.safeWrite(_uFn,"Mise à jour établissement").catch(function(err){ console.error("Firebase updateField:",err); showToast("Mis à jour localement"); setSyncing(false); });
+  window.fbUpdateDoc(docRef,fields).then(function(){
+    showToast("Mis à jour !");setSyncing(false);updateSyncTime();
+  }).catch(function(err){
+    console.error("Firebase updateField:",err);
+    showToast("Mis à jour localement");setSyncing(false);
+  });
 }
 
 function setSyncing(v){
   document.getElementById("syncSpinner").style.display=v?"block":"none";
   var statusEl=document.getElementById("syncStatus");
-  if(statusEl && !window._isOffline) statusEl.textContent=v?(typeof i18n!=="undefined"?i18n.t("sync_ing"):"Synchronisation..."):(typeof i18n!=="undefined"?i18n.t("sync_live"):"Données en direct");
+  if(statusEl) statusEl.textContent=v?(typeof i18n!=="undefined"?i18n.t("sync_ing"):"Synchronisation..."):(typeof i18n!=="undefined"?i18n.t("sync_live"):"Données en direct");
 }
-
-/* ══════════════════════════════════════════════════════════════════
-   🔌 SYSTÈME OFFLINE — détection réseau + file d'attente + UI
-   ══════════════════════════════════════════════════════════════════ */
-(function(){
-
-  /* ── État global ── */
-  window._isOffline   = !navigator.onLine;
-  window._offlineQueue = []; // { fn, label }
-
-  /* ── Éléments UI ── */
-  function _getBanner(){ return document.getElementById('offlineBanner'); }
-  function _getQueueBadge(){ return document.getElementById('offlineQueueCount'); }
-  function _getSyncStatus(){ return document.getElementById('syncStatus'); }
-
-  /* ── Mise à jour du badge file d'attente ── */
-  function _updateQueueBadge(){
-    var badge = _getQueueBadge();
-    if(!badge) return;
-    var n = window._offlineQueue.length;
-    if(n > 0){
-      badge.style.display = '';
-      badge.textContent = n + ' action' + (n > 1 ? 's' : '') + ' en attente';
-    } else {
-      badge.style.display = 'none';
-    }
-  }
-
-  /* ── Afficher/masquer la bannière ── */
-  function _showOfflineBanner(){
-    var b = _getBanner();
-    if(b) b.classList.add('show');
-    document.body.classList.add('is-offline');
-    var ss = _getSyncStatus();
-    if(ss){ ss.textContent = '📡 Hors ligne'; ss.style.color = 'var(--red)'; }
-    _updateQueueBadge();
-  }
-  function _hideOfflineBanner(){
-    var b = _getBanner();
-    if(b) b.classList.remove('show');
-    document.body.classList.remove('is-offline');
-    var ss = _getSyncStatus();
-    if(ss){ ss.style.color = ''; ss.textContent = 'Données en direct'; }
-  }
-
-  /* ── Vider la file d'attente ── */
-  function _drainQueue(){
-    if(!window._offlineQueue.length) return;
-    var queue = window._offlineQueue.slice();
-    window._offlineQueue = [];
-    _updateQueueBadge();
-    showToast('🔄 Reconnexion — ' + queue.length + ' action(s) en cours…');
-    queue.forEach(function(item){
-      try {
-        var p = item.fn();
-        if(p && typeof p.catch === 'function'){
-          p.catch(function(){
-            // Remettre en queue si ça échoue encore
-            window._offlineQueue.push(item);
-            _updateQueueBadge();
-          });
-        }
-      } catch(e) {
-        window._offlineQueue.push(item);
-        _updateQueueBadge();
-      }
-    });
-    setTimeout(function(){
-      if(!window._offlineQueue.length){
-        showToast('✅ Synchronisation terminée');
-      }
-    }, 2000);
-  }
-
-  /* ── Helper global : exécuter ou mettre en file ── */
-  window.safeWrite = function(fn, label){
-    if(window._isOffline){
-      window._offlineQueue.push({ fn: fn, label: label || 'Action' });
-      _updateQueueBadge();
-      showToast('📥 Sauvegardé localement — envoi à la reconnexion');
-      return Promise.resolve();
-    }
-    return Promise.resolve(fn()).catch(function(err){
-      // Si c'est une erreur réseau, mettre en file
-      if(err && (err.code === 'unavailable' || err.message && err.message.toLowerCase().indexOf('network') !== -1)){
-        window._offlineQueue.push({ fn: fn, label: label || 'Action' });
-        _updateQueueBadge();
-        showToast('📥 Firebase indisponible — mis en attente');
-      } else {
-        throw err;
-      }
-    });
-  };
-
-  /* ── Événements réseau ── */
-  window.addEventListener('offline', function(){
-    window._isOffline = true;
-    _showOfflineBanner();
-    showToast('📡 Connexion perdue — mode hors ligne activé');
-  });
-
-  window.addEventListener('online', function(){
-    window._isOffline = false;
-    _hideOfflineBanner();
-    showToast('✅ Connexion rétablie !');
-    // Recharger les données fraîches
-    if(typeof loadData === 'function'){
-      setTimeout(loadData, 600);
-    }
-    // Vider la file d'attente
-    setTimeout(_drainQueue, 1200);
-  });
-
-  /* ── État initial au chargement ── */
-  if(!navigator.onLine){
-    // Attendre que le DOM soit prêt
-    if(document.readyState === 'loading'){
-      document.addEventListener('DOMContentLoaded', _showOfflineBanner);
-    } else {
-      setTimeout(_showOfflineBanner, 300);
-    }
-  }
-
-  console.log('[AMBI241] ✅ Système offline chargé — persistance Firestore + file d\'attente active');
-})();
-
 function updateSyncTime(){
   document.getElementById("syncTime").textContent=new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
 }
@@ -13390,8 +13333,30 @@ function _syncProfilSection(){
     }).catch(function(){});
   }
 
-  /* ── Basculer sur l'onglet Membre (rôle par défaut) ── */
-  if(typeof pSwitchRole === 'function') pSwitchRole('membre');
+  /* ── Cacher l'écran visiteur si visible ── */
+  var vs = document.getElementById('profil-visitor-screen');
+  if(vs) vs.classList.remove('show');
+
+  /* ── Détecter le rôle et router vers la bonne vue ── */
+  var userRole = (typeof getUserRole === 'function') ? getUserRole() : 'membre';
+  var roleToView = {
+    admin:          'membre',   // Admin voit son profil membre
+    etablissement:  'etab',
+    chauffeur:      'chauffeur',
+    membre:         'membre'
+  };
+  var targetView = roleToView[userRole] || 'membre';
+
+  /* ── Cacher les onglets rôle (l'utilisateur ne peut pas changer de vue) ── */
+  var navTabs = document.querySelector('#sec-profil .demo-nav-profil');
+  if(navTabs) navTabs.classList.add('role-locked');
+
+  /* ── Afficher les vues profil ── */
+  var views = document.querySelector('#sec-profil .profil-views');
+  if(views) views.style.display = '';
+
+  /* ── Basculer sur la vue correspondant au rôle réel ── */
+  if(typeof pSwitchRole === 'function') pSwitchRole(targetView);
 
   /* ── Restaurer les photos de galerie sauvegardées ── */
   setTimeout(function() {
@@ -13418,15 +13383,42 @@ function navHandleProfil(btn){
     _syncProfilSection();   /* ← injecter les vraies données AVANT d'afficher */
     switchSection('profil', btn);
   } else {
-    /* Ouvrir le modal connexion/inscription */
-    var overlay = document.getElementById('userOverlay');
-    if(overlay){ overlay.classList.add('show'); }
-    if(typeof switchUserTab === 'function') switchUserTab('connexion');
-    /* Ne pas marquer ce bouton comme actif tant que pas connecté */
-    if(btn) btn.classList.remove('active');
+    /* Visiteur : afficher l'écran de choix d'inscription dans la section Profil */
+    _renderVisitorProfilScreen();
+    switchSection('profil', btn);
   }
 }
 window.navHandleProfil = navHandleProfil;
+
+/* Ouvre directement la fiche d'inscription pour un rôle donné */
+function openRegistrationForRole(type){
+  /* Pré-sélectionner le type dans le formulaire */
+  if(typeof regSelectType === 'function') regSelectType(type);
+  /* Ouvrir le modal avec l'onglet Inscription */
+  var overlay = document.getElementById('userOverlay');
+  if(overlay) overlay.classList.add('show');
+  if(typeof switchUserTab === 'function') switchUserTab('inscription');
+}
+window.openRegistrationForRole = openRegistrationForRole;
+
+/* Ouvrir le modal en mode Connexion depuis l'écran visiteur */
+function openLoginFromProfil(){
+  var overlay = document.getElementById('userOverlay');
+  if(overlay) overlay.classList.add('show');
+  if(typeof switchUserTab === 'function') switchUserTab('connexion');
+}
+window.openLoginFromProfil = openLoginFromProfil;
+
+/* Affiche l'écran visiteur (3 cartes d'inscription) et cache les vues membres */
+function _renderVisitorProfilScreen(){
+  var vs = document.getElementById('profil-visitor-screen');
+  var nav = document.querySelector('#sec-profil .demo-nav-profil');
+  var views = document.querySelector('#sec-profil .profil-views');
+  if(vs)   vs.classList.add('show');
+  if(nav)  nav.style.display = 'none';
+  if(views) views.style.display = 'none';
+}
+window._renderVisitorProfilScreen = _renderVisitorProfilScreen;
 
 /* Met à jour le label + icône du bouton Profil/Connexion selon l'état d'auth */
 function updateNavLabels(){
@@ -13444,9 +13436,9 @@ function updateNavLabels(){
     labelEl.textContent = 'Profil';
     if(btn) btn.title = 'Mon profil';
   } else {
-    iconEl.innerHTML  = '&#128273;'; /* 🔑 */
-    labelEl.textContent = 'Connexion';
-    if(btn) btn.title = 'Se connecter / S\'inscrire';
+    iconEl.innerHTML  = '&#128100;'; /* 👤 */
+    labelEl.textContent = 'Profil';
+    if(btn) btn.title = 'Créer un compte / Se connecter';
   }
 }
 window.updateNavLabels = updateNavLabels;
@@ -15575,10 +15567,20 @@ var notifPanelOpen = false;
 function getUserRole(){
   if(isAdmin) return "admin";
   if(currentUserEmail){
+    var em = currentUserEmail.toLowerCase().trim();
+    // Gérant d'établissement
     var etab = etablissements.find(function(e){
-      return (e.email||"").toLowerCase().trim() === currentUserEmail.toLowerCase().trim();
+      return (e.email||"").toLowerCase().trim() === em;
     });
     if(etab) return "etablissement";
+    // Chauffeur approuvé
+    if(window._chauffeurDrivers){
+      var drivers = Object.values(window._chauffeurDrivers);
+      var isDriver = drivers.some(function(d){
+        return d.email && d.email.toLowerCase().trim() === em && d.status === 'approved';
+      });
+      if(isDriver) return "chauffeur";
+    }
     return "membre";
   }
   return "visiteur";
@@ -29939,6 +29941,46 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
 <input type="file" id="pFileAvatar"  accept="image/*" onchange="pHandleAvatarUpload(this)" style="display:none">
 <input type="file" id="pFileCover"   accept="image/*" onchange="pHandleCoverUpload(this)"  style="display:none">
 <input type="file" id="pFileGallery" accept="image/*" multiple onchange="pHandleGalleryUpload(this)" style="display:none">
+
+<!-- ÉCRAN VISITEUR — 3 cartes d'inscription -->
+<div id="profil-visitor-screen">
+  <div class="pvs-title">Créez votre profil</div>
+  <div class="pvs-sub">Choisissez votre type de compte pour rejoindre la communauté AMBI241</div>
+  <div class="pvs-cards">
+
+    <div class="pvs-card c-membre" onclick="openRegistrationForRole('membre')">
+      <div class="pvs-card-icon">👤</div>
+      <div class="pvs-card-body">
+        <div class="pvs-card-title">Simple Membre</div>
+        <div class="pvs-card-desc">Découvrez les lieux, suivez l'ambiance en direct, commentez et notez les établissements.</div>
+      </div>
+      <span class="pvs-card-arrow">›</span>
+    </div>
+
+    <div class="pvs-card c-chauffeur" onclick="openRegistrationForRole('chauffeur')">
+      <div class="pvs-card-icon">🚕</div>
+      <div class="pvs-card-body">
+        <div class="pvs-card-title">Chauffeur</div>
+        <div class="pvs-card-desc">Enregistrez-vous comme chauffeur partenaire, gérez vos courses et recevez des clients.</div>
+      </div>
+      <span class="pvs-card-arrow">›</span>
+    </div>
+
+    <div class="pvs-card c-gerant" onclick="openRegistrationForRole('gerant')">
+      <div class="pvs-card-icon">🏛️</div>
+      <div class="pvs-card-body">
+        <div class="pvs-card-title">Gérant d'Établissement</div>
+        <div class="pvs-card-desc">Référencez votre bar, restaurant ou club, gérez votre profil et suivez vos statistiques.</div>
+      </div>
+      <span class="pvs-card-arrow">›</span>
+    </div>
+
+  </div>
+  <div class="pvs-login-link">
+    Déjà inscrit ?
+    <button onclick="openLoginFromProfil()">Se connecter</button>
+  </div>
+</div>
 
 <!-- SÉLECTEUR DE RÔLE -->
 <div class="demo-nav-profil">
