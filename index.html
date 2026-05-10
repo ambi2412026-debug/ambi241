@@ -5668,11 +5668,11 @@ window._uploadUserPhoto = function(type) {
     try { document.body.removeChild(input); } catch(e) {}
     if (!file) return;
 
-    // Vérifier le format (JPG, PNG, WEBP)
-    var validTypes = ['image/jpeg','image/jpg','image/png','image/webp'];
-    if (validTypes.indexOf(file.type.toLowerCase()) === -1 &&
-        !/\.(jpe?g|png|webp)$/i.test(file.name)) {
-      if (typeof showToast === 'function') showToast('❌ Format non supporté (JPG, PNG, WEBP)');
+    // Accepter tous les formats image reconnus par le navigateur
+    var isImgOk = file.type.startsWith('image/') ||
+      /\.(jpe?g|png|webp|gif|heic|heif|avif|bmp|tiff?|svg|ico)$/i.test(file.name);
+    if (!isImgOk) {
+      if (typeof showToast === 'function') showToast('❌ Fichier non reconnu comme image');
       return;
     }
 
@@ -5879,7 +5879,7 @@ window._renderUserPhotosUI = function() {
 window._uploadDriverPhoto = function(contactIndex) {
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = 'image/*';
+  input.accept = 'image/*,.heic,.heif,.avif,.bmp,.tiff,.tif,.jfif';
   // Pas de capture="" → ouvre la galerie du téléphone (pas la caméra directement)
   input.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none;';
   document.body.appendChild(input); // OBLIGATOIRE sur iOS pour ouvrir la galerie
@@ -5888,8 +5888,13 @@ window._uploadDriverPhoto = function(contactIndex) {
     document.body.removeChild(input); // Nettoyage après sélection
     if (!file) return;
 
-    if (file.size > 3 * 1024 * 1024) {
-      alert('⚠️ Image trop grande (max 3 MB)');
+    // Accepter tous formats image (HEIC, AVIF, BMP, etc.)
+    const isImg = (file.type && file.type.startsWith('image/')) ||
+      /\.(jpe?g|png|webp|gif|heic|heif|avif|bmp|tiff?|svg)$/i.test(file.name||'');
+    if(!isImg){ alert('❌ Fichier non reconnu comme image'); return; }
+
+    if (file.size > 8 * 1024 * 1024) {
+      alert('⚠️ Image trop grande (max 8 MB)');
       return;
     }
 
@@ -9235,9 +9240,11 @@ window.onAvatarFileSelected = onAvatarFileSelected;
 // Traitement fichier avatar (commun upload + drag-drop)
 function _processAvatarFile(file){
   if(!file) return;
-  var allowedTypes = ["image/jpeg","image/png","image/webp","image/gif"];
-  if(allowedTypes.indexOf(file.type) === -1){ _setAvatarStatus("error","❌ Format non supporté (JPG, PNG, WEBP)"); return; }
-  if(file.size > 5*1024*1024){ _setAvatarStatus("error","❌ Image trop grande (max 5 Mo)"); return; }
+  // Accepter tous les formats image (JPEG, PNG, WEBP, GIF, HEIC, AVIF, BMP, TIFF, SVG…)
+  var isImgType = file.type.startsWith("image/") ||
+    /\.(jpe?g|png|webp|gif|heic|heif|avif|bmp|tiff?|svg|ico)$/i.test(file.name);
+  if(!isImgType){ _setAvatarStatus("error","❌ Fichier non reconnu comme image"); return; }
+  if(file.size > 10*1024*1024){ _setAvatarStatus("error","❌ Image trop grande (max 10 Mo)"); return; }
   var uid = window.currentUserUID;
   if(!uid){ _setAvatarStatus("error","❌ Connectez-vous d'abord"); return; }
   _setAvatarStatus("uploading","⏳ Upload en cours…");
@@ -20545,7 +20552,7 @@ window.doAssignEtab = doAssignEtab;
     var ext = (_pubVideo.file.name || "video.mp4").split(".").pop() || "mp4";
     var path = "publications/"+pubId+"/video_"+Date.now()+"."+ext;
     var storRef = window.fbRef(window.fbStorage, path);
-    var snap = await uploadFileWithTimeout(storRef, _pubVideo.file, 60000);
+    var snap = await uploadFileWithTimeout(storRef, _pubVideo.file, 120000);
     // Libérer l'objectURL après upload réussi
     if(_pubVideo && _pubVideo._ownObjUrl && _pubVideo.previewUrl){
       URL.revokeObjectURL(_pubVideo.previewUrl);
@@ -20610,17 +20617,24 @@ window.doAssignEtab = doAssignEtab;
     });
   }
 
-  // ── Upload d'un fichier unique avec timeout par fichier (30s) ──
-  function uploadFileWithTimeout(storRef, blob, timeoutMs){
+  // ── Upload d'un fichier unique avec timeout + retry automatique ──
+  function uploadFileWithTimeout(storRef, blob, timeoutMs, _attempt){
     timeoutMs = timeoutMs || 30000;
+    _attempt  = _attempt  || 1;
     return new Promise(function(resolve, reject){
       var task = window.fbUploadBytesResumable(storRef, blob);
       var timer = setTimeout(function(){
         try{ task.cancel(); }catch(e){}
-        reject(new Error("Timeout upload fichier (>"+Math.round(timeoutMs/1000)+"s)"));
+        if(_attempt < 3){
+          // Retry silencieux (×2 max) avec même timeout
+          showUploadProgress(null, "⏳ Reconnexion… tentative "+(_attempt+1)+"/3");
+          uploadFileWithTimeout(storRef, blob, timeoutMs, _attempt+1).then(resolve).catch(reject);
+        } else {
+          reject(new Error("Timeout upload fichier (>"+Math.round(timeoutMs/1000)+"s) — vérifiez votre connexion"));
+        }
       }, timeoutMs);
       task.on('state_changed',
-        null, // pas de suivi de progression par fichier ici (géré au niveau boucle)
+        null,
         function(err){ clearTimeout(timer); reject(err); },
         function(){ clearTimeout(timer); resolve(task.snapshot); }
       );
@@ -20639,8 +20653,8 @@ window.doAssignEtab = doAssignEtab;
       catch(e){ blob = item.file; }
       var path = "publications/"+pubId+"/photo_"+Date.now()+"_"+i+".jpg";
       var storRef = window.fbRef(window.fbStorage, path);
-      // Upload résumable avec timeout de 45s par photo
-      var snap = await uploadFileWithTimeout(storRef, blob, 45000);
+      // Upload résumable avec timeout de 90s par photo (connexions lentes Gabon)
+      var snap = await uploadFileWithTimeout(storRef, blob, 90000);
       var url = await window.fbGetDownloadURL(snap.ref);
       urls.push(url);
     }
@@ -31124,6 +31138,90 @@ setTimeout(function() {
 }, 3000);
 
 console.log('[AMBI241] ✅ Système Profils Publics chargé — openPublicProfile(type,id,data) disponible');
+
+/* ══════════════════════════════════════════════════════════════════
+   🛠️ PATCH UNIVERSEL — IMPORT FICHIERS (photos / vidéos / docs)
+   Accepte TOUS les formats image et vidéo reconnus par le navigateur.
+   Remplace tous les garde-fous restrictifs dispersés dans l'app.
+   ══════════════════════════════════════════════════════════════════ */
+(function(){
+
+  /* ── Vérificateur universel ── */
+  window.ambi_isImageFile = function(file){
+    if(!file) return false;
+    if(file.type && file.type.startsWith('image/')) return true;
+    return /\.(jpe?g|jpg|png|webp|gif|heic|heif|avif|bmp|tiff?|svg|ico|jfif|pjpeg|pjp)$/i.test(file.name||'');
+  };
+  window.ambi_isVideoFile = function(file){
+    if(!file) return false;
+    if(file.type && file.type.startsWith('video/')) return true;
+    return /\.(mp4|webm|avi|mov|mkv|flv|wmv|m4v|3gp|ogv|ts|mts|m2ts|f4v|rm|rmvb)$/i.test(file.name||'');
+  };
+  window.ambi_isMediaFile = function(file){
+    return window.ambi_isImageFile(file) || window.ambi_isVideoFile(file);
+  };
+
+  /* ── Patcher accept="image/*" → tous formats + HEIC/AVIF ── */
+  function _upgradeInputs(){
+    document.querySelectorAll('input[type=file]').forEach(function(inp){
+      if(inp.dataset.ambiPatched) return;
+      inp.dataset.ambiPatched = '1';
+      // Elargir les types image
+      if(inp.accept === 'image/*'){
+        inp.accept = 'image/*,.heic,.heif,.avif,.bmp,.tiff,.tif,.jfif';
+      }
+      // Elargir les types vidéo
+      if(inp.accept === 'video/*'){
+        inp.accept = 'video/*,.avi,.mov,.mkv,.wmv,.m4v,.3gp,.ts';
+      }
+    });
+  }
+
+  // Patcher maintenant et à chaque mutation DOM (inputs créés dynamiquement)
+  _upgradeInputs();
+  if(typeof MutationObserver !== 'undefined'){
+    var _mo = new MutationObserver(function(){ _upgradeInputs(); });
+    _mo.observe(document.body, {childList:true, subtree:true});
+  }
+
+  /* ── Patcher pHandleAvatarUpload pour accepter tous formats ── */
+  var _origPHandleAvatar = window.pHandleAvatarUpload;
+  window.pHandleAvatarUpload = function(input){
+    var file = input.files && input.files[0];
+    if(file && !window.ambi_isImageFile(file)){
+      if(typeof showToast === 'function') showToast('❌ Fichier non reconnu comme image');
+      input.value = '';
+      return;
+    }
+    if(typeof _origPHandleAvatar === 'function') _origPHandleAvatar.call(this, input);
+  };
+
+  /* ── Patcher _ppOnAvatarSelected pour accepter tous formats ── */
+  var _origPPOnAvatar = window._ppOnAvatarSelected;
+  window._ppOnAvatarSelected = function(inp){
+    var file = inp.files && inp.files[0];
+    if(file && !window.ambi_isImageFile(file)){
+      if(typeof showToast === 'function') showToast('❌ Fichier non reconnu comme image');
+      inp.value = '';
+      return;
+    }
+    if(typeof _origPPOnAvatar === 'function') _origPPOnAvatar.call(this, inp);
+  };
+
+  /* ── Patcher uploadProfilePhoto pour accepter tous formats ── */
+  var _origUploadProfile = window.uploadProfilePhoto;
+  window.uploadProfilePhoto = function(event){
+    var file = event.target && event.target.files && event.target.files[0];
+    if(file && !window.ambi_isImageFile(file)){
+      if(typeof showToast === 'function') showToast('❌ Fichier non reconnu comme image');
+      if(event.target) event.target.value = '';
+      return;
+    }
+    if(typeof _origUploadProfile === 'function') _origUploadProfile.call(this, event);
+  };
+
+  console.log('[AMBI241] ✅ Patch universel import fichiers actif — tous formats image/vidéo acceptés');
+})();
 
 })(); // fin IIFE
 </script>
