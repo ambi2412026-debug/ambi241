@@ -25,6 +25,124 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
 
 /* ══════════════════════════════════════════════════════════════
+   ══ SCROLL NAV INDICATOR                                     ══
+   ══════════════════════════════════════════════════════════════ */
+#scrollNavIndicator{
+  position:fixed;
+  right:16px;
+  bottom:96px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+  z-index:50;
+  pointer-events:none;
+  opacity:1;
+  transition:opacity 0.4s ease;
+}
+#scrollNavIndicator.hidden{opacity:0;}
+#sni-label{
+  opacity:1;
+  transform:translateX(0) scale(1);
+  transition:opacity 0.4s ease,transform 0.4s ease;
+  background:rgba(26,10,40,0.88);
+  border:1px solid rgba(0,229,255,0.27);
+  border-radius:20px;
+  padding:4px 11px;
+  font-size:10px;
+  font-family:'DM Sans',sans-serif;
+  font-weight:700;
+  color:var(--cyan);
+  letter-spacing:0.04em;
+  white-space:nowrap;
+  -webkit-backdrop-filter:blur(8px);
+  backdrop-filter:blur(8px);
+  box-shadow:0 2px 12px rgba(0,229,255,0.2);
+}
+#sni-label.hidden{opacity:0;transform:translateX(12px) scale(0.85);}
+#sni-pill{
+  width:38px;
+  height:64px;
+  border-radius:24px;
+  background:linear-gradient(160deg,rgba(0,229,255,0.13),rgba(0,255,170,0.07));
+  border:1.5px solid rgba(0,229,255,0.33);
+  -webkit-backdrop-filter:blur(10px);
+  backdrop-filter:blur(10px);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:3px;
+  box-shadow:0 0 18px rgba(0,229,255,0.27),inset 0 1px 0 rgba(255,255,255,0.08);
+  position:relative;
+  overflow:hidden;
+}
+#sni-shimmer{
+  position:absolute;
+  inset:0;
+  background:linear-gradient(160deg,transparent 30%,rgba(0,229,255,0.1) 50%,transparent 70%);
+  animation:sniShimmer 2.2s ease infinite;
+  border-radius:inherit;
+}
+.sni-chevron{
+  width:14px;
+  height:8px;
+  position:relative;
+  flex-shrink:0;
+  animation:sniChevron 1.4s ease infinite;
+  opacity:0;
+}
+.sni-chevron:nth-child(2){animation-delay:0.18s;}
+.sni-chevron:nth-child(3){animation-delay:0.36s;}
+#sni-pulse-ring{
+  display:none;
+  position:absolute;
+  inset:-4px;
+  border-radius:28px;
+  border:2px solid var(--cyan);
+  animation:sniPulseRing 0.6s ease forwards;
+  pointer-events:none;
+}
+#sni-track{
+  width:2px;
+  height:22px;
+  border-radius:2px;
+  background:linear-gradient(to bottom,rgba(0,229,255,0.53),transparent);
+}
+/* Direction UP */
+#scrollNavIndicator.up #sni-label{
+  border-color:rgba(255,45,155,0.27);
+  color:var(--pink);
+  box-shadow:0 2px 12px rgba(255,45,155,0.2);
+}
+#scrollNavIndicator.up #sni-pill{
+  background:linear-gradient(160deg,rgba(255,45,155,0.13),rgba(204,68,255,0.07));
+  border-color:rgba(255,45,155,0.33);
+  box-shadow:0 0 18px rgba(255,45,155,0.27),inset 0 1px 0 rgba(255,255,255,0.08);
+}
+#scrollNavIndicator.up #sni-shimmer{background:linear-gradient(160deg,transparent 30%,rgba(255,45,155,0.1) 50%,transparent 70%);}
+#scrollNavIndicator.up .sni-chevron svg polyline{stroke:var(--pink);}
+#scrollNavIndicator.up #sni-pulse-ring{border-color:var(--pink);}
+#scrollNavIndicator.up #sni-track{background:linear-gradient(to top,rgba(255,45,155,0.53),transparent);}
+
+@keyframes sniChevron{
+  0%{opacity:0;transform:translateY(-4px);}
+  40%{opacity:1;transform:translateY(0);}
+  80%{opacity:0;transform:translateY(4px);}
+  100%{opacity:0;transform:translateY(4px);}
+}
+@keyframes sniShimmer{
+  0%{transform:translateY(-100%) rotate(15deg);}
+  100%{transform:translateY(200%) rotate(15deg);}
+}
+@keyframes sniPulseRing{
+  0%{opacity:1;transform:scale(1);}
+  100%{opacity:0;transform:scale(1.6);}
+}
+/* Direction UP → chevrons flipped */
+#scrollNavIndicator.up .sni-chevron{transform:scaleY(-1);}
+
+/* ══════════════════════════════════════════════════════════════
    ══ OPTION 1 — FLASH ÉVÉNEMENT (bandeau dans la carte)       ══
    ══════════════════════════════════════════════════════════════ */
 .card-event-flash{
@@ -5584,6 +5702,31 @@ if (document.readyState === 'loading') {
     <div class="modal-sub" style="margin-bottom:1.2rem;">La galerie photos est reservee aux membres AMBI241. Rejoins la communaute pour acceder aux photos exclusives de chaque etablissement !</div>
     <button class="modal-btn" onclick="closeInvit();openUserModal()">&#128100; S'inscrire / Se connecter</button>
   </div>
+</div>
+
+<!-- ══ SCROLL NAV INDICATOR ══ -->
+<div id="scrollNavIndicator" class="down">
+  <div id="sni-label">Faites défiler ↓</div>
+  <div id="sni-pill">
+    <div id="sni-shimmer"></div>
+    <div class="sni-chevron">
+      <svg viewBox="0 0 14 8" fill="none" style="width:100%;height:100%">
+        <polyline points="1,1 7,7 13,1" stroke="#00e5ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
+    </div>
+    <div class="sni-chevron">
+      <svg viewBox="0 0 14 8" fill="none" style="width:100%;height:100%">
+        <polyline points="1,1 7,7 13,1" stroke="#00e5ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
+    </div>
+    <div class="sni-chevron">
+      <svg viewBox="0 0 14 8" fill="none" style="width:100%;height:100%">
+        <polyline points="1,1 7,7 13,1" stroke="#00e5ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
+    </div>
+    <div id="sni-pulse-ring"></div>
+  </div>
+  <div id="sni-track"></div>
 </div>
 
 <nav class="bottom-nav">
@@ -30299,6 +30442,926 @@ if (typeof window._admContentSave !== 'function') {
       setTimeout(function() { window.renderAdmContent(); }, 50);
     }
   };
+})();
+</script>
+</html>
+<!-- ╔══════════════════════════════════════════════════════════════════╗
+     ║  SYSTÈME PROFILS PUBLICS UNIFIÉS — AMBI241                     ║
+     ║  Même modal pour : Membres · Établissements · Chauffeurs       ║
+     ║  Lecture : tous  |  Édition : propriétaire + Admin             ║
+     ╚══════════════════════════════════════════════════════════════════╝ -->
+<script>
+(function() {
+'use strict';
+
+/* ══════════════════════════════════════════════════════
+   0 — STYLES
+   ══════════════════════════════════════════════════════ */
+var _css = `
+/* ── Overlay ── */
+#ppOverlay{
+  display:none;position:fixed;inset:0;z-index:5000;
+  background:rgba(0,0,0,0.85);backdrop-filter:blur(12px);
+  align-items:flex-end;justify-content:center;
+  padding:0;
+  animation:ppFadeIn .2s ease;
+}
+#ppOverlay.pp-open{display:flex;}
+@keyframes ppFadeIn{from{opacity:0}to{opacity:1}}
+
+/* ── Sheet ── */
+#ppSheet{
+  background:var(--surface,#230d35);
+  border:1px solid rgba(255,45,155,0.22);
+  border-bottom:none;
+  border-radius:22px 22px 0 0;
+  width:100%;max-width:520px;
+  max-height:92vh;
+  overflow-y:auto;
+  padding:0 0 2rem 0;
+  position:relative;
+  animation:ppSlideUp .3s cubic-bezier(0.34,1.3,0.64,1);
+  -webkit-overflow-scrolling:touch;
+}
+@keyframes ppSlideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+
+/* ── Drag handle ── */
+.pp-handle{
+  width:40px;height:4px;border-radius:4px;
+  background:rgba(255,255,255,0.15);
+  margin:10px auto 0;
+}
+
+/* ── Banner zone ── */
+.pp-banner{
+  position:relative;
+  height:90px;
+  background:linear-gradient(135deg,rgba(255,45,155,0.25),rgba(0,229,255,0.15),rgba(204,68,255,0.2));
+  overflow:hidden;
+  flex-shrink:0;
+}
+.pp-banner-img{width:100%;height:100%;object-fit:cover;display:block;}
+.pp-banner::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(to bottom,transparent 40%,rgba(35,13,53,0.7));
+}
+
+/* ── Header zone ── */
+.pp-header{
+  display:flex;align-items:flex-end;gap:12px;
+  padding:0 1.2rem;
+  margin-top:-32px;
+  position:relative;z-index:2;
+  margin-bottom:0.7rem;
+}
+
+/* ── Avatar ── */
+.pp-avatar{
+  width:64px;height:64px;border-radius:50%;
+  border:3px solid var(--surface,#230d35);
+  flex-shrink:0;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:1.4rem;
+  background:linear-gradient(135deg,#ff2d9b,#cc44ff);
+  color:#fff;
+  box-shadow:0 4px 18px rgba(0,0,0,0.55);
+}
+.pp-avatar img{width:100%;height:100%;object-fit:cover;display:block;}
+
+/* ── Name+badges row ── */
+.pp-name-block{flex:1;min-width:0;padding-bottom:4px;}
+.pp-display-name{
+  font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;
+  color:var(--text,#fff0f8);line-height:1.2;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.pp-role-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:0.58rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+  padding:2px 7px;border-radius:4px;margin-top:4px;
+}
+.pp-role-membre{background:rgba(0,229,255,0.12);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);}
+.pp-role-etablissement{background:rgba(255,215,0,0.12);color:#ffd700;border:1px solid rgba(255,215,0,0.3);}
+.pp-role-chauffeur{background:rgba(255,215,0,0.12);color:#ff9800;border:1px solid rgba(255,152,0,0.35);}
+.pp-role-admin{background:rgba(255,45,155,0.15);color:#ff2d9b;border:1px solid rgba(255,45,155,0.35);}
+
+/* ── Close btn ── */
+.pp-close-btn{
+  position:absolute;top:10px;right:10px;z-index:10;
+  background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);
+  color:rgba(255,255,255,0.7);width:32px;height:32px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:0.95rem;cursor:pointer;transition:all .2s;
+}
+.pp-close-btn:active{background:rgba(255,255,255,0.18);transform:scale(.92);}
+
+/* ── Body ── */
+.pp-body{padding:0 1.2rem;}
+.pp-bio{
+  font-size:0.82rem;color:var(--muted,#b088c0);line-height:1.6;
+  margin-bottom:0.85rem;white-space:pre-wrap;
+}
+.pp-bio-empty{
+  font-size:0.78rem;color:rgba(255,255,255,0.2);font-style:italic;
+  margin-bottom:0.85rem;
+}
+
+/* ── Stats chips ── */
+.pp-stats{display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.85rem;}
+.pp-stat{
+  display:inline-flex;flex-direction:column;align-items:center;
+  background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);
+  border-radius:10px;padding:0.4rem 0.6rem;min-width:52px;
+}
+.pp-stat-val{font-family:'Syne',sans-serif;font-size:0.9rem;font-weight:800;color:var(--text,#fff0f8);line-height:1;}
+.pp-stat-lbl{font-size:0.56rem;color:var(--muted,#b088c0);margin-top:2px;}
+
+/* ── Social row ── */
+.pp-socials{display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.9rem;}
+.pp-social-btn{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:0.32rem 0.65rem;border-radius:20px;
+  font-size:0.7rem;font-weight:700;font-family:'DM Sans',sans-serif;
+  text-decoration:none;border:1px solid;cursor:pointer;
+  transition:all .18s;
+}
+.pp-social-btn:active{opacity:.7;transform:scale(.95);}
+.pp-social-wa{background:rgba(37,211,102,.1);border-color:rgba(37,211,102,.35);color:#25d366;}
+.pp-social-ig{background:rgba(225,48,108,.1);border-color:rgba(225,48,108,.35);color:#e1306c;}
+.pp-social-fb{background:rgba(24,119,242,.1);border-color:rgba(24,119,242,.35);color:#1877f2;}
+.pp-social-tk{background:rgba(0,0,0,.2);border-color:rgba(255,255,255,.2);color:#fff;}
+.pp-social-web{background:rgba(0,229,255,.08);border-color:rgba(0,229,255,.3);color:#00e5ff;}
+.pp-social-phone{background:rgba(0,255,170,.08);border-color:rgba(0,255,170,.3);color:#00ffaa;}
+
+/* ── Divider ── */
+.pp-divider{height:1px;background:rgba(255,255,255,.06);margin:0.6rem 0;}
+
+/* ── Section label ── */
+.pp-section-lbl{
+  font-size:0.6rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+  color:rgba(255,255,255,.3);margin-bottom:0.5rem;display:flex;align-items:center;gap:.5rem;
+}
+.pp-section-lbl::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.06);}
+
+/* ── Action buttons ── */
+.pp-actions{display:flex;gap:0.5rem;margin-top:0.3rem;padding-top:0.7rem;border-top:1px solid rgba(255,255,255,.06);}
+.pp-btn{
+  flex:1;padding:0.65rem;border-radius:12px;border:none;
+  font-family:'Syne',sans-serif;font-weight:800;font-size:0.8rem;
+  cursor:pointer;transition:opacity .2s;
+}
+.pp-btn:active{opacity:.8;}
+.pp-btn-edit{background:linear-gradient(135deg,#ff2d9b,#cc44ff);color:#fff;}
+.pp-btn-sec{background:rgba(255,255,255,.06);color:var(--muted);border:1px solid rgba(255,255,255,.1);}
+
+/* ══ EDIT FORM ══ */
+#ppEditPanel{display:none;}
+#ppEditPanel.pp-edit-open{display:block;}
+.pp-edit-title{
+  font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;
+  color:var(--pink,#ff2d9b);margin-bottom:0.3rem;
+  display:flex;align-items:center;gap:.5rem;
+}
+.pp-field{margin-bottom:0.75rem;}
+.pp-field label{display:block;font-size:0.68rem;font-weight:700;color:var(--muted,#b088c0);margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.05em;}
+.pp-field input,.pp-field textarea,.pp-field select{
+  width:100%;background:var(--surface2,#2c1040);
+  border:1px solid rgba(255,45,155,.2);border-radius:10px;
+  color:var(--text,#fff0f8);font-family:'DM Sans',sans-serif;
+  font-size:0.84rem;padding:.55rem .8rem;outline:none;
+  transition:border-color .2s;
+}
+.pp-field input:focus,.pp-field textarea:focus{border-color:rgba(255,45,155,.5);}
+.pp-field textarea{resize:vertical;min-height:70px;}
+.pp-char-count{font-size:0.62rem;color:var(--muted);text-align:right;margin-top:2px;}
+
+/* Avatar upload zone */
+.pp-avatar-upload{
+  display:flex;align-items:center;gap:12px;margin-bottom:1rem;
+}
+.pp-avatar-preview{
+  width:62px;height:62px;border-radius:50%;overflow:hidden;
+  border:2px solid rgba(255,45,155,.35);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.4rem;font-weight:800;flex-shrink:0;
+  background:linear-gradient(135deg,#ff2d9b,#cc44ff);color:#fff;
+  cursor:pointer;position:relative;
+}
+.pp-avatar-preview img{width:100%;height:100%;object-fit:cover;display:block;}
+.pp-avatar-preview input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.pp-avatar-change-hint{font-size:0.72rem;color:var(--muted);}
+.pp-avatar-change-hint small{display:block;font-size:0.62rem;color:rgba(255,255,255,.25);margin-top:2px;}
+
+/* Visibility toggle */
+.pp-visibility-row{
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.12);
+  border-radius:10px;padding:.55rem .75rem;margin-bottom:.85rem;
+}
+.pp-vis-label{font-size:.78rem;color:var(--text);}
+.pp-vis-sub{font-size:.62rem;color:var(--muted);}
+
+/* Save / Cancel */
+.pp-save-row{display:flex;gap:.5rem;margin-top:1rem;}
+.pp-btn-save{background:linear-gradient(135deg,#00ffaa,#00e5ff);color:#000;font-family:'Syne',sans-serif;font-weight:800;font-size:.85rem;padding:.7rem;border-radius:12px;border:none;cursor:pointer;flex:1;transition:opacity .2s;}
+.pp-btn-save:active{opacity:.85;}
+.pp-btn-cancel{background:rgba(255,255,255,.05);color:var(--muted);border:1px solid rgba(255,255,255,.1);font-family:'Syne',sans-serif;font-weight:700;font-size:.82rem;padding:.7rem;border-radius:12px;cursor:pointer;flex:1;}
+`;
+
+var styleEl = document.createElement('style');
+styleEl.textContent = _css;
+document.head.appendChild(styleEl);
+
+/* ══════════════════════════════════════════════════════
+   1 — CRÉER LE MODAL DOM (une seule fois)
+   ══════════════════════════════════════════════════════ */
+var _overlay = null;
+function _initModal() {
+  if(document.getElementById('ppOverlay')) { _overlay = document.getElementById('ppOverlay'); return; }
+  _overlay = document.createElement('div');
+  _overlay.id = 'ppOverlay';
+  _overlay.innerHTML = `
+    <div id="ppSheet">
+      <div class="pp-handle"></div>
+      <button class="pp-close-btn" onclick="window.closePublicProfile()">✕</button>
+      <div class="pp-banner" id="ppBanner">
+        <img id="ppBannerImg" class="pp-banner-img" src="" alt="" style="display:none;">
+      </div>
+      <div class="pp-header">
+        <div class="pp-avatar" id="ppAvatar"></div>
+        <div class="pp-name-block">
+          <div class="pp-display-name" id="ppDisplayName">—</div>
+          <div id="ppRoleBadge"></div>
+        </div>
+      </div>
+      <div class="pp-body">
+        <div id="ppViewPanel">
+          <div id="ppBio"></div>
+          <div class="pp-stats" id="ppStats"></div>
+          <div class="pp-section-lbl" id="ppSocialsLabel" style="display:none;">Contact &amp; Réseaux</div>
+          <div class="pp-socials" id="ppSocials"></div>
+          <div class="pp-divider" id="ppActionsDivider"></div>
+          <div class="pp-actions" id="ppActions"></div>
+        </div>
+        <div id="ppEditPanel">
+          <div class="pp-edit-title">✏️ Modifier le profil public</div>
+          <div style="font-size:.72rem;color:var(--muted);margin-bottom:1rem;line-height:1.5;">
+            Ces informations sont visibles par tous les visiteurs.
+          </div>
+          <div class="pp-avatar-upload">
+            <div class="pp-avatar-preview" id="ppEditAvatarPreview">
+              <input type="file" accept="image/*" id="ppAvatarInput" onchange="window._ppOnAvatarSelected(this)">
+            </div>
+            <div>
+              <div class="pp-avatar-change-hint">Cliquez pour changer l'avatar</div>
+              <small class="pp-avatar-change-hint" style="font-size:.62rem;color:rgba(255,255,255,.25);">Carré conseillé · max 2Mo</small>
+            </div>
+          </div>
+          <div class="pp-visibility-row">
+            <div>
+              <div class="pp-vis-label">👁️ Profil public</div>
+              <div class="pp-vis-sub">Visible par tous les visiteurs</div>
+            </div>
+            <label class="notif-toggle"><input type="checkbox" id="ppVisToggle" checked><span class="notif-toggle-slider"></span></label>
+          </div>
+          <div class="pp-field">
+            <label>Nom affiché *</label>
+            <input type="text" id="ppEditName" maxlength="40" placeholder="Votre nom ou pseudo public">
+          </div>
+          <div class="pp-field">
+            <label>Bio / Description</label>
+            <textarea id="ppEditBio" maxlength="160" placeholder="Présentez-vous en quelques mots..." rows="3" oninput="document.getElementById('ppBioCount').textContent=this.value.length+'/160'"></textarea>
+            <div class="pp-char-count" id="ppBioCount">0/160</div>
+          </div>
+          <div class="pp-section-lbl" style="margin-bottom:.6rem;">Réseaux &amp; Contact visibles</div>
+          <div class="pp-field">
+            <label>📱 WhatsApp (numéro)</label>
+            <input type="tel" id="ppEditWA" placeholder="+241 XX XX XX XX" maxlength="20">
+          </div>
+          <div class="pp-field">
+            <label>📸 Instagram (@username)</label>
+            <input type="text" id="ppEditIG" placeholder="@moncompte" maxlength="30">
+          </div>
+          <div class="pp-field">
+            <label>🎵 TikTok (@username)</label>
+            <input type="text" id="ppEditTK" placeholder="@moncompte" maxlength="30">
+          </div>
+          <div class="pp-field">
+            <label>🌐 Site web / Lien</label>
+            <input type="url" id="ppEditWeb" placeholder="https://..." maxlength="80">
+          </div>
+          <div class="pp-save-row">
+            <button class="pp-btn-save" onclick="window._ppSave()">💾 Sauvegarder</button>
+            <button class="pp-btn-cancel" onclick="window._ppCancelEdit()">Annuler</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  _overlay.addEventListener('click', function(e){ if(e.target === _overlay) window.closePublicProfile(); });
+  document.body.appendChild(_overlay);
+}
+
+/* ══════════════════════════════════════════════════════
+   2 — STOCKAGE PROFILS
+   ══════════════════════════════════════════════════════ */
+var PROFILE_KEY = 'ambi241_pub_profiles_v1';
+
+function _loadProfiles() {
+  try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}'); } catch(e) { return {}; }
+}
+function _saveProfiles(obj) {
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(obj)); } catch(e) {}
+}
+function _getProfile(type, id) {
+  var all = _loadProfiles();
+  return all[type + ':' + id] || {};
+}
+function _setProfile(type, id, data) {
+  var all = _loadProfiles();
+  all[type + ':' + id] = Object.assign(_getProfile(type, id), data, { updatedAt: Date.now() });
+  _saveProfiles(all);
+  // Sync Firebase si disponible
+  if(window.db && window.fbDoc && window.fbSetDoc) {
+    try {
+      var docKey = ('pubprofile_' + type + '_' + String(id)).replace(/[^a-zA-Z0-9_-]/g,'_');
+      window.fbSetDoc(window.fbDoc(window.db, 'public_profiles', docKey), all[type + ':' + id]).catch(function(){});
+    } catch(e) {}
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   3 — ÉTAT COURANT
+   ══════════════════════════════════════════════════════ */
+var _ppState = { type: null, id: null, rawData: {}, editing: false };
+var _ppAvatarDataUrl = null; // pour l'upload en cours
+
+/* ══════════════════════════════════════════════════════
+   4 — VÉRIFIER SI L'UTILISATEUR PEUT ÉDITER
+   ══════════════════════════════════════════════════════ */
+function _canEdit(type, id, rawData) {
+  // Admin global
+  if(window.isAdmin) return true;
+  if(type === 'membre') {
+    if(!window.currentUserUID && !window.currentUserEmail) return false;
+    var profUid = rawData.uid || rawData.userId || '';
+    var profEmail = (rawData.email || '').toLowerCase();
+    var curEmail = (window.currentUserEmail || '').toLowerCase();
+    var curUid = window.currentUserUID || '';
+    return (profUid && profUid === curUid) || (profEmail && profEmail === curEmail);
+  }
+  if(type === 'etablissement') {
+    if(typeof window.isResponsable === 'function') return window.isResponsable(id);
+    // Fallback: si l'email du gérant correspond
+    var etabEmail = (rawData.email || '').toLowerCase();
+    var curEmail2 = (window.currentUserEmail || '').toLowerCase();
+    return etabEmail && curEmail2 && etabEmail === curEmail2;
+  }
+  if(type === 'chauffeur') {
+    // Le chauffeur peut éditer si son phone correspond à l'utilisateur courant
+    var driverPhone = (rawData.phone || '').replace(/\s/g,'');
+    var curPhone = (window.currentUserPhone || '').replace(/\s/g,'');
+    return curPhone && driverPhone && driverPhone === curPhone;
+  }
+  return false;
+}
+
+/* ══════════════════════════════════════════════════════
+   5 — RENDRE LE PROFIL EN LECTURE
+   ══════════════════════════════════════════════════════ */
+function _renderView(type, id, rawData, profData) {
+  _initModal();
+  var canEdit = _canEdit(type, id, rawData);
+
+  /* ── Avatar ── */
+  var avatarEl = document.getElementById('ppAvatar');
+  avatarEl.innerHTML = '';
+  var avatarSrc = profData.avatar || rawData.photo || rawData.photo_profil ||
+    (rawData.photos && rawData.photos[0]) || '';
+  // Fallback établissement : photo principale
+  if(!avatarSrc && type === 'etablissement') {
+    avatarSrc = rawData._photo_profile_approved || rawData.photo_interieur || rawData.photo_exterieur || '';
+  }
+  // Fallback chauffeur
+  if(!avatarSrc && type === 'chauffeur') {
+    avatarSrc = rawData.photo || '';
+  }
+  if(avatarSrc) {
+    avatarEl.innerHTML = '<img src="' + avatarSrc + '" alt="" onerror="this.parentElement.innerHTML=\''+_ppInitials(rawData, type)+'\'">';
+  } else {
+    avatarEl.textContent = _ppInitials(rawData, type);
+    // Color per type
+    var bgMap = { membre: 'linear-gradient(135deg,#00e5ff,#0080ff)', etablissement: 'linear-gradient(135deg,#ffd700,#ff8800)', chauffeur: 'linear-gradient(135deg,#ff9800,#ffcc00)' };
+    avatarEl.style.background = bgMap[type] || 'linear-gradient(135deg,#ff2d9b,#cc44ff)';
+  }
+
+  /* ── Banner ── */
+  var bannerImg = document.getElementById('ppBannerImg');
+  var bannerSrc = rawData.photo_exterieur || rawData.photo_interieur || '';
+  if(bannerSrc && type === 'etablissement') {
+    bannerImg.src = bannerSrc; bannerImg.style.display = 'block';
+  } else { bannerImg.style.display = 'none'; }
+
+  /* ── Name ── */
+  var displayName = profData.displayName || rawData.nom || rawData.name || rawData.pseudo || rawData.displayName || '—';
+  document.getElementById('ppDisplayName').textContent = displayName;
+
+  /* ── Role badge ── */
+  var roleMap = {
+    membre: { cls: 'pp-role-membre', label: '👤 Membre' },
+    etablissement: { cls: 'pp-role-etablissement', label: '🏠 Établissement' },
+    chauffeur: { cls: 'pp-role-chauffeur', label: '🚕 Chauffeur' }
+  };
+  var role = roleMap[type] || { cls: 'pp-role-membre', label: type };
+  // Admin override
+  if(rawData._isAdmin || (type === 'membre' && window.isAdmin && _canEdit('membre', id, rawData))) {
+    role = { cls: 'pp-role-admin', label: '👑 Admin' };
+  }
+  var badgeEl = document.getElementById('ppRoleBadge');
+  badgeEl.innerHTML = '<span class="pp-role-badge ' + role.cls + '">' + role.label + '</span>';
+  // Extra badges
+  if(type === 'etablissement' && rawData.type) {
+    badgeEl.innerHTML += ' <span class="pp-role-badge" style="background:rgba(204,68,255,.1);color:#cc44ff;border:1px solid rgba(204,68,255,.25);">' + rawData.type + '</span>';
+  }
+  if(type === 'etablissement' && rawData.quartier) {
+    badgeEl.innerHTML += ' <span class="pp-role-badge" style="background:rgba(0,255,170,.08);color:#00ffaa;border:1px solid rgba(0,255,170,.2);">📍 ' + rawData.quartier + '</span>';
+  }
+
+  /* ── Bio ── */
+  var bioEl = document.getElementById('ppBio');
+  var bio = profData.bio || rawData.description || rawData.bio || '';
+  if(bio) {
+    bioEl.className = 'pp-bio';
+    bioEl.textContent = bio;
+  } else {
+    bioEl.className = 'pp-bio-empty';
+    bioEl.textContent = canEdit ? 'Aucune bio renseignée — cliquez sur Modifier pour vous présenter.' : 'Aucune description publique.';
+  }
+
+  /* ── Stats ── */
+  var statsEl = document.getElementById('ppStats');
+  statsEl.innerHTML = '';
+  if(type === 'etablissement') {
+    var stats = [
+      { val: rawData.note ? Number(rawData.note).toFixed(1) + '★' : '—', lbl: 'Note', color: '#ffd700' },
+      { val: (rawData.affluence || 0) + '%', lbl: 'Affluence', color: '#ff4466' },
+      { val: rawData.avis || 0, lbl: 'Avis', color: '#00e5ff' }
+    ];
+    stats.forEach(function(s) {
+      statsEl.innerHTML += '<div class="pp-stat"><div class="pp-stat-val" style="color:' + s.color + '">' + s.val + '</div><div class="pp-stat-lbl">' + s.lbl + '</div></div>';
+    });
+    if(rawData.capacity) statsEl.innerHTML += '<div class="pp-stat"><div class="pp-stat-val">' + rawData.capacity + '</div><div class="pp-stat-lbl">Capacité</div></div>';
+    if(rawData.statut && rawData.statut !== '') {
+      var sColor = rawData.statut.indexOf('Fermé') !== -1 ? '#ff4466' : rawData.statut.indexOf('Bondé') !== -1 ? '#ff2d9b' : '#00ffaa';
+      statsEl.innerHTML += '<div class="pp-stat"><div class="pp-stat-val" style="color:' + sColor + ';font-size:.72rem;">' + rawData.statut.replace('Ouvert - ','') + '</div><div class="pp-stat-lbl">Statut</div></div>';
+    }
+  } else if(type === 'chauffeur') {
+    var r = Number(rawData.rating || profData.rating || 4.8);
+    statsEl.innerHTML = '<div class="pp-stat"><div class="pp-stat-val" style="color:#ffd700">' + r.toFixed(1) + '★</div><div class="pp-stat-lbl">Note</div></div>'
+      + '<div class="pp-stat"><div class="pp-stat-val" style="color:#00ffaa">' + (rawData.courses || 0) + '</div><div class="pp-stat-lbl">Courses</div></div>'
+      + '<div class="pp-stat"><div class="pp-stat-val">' + (rawData.type || '🚗') + '</div><div class="pp-stat-lbl">Véhicule</div></div>';
+    if(rawData.online) statsEl.innerHTML += '<div class="pp-stat"><div class="pp-stat-val" style="color:#00ffaa;font-size:.72rem;">● Dispo</div><div class="pp-stat-lbl">Statut</div></div>';
+  } else if(type === 'membre') {
+    var nbPubs = 0;
+    try { var allPubs = JSON.parse(localStorage.getItem('ambi241_publications') || '[]'); nbPubs = allPubs.filter(function(p){ return (p.pseudo||p.auteur) === displayName; }).length; } catch(e){}
+    if(nbPubs > 0) statsEl.innerHTML += '<div class="pp-stat"><div class="pp-stat-val" style="color:#cc44ff">' + nbPubs + '</div><div class="pp-stat-lbl">Posts</div></div>';
+  }
+
+  /* ── Socials ── */
+  var socialsEl = document.getElementById('ppSocials');
+  var socialsLbl = document.getElementById('ppSocialsLabel');
+  socialsEl.innerHTML = '';
+  var hasSocials = false;
+  function addSocial(icon, cls, href, label) {
+    hasSocials = true;
+    socialsEl.innerHTML += '<a class="pp-social-btn ' + cls + '" href="' + href + '" target="_blank" rel="noopener">' + icon + ' ' + label + '</a>';
+  }
+  // WhatsApp
+  var wa = profData.whatsapp || (type === 'etablissement' ? rawData.contact : '') || (type === 'chauffeur' ? rawData.phone : '');
+  if(wa) {
+    var cleanWa = wa.replace(/[\s\+]/g,'');
+    addSocial('💬', 'pp-social-wa', 'https://wa.me/' + cleanWa, 'WhatsApp');
+  }
+  // Instagram
+  var ig = profData.instagram || rawData.instagram || '';
+  if(ig) { var igU = ig.replace('@',''); addSocial('📸', 'pp-social-ig', 'https://instagram.com/' + igU, ig.startsWith('@') ? ig : '@' + ig); }
+  // TikTok
+  var tk = profData.tiktok || rawData.tiktok || '';
+  if(tk) { var tkU = tk.replace('@',''); addSocial('🎵', 'pp-social-tk', 'https://tiktok.com/@' + tkU, tk.startsWith('@') ? tk : '@' + tk); }
+  // Website
+  var web = profData.website || rawData.website || rawData.maps_url || '';
+  if(web && web.indexOf('google.com/maps') === -1) addSocial('🌐', 'pp-social-web', web, 'Site web');
+  // Google Maps for establishments
+  if(type === 'etablissement' && rawData.maps_url) addSocial('📍', 'pp-social-web', rawData.maps_url, 'Google Maps');
+  // Phone for chauffeur if no whatsapp
+  if(type === 'chauffeur' && rawData.phone && !wa) addSocial('📞', 'pp-social-phone', 'tel:' + rawData.phone, rawData.phone);
+
+  socialsLbl.style.display = hasSocials ? 'flex' : 'none';
+
+  /* ── Actions ── */
+  var actEl = document.getElementById('ppActions');
+  var actDivEl = document.getElementById('ppActionsDivider');
+  actEl.innerHTML = '';
+  if(canEdit) {
+    actEl.innerHTML = '<button class="pp-btn pp-btn-edit" onclick="window._ppOpenEdit()">✏️ Modifier mon profil</button>';
+  }
+  // Pour établissement: bouton voir fiche
+  if(type === 'etablissement') {
+    actEl.innerHTML += '<button class="pp-btn pp-btn-sec" onclick="window.closePublicProfile();setTimeout(function(){if(typeof goToEtab===\'function\')goToEtab(' + id + ');},100);">🏠 Voir la fiche</button>';
+  }
+  // Pour chauffeur: bouton appeler
+  if(type === 'chauffeur' && rawData.phone) {
+    actEl.innerHTML += '<a class="pp-btn pp-btn-sec" href="tel:' + rawData.phone + '" style="text-align:center;text-decoration:none;display:block;">📞 Appeler</a>';
+  }
+  var hasActions = actEl.innerHTML !== '';
+  actDivEl.style.display = hasActions ? 'block' : 'none';
+  actEl.style.display = hasActions ? 'flex' : 'none';
+}
+
+/* ══════════════════════════════════════════════════════
+   6 — OUVRIR / FERMER
+   ══════════════════════════════════════════════════════ */
+window.openPublicProfile = function(type, id, rawData) {
+  _initModal();
+  var profData = _getProfile(type, id);
+  _ppState = { type: type, id: id, rawData: rawData || {}, editing: false };
+  _ppAvatarDataUrl = null;
+
+  // Masquer l'éditeur, montrer la vue
+  document.getElementById('ppViewPanel').style.display = 'block';
+  document.getElementById('ppEditPanel').classList.remove('pp-edit-open');
+
+  _renderView(type, id, rawData || {}, profData);
+
+  _overlay.classList.add('pp-open');
+  document.body.style.overflow = 'hidden';
+};
+
+window.closePublicProfile = function() {
+  if(_overlay) _overlay.classList.remove('pp-open');
+  document.body.style.overflow = '';
+};
+
+/* ══════════════════════════════════════════════════════
+   7 — ÉDITEUR
+   ══════════════════════════════════════════════════════ */
+window._ppOpenEdit = function() {
+  var s = _ppState;
+  var profData = _getProfile(s.type, s.id);
+  var rawData = s.rawData;
+
+  // Pré-remplir les champs
+  var currentName = profData.displayName || rawData.nom || rawData.name || rawData.pseudo || '';
+  document.getElementById('ppEditName').value = currentName;
+  document.getElementById('ppEditBio').value = profData.bio || rawData.description || rawData.bio || '';
+  document.getElementById('ppBioCount').textContent = (profData.bio || '').length + '/160';
+  document.getElementById('ppEditWA').value = profData.whatsapp || (s.type === 'etablissement' ? rawData.contact : '') || (s.type === 'chauffeur' ? rawData.phone : '') || '';
+  document.getElementById('ppEditIG').value = profData.instagram || rawData.instagram || '';
+  document.getElementById('ppEditTK').value = profData.tiktok || rawData.tiktok || '';
+  document.getElementById('ppEditWeb').value = profData.website || rawData.website || '';
+  document.getElementById('ppVisToggle').checked = profData.isPublic !== false;
+
+  // Avatar preview
+  var prevEl = document.getElementById('ppEditAvatarPreview');
+  var avatarSrc = profData.avatar || rawData.photo || (s.type === 'etablissement' ? (rawData._photo_profile_approved || rawData.photo_interieur || '') : '') || '';
+  prevEl.innerHTML = '';
+  if(avatarSrc) {
+    prevEl.innerHTML = '<img src="' + avatarSrc + '" alt="">';
+  } else {
+    prevEl.textContent = _ppInitials(rawData, s.type);
+    prevEl.style.background = s.type === 'etablissement' ? 'linear-gradient(135deg,#ffd700,#ff8800)' : s.type === 'chauffeur' ? 'linear-gradient(135deg,#ff9800,#ffcc00)' : 'linear-gradient(135deg,#ff2d9b,#cc44ff)';
+  }
+  // Réajouter l'input file
+  var inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*'; inp.id = 'ppAvatarInput';
+  inp.style.cssText = 'position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;';
+  inp.onchange = function(){ window._ppOnAvatarSelected(this); };
+  prevEl.appendChild(inp);
+
+  document.getElementById('ppViewPanel').style.display = 'none';
+  document.getElementById('ppEditPanel').classList.add('pp-edit-open');
+
+  // Scroll to top
+  document.getElementById('ppSheet').scrollTop = 0;
+};
+
+window._ppCancelEdit = function() {
+  document.getElementById('ppEditPanel').classList.remove('pp-edit-open');
+  document.getElementById('ppViewPanel').style.display = 'block';
+};
+
+window._ppOnAvatarSelected = function(inp) {
+  var file = inp.files && inp.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    _ppAvatarDataUrl = e.target.result;
+    var prevEl = document.getElementById('ppEditAvatarPreview');
+    var src = e.target.result;
+    // Reconstruire avec img
+    var inputEl = prevEl.querySelector('input[type=file]');
+    prevEl.innerHTML = '<img src="' + src + '" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">';
+    if(inputEl) prevEl.appendChild(inputEl);
+  };
+  reader.readAsDataURL(file);
+};
+
+window._ppSave = function() {
+  var s = _ppState;
+  if(!s.type || !s.id) return;
+  var name = (document.getElementById('ppEditName').value || '').trim();
+  if(!name) { if(typeof showToast === 'function') showToast('⚠️ Le nom affiché est requis'); return; }
+
+  var newData = {
+    displayName: name,
+    bio: (document.getElementById('ppEditBio').value || '').trim(),
+    whatsapp: (document.getElementById('ppEditWA').value || '').trim(),
+    instagram: (document.getElementById('ppEditIG').value || '').trim(),
+    tiktok: (document.getElementById('ppEditTK').value || '').trim(),
+    website: (document.getElementById('ppEditWeb').value || '').trim(),
+    isPublic: document.getElementById('ppVisToggle').checked
+  };
+  if(_ppAvatarDataUrl) newData.avatar = _ppAvatarDataUrl;
+
+  _setProfile(s.type, s.id, newData);
+  if(typeof showToast === 'function') showToast('✅ Profil public mis à jour !');
+
+  // Mettre à jour l'affichage
+  var profData = _getProfile(s.type, s.id);
+  _ppCancelEdit();
+  _renderView(s.type, s.id, s.rawData, profData);
+};
+
+/* ══════════════════════════════════════════════════════
+   8 — UTILITAIRES
+   ══════════════════════════════════════════════════════ */
+function _ppInitials(data, type) {
+  var name = data.nom || data.name || data.pseudo || data.displayName || '?';
+  return name.split(' ').map(function(w){ return w[0] || ''; }).join('').toUpperCase().slice(0,2) || '??';
+}
+
+/* ══════════════════════════════════════════════════════
+   9 — HOOKS AUTOMATIQUES (Patch des fonctions existantes)
+   ══════════════════════════════════════════════════════ */
+
+// ── A) Auteurs de publications → profil membre ──
+var _prevOpenPubAuthorFilter = window.openPubAuthorFilter;
+window.openPubAuthorFilter = function(pseudo, pubId) {
+  if(!pseudo) return;
+  // Chercher les données du membre
+  var rawData = { pseudo: pseudo, name: pseudo };
+  // Essayer de récupérer le UID depuis Firebase
+  if(window.currentUserPseudo === pseudo && window.currentUserUID) {
+    rawData.uid = window.currentUserUID;
+    rawData.email = window.currentUserEmail || '';
+  }
+  window.openPublicProfile('membre', 'pseudo_' + pseudo.replace(/\s/g,'_'), rawData);
+};
+
+// ── B) Noms établissements (dans les publications et les cartes) ──
+// On patche searchEtabFromPub pour montrer le profil aussi
+var _prevSearchEtabFromPub = window.searchEtabFromPub;
+window.searchEtabFromPub = function(etabNom) {
+  // Chercher l'établissement dans la liste
+  if(typeof etablissements !== 'undefined') {
+    var found = etablissements.find(function(e) {
+      return (e.nom || '').toLowerCase() === (etabNom || '').toLowerCase();
+    });
+    if(found) { window.openPublicProfile('etablissement', found.id, found); return; }
+  }
+  // Fallback : comportement original
+  if(typeof _prevSearchEtabFromPub === 'function') _prevSearchEtabFromPub(etabNom);
+};
+
+// ── C) Chauffeurs (déjà hookés via showDriverProfile) ──
+// On remplace showDriverProfile
+var _prevShowDriverProfile = window.showDriverProfile;
+window.showDriverProfile = function(encodedPhone) {
+  var phone = '';
+  try { phone = decodeURIComponent(encodedPhone); } catch(e) { phone = encodedPhone; }
+  var contacts = [];
+  try { contacts = JSON.parse(localStorage.getItem('taxiContacts') || '[]'); } catch(e) {}
+  var driver = contacts.find(function(c) { return (c.phone||'').replace(/\s/g,'') === phone.replace(/\s/g,''); });
+  if(driver) {
+    window.openPublicProfile('chauffeur', 'driver_' + phone.replace(/[^0-9]/g,''), driver);
+  } else if(typeof _prevShowDriverProfile === 'function') {
+    _prevShowDriverProfile(encodedPhone);
+  } else {
+    // Profil minimal
+    window.openPublicProfile('chauffeur', 'driver_' + phone.replace(/[^0-9]/g,''), { phone: phone, name: 'Chauffeur', type: '🚗 Taxi' });
+  }
+};
+
+// ── D) Noms cliquables dans les établissements (header nom) ──
+// On ajoute un listener délégué pour les .card-nom et .card-title cliquables
+document.addEventListener('click', function(e) {
+  var target = e.target;
+  // Remonter jusqu'à 3 niveaux
+  for(var i = 0; i < 3; i++) {
+    if(!target) break;
+    if(target.getAttribute && target.getAttribute('data-pp-type')) {
+      var ppType = target.getAttribute('data-pp-type');
+      var ppId = target.getAttribute('data-pp-id');
+      var ppRaw = {};
+      try { ppRaw = JSON.parse(target.getAttribute('data-pp-raw') || '{}'); } catch(e) {}
+      window.openPublicProfile(ppType, ppId, ppRaw);
+      e.stopPropagation();
+      return;
+    }
+    target = target.parentElement;
+  }
+}, true);
+
+/* ══════════════════════════════════════════════════════
+   10 — HELPER POUR RENDRE LES NOMS CLIQUABLES PARTOUT
+   ══════════════════════════════════════════════════════ */
+/**
+ * Enveloppe un nom en texte dans un span cliquable qui ouvre le profil public.
+ * Usage dans les templates HTML existants :
+ *   ppLink('membre', 'pseudo_Jean', { pseudo:'Jean' }, 'Jean')
+ *   ppLink('etablissement', 42, etabObj, 'Le Crystal')
+ *   ppLink('chauffeur', 'driver_24177001010', driverObj, 'M. Dupont')
+ */
+window.ppLink = function(type, id, rawData, label) {
+  var safeRaw = JSON.stringify(rawData || {}).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  return '<span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;" '
+    + 'data-pp-type="' + type + '" data-pp-id="' + id + '" data-pp-raw="' + safeRaw + '">'
+    + (label || '—')
+    + '</span>';
+};
+window.ppLinkEtab = function(etab) {
+  if(!etab) return '—';
+  return window.ppLink('etablissement', etab.id, etab, etab.nom || '—');
+};
+window.ppLinkDriver = function(driver) {
+  if(!driver) return '—';
+  var pid = 'driver_' + (driver.phone||'').replace(/[^0-9]/g,'');
+  return window.ppLink('chauffeur', pid, driver, driver.name || '—');
+};
+window.ppLinkMembre = function(pseudo, uid, email) {
+  var raw = { pseudo: pseudo, uid: uid || '', email: email || '' };
+  return window.ppLink('membre', 'pseudo_' + (pseudo||'').replace(/\s/g,'_'), raw, pseudo || '—');
+};
+
+/* ══════════════════════════════════════════════════════
+   11 — PATCH RENDU TABLEAU ADMIN : noms établissements cliquables
+   ══════════════════════════════════════════════════════ */
+// Après chaque renderAll, rendre les noms d'établissements dans les cartes cliquables
+var _raf_tick = null;
+function _patchEtabNameLinks() {
+  // Trouver tous les éléments qui affichent un nom d'établissement dans les cartes
+  document.querySelectorAll('[data-etab-id]').forEach(function(el) {
+    if(el.getAttribute('data-pp-patched')) return;
+    el.setAttribute('data-pp-patched', '1');
+    var etabId = parseInt(el.getAttribute('data-etab-id'));
+    if(!etabId || isNaN(etabId)) return;
+    var etab = typeof etablissements !== 'undefined' ? etablissements.find(function(e){ return e.id === etabId; }) : null;
+    if(!etab) return;
+    el.style.cursor = 'pointer';
+    el.addEventListener('click', function(ev) {
+      ev.stopPropagation();
+      window.openPublicProfile('etablissement', etabId, etab);
+    });
+  });
+}
+
+// Observer les mutations pour patcher automatiquement
+if(typeof MutationObserver !== 'undefined') {
+  var _ppMo = new MutationObserver(function() {
+    if(_raf_tick) cancelAnimationFrame(_raf_tick);
+    _raf_tick = requestAnimationFrame(_patchEtabNameLinks);
+  });
+  _ppMo.observe(document.body, { childList: true, subtree: true });
+}
+
+/* ══════════════════════════════════════════════════════
+   12 — INIT : charger les profils depuis Firebase au démarrage
+   ══════════════════════════════════════════════════════ */
+function _loadProfilesFromFirebase() {
+  if(!window.db || !window.fbCollection || !window.fbGetDocs) return;
+  try {
+    window.fbGetDocs(window.fbCollection(window.db, 'public_profiles')).then(function(snap) {
+      var all = _loadProfiles();
+      snap.forEach(function(d) {
+        var key = d.id.replace('pubprofile_','').replace(/_/g, function(m, off, str) {
+          // Reconstruire la clé type:id
+          return off === str.indexOf('_') ? ':' : '_';
+        });
+        // Simplification : stocker directement par docId transformé
+        var data = d.data();
+        var parts = d.id.replace('pubprofile_','').split('_');
+        if(parts.length >= 2) {
+          var t = parts[0];
+          var id2 = parts.slice(1).join('_');
+          all[t + ':' + id2] = data;
+        }
+      });
+      _saveProfiles(all);
+    }).catch(function(){});
+  } catch(e) {}
+}
+
+// Attendre que Firebase soit prêt
+setTimeout(function() {
+  _loadProfilesFromFirebase();
+}, 3000);
+
+console.log('[AMBI241] ✅ Système Profils Publics chargé — openPublicProfile(type,id,data) disponible');
+
+})(); // fin IIFE
+
+/* ══════════════════════════════════════════════════════════════
+   SCROLL NAV INDICATOR — Logique JS
+   ══════════════════════════════════════════════════════════════ */
+(function(){
+  var indicator = document.getElementById('scrollNavIndicator');
+  var labelEl   = document.getElementById('sni-label');
+  var pulseRing = document.getElementById('sni-pulse-ring');
+
+  if (!indicator) return;
+
+  var lastScroll = 0;
+  var dir = 'down';
+  var labelHideTimer  = null;
+  var pulseTimer      = null;
+
+  function getScrollEl() {
+    // Le contenu principal est scrollé via window / document.documentElement
+    return document.documentElement;
+  }
+
+  function getScrollTop() {
+    return window.pageYOffset || document.documentElement.scrollTop || 0;
+  }
+
+  function getScrollHeight() {
+    return document.documentElement.scrollHeight;
+  }
+
+  function getClientHeight() {
+    return window.innerHeight;
+  }
+
+  function setDir(newDir) {
+    if (dir === newDir) return;
+    dir = newDir;
+    indicator.className = newDir;
+    if (newDir === 'down') {
+      labelEl.textContent = 'Faites défiler ↓';
+    } else {
+      labelEl.textContent = 'Remonter ↑';
+    }
+  }
+
+  function showLabel() {
+    labelEl.classList.remove('hidden');
+    clearTimeout(labelHideTimer);
+    labelHideTimer = setTimeout(function() {
+      labelEl.classList.add('hidden');
+    }, 2500);
+  }
+
+  function triggerPulse() {
+    pulseRing.style.display = 'block';
+    clearTimeout(pulseTimer);
+    pulseTimer = setTimeout(function() {
+      pulseRing.style.display = 'none';
+    }, 650);
+  }
+
+  function onScroll() {
+    var scrollTop = getScrollTop();
+    var scrollHeight = getScrollHeight();
+    var clientHeight = getClientHeight();
+
+    var atTop    = scrollTop < 8;
+    var atBottom = scrollTop + clientHeight >= scrollHeight - 8;
+    var delta    = scrollTop - lastScroll;
+    lastScroll   = scrollTop;
+
+    if (atBottom) {
+      setDir('up');
+    } else if (atTop) {
+      setDir('down');
+    } else {
+      setDir(delta > 0 ? 'down' : 'up');
+    }
+
+    indicator.classList.remove('hidden');
+    showLabel();
+    triggerPulse();
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+
+  // Impulsion initiale pour attirer l'attention
+  setTimeout(function() {
+    triggerPulse();
+    showLabel();
+  }, 1200);
+
+  // Masquer après changement de section (l'indicateur reste pertinent)
+  // Il s'adapte automatiquement lors du prochain scroll
+
 })();
 </script>
 </html>
