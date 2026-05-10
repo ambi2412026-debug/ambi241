@@ -5518,7 +5518,8 @@ if (document.readyState === 'loading') {
       <div class="pub-photos-compose">
         <div class="pub-photos-compose-label">&#128247; Photos (max 5)</div>
         <div class="pub-photos-grid" id="pubPhotoGrid"></div>
-        <label class="pub-photo-add-btn" id="pubPhotoAddBtn" style="cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.3rem;">&#43; Ajouter des photos<input type="file" id="pubPhotoInput" accept="image/*,.heic,.heif,.webp,.avif,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.tif" multiple style="display:none" onchange="onPubPhotosSelected(this)"></label>
+        <input type="file" id="pubPhotoInput" accept="image/*,.heic,.heif,.webp,.avif,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.tif" multiple style="display:none" onchange="onPubPhotosSelected(this)">
+        <label class="pub-photo-add-btn" id="pubPhotoAddBtn" for="pubPhotoInput" style="cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.3rem;"><span id="pubPhotoAddBtnText">&#43; Ajouter des photos</span></label>
       </div>
 
       <!-- Compteur publications du jour -->
@@ -21099,8 +21100,10 @@ window.doAssignEtab = doAssignEtab;
         +'<button class="pub-photo-del" onclick="removePubPhoto('+idx+')">&#10005;</button>'
         +'</div>';
     }).join("");
-    if(addBtn) addBtn.disabled = _pubPhotos.length >= 5;
-    if(addBtn) addBtn.textContent = _pubPhotos.length >= 5 ? "&#10003; 5/5 photos max" : "+ Ajouter des photos";
+    var isFull = _pubPhotos.length >= 5;
+    if(addBtn){ addBtn.style.opacity = isFull ? "0.4" : "1"; addBtn.style.pointerEvents = isFull ? "none" : "auto"; }
+    var textEl = document.getElementById("pubPhotoAddBtnText");
+    if(textEl) textEl.textContent = isFull ? "\u2713 5/5 photos max" : "+ Ajouter des photos";
   }
 
   window.removePubPhoto = function(idx){
