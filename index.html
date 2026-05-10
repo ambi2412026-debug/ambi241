@@ -8040,39 +8040,40 @@ window.renderAdmClassement = renderAdmClassement;
 // ne sont PAS touchées.
 function resetCycleClassement(){
   var confirmMsg =
-    "⚠️ RÉINITIALISATION DU CYCLE DE CLASSEMENT\n\n" +
-    "Cette action va effacer :\n" +
-    "  • Toutes les présences enregistrées\n" +
-    "  • Tous les votes (👍 / 👎)\n" +
-    "  • Les cooldowns de présence\n\n" +
-    "Les données fixes des établissements (nom, note, avis, photos…)\n" +
-    "ne seront PAS modifiées.\n\n" +
-    "Un nouveau cycle de collecte démarrera immédiatement.\n\n" +
-    "Confirmer la réinitialisation ?";
+    "⚡ NOUVEAU CYCLE AMBI241\n\n" +
+    "Ce reset va remettre à zéro :\n" +
+    "  • Affluence (signalements de présence)\n" +
+    "  • Avis & notes AMBI241 (votes internes)\n" +
+    "  • Votes communautaires 👍 / 👎\n" +
+    "  • Présences enregistrées\n" +
+    "  • Cooldowns individuels\n\n" +
+    "Ce qui est CONSERVÉ :\n" +
+    "  • Notes officielles Google Maps / Étoiles hôtels\n" +
+    "  • Noms, photos, coordonnées\n\n" +
+    "Confirmer ?";
 
   if(!confirm(confirmMsg)) return;
 
   try {
-    // 1. Effacer les présences globales
+    // 1. Vider présences & votes localStorage
     try { localStorage.removeItem("ambi241_all_presence"); } catch(e){}
-
-    // 2. Effacer les votes globaux
     try { localStorage.removeItem("ambi241_all_votes"); } catch(e){}
 
-    // 3. Effacer les cooldowns de présence individuels (ambi241_lastpres_*)
+    // 2. Cooldowns et clés cycle
     var keysToDelete = [];
     for(var i = 0; i < localStorage.length; i++){
       var k = localStorage.key(i);
       if(!k) continue;
       if(k.indexOf("ambi241_lastpres_") === 0 ||
          k.indexOf("ambi241_vcd_") === 0 ||
-         k.indexOf("ambi241_anon_presence_") === 0){
+         k.indexOf("ambi241_anon_presence_") === 0 ||
+         k.indexOf("ambi241_etab_aff_") === 0){
         keysToDelete.push(k);
       }
     }
     keysToDelete.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
 
-    // 4. Effacer les présences anonymes en sessionStorage
+    // 3. SessionStorage anonymes
     var ssKeys = [];
     for(var j = 0; j < sessionStorage.length; j++){
       var sk = sessionStorage.key(j);
@@ -8081,31 +8082,63 @@ function resetCycleClassement(){
     }
     ssKeys.forEach(function(k){ try{ sessionStorage.removeItem(k); }catch(e){} });
 
-    // 5. Effacer aussi dans Firebase si disponible (collection presences par établissement)
+    // 4. Réinitialiser les caches live en mémoire
+    if(window._livePresences) window._livePresences = {};
+    if(window._liveVotes)     window._liveVotes     = {};
+
+    // 5. Remettre affluence=0 et avis AMBI241=0 sur chaque étab en mémoire
+    //    MAIS conserver note officielle Google (_officialNote) si elle existe
+    if(typeof etablissements !== "undefined" && etablissements){
+      etablissements.forEach(function(e){
+        e.affluence = 0;
+        // Conserver la note Google officielle si disponible
+        if(!e._officialNote && e.note > 0 && e.place_id) {
+          e._officialNote = e.note; // sauvegarder avant reset
+        }
+        // Remettre avis AMBI241 à 0, garder _officialNote intacte
+        e.avis = 0;
+        // Note : on garde e.note si c'est une note Google reconnue
+        if(e._voteData) e._voteData = { pos:0, neg:0 };
+      });
+    }
+
+    // 6. Firebase : effacer presences, votes_communautaires, affluence_signalements
     if(window.db && window.fbCollection && window.fbGetDocs && window.fbDeleteDoc){
-      etablissements.forEach(function(etab){
+      ["presences","votes_communautaires","affluence_signalements"].forEach(function(col){
         try{
-          var ref = window.fbCollection(window.db, "etablissements", String(etab.id), "presences");
-          window.fbGetDocs(ref).then(function(snap){
+          window.fbGetDocs(window.fbCollection(window.db, col)).then(function(snap){
             snap.forEach(function(d){ window.fbDeleteDoc(d.ref).catch(function(){}); });
           }).catch(function(){});
         }catch(e){}
       });
+      // Effacer sous-collections presences par étab
+      if(typeof etablissements !== "undefined"){
+        etablissements.forEach(function(etab){
+          try{
+            var ref = window.fbCollection(window.db, "etablissements", String(etab.id), "presences");
+            window.fbGetDocs(ref).then(function(snap){
+              snap.forEach(function(d){ window.fbDeleteDoc(d.ref).catch(function(){}); });
+            }).catch(function(){});
+          }catch(e){}
+        });
+      }
     }
 
-    // 6. Enregistrer la date de début du nouveau cycle
-    var cycleStart = Date.now();
-    try{ localStorage.setItem("ambi241_cycle_start", String(cycleStart)); }catch(e){}
-
-    // ✅ FIX Bug3: Réinitialiser le tri actif → évite que "Avis" reste surligné après reset
+    // 7. Cycle timestamp + tri
+    try{ localStorage.setItem("ambi241_cycle_start", String(Date.now())); }catch(e){}
+    try{ localStorage.setItem("ambi241_cycle_reset_count",
+      String(parseInt(localStorage.getItem("ambi241_cycle_reset_count")||"0")+1)); }catch(e){}
     if(typeof _rankSort !== "undefined"){ _rankSort = { col: "score", asc: false }; }
 
-    // 7. Notifier et rafraîchir
-    showToast("🔄 Nouveau cycle démarré — données de classement réinitialisées !");
-    setTimeout(function(){ renderAdmClassement(); }, 400);
+    // 8. Rafraîchir affichage
+    showToast("🔄 Nouveau cycle démarré — Afflux, Avis, Votes remis à zéro !");
+    setTimeout(function(){
+      if(typeof renderAll === "function") renderAll();
+      if(typeof renderAdmClassement === "function") renderAdmClassement();
+    }, 400);
 
   } catch(err) {
-    showToast("❌ Erreur lors de la réinitialisation : " + err.message);
+    showToast("❌ Erreur : " + err.message);
     console.error("resetCycleClassement error:", err);
   }
 }
@@ -15837,6 +15870,12 @@ function openAdminDashboard(btn){
   if((!etablissements||etablissements.length===0) && typeof loadData==="function") loadData();
   // Délai pour laisser Firebase répondre
   setTimeout(function(){ switchAdmTab("overview"); }, 600);
+  // Pre-init content panel so it's ready when user clicks
+  setTimeout(function(){
+    if(typeof window.renderAdmContent === 'function'){
+      window.renderAdmContent(0);
+    }
+  }, 800);
   // Afficher le bouton admin nav
   var nb=document.getElementById("adminNavBtn");
   if(nb)nb.style.display="flex";
@@ -15884,7 +15923,7 @@ function switchAdmTab(tab){
   else if(tab==="reservations") renderAdmReservations();
   else if(tab==="classement") renderAdmClassement();
   else if(tab==="support") renderAdmSupport();
-  else if(tab==="content") { if(typeof window.renderAdmContent==="function") window.renderAdmContent(0); }
+  else if(tab==="content") { if(typeof window.renderAdmContent==="function") window.renderAdmContent(); }
   else if(tab==="appconfig") { if(typeof window.renderAdmAppConfig==="function") window.renderAdmAppConfig(0); }
 }
 window.switchAdmTab=switchAdmTab;
@@ -18646,7 +18685,7 @@ window.doAssignEtab = doAssignEtab;
       <button class="adm-tab"        id="admtab-appconfig"     onclick="switchAdmTab('appconfig')">🛠️ Config App</button>
       <button class="adm-tab"        id="admtab-settings"      onclick="switchAdmTab('settings')">⚙️ Paramètres</button>
       <button class="adm-tab"        id="admtab-payments"      onclick="switchAdmTab('payments')">💰 Paiements</button>
-      <button class="adm-tab"        id="admtab-content"       onclick="switchAdmTab('content')">📋 Contenu</button>
+      <button class="adm-tab"        id="admtab-content"       onclick="switchAdmTab('content');setTimeout(function(){if(typeof window.renderAdmContent==='function'&&document.getElementById('adminContentPanel').innerHTML.indexOf('Chargement')!==-1)window.renderAdmContent(0);},200);">📋 Contenu</button>
       <button class="adm-tab"        id="admtab-support"       onclick="switchAdmTab('support')" style="position:relative;">💬 Support<span id="admSupportBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:#fff;font-size:0.5rem;font-weight:800;width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center;border:1px solid var(--bg);"></span></button>
     </div>
 
@@ -28927,7 +28966,7 @@ window.switchAdmTab = function(tab){
     if(panel) panel.style.display = (t===tab ? 'block' : 'none');
   });
   if(tab === 'content'){
-    renderAdmContent(0);
+    if(typeof window.renderAdmContent==='function') window.renderAdmContent();
     return;
   }
   if(tab === 'appconfig'){
@@ -29074,131 +29113,192 @@ window.renderAdmEtabl = function(){
    ══ 2. GESTION DU CONTENU (Publications)                  ══
    ══════════════════════════════════════════════════════════════ */
 
-var _admPubList = [];
+/* ══════════════════════════════════════════════════════════════
+   ══  ONGLET CONTENU — Version complète standalone            ══
+   ══════════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════
+   ONGLET CONTENU — module autonome
+   ══════════════════════════════════════════════════════ */
+var _admPubList   = [];
 var _admPubFilter = 'all';
 var _admPubSearch = '';
 
-window.renderAdmContent = function(attempt){
-  attempt = attempt || 0;
+window.renderAdmContent = function() {
   var panel = document.getElementById('adminContentPanel');
-  if(!panel) return;
-  // Vérifier que l'onglet content est toujours actif (les deux variables)
-  var isActive = (window._currentAdmTab==='content') || (typeof _currentAdmTab!=='undefined' && _currentAdmTab==='content');
+  if (!panel) return;
 
-  if(!window.db || !window.fbCollection || !window.fbGetDocs || !window.fbQuery || !window.fbOrderBy){
-    if(attempt === 0){
-      panel.innerHTML = '<div style="text-align:center;padding:2.5rem 1rem;color:var(--muted);font-size:0.82rem;">⏳ Connexion Firebase en cours…<br><span style="font-size:0.72rem;opacity:0.6;">Nouvelle tentative automatique</span></div>';
-    }
-    if(attempt < 15){
-      setTimeout(function(){
-        var stillActive = (window._currentAdmTab==='content') || (typeof _currentAdmTab!=='undefined' && _currentAdmTab==='content');
-        if(stillActive) window.renderAdmContent(attempt + 1);
-      }, 1000);
-    } else {
-      panel.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--red);font-size:0.82rem;">⚠️ Firebase indisponible.<br><button onclick="window.renderAdmContent(0)" style="margin-top:0.7rem;padding:0.4rem 1rem;border-radius:8px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.08);color:var(--cyan);cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.78rem;">↻ Réessayer</button></div>';
-    }
+  var CK = 'ambi241_content_v1';
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(CK) || '{}'); } catch(e) {}
+
+  function g(k, def) { return saved[k] !== undefined ? saved[k] : def; }
+
+  function field(label, id, val, type) {
+    var safe = String(val || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    var inp = type === 'textarea'
+      ? '<textarea id="cc_' + id + '" rows="2" style="width:100%;background:#2c1040;border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff0f8;padding:0.45rem;font-size:0.78rem;font-family:DM Sans,sans-serif;resize:vertical;">' + safe + '</textarea>'
+      : '<input id="cc_' + id + '" type="text" value="' + safe + '" style="width:100%;background:#2c1040;border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff0f8;padding:0.42rem 0.6rem;font-size:0.78rem;">';
+    return '<div style="margin-bottom:0.55rem;"><div style="font-size:0.62rem;color:#b088c0;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.2rem;">' + label + '</div>' + inp + '</div>';
+  }
+
+  function tog(label, id, val) {
+    var on = val ? 'checked' : '';
+    var bg = val ? 'background:#00ffaa;' : '';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid rgba(255,255,255,0.04);margin-bottom:0.3rem;">'
+      + '<span style="font-size:0.78rem;color:#fff0f8;">' + label + '</span>'
+      + '<label class="notif-toggle"><input type="checkbox" id="cc_' + id + '" ' + on + '>'
+      + '<span class="notif-toggle-slider" style="' + bg + '"></span></label></div>';
+  }
+
+  function section(title, color, body) {
+    return '<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:0.9rem;margin-bottom:0.9rem;">'
+      + '<div style="font-family:Syne,sans-serif;font-weight:800;color:' + color + ';font-size:0.82rem;margin-bottom:0.7rem;">' + title + '</div>'
+      + body + '</div>';
+  }
+
+  var h = '';
+
+  // Header
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">'
+     + '<div style="font-family:Syne,sans-serif;font-weight:800;color:#ff2d9b;font-size:0.95rem;">📋 Gestion du Contenu</div>'
+     + '<button onclick="window._admContentSave()" style="padding:0.42rem 0.9rem;border-radius:10px;border:none;background:linear-gradient(135deg,#00ffaa,#00e5ff);color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;">💾 Sauver</button>'
+     + '</div>';
+
+  // 1. Accueil
+  h += section('🏠 Page d\'accueil', '#ff2d9b',
+    field('Titre principal',   'hero_title',    g('hero_title',    'Trouvez l\'ambiance à Libreville'), 'text') +
+    field('Sous-titre',        'hero_subtitle', g('hero_subtitle', 'Bars, Restaurants, Clubs — en temps réel'), 'text') +
+    field('Bouton CTA',        'hero_cta',      g('hero_cta',      'Explorer maintenant'), 'text') +
+    field('Message bienvenue', 'welcome_msg',   g('welcome_msg',   ''), 'textarea')
+  );
+
+  // 2. Bannière
+  h += section('📢 Bannière Flash', '#ffd700',
+    tog('Bannière active', 'banner_active', g('banner_active', false)) +
+    field('Texte bannière', 'banner_text', g('banner_text', ''), 'text')
+  );
+
+  // 3. Annonce
+  h += section('📣 Annonce Admin', '#00e5ff',
+    tog('Annonce visible', 'annonce_active', g('annonce_active', false)) +
+    field('Titre annonce', 'annonce_titre', g('annonce_titre', ''), 'text') +
+    field('Corps du message', 'annonce_texte', g('annonce_texte', ''), 'textarea')
+  );
+
+  // 4. Identité
+  h += section('🎨 Identité App', '#cc44ff',
+    field('Nom de l\'app',   'appname',     g('appname',     'AMBI241'), 'text') +
+    field('Pied de page',    'footer_text', g('footer_text', '© 2026 AMBI241'), 'text')
+  );
+
+  // 5. Contact
+  h += section('📞 Contact & Réseaux', '#00ffaa',
+    field('Email',     'contact_email',     g('contact_email', 'ambi2412026@gmail.com'), 'text') +
+    field('WhatsApp',  'contact_whatsapp',  g('contact_whatsapp', ''), 'text') +
+    field('Instagram', 'reseaux_instagram', g('reseaux_instagram', ''), 'text') +
+    field('Facebook',  'reseaux_facebook',  g('reseaux_facebook', ''), 'text') +
+    field('TikTok',    'reseaux_tiktok',    g('reseaux_tiktok', ''), 'text')
+  );
+
+  // 6. Publications
+  h += '<div style="background:rgba(204,68,255,0.05);border:1px solid rgba(204,68,255,0.25);border-radius:14px;padding:0.9rem;margin-bottom:0.9rem;">'
+     + '<div style="font-family:Syne,sans-serif;font-weight:800;color:#cc44ff;font-size:0.82rem;margin-bottom:0.6rem;">📝 Publications membres</div>'
+     + '<div id="admPubSub" style="font-size:0.75rem;color:#b088c0;margin-bottom:0.5rem;">Cliquez pour charger</div>'
+     + '<button onclick="window._loadAdmPubs()" style="width:100%;padding:0.4rem;border-radius:8px;border:1px solid rgba(204,68,255,0.3);background:rgba(204,68,255,0.06);color:#cc44ff;font-size:0.75rem;cursor:pointer;font-family:DM Sans,sans-serif;">↻ Charger les publications</button>'
+     + '</div>';
+
+  panel.innerHTML = h;
+};
+
+window._admContentSave = function() {
+  var CK = 'ambi241_content_v1';
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(CK) || '{}'); } catch(e) {}
+  var keys = ['hero_title','hero_subtitle','hero_cta','welcome_msg',
+              'banner_active','banner_text','annonce_active','annonce_titre','annonce_texte',
+              'appname','footer_text','contact_email','contact_whatsapp',
+              'reseaux_instagram','reseaux_facebook','reseaux_tiktok'];
+  keys.forEach(function(k) {
+    var el = document.getElementById('cc_' + k);
+    if (!el) return;
+    saved[k] = el.type === 'checkbox' ? el.checked : el.value;
+  });
+  try { localStorage.setItem(CK, JSON.stringify(saved)); } catch(e) {}
+  if (typeof showToast === 'function') showToast('✅ Contenu sauvegardé !');
+};
+
+window._loadAdmPubs = function() {
+  var sub = document.getElementById('admPubSub');
+  if (!sub) return;
+  if (!window.db || !window.fbCollection || !window.fbGetDocs || !window.fbQuery || !window.fbOrderBy) {
+    sub.innerHTML = '<div style="color:#b088c0;font-size:0.73rem;">Firebase non disponible sur fichier local.<br>Les publications s\'affichent après déploiement.</div>';
     return;
   }
-  panel.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.8rem;">⏳ Chargement des publications...</div>';
-
-  var q = window.fbQuery(window.fbCollection(window.db,'publications'), window.fbOrderBy('createdAt','desc'));
-  window.fbGetDocs(q).then(function(snap){
+  sub.innerHTML = '⏳ Chargement…';
+  var q = window.fbQuery(window.fbCollection(window.db, 'publications'), window.fbOrderBy('createdAt', 'desc'));
+  window.fbGetDocs(q).then(function(snap) {
     _admPubList = [];
-    snap.forEach(function(doc){ _admPubList.push(Object.assign({_docId:doc.id}, doc.data())); });
-    _renderAdmPubList();
-  }).catch(function(err){
-    panel.innerHTML = '<div style="color:var(--red);padding:1rem;font-size:0.8rem;">Erreur : '+err.message+'</div>';
+    snap.forEach(function(doc) { _admPubList.push(Object.assign({ _docId: doc.id }, doc.data())); });
+    window._renderAdmPubList();
+  }).catch(function(err) {
+    sub.innerHTML = '<div style="color:#ff4466;font-size:0.73rem;">Erreur: ' + err.message + '</div>';
   });
 };
 
-function _renderAdmPubList(){
-  var panel = document.getElementById('adminContentPanel');
-  if(!panel) return;
-  var list = _admPubList.filter(function(p){
-    if(_admPubFilter!=='all' && p.type!==_admPubFilter) return false;
-    if(_admPubSearch){
-      var q=_admPubSearch.toLowerCase();
-      return (p.titre||'').toLowerCase().indexOf(q)!==-1 || (p.texte||'').toLowerCase().indexOf(q)!==-1 || (p.pseudo||'').toLowerCase().indexOf(q)!==-1;
+window._renderAdmPubList = function() {
+  var sub = document.getElementById('admPubSub');
+  if (!sub) return;
+  var list = _admPubList.filter(function(p) {
+    if (_admPubFilter !== 'all' && p.type !== _admPubFilter) return false;
+    if (_admPubSearch) {
+      var q = _admPubSearch.toLowerCase();
+      return (p.titre||'').toLowerCase().indexOf(q) !== -1 || (p.pseudo||'').toLowerCase().indexOf(q) !== -1;
     }
     return true;
   });
-
-  var html='';
-  html+='<div style="display:flex;gap:0.5rem;margin-bottom:0.8rem;flex-wrap:wrap;align-items:center;">';
-  html+='<input type="text" placeholder="🔍 Rechercher..." oninput="_admPubSearch=this.value;_renderAdmPubList()" style="flex:1;min-width:140px;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.45rem 0.7rem;font-size:0.78rem;">';
-  html+='<select onchange="_admPubFilter=this.value;_renderAdmPubList()" style="background:var(--surface2);border:1px solid rgba(255,45,155,0.2);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.78rem;">';
-  html+='<option value="all">Tous les types</option><option value="nuits">🌙 Nuits</option><option value="avis">⭐ Avis</option><option value="event">🎉 Event</option><option value="alerte">⚠️ Alerte</option><option value="info">💬 Info</option>';
-  html+='</select>';
-  html+='<button onclick="renderAdmContent()" style="padding:0.42rem 0.7rem;border-radius:8px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.08);color:var(--cyan);font-size:0.75rem;cursor:pointer;">↻</button>';
-  html+='</div>';
-  html+='<div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.7rem;"><strong style="color:var(--text);">'+list.length+'</strong> publication(s) / '+_admPubList.length+' total</div>';
-
-  if(!list.length){
-    html+='<div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.8rem;">Aucune publication trouvée.</div>';
-    panel.innerHTML=html; return;
-  }
-
-  list.forEach(function(p){
-    var dateStr='';
-    try{ if(p.createdAt && p.createdAt.toDate) dateStr=p.createdAt.toDate().toLocaleDateString('fr-FR'); }catch(e){}
-    var pinned=p._pinned?'background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.3);':'background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);';
-    var hidden=p._hidden?'opacity:0.45;':'';
-    html+='<div style="'+pinned+hidden+'border-radius:12px;padding:0.85rem;margin-bottom:0.7rem;">';
-    html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;">';
-    html+='<div style="flex:1;min-width:0;">';
-    html+='<div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.15rem;">'+(p.type||'info')+' · '+(p.pseudo||'Anonyme')+' · '+dateStr+'</div>';
-    html+='<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.85rem;color:'+(p._pinned?'var(--amber)':'var(--text)')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(p._pinned?'📌 ':'')+_escHtmlLocal(p.titre||'Sans titre')+'</div>';
-    html+='<div style="font-size:0.73rem;color:var(--muted);margin-top:0.2rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+_escHtmlLocal((p.texte||'').substring(0,80))+'</div>';
-    if(p.photos && p.photos.length) html+='<div style="font-size:0.62rem;color:var(--cyan);margin-top:0.15rem;">📷 '+p.photos.length+' photo(s)</div>';
-    html+='</div>';
-    html+='<div style="display:flex;flex-direction:column;gap:0.3rem;flex-shrink:0;">';
-    html+='<button onclick="admPinPub(''+p._docId+'')" style="font-size:0.6rem;padding:0.18rem 0.42rem;border-radius:5px;cursor:pointer;border:1px solid rgba(255,215,0,'+(p._pinned?'0.5':'0.2')+');background:rgba(255,215,0,'+(p._pinned?'0.15':'0.04')+');color:var(--amber);font-family:DM Sans,sans-serif;">'+(p._pinned?'📌 Épinglé':'📌 Épingler')+'</button>';
-    html+='<button onclick="admHidePub(''+p._docId+'','+(!p._hidden)+')" style="font-size:0.6rem;padding:0.18rem 0.42rem;border-radius:5px;cursor:pointer;border:1px solid rgba(0,229,255,0.25);background:rgba(0,229,255,0.06);color:var(--cyan);font-family:DM Sans,sans-serif;">'+(p._hidden?'👁️ Afficher':'🚫 Masquer')+'</button>';
-    html+='<button onclick="admDeletePub(''+p._docId+'')" style="font-size:0.6rem;padding:0.18rem 0.42rem;border-radius:5px;cursor:pointer;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.07);color:var(--red);font-family:DM Sans,sans-serif;">🗑️ Supprimer</button>';
-    html+='</div></div></div>';
+  var h = '<div style="font-size:0.7rem;color:#b088c0;margin-bottom:0.4rem;">' + list.length + ' / ' + _admPubList.length + ' publication(s)</div>';
+  list.slice(0, 20).forEach(function(p) {
+    var ds = ''; try { if (p.createdAt && p.createdAt.toDate) ds = p.createdAt.toDate().toLocaleDateString('fr-FR'); } catch(e) {}
+    h += '<div style="border:1px solid rgba(255,255,255,0.07);border-radius:9px;padding:0.6rem;margin-bottom:0.4rem;' + (p._hidden ? 'opacity:0.4;' : '') + '">'
+       + '<div style="font-size:0.58rem;color:#b088c0;text-transform:uppercase;">' + (p.type||'info') + ' · ' + (p.pseudo||'Anonyme') + ' · ' + ds + '</div>'
+       + '<div style="font-size:0.8rem;font-weight:700;color:#fff0f8;margin:0.15rem 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (p.titre||'Sans titre') + '</div>'
+       + '<div style="display:flex;gap:0.3rem;margin-top:0.3rem;">'
+       + '<button onclick="window.admPinPub(\'' + p._docId + '\')" style="font-size:0.6rem;padding:0.15rem 0.4rem;border-radius:5px;border:1px solid rgba(255,215,0,0.3);background:rgba(255,215,0,0.05);color:#ffd700;cursor:pointer;">' + (p._pinned ? '📌 Épinglé' : '📌') + '</button>'
+       + '<button onclick="window.admHidePub(\'' + p._docId + '\',' + (!p._hidden) + ')" style="font-size:0.6rem;padding:0.15rem 0.4rem;border-radius:5px;border:1px solid rgba(0,229,255,0.25);background:rgba(0,229,255,0.05);color:#00e5ff;cursor:pointer;">' + (p._hidden ? '👁️' : '🚫') + '</button>'
+       + '<button onclick="window.admDeletePub(\'' + p._docId + '\')" style="font-size:0.6rem;padding:0.15rem 0.4rem;border-radius:5px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.05);color:#ff4466;cursor:pointer;">🗑️</button>'
+       + '</div></div>';
   });
-
-  panel.innerHTML=html;
-}
-
-function _escHtmlLocal(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-window._renderAdmPubList = _renderAdmPubList;
-
-window.admDeletePub = function(docId){
-  if(!confirm('Supprimer définitivement cette publication ?')) return;
-  window.fbDeleteDoc(window.fbDoc(window.db,'publications',docId))
-    .then(function(){
-      _admPubList = _admPubList.filter(function(p){ return p._docId!==docId; });
-      _renderAdmPubList();
-      showToast('✅ Publication supprimée');
-    })
-    .catch(function(err){ showToast('Erreur: '+err.message); });
+  sub.innerHTML = h;
 };
 
-window.admPinPub = function(docId){
-  var p = _admPubList.find(function(x){ return x._docId===docId; });
-  if(!p) return;
-  var newVal = !p._pinned;
-  window.fbUpdateDoc(window.fbDoc(window.db,'publications',docId), {_pinned: newVal})
-    .then(function(){
-      p._pinned = newVal;
-      _renderAdmPubList();
-      showToast(newVal ? '📌 Publication épinglée' : '📌 Épingle retiré');
-    })
-    .catch(function(err){ showToast('Erreur: '+err.message); });
+window.admDeletePub = function(docId) {
+  if (!confirm('Supprimer ?')) return;
+  if (!window.db || !window.fbDeleteDoc || !window.fbDoc) return;
+  window.fbDeleteDoc(window.fbDoc(window.db, 'publications', docId))
+    .then(function() { _admPubList = _admPubList.filter(function(p) { return p._docId !== docId; }); window._renderAdmPubList(); if(typeof showToast==='function') showToast('✅ Supprimé'); })
+    .catch(function(err) { if(typeof showToast==='function') showToast('Erreur: ' + err.message); });
 };
 
-window.admHidePub = function(docId, hide){
-  var p = _admPubList.find(function(x){ return x._docId===docId; });
-  if(!p) return;
-  window.fbUpdateDoc(window.fbDoc(window.db,'publications',docId), {_hidden: hide})
-    .then(function(){
-      p._hidden = hide;
-      _renderAdmPubList();
-      showToast(hide ? '🚫 Publication masquée' : '👁️ Publication visible');
-    })
-    .catch(function(err){ showToast('Erreur: '+err.message); });
+window.admPinPub = function(docId) {
+  var p = _admPubList.find(function(x) { return x._docId === docId; });
+  if (!p) return;
+  var nv = !p._pinned;
+  if (window.db && window.fbUpdateDoc && window.fbDoc) {
+    window.fbUpdateDoc(window.fbDoc(window.db, 'publications', docId), { _pinned: nv })
+      .then(function() { p._pinned = nv; window._renderAdmPubList(); })
+      .catch(function(e) { if(typeof showToast==='function') showToast('Erreur: '+e.message); });
+  } else { p._pinned = nv; window._renderAdmPubList(); }
+};
+
+window.admHidePub = function(docId, hide) {
+  var p = _admPubList.find(function(x) { return x._docId === docId; });
+  if (!p) return;
+  if (window.db && window.fbUpdateDoc && window.fbDoc) {
+    window.fbUpdateDoc(window.fbDoc(window.db, 'publications', docId), { _hidden: hide })
+      .then(function() { p._hidden = hide; window._renderAdmPubList(); })
+      .catch(function(e) { if(typeof showToast==='function') showToast('Erreur: '+e.message); });
+  } else { p._hidden = hide; window._renderAdmPubList(); }
 };
 
 /* ══════════════════════════════════════════════════════════════
@@ -30088,6 +30188,115 @@ function pShowToast(msg) {
           el.innerHTML = renderAdminDefaultPhotosSection();
         }
       }
+    }
+  };
+})();
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   FIX ONGLET CONTENU — Script autonome (hors IIFE)
+   Définit renderAdmContent comme fonction globale directe,
+   indépendante de tout bloc IIFE potentiellement défaillant.
+   ══════════════════════════════════════════════════════════ */
+window.renderAdmContent = function() {
+  var panel = document.getElementById('adminContentPanel');
+  if (!panel) return;
+  var CK = 'ambi241_content_v1';
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(CK) || '{}'); } catch(e) {}
+  function g(k, def) { return saved[k] !== undefined ? saved[k] : def; }
+  function field(label, id, val, type) {
+    var safe = String(val || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    var inp = type === 'textarea'
+      ? '<textarea id="cc_' + id + '" rows="2" style="width:100%;background:#2c1040;border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff0f8;padding:0.45rem;font-size:0.78rem;font-family:DM Sans,sans-serif;resize:vertical;">' + safe + '</textarea>'
+      : '<input id="cc_' + id + '" type="text" value="' + safe + '" style="width:100%;background:#2c1040;border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff0f8;padding:0.42rem 0.6rem;font-size:0.78rem;">';
+    return '<div style="margin-bottom:0.55rem;"><div style="font-size:0.62rem;color:#b088c0;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.2rem;">' + label + '</div>' + inp + '</div>';
+  }
+  function tog(label, id, val) {
+    var on = val ? 'checked' : '';
+    var bg = val ? 'background:#00ffaa;' : '';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid rgba(255,255,255,0.04);margin-bottom:0.3rem;">'
+      + '<span style="font-size:0.78rem;color:#fff0f8;">' + label + '</span>'
+      + '<label class="notif-toggle"><input type="checkbox" id="cc_' + id + '" ' + on + '>'
+      + '<span class="notif-toggle-slider" style="' + bg + '"></span></label></div>';
+  }
+  function section(title, color, body) {
+    return '<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:0.9rem;margin-bottom:0.9rem;">'
+      + '<div style="font-family:Syne,sans-serif;font-weight:800;color:' + color + ';font-size:0.82rem;margin-bottom:0.7rem;">' + title + '</div>'
+      + body + '</div>';
+  }
+  var h = '';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">'
+     + '<div style="font-family:Syne,sans-serif;font-weight:800;color:#ff2d9b;font-size:0.95rem;">&#128203; Gestion du Contenu</div>'
+     + '<button onclick="window._admContentSave()" style="padding:0.42rem 0.9rem;border-radius:10px;border:none;background:linear-gradient(135deg,#00ffaa,#00e5ff);color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;">&#128190; Sauver</button>'
+     + '</div>';
+  h += section('&#127968; Page d'accueil', '#ff2d9b',
+    field('Titre principal',   'hero_title',    g('hero_title',    'Trouvez l'ambiance à Libreville'), 'text') +
+    field('Sous-titre',        'hero_subtitle', g('hero_subtitle', 'Bars, Restaurants, Clubs — en temps réel'), 'text') +
+    field('Bouton CTA',        'hero_cta',      g('hero_cta',      'Explorer maintenant'), 'text') +
+    field('Message bienvenue', 'welcome_msg',   g('welcome_msg',   ''), 'textarea')
+  );
+  h += section('&#128226; Bannière Flash', '#ffd700',
+    tog('Bannière active', 'banner_active', g('banner_active', false)) +
+    field('Texte bannière', 'banner_text', g('banner_text', ''), 'text')
+  );
+  h += section('&#128227; Annonce Admin', '#00e5ff',
+    tog('Annonce visible', 'annonce_active', g('annonce_active', false)) +
+    field('Titre annonce',      'annonce_titre', g('annonce_titre', ''), 'text') +
+    field('Corps du message',   'annonce_texte', g('annonce_texte', ''), 'textarea')
+  );
+  h += section('&#127912; Identité App', '#cc44ff',
+    field('Nom de l'app',  'appname',     g('appname',     'AMBI241'), 'text') +
+    field('Pied de page',   'footer_text', g('footer_text', '© 2026 AMBI241'), 'text')
+  );
+  h += section('&#128222; Contact &amp; Réseaux', '#00ffaa',
+    field('Email',     'contact_email',     g('contact_email',     'ambi2412026@gmail.com'), 'text') +
+    field('WhatsApp',  'contact_whatsapp',  g('contact_whatsapp',  ''), 'text') +
+    field('Instagram', 'reseaux_instagram', g('reseaux_instagram', ''), 'text') +
+    field('Facebook',  'reseaux_facebook',  g('reseaux_facebook',  ''), 'text') +
+    field('TikTok',    'reseaux_tiktok',    g('reseaux_tiktok',    ''), 'text')
+  );
+  h += '<div style="background:rgba(204,68,255,0.05);border:1px solid rgba(204,68,255,0.25);border-radius:14px;padding:0.9rem;margin-bottom:0.9rem;">'
+     + '<div style="font-family:Syne,sans-serif;font-weight:800;color:#cc44ff;font-size:0.82rem;margin-bottom:0.6rem;">&#128221; Publications membres</div>'
+     + '<div id="admPubSub" style="font-size:0.75rem;color:#b088c0;margin-bottom:0.5rem;">Cliquez pour charger</div>'
+     + '<button onclick="window._loadAdmPubs&&window._loadAdmPubs()" style="width:100%;padding:0.4rem;border-radius:8px;border:1px solid rgba(204,68,255,0.3);background:rgba(204,68,255,0.06);color:#cc44ff;font-size:0.75rem;cursor:pointer;font-family:DM Sans,sans-serif;">↻ Charger les publications</button>'
+     + '</div>';
+  panel.innerHTML = h;
+};
+
+/* Assurer aussi la fonction save si l'IIFE a échoué */
+if (typeof window._admContentSave !== 'function') {
+  window._admContentSave = function() {
+    var CK = 'ambi241_content_v1';
+    var saved = {};
+    try { saved = JSON.parse(localStorage.getItem(CK) || '{}'); } catch(e) {}
+    ['hero_title','hero_subtitle','hero_cta','welcome_msg',
+     'banner_active','banner_text','annonce_active','annonce_titre','annonce_texte',
+     'appname','footer_text','contact_email','contact_whatsapp',
+     'reseaux_instagram','reseaux_facebook','reseaux_tiktok'].forEach(function(k) {
+      var el = document.getElementById('cc_' + k);
+      if (!el) return;
+      saved[k] = el.type === 'checkbox' ? el.checked : el.value;
+    });
+    try { localStorage.setItem(CK, JSON.stringify(saved)); } catch(e) {}
+    if (typeof showToast === 'function') showToast('\u2705 Contenu sauvegard\u00e9 !');
+  };
+}
+
+/* Pré-rendu immédiat dès que le script s'exécute */
+(function() {
+  var p = document.getElementById('adminContentPanel');
+  if (p) window.renderAdmContent();
+})();
+
+/* Patch switchAdmTab pour garantir le rendu à chaque clic */
+(function() {
+  var _prev = window.switchAdmTab;
+  window.switchAdmTab = function(tab) {
+    if (typeof _prev === 'function') _prev(tab);
+    if (tab === 'content') {
+      setTimeout(function() { window.renderAdmContent(); }, 50);
     }
   };
 })();
