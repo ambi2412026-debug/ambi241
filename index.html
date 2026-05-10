@@ -326,7 +326,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 /* Mini-player fixe en bas */
 /* ══ LECTEUR SEMAINE — structure colonne ══ */
 #weekSongPlayer{
-  position:fixed;bottom:70px;left:0;right:0;z-index:145;
+  position:fixed;bottom:54px;left:0;right:0;z-index:145;
   background:rgba(13,3,20,0.97);
   backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
   border-top:1.5px solid rgba(255,45,155,0.3);
@@ -445,10 +445,16 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
   position:absolute;bottom:0;left:0;right:0;height:3px;
   background:rgba(255,255,255,0.08);
 }
+/* Coller visuellement le lecteur à la barre de navigation */
+#weekSongPlayer{border-bottom:none;}
+/* Masquer proprement les images de galerie cassées */
+#sec-profil .gallery-item img[src=""]{display:none;}
+#sec-profil .gallery-item:empty{display:none;}
+#sec-profil .gallery-item img:not([src]){display:none;}
 
 /* Ajustement body quand lecteur visible */
-body.wsp-open{padding-bottom:168px;}
-body.wsp-open.wsp-minimized{padding-bottom:105px;}
+body.wsp-open{padding-bottom:140px;}
+body.wsp-open.wsp-minimized{padding-bottom:88px;}
 
 /* ── Modal Admin chanson ── */
 #weekSongAdminModal{
@@ -1966,12 +1972,12 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 .footer-links a:hover{color:var(--cyan);}
 
 /* TOAST */
-.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:linear-gradient(135deg,var(--pink),var(--cyan));color:#000;font-weight:800;font-size:0.82rem;padding:0.6rem 1.4rem;border-radius:100px;opacity:0;transition:all 0.3s;pointer-events:none;z-index:300;white-space:nowrap;box-shadow:0 4px 20px rgba(255,45,155,0.4);}
+.toast{position:fixed;bottom:72px;left:50%;transform:translateX(-50%) translateY(20px);background:linear-gradient(135deg,var(--pink),var(--cyan));color:#000;font-weight:800;font-size:0.82rem;padding:0.6rem 1.4rem;border-radius:100px;opacity:0;transition:all 0.3s;pointer-events:none;z-index:300;white-space:nowrap;box-shadow:0 4px 20px rgba(255,45,155,0.4);}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
 /* ── BARRE DE PROGRESSION UPLOAD GLOBALE ── */
 #uploadProgressBar{
-  position:fixed;bottom:70px;left:0;right:0;z-index:400;
+  position:fixed;bottom:54px;left:0;right:0;z-index:400;
   padding:0 0;
   pointer-events:none;
   opacity:0;
@@ -2463,7 +2469,7 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
    TAXI MODULE PRO - BOUTON & INTERFACE PROFESSIONNELLE
    ════════════════════════════════════════════════════════════════════ */
 
-.taxi-module{position:fixed;bottom:86px;right:14px;z-index:150;display:flex;flex-direction:column;gap:10px;align-items:flex-end;}
+.taxi-module{position:fixed;bottom:66px;right:14px;z-index:150;display:flex;flex-direction:column;gap:10px;align-items:flex-end;}
 /* Bouton texte permanent "Commander un taxi" */
 .taxi-cmd-btn{background:rgba(15,5,24,0.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,215,0,0.38);color:#FFD700;font-family:'Syne',sans-serif;font-size:13px;font-weight:800;padding:9px 16px;border-radius:30px;cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,0.55),0 0 8px rgba(255,215,0,0.1);letter-spacing:0.04em;white-space:nowrap;transition:all 0.25s cubic-bezier(0.34,1.56,0.64,1);}
 
@@ -5518,7 +5524,7 @@ if (document.readyState === 'loading') {
 </div>
 
 <!-- ══ BOUTON RETOUR EN HAUT ══ -->
-<button id="backToTopBtn" onclick="window.scrollTo({top:0,behavior:'smooth'})" style="display:none;position:fixed;bottom:82px;right:12px;z-index:40;width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));border:none;color:#fff;font-size:1.1rem;cursor:pointer;box-shadow:0 4px 18px rgba(255,45,155,0.45);transition:opacity 0.3s,transform 0.2s;-webkit-tap-highlight-color:transparent;" title="Retour en haut">&#8593;</button>
+<button id="backToTopBtn" onclick="window.scrollTo({top:0,behavior:'smooth'})" style="display:none;position:fixed;bottom:66px;right:12px;z-index:40;width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));border:none;color:#fff;font-size:1.1rem;cursor:pointer;box-shadow:0 4px 18px rgba(255,45,155,0.45);transition:opacity 0.3s,transform 0.2s;-webkit-tap-highlight-color:transparent;" title="Retour en haut">&#8593;</button>
 
 <!-- Inputs fichier pré-existants dans le DOM -->
 <input type="file" id="__filePermPhoto" accept="image/*" style="display:none" onchange="onPermPhotoSelected(this)">
@@ -13227,6 +13233,23 @@ function _syncProfilSection(){
 
   /* ── Basculer sur l'onglet Membre (rôle par défaut) ── */
   if(typeof pSwitchRole === 'function') pSwitchRole('membre');
+
+  /* ── Restaurer les photos de galerie sauvegardées ── */
+  setTimeout(function() {
+    if(typeof _pGalleryRestore === 'function') {
+      _pGalleryRestore('pgallery-membre');
+      _pGalleryRestore('pgallery-etab');
+    }
+    /* Nettoyer les images cassées déjà dans le DOM */
+    document.querySelectorAll('#sec-profil .gallery-item img').forEach(function(img){
+      if(!img.complete || img.naturalWidth === 0) {
+        img.onerror = function(){ this.closest('.gallery-item') && this.closest('.gallery-item').remove(); };
+        if(img.src && img.src !== window.location.href) {
+          var s = img.src; img.src = ''; img.src = s;
+        }
+      }
+    });
+  }, 100);
 }
 window._syncProfilSection = _syncProfilSection;
 
@@ -30266,32 +30289,156 @@ function pHandleCoverUpload(input) {
 }
 
 /* Upload gallery */
+/* ══════════════════════════════════════════════════════
+   GALERIE PROFIL — Upload, Persistance, Affichage
+   ══════════════════════════════════════════════════════ */
+
+/* Clé localStorage galerie */
+function _pGalleryKey() {
+  return 'ambi241_pgallery_' + (window.currentUserUID || 'guest');
+}
+
+/* Charger les URLs sauvegardées */
+function _pGalleryLoad() {
+  try { return JSON.parse(localStorage.getItem(_pGalleryKey()) || '[]'); } catch(e) { return []; }
+}
+
+/* Sauvegarder les URLs (max 12 items, chaque dataURL compressée) */
+function _pGallerySave(urls) {
+  try { localStorage.setItem(_pGalleryKey(), JSON.stringify(urls.slice(0, 12))); } catch(e) {}
+}
+
+/* Compresser une image via canvas (max 400px, qualité 0.72) */
+function _pCompressImage(dataUrl, cb) {
+  var img = new Image();
+  img.onload = function() {
+    var MAX = 400;
+    var w = img.width, h = img.height;
+    var ratio = Math.min(MAX / w, MAX / h, 1);
+    var cw = Math.round(w * ratio), ch = Math.round(h * ratio);
+    var canvas = document.createElement('canvas');
+    canvas.width = cw; canvas.height = ch;
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, cw, ch);
+    cb(canvas.toDataURL('image/jpeg', 0.72));
+  };
+  img.onerror = function() { cb(null); };
+  img.src = dataUrl;
+}
+
+/* Créer un élément gallery-item avec gestion d'erreur */
+function _pMakeGalleryItem(src, onDelete) {
+  var item = document.createElement('div');
+  item.className = 'gallery-item';
+  item.style.position = 'relative';
+
+  var img = document.createElement('img');
+  img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+
+  /* ── Gestion d'erreur : si l'image ne charge pas → supprimer l'item ── */
+  img.onerror = function() {
+    item.remove();
+    /* Mettre à jour la sauvegarde : retirer l'URL cassée */
+    var saved = _pGalleryLoad();
+    var idx = saved.indexOf(src);
+    if(idx !== -1) { saved.splice(idx, 1); _pGallerySave(saved); }
+  };
+
+  img.src = src;
+  item.appendChild(img);
+
+  /* Bouton supprimer (appui long ou tap sur ×) */
+  var del = document.createElement('button');
+  del.innerHTML = '✕';
+  del.style.cssText = 'position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.65);border:1.5px solid rgba(255,255,255,.3);color:#fff;font-size:.65rem;cursor:pointer;display:none;align-items:center;justify-content:center;z-index:2;';
+  del.onclick = function(e) {
+    e.stopPropagation();
+    item.remove();
+    var saved = _pGalleryLoad();
+    var idx = saved.indexOf(src);
+    if(idx !== -1) { saved.splice(idx, 1); _pGallerySave(saved); }
+    if(typeof onDelete === 'function') onDelete();
+  };
+  item.appendChild(del);
+
+  /* Afficher/masquer le bouton supprimer au hover/touch */
+  item.addEventListener('mouseenter', function(){ del.style.display='flex'; });
+  item.addEventListener('mouseleave', function(){ del.style.display='none'; });
+  var _touch = null;
+  item.addEventListener('touchstart', function(){ _touch = setTimeout(function(){ del.style.display = del.style.display==='flex'?'none':'flex'; }, 500); }, {passive:true});
+  item.addEventListener('touchend', function(){ clearTimeout(_touch); }, {passive:true});
+
+  return item;
+}
+
+/* Restaurer la galerie depuis localStorage */
+function _pGalleryRestore(gridId) {
+  var grid = document.getElementById(gridId);
+  if(!grid) return;
+  var saved = _pGalleryLoad();
+  if(!saved.length) return;
+  var addBtn = grid.querySelector('.gallery-add');
+  /* Retirer d'abord les items existants qui ne sont pas démo ni add */
+  var existing = grid.querySelectorAll('.gallery-item[data-saved]');
+  existing.forEach(function(el){ el.remove(); });
+  saved.forEach(function(url) {
+    if(!url) return;
+    var item = _pMakeGalleryItem(url);
+    item.setAttribute('data-saved','1');
+    if(addBtn) grid.insertBefore(item, addBtn);
+    else grid.appendChild(item);
+  });
+}
+
+/* Upload : lecture, compression, sauvegarde, affichage */
 function pHandleGalleryUpload(input) {
-  var files = Array.from(input.files);
+  var files = Array.from(input.files || []);
   if(!files.length) return;
   var activeView = document.querySelector('#sec-profil .profil-view.active');
   if(!activeView) return;
   var role = activeView.id.replace('pv-','');
-  var count = 0;
-  files.forEach(function(file){
+  var gridId = role === 'etab' ? 'pgallery-etab' : 'pgallery-membre';
+  var grid = document.getElementById(gridId);
+  if(!grid) return;
+
+  var count = 0, total = files.length;
+  var saved = _pGalleryLoad();
+
+  files.forEach(function(file) {
+    /* Vérifier que c'est bien une image (format renderable) */
+    var renderableTypes = /^image\/(jpeg|jpg|png|webp|gif|avif|bmp|svg\+xml)$/i;
+    var ext = (file.name || '').split('.').pop().toLowerCase();
+    var renderableExts = /^(jpg|jpeg|png|webp|gif|avif|bmp|svg)$/;
+    var isRenderable = (file.type && renderableTypes.test(file.type)) || renderableExts.test(ext);
+
     var reader = new FileReader();
-    reader.onload = function(e){
-      var gridId = role === 'etab' ? 'pgallery-etab' : 'pgallery-membre';
-      var grid = document.getElementById(gridId);
-      if(!grid) return;
-      var addBtn = grid.querySelector('.gallery-add');
-      var item = document.createElement('div');
-      item.className = 'gallery-item';
-      var img = document.createElement('img');
-      img.src = e.target.result;
-      item.appendChild(img);
-      if(addBtn) grid.insertBefore(item, addBtn);
-      else grid.appendChild(item);
-      count++;
-      if(count === files.length) pShowToast('✅ ' + count + ' photo' + (count>1?'s':'') + ' ajoutée' + (count>1?'s':''));
+    reader.onload = function(e) {
+      var rawUrl = e.target.result;
+      if(!rawUrl) { count++; return; }
+
+      /* Compresser avant insertion + sauvegarde */
+      _pCompressImage(rawUrl, function(compressedUrl) {
+        var finalUrl = compressedUrl || rawUrl;
+        var addBtn = grid.querySelector('.gallery-add');
+        var item = _pMakeGalleryItem(finalUrl);
+        item.setAttribute('data-saved','1');
+        if(addBtn) grid.insertBefore(item, addBtn);
+        else grid.appendChild(item);
+
+        /* Sauvegarder */
+        saved.push(finalUrl);
+        _pGallerySave(saved);
+
+        count++;
+        if(count === total) pShowToast('✅ ' + count + ' photo' + (count>1?'s':'') + ' ajoutée' + (count>1?'s':''));
+      });
     };
+    reader.onerror = function() { count++; if(count===total) pShowToast('⚠️ Certains fichiers n\'ont pas pu être chargés'); };
     reader.readAsDataURL(file);
   });
+
+  /* Réinitialiser l'input pour permettre de re-sélectionner le même fichier */
+  input.value = '';
 }
 
 /* Toast */
