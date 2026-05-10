@@ -5761,87 +5761,101 @@ window._uploadUserPhoto = function(type) {
     return;
   }
 
-  // Créer un input file caché et l'ajouter au DOM (obligatoire sur iOS pour ouvrir la galerie)
+  // Créer un input file caché et l'ajouter au DOM (obligatoire sur iOS/Android)
   var input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
-  // Pas de capture="" → ouvre la galerie (pas la caméra directement)
   input.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none;';
   document.body.appendChild(input);
 
   input.onchange = function() {
     var file = input.files && input.files[0];
-    // Nettoyage
     try { document.body.removeChild(input); } catch(e) {}
     if (!file) return;
 
-    // Accepter tous les formats image reconnus par le navigateur
     var isImgOk = file.type.startsWith('image/') ||
       /\.(jpe?g|png|webp|gif|heic|heif|avif|bmp|tiff?|svg|ico)$/i.test(file.name);
     if (!isImgOk) {
       if (typeof showToast === 'function') showToast('❌ Fichier non reconnu comme image');
       return;
     }
-
-    if (file.size > 5 * 1024 * 1024) {
-      if (typeof showToast === 'function') showToast('⚠️ Image trop grande (max 5 MB)');
+    if (file.size > 10 * 1024 * 1024) {
+      if (typeof showToast === 'function') showToast('⚠️ Image trop grande (max 10 Mo)');
       return;
     }
 
-    var loadingMsg = document.createElement('div');
-    loadingMsg.textContent = '⏳ Upload en cours...';
-    loadingMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);border:1px solid rgba(255,45,155,0.4);border-radius:16px;padding:1.4rem 1.8rem;z-index:9999;font-weight:700;color:var(--text);font-family:Syne,sans-serif;font-size:0.92rem;box-shadow:0 8px 32px rgba(0,0,0,0.7);';
-    document.body.appendChild(loadingMsg);
+    // Utiliser showUploadProgress — même système que onPermPhotoSelected
+    if (typeof showToast === 'function') showToast('⏳ Upload en cours...');
+    if (typeof showUploadProgress === 'function') showUploadProgress(10, 'Upload...');
 
-    function _done(msg, isErr) {
-      loadingMsg.textContent = msg;
-      loadingMsg.style.color = isErr ? 'var(--red)' : 'var(--green)';
-      setTimeout(function() {
-        try { document.body.removeChild(loadingMsg); } catch(e) {}
-        if (!isErr) {
-          if (typeof window._renderUserPhotosUI === 'function') window._renderUserPhotosUI();
-          if (typeof renderHome === 'function') renderHome();
-        }
-      }, isErr ? 2500 : 1200);
+    var uid = window.currentUserUID;
+
+    function _onSuccess(photoURL) {
+      var userDocRef = window.fbDoc && window.fbDoc(window.db, 'users', uid);
+      var updateData = {};
+      if (type === 'profile') {
+        updateData.photoURL = photoURL;
+        updateData.photoProfileUpdated = new Date().toISOString();
+      } else {
+        updateData.photoIdentityURL = photoURL;
+        updateData.identityVerified = false;
+        updateData.identitySubmittedAt = new Date().toISOString();
+      }
+      var p = (userDocRef && window.fbUpdateDoc)
+        ? window.fbUpdateDoc(userDocRef, updateData)
+        : Promise.resolve();
+      p.then(function() {
+        if (typeof hideUploadProgress === 'function') hideUploadProgress(700);
+        if (typeof window._renderUserPhotosUI === 'function') window._renderUserPhotosUI();
+        if (typeof renderHome === 'function') renderHome();
+        if (typeof showToast === 'function') showToast('✅ Photo mise à jour !');
+      }).catch(function(err) {
+        if (typeof hideUploadProgress === 'function') hideUploadProgress(0);
+        if (typeof showToast === 'function') showToast('❌ Erreur sauvegarde');
+      });
+    }
+
+    function _fallback(file) {
+      if (typeof compressImage === 'function') {
+        compressImage(file, function(dataUrl) {
+          try { localStorage.setItem('ambi241_user_photo_' + type + '_' + uid, dataUrl); } catch(e) {}
+          _onSuccess(dataUrl);
+        });
+      } else {
+        var rd = new FileReader();
+        rd.onload = function(ev) {
+          try { localStorage.setItem('ambi241_user_photo_' + type + '_' + uid, ev.target.result); } catch(e) {}
+          _onSuccess(ev.target.result);
+        };
+        rd.onerror = function() {
+          if (typeof hideUploadProgress === 'function') hideUploadProgress(0);
+          if (typeof showToast === 'function') showToast('❌ Erreur lecture fichier');
+        };
+        rd.readAsDataURL(file);
+      }
     }
 
     // Tentative Firebase Storage
     if (window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL &&
         window.db && window.fbDoc && window.fbUpdateDoc) {
-      try {
-        var fileName = 'users/' + window.currentUserUID + '/' + type + '_' + Date.now() + '.jpg';
-        var storageRef = window.fbRef(window.fbStorage, fileName);
-        window.fbUploadBytes(storageRef, file).then(function() {
-          return window.fbGetDownloadURL(storageRef);
-        }).then(function(photoURL) {
-          var userDocRef = window.fbDoc(window.db, 'users', window.currentUserUID);
-          var updateData = {};
-          if (type === 'profile') {
-            updateData.photoURL = photoURL;
-            updateData.photoProfileUpdated = new Date().toISOString();
-          } else {
-            updateData.photoIdentityURL = photoURL;
-            updateData.identityVerified = false;
-            updateData.identitySubmittedAt = new Date().toISOString();
-          }
-          return window.fbUpdateDoc(userDocRef, updateData);
-        }).then(function() {
-          _done('✅ Photo sauvegardée !', false);
-        }).catch(function(err) {
-          console.error('Erreur Firebase Storage:', err);
-          // Fallback base64 localStorage
-          _fallbackBase64(file, type, loadingMsg, _done);
-        });
-      } catch(e) {
-        _fallbackBase64(file, type, loadingMsg, _done);
-      }
+      var fileName = 'users/' + uid + '/' + type + '_' + Date.now() + '.jpg';
+      var storageRef = window.fbRef(window.fbStorage, fileName);
+      if (typeof showUploadProgress === 'function') showUploadProgress(30, 'Upload...');
+      window.fbUploadBytes(storageRef, file).then(function() {
+        if (typeof showUploadProgress === 'function') showUploadProgress(80, 'Finalisation...');
+        return window.fbGetDownloadURL(storageRef);
+      }).then(function(photoURL) {
+        _onSuccess(photoURL);
+      }).catch(function(err) {
+        console.warn('Firebase Storage indisponible, compression locale...', err);
+        _fallback(file);
+      });
     } else {
-      // Pas de Firebase Storage → fallback base64
-      _fallbackBase64(file, type, loadingMsg, _done);
+      _fallback(file);
     }
   };
 
-  // Déclencher le clic immédiatement (sur Android/iOS le clic doit être synchrone)
+  // Déclencher le clic immédiatement (synchrone sur Android/iOS)
   input.click();
 };
 
@@ -5984,57 +5998,57 @@ window._renderUserPhotosUI = function() {
    ════════════════════════════════════════════════════════════════ */
 
 window._uploadDriverPhoto = function(contactIndex) {
-  const input = document.createElement('input');
+  var input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*,.heic,.heif,.avif,.bmp,.tiff,.tif,.jfif';
-  // Pas de capture="" → ouvre la galerie du téléphone (pas la caméra directement)
   input.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none;';
-  document.body.appendChild(input); // OBLIGATOIRE sur iOS pour ouvrir la galerie
-  input.onchange = async (e) => {
-    const file = e.target.files[0];
-    document.body.removeChild(input); // Nettoyage après sélection
+  document.body.appendChild(input);
+
+  input.onchange = function(e) {
+    var file = e.target.files && e.target.files[0];
+    try{ document.body.removeChild(input); }catch(er){}
     if (!file) return;
 
-    // Accepter tous formats image (HEIC, AVIF, BMP, etc.)
-    const isImg = (file.type && file.type.startsWith('image/')) ||
+    var isImg = (file.type && file.type.startsWith('image/')) ||
       /\.(jpe?g|png|webp|gif|heic|heif|avif|bmp|tiff?|svg)$/i.test(file.name||'');
-    if(!isImg){ alert('❌ Fichier non reconnu comme image'); return; }
+    if(!isImg){ if(typeof showToast==='function') showToast('❌ Fichier non reconnu comme image'); return; }
+    if (file.size > 10 * 1024 * 1024) { if(typeof showToast==='function') showToast('⚠️ Image trop grande (max 10 Mo)'); return; }
 
-    if (file.size > 8 * 1024 * 1024) {
-      alert('⚠️ Image trop grande (max 8 MB)');
-      return;
-    }
+    if(typeof showToast==='function') showToast('⏳ Upload photo chauffeur...');
+    if(typeof showUploadProgress==='function') showUploadProgress(10,'Chauffeur...');
 
-    const loadingMsg = document.createElement('div');
-    loadingMsg.textContent = '⏳ Upload photo chauffeur...';
-    loadingMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);padding:1.5rem;border-radius:12px;z-index:9999;font-weight:700;';
-    document.body.appendChild(loadingMsg);
-
-    try {
-      const fileName = 'taxi/drivers/driver_' + Date.now() + '_' + contactIndex + '.jpg';
-      const fileRef = ref(storage, fileName);
-      
-      await uploadBytes(fileRef, file);
-      const photoURL = await getDownloadURL(fileRef);
-
-      // Mettre à jour le contact dans localStorage
-      let contacts = JSON.parse(localStorage.getItem('taxiContacts') || '[]');
+    function _savePhoto(photoURL){
+      var contacts = [];
+      try{ contacts = JSON.parse(localStorage.getItem('taxiContacts')||'[]'); }catch(er){}
       if (contacts[contactIndex]) {
         contacts[contactIndex].photo = photoURL;
         contacts[contactIndex].photoUpdated = new Date().toISOString();
-        localStorage.setItem('taxiContacts', JSON.stringify(contacts));
+        try{ localStorage.setItem('taxiContacts', JSON.stringify(contacts)); }catch(er){}
       }
+      if(typeof hideUploadProgress==='function') hideUploadProgress(700);
+      if(typeof showToast==='function') showToast('✅ Photo chauffeur mise à jour !');
+      if (typeof loadTaxiContacts === 'function') loadTaxiContacts();
+      if (typeof loadAdminContacts === 'function') loadAdminContacts();
+    }
 
-      loadingMsg.textContent = '✓ Photo chauffeur sauvegardée !';
-      setTimeout(() => {
-        loadingMsg.remove();
-        if (typeof loadTaxiContacts === 'function') loadTaxiContacts();
-        if (typeof loadAdminContacts === 'function') loadAdminContacts();
-      }, 1000);
-    } catch (err) {
-      console.error('Erreur upload:', err);
-      loadingMsg.textContent = '❌ Erreur : ' + err.message;
-      setTimeout(() => loadingMsg.remove(), 2000);
+    if (window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL) {
+      var storRef = window.fbRef(window.fbStorage,'taxi/drivers/driver_'+Date.now()+'_'+contactIndex+'.jpg');
+      if(typeof showUploadProgress==='function') showUploadProgress(30,'Upload...');
+      window.fbUploadBytes(storRef, file).then(function(){
+        if(typeof showUploadProgress==='function') showUploadProgress(80,'Finalisation...');
+        return window.fbGetDownloadURL(storRef);
+      }).then(function(url){ _savePhoto(url); })
+      .catch(function(err){
+        console.warn('Storage indispo, compression locale:', err);
+        if(typeof compressImage==='function'){ compressImage(file, function(d){ _savePhoto(d); }); }
+        else { if(typeof hideUploadProgress==='function') hideUploadProgress(0); }
+      });
+    } else if(typeof compressImage==='function'){
+      compressImage(file, function(d){ _savePhoto(d); });
+    } else {
+      var rd = new FileReader();
+      rd.onload = function(ev){ _savePhoto(ev.target.result); };
+      rd.readAsDataURL(file);
     }
   };
   input.click();
@@ -23614,65 +23628,48 @@ function toggleContactActive(idx) {
 window.toggleContactActive = toggleContactActive;
 
 function uploadDriverPhoto(idx, input) {
-  const file = input.files[0];
+  var file = input.files && input.files[0];
   if(!file) return;
+  input.value = '';
 
-  if (file.size > 3 * 1024 * 1024) {
-    alert('⚠️ Image trop grande (max 3 MB)');
-    return;
+  if (file.size > 10 * 1024 * 1024) { if(typeof showToast==='function') showToast('⚠️ Image trop grande (max 10 Mo)'); return; }
+
+  if(typeof showToast==='function') showToast('⏳ Upload photo chauffeur...');
+  if(typeof showUploadProgress==='function') showUploadProgress(10,'Chauffeur...');
+
+  function _saveContact(photoURL){
+    var contacts=[];
+    try{ contacts=JSON.parse(localStorage.getItem('taxiContacts')||'[]'); }catch(er){}
+    if(contacts[idx]){
+      contacts[idx].photo = photoURL;
+      contacts[idx].photoUpdated = new Date().toISOString();
+      try{ localStorage.setItem('taxiContacts', JSON.stringify(contacts)); }catch(er){}
+    }
+    if(typeof hideUploadProgress==='function') hideUploadProgress(700);
+    if(typeof showToast==='function') showToast('✅ Photo chauffeur sauvegardée !');
+    if(typeof loadAdminContacts==='function') loadAdminContacts();
+    if(typeof loadTaxiContacts==='function') loadTaxiContacts();
   }
 
-  const loadingMsg = document.createElement('div');
-  loadingMsg.textContent = '⏳ Upload photo chauffeur...';
-  loadingMsg.style.cssText = 'position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:var(--taxi-gold);color:#1a0000;padding:0.8rem 1.2rem;border-radius:8px;font-weight:800;z-index:9999;';
-  document.body.appendChild(loadingMsg);
-
-  // Utiliser Firebase Storage si disponible
-  if (typeof storage !== 'undefined' && typeof uploadBytes === 'function') {
-    const fileName = 'taxi/drivers/driver_' + Date.now() + '_' + idx + '.jpg';
-    const fileRef = ref(storage, fileName);
-    
-    uploadBytes(fileRef, file).then(() => {
-      return getDownloadURL(fileRef);
-    }).then((photoURL) => {
-      // Sauvegarder l'URL dans localStorage
-      let contacts = JSON.parse(localStorage.getItem('taxiContacts') || '[]');
-      if(contacts[idx]) {
-        contacts[idx].photo = photoURL;
-        contacts[idx].photoUpdated = new Date().toISOString();
-        localStorage.setItem('taxiContacts', JSON.stringify(contacts));
-      }
-      
-      loadingMsg.textContent = '✓ Photo chauffeur sauvegardée !';
-      setTimeout(() => {
-        loadingMsg.remove();
-        loadAdminContacts();
-        loadTaxiContacts();
-      }, 1500);
-    }).catch((err) => {
-      console.error('Erreur Firebase:', err);
-      loadingMsg.textContent = '❌ Erreur upload';
-      setTimeout(() => loadingMsg.remove(), 2000);
+  // Firebase Storage en priorité
+  if (window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL) {
+    var storRef = window.fbRef(window.fbStorage,'taxi/drivers/driver_'+Date.now()+'_'+idx+'.jpg');
+    if(typeof showUploadProgress==='function') showUploadProgress(30,'Upload...');
+    window.fbUploadBytes(storRef, file).then(function(){
+      if(typeof showUploadProgress==='function') showUploadProgress(80,'Finalisation...');
+      return window.fbGetDownloadURL(storRef);
+    }).then(function(url){ _saveContact(url); })
+    .catch(function(err){
+      console.warn('Firebase indispo:', err);
+      if(typeof compressImage==='function'){ compressImage(file, function(d){ _saveContact(d); }); }
+      else { if(typeof hideUploadProgress==='function') hideUploadProgress(0); }
     });
+  } else if(typeof compressImage==='function'){
+    compressImage(file, function(d){ _saveContact(d); });
   } else {
-    // Fallback : utiliser base64 dans localStorage (limite de taille)
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      let contacts = JSON.parse(localStorage.getItem('taxiContacts') || '[]');
-      if(contacts[idx]) {
-        contacts[idx].photo = e.target.result;
-        contacts[idx].photoUpdated = new Date().toISOString();
-        localStorage.setItem('taxiContacts', JSON.stringify(contacts));
-      }
-      
-      loadingMsg.textContent = '✓ Photo chauffeur mise à jour';
-      setTimeout(() => {
-        loadingMsg.remove();
-        loadAdminContacts();
-        loadTaxiContacts();
-      }, 1500);
-    };
-    reader.readAsDataURL(file);
+    var rd = new FileReader();
+    rd.onload = function(e){ _saveContact(e.target.result); };
+    rd.readAsDataURL(file);
   }
 }
 
@@ -26860,21 +26857,27 @@ function triggerPhotoUpload() {
 }
 
 function uploadProfilePhoto(event) {
-  const file = event.target.files[0];
+  var file = event.target && event.target.files && event.target.files[0];
+  if (event.target) event.target.value = '';
   if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const dataUrl = e.target.result;
-    const currentUser = getCurrentUser();
-    if (currentUser) {
-      currentUser.photo = dataUrl;
-      document.getElementById('profilePhotoImg').src = dataUrl;
-      alert('✅ Photo de profil mise a jour!');
+  // Réutiliser _processAvatarFile qui gère Firebase Storage + progress bar + fallback
+  if (typeof window._processAvatarFile === 'function') {
+    window._processAvatarFile(file);
+  } else {
+    // Fallback minimal si _processAvatarFile pas encore chargé
+    var uid = window.currentUserUID;
+    if (!uid) { if(typeof showToast==='function') showToast('🔒 Connectez-vous d\'abord'); return; }
+    if(typeof showUploadProgress==='function') showUploadProgress(10,'Upload...');
+    if(typeof compressImage==='function'){
+      compressImage(file, function(dataUrl){
+        try{ localStorage.setItem('ambi241_avatar_'+uid, dataUrl); }catch(e){}
+        if(typeof hideUploadProgress==='function') hideUploadProgress(700);
+        var img=document.getElementById('profilePhotoImg');
+        if(img) img.src=dataUrl;
+        if(typeof showToast==='function') showToast('✅ Photo de profil mise à jour !');
+      });
     }
-  };
-  reader.readAsDataURL(file);
-  event.target.value = '';
+  }
 }
 
 function triggerGalleryUpload() {
@@ -26882,26 +26885,65 @@ function triggerGalleryUpload() {
 }
 
 function uploadGalleryPhoto(event) {
-  const file = event.target.files[0];
+  var file = event.target && event.target.files && event.target.files[0];
+  if (event.target) event.target.value = '';
   if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const dataUrl = e.target.result;
-    const currentUser = getCurrentUser();
-    if (currentUser) {
-      if (!currentUser.idPhotos) currentUser.idPhotos = [];
-      currentUser.idPhotos.push({
-        data: dataUrl,
-        verified: false,
-        uploadedAt: new Date().toISOString()
-      });
-      alert('✅ Photo ajoutee a la galerie!');
-      openUserProfile(currentUser.id);
+  var uid = window.currentUserUID;
+  if (!uid) { if(typeof showToast==='function') showToast('🔒 Connectez-vous d\'abord'); return; }
+
+  var isImgOk = file.type.startsWith('image/') ||
+    /\.(jpe?g|png|webp|gif|heic|heif|avif|bmp|tiff?|svg|ico)$/i.test(file.name);
+  if (!isImgOk) { if(typeof showToast==='function') showToast('❌ Fichier non reconnu comme image'); return; }
+  if (file.size > 10*1024*1024) { if(typeof showToast==='function') showToast('⚠️ Image trop grande (max 10 Mo)'); return; }
+
+  if(typeof showToast==='function') showToast('⏳ Upload galerie...');
+  if(typeof showUploadProgress==='function') showUploadProgress(10,'Galerie...');
+
+  function _saveGalleryUrl(url){
+    if(window.db && window.fbDoc && window.fbUpdateDoc){
+      var userDoc = window.fbDoc(window.db,'users',uid);
+      // Ajouter à idPhotos[]
+      window.fbGetDoc && window.fbGetDoc(userDoc).then(function(snap){
+        var data = snap.exists ? (snap.data ? snap.data() : snap._document&&snap._document.data) : {};
+        if(!data) data={};
+        var photos = (data.idPhotos||[]).slice();
+        photos.push({url:url, verified:false, uploadedAt:new Date().toISOString()});
+        return window.fbUpdateDoc(userDoc,{idPhotos:photos});
+      }).then(function(){
+        if(typeof hideUploadProgress==='function') hideUploadProgress(700);
+        if(typeof showToast==='function') showToast('✅ Photo ajoutée à la galerie !');
+        if(typeof window._renderUserPhotosUI==='function') window._renderUserPhotosUI();
+      }).catch(function(){ if(typeof hideUploadProgress==='function') hideUploadProgress(0); });
+    } else {
+      // Fallback localStorage
+      try{
+        var arr=JSON.parse(localStorage.getItem('ambi241_gallery_'+uid)||'[]');
+        arr.push({url:url,verified:false,uploadedAt:new Date().toISOString()});
+        localStorage.setItem('ambi241_gallery_'+uid,JSON.stringify(arr));
+      }catch(e){}
+      if(typeof hideUploadProgress==='function') hideUploadProgress(700);
+      if(typeof showToast==='function') showToast('✅ Photo ajoutée à la galerie !');
+      if(typeof window._renderUserPhotosUI==='function') window._renderUserPhotosUI();
     }
-  };
-  reader.readAsDataURL(file);
-  event.target.value = '';
+  }
+
+  if(window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL){
+    var storRef = window.fbRef(window.fbStorage,'users/'+uid+'/gallery_'+Date.now()+'.jpg');
+    if(typeof showUploadProgress==='function') showUploadProgress(30,'Upload...');
+    window.fbUploadBytes(storRef, file).then(function(){
+      if(typeof showUploadProgress==='function') showUploadProgress(80,'Finalisation...');
+      return window.fbGetDownloadURL(storRef);
+    }).then(function(url){
+      _saveGalleryUrl(url);
+    }).catch(function(){
+      // Fallback compression locale
+      if(typeof compressImage==='function'){
+        compressImage(file, function(dataUrl){ _saveGalleryUrl(dataUrl); });
+      } else { if(typeof hideUploadProgress==='function') hideUploadProgress(0); }
+    });
+  } else if(typeof compressImage==='function'){
+    compressImage(file, function(dataUrl){ _saveGalleryUrl(dataUrl); });
+  } else { if(typeof hideUploadProgress==='function') hideUploadProgress(0); }
 }
 
 function removeGalleryPhoto(index) {
@@ -26954,7 +26996,62 @@ function closeTaxiProModal() {
 }
 
 function uploadTaxiProDoc(docType) {
-  alert('Uploader document: ' + docType);
+  var uid = window.currentUserUID;
+  if (!uid) { if(typeof showToast==='function') showToast('🔒 Connectez-vous d\'abord'); return; }
+
+  var labelMap = {license:'Permis de conduire', insurance:'Assurance', registration:'Carte grise', inspection:'Vignette'};
+  var docLabel = labelMap[docType] || docType;
+
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*,.pdf';
+  input.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none;';
+  document.body.appendChild(input);
+
+  input.onchange = function(){
+    var file = input.files && input.files[0];
+    try{ document.body.removeChild(input); }catch(e){}
+    if (!file) return;
+
+    var isOk = file.type.startsWith('image/') || file.type === 'application/pdf' ||
+      /\.(jpe?g|png|webp|gif|heic|heif|avif|bmp|pdf)$/i.test(file.name);
+    if (!isOk) { if(typeof showToast==='function') showToast('❌ Format non reconnu (image ou PDF)'); return; }
+    if (file.size > 10*1024*1024) { if(typeof showToast==='function') showToast('⚠️ Fichier trop grand (max 10 Mo)'); return; }
+
+    if(typeof showToast==='function') showToast('⏳ Upload '+docLabel+'...');
+    if(typeof showUploadProgress==='function') showUploadProgress(10,'Upload...');
+
+    function _markDocUploaded(url){
+      // Marquer visuellement le doc comme uploadé
+      var docEl = document.querySelector('.taxi-pro-doc-item[onclick*="\''+docType+'\'"]');
+      if(docEl){ docEl.classList.add('uploaded'); }
+      // Sauvegarder dans Firestore si possible
+      if(window.db && window.fbDoc && window.fbUpdateDoc){
+        var upd={}; upd['doc_'+docType]=url; upd['doc_'+docType+'_ts']=new Date().toISOString();
+        window.fbUpdateDoc(window.fbDoc(window.db,'users',uid),upd).catch(function(){});
+      }
+      try{ localStorage.setItem('ambi241_doc_'+docType+'_'+uid, url); }catch(e){}
+      if(typeof hideUploadProgress==='function') hideUploadProgress(700);
+      if(typeof showToast==='function') showToast('✅ '+docLabel+' uploadé !');
+    }
+
+    if(window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL){
+      var storRef = window.fbRef(window.fbStorage,'users/'+uid+'/docs/'+docType+'_'+Date.now()+'.jpg');
+      if(typeof showUploadProgress==='function') showUploadProgress(30,'Upload...');
+      window.fbUploadBytes(storRef, file).then(function(){
+        if(typeof showUploadProgress==='function') showUploadProgress(80,'Finalisation...');
+        return window.fbGetDownloadURL(storRef);
+      }).then(function(url){ _markDocUploaded(url); })
+      .catch(function(){
+        if(typeof compressImage==='function'){
+          compressImage(file, function(dataUrl){ _markDocUploaded(dataUrl); });
+        } else { if(typeof hideUploadProgress==='function') hideUploadProgress(0); }
+      });
+    } else if(typeof compressImage==='function'){
+      compressImage(file, function(dataUrl){ _markDocUploaded(dataUrl); });
+    } else { if(typeof hideUploadProgress==='function') hideUploadProgress(0); }
+  };
+  input.click();
 }
 
 function submitTaxiPro() {
