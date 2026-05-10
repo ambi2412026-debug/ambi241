@@ -5625,8 +5625,7 @@ if (document.readyState === 'loading') {
   </div>
 </div>
 
-<!-- ══ BOUTON RETOUR EN HAUT ══ -->
-<button id="backToTopBtn" onclick="window.scrollTo({top:0,behavior:'smooth'})" style="display:none;position:fixed;bottom:66px;right:12px;z-index:40;width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));border:none;color:#fff;font-size:1.1rem;cursor:pointer;box-shadow:0 4px 18px rgba(255,45,155,0.45);transition:opacity 0.3s,transform 0.2s;-webkit-tap-highlight-color:transparent;" title="Retour en haut">&#8593;</button>
+
 
 <!-- Inputs fichier pré-existants dans le DOM -->
 <input type="file" id="__filePermPhoto" accept="image/*" style="display:none" onchange="onPermPhotoSelected(this)">
@@ -8214,10 +8213,14 @@ function resetCycleClassement(){
         e.avis = 0;
         // Note : on garde e.note si c'est une note Google reconnue
         if(e._voteData) e._voteData = { pos:0, neg:0 };
+        // Lever l'override admin pour que le statut dynamique reprenne le dessus
+        e._adminOverride = false;
+        e.statut = "Fermé";
       });
     }
 
     // 6. Firebase : effacer presences, votes_communautaires, affluence_signalements
+    //    ET persister affluence=0 / avis=0 dans chaque doc etablissements/{docId}
     if(window.db && window.fbCollection && window.fbGetDocs && window.fbDeleteDoc){
       ["presences","votes_communautaires","affluence_signalements"].forEach(function(col){
         try{
@@ -8226,15 +8229,41 @@ function resetCycleClassement(){
           }).catch(function(){});
         }catch(e){}
       });
-      // Effacer sous-collections presences par étab
-      if(typeof etablissements !== "undefined"){
+      // Effacer sous-collections presences + votes par étab ET remettre à zéro dans le doc principal
+      if(typeof etablissements !== "undefined" && window.fbUpdateDoc && window.fbDoc){
         etablissements.forEach(function(etab){
+          var eidStr = String(etab.id);
+          // Sous-collection presences
           try{
-            var ref = window.fbCollection(window.db, "etablissements", String(etab.id), "presences");
-            window.fbGetDocs(ref).then(function(snap){
+            var presRef = window.fbCollection(window.db, "etablissements", eidStr, "presences");
+            window.fbGetDocs(presRef).then(function(snap){
               snap.forEach(function(d){ window.fbDeleteDoc(d.ref).catch(function(){}); });
             }).catch(function(){});
           }catch(e){}
+          // Sous-collection votes
+          try{
+            var voteRef = window.fbCollection(window.db, "etablissements", eidStr, "votes");
+            window.fbGetDocs(voteRef).then(function(snap){
+              snap.forEach(function(d){ window.fbDeleteDoc(d.ref).catch(function(){}); });
+            }).catch(function(){});
+          }catch(e){}
+          // Sous-collection ratings (avis notés)
+          try{
+            var rateRef = window.fbCollection(window.db, "etablissements", eidStr, "ratings");
+            window.fbGetDocs(rateRef).then(function(snap){
+              snap.forEach(function(d){ window.fbDeleteDoc(d.ref).catch(function(){}); });
+            }).catch(function(){});
+          }catch(e){}
+          // ★ CORRECTION PRINCIPALE : persister affluence=0, avis=0 dans le document Firestore
+          //   pour éviter que loadData() ne restaure les anciennes valeurs après redémarrage
+          if(etab._docId){
+            try{
+              window.fbUpdateDoc(
+                window.fbDoc(window.db, "etablissements", etab._docId),
+                { affluence: 0, avis: 0, _adminOverride: false }
+              ).catch(function(){});
+            }catch(e){}
+          }
         });
       }
     }
@@ -13377,6 +13406,153 @@ function _syncProfilSection(){
 }
 window._syncProfilSection = _syncProfilSection;
 
+/* ══════════════════════════════════════════════════════════════
+   PATCH — Cohérence des vues Profil selon le rôle réel
+   Corrige : données statiques fictives, doublon de vues,
+   onglets accessibles à tort, incohérences statut/coordonnées.
+   ══════════════════════════════════════════════════════════════ */
+(function(){
+
+  /* ── 1. Surcharge de _syncProfilSection : on complète avec les données chauffeur ── */
+  var _origSync = window._syncProfilSection;
+  window._syncProfilSection = function(){
+    if(typeof _origSync === 'function') _origSync.apply(this, arguments);
+    _patchProfilCoherence();
+  };
+
+  /* ── 2. Patch principal de cohérence ── */
+  function _patchProfilCoherence(){
+    var uid   = window.currentUserUID;
+    var email = (window.currentUserEmail || '').toLowerCase().trim();
+    if(!uid && !email) return; // visiteur : rien à faire
+
+    var role = (typeof getUserRole === 'function') ? getUserRole() : 'membre';
+
+    /* — 2a. Masquer strictement les onglets de rôle (nav inutile pour user connecté) — */
+    var navTabs = document.querySelector('#sec-profil .demo-nav-profil');
+    if(navTabs){
+      navTabs.style.display = 'none'; // invisible, mais pSwitchRole fonctionne encore en interne
+    }
+
+    /* — 2b. S'assurer que la bonne vue est active — */
+    var roleToView = {
+      admin:          'membre',
+      super_admin:    'membre',
+      etablissement:  'etab',
+      chauffeur:      'chauffeur',
+      membre:         'membre',
+      user:           'membre'
+    };
+    var targetView = roleToView[role] || 'membre';
+    if(typeof pSwitchRole === 'function') pSwitchRole(targetView);
+
+    /* — 2c. Injecter les données réelles dans la vue Chauffeur si applicable — */
+    if(role === 'chauffeur'){
+      _injectChauffeurData(email, uid);
+    }
+
+    /* — 2d. Injecter email/coordonnées réelles dans la vue Membre — */
+    _injectMembreCoordonnees(uid, email, role);
+  }
+
+  /* ── 3. Injection données chauffeur ── */
+  function _injectChauffeurData(email, uid){
+    /* Chercher dans _chauffeurDrivers (localStorage + mémoire) */
+    var drivers = window._chauffeurDrivers ? Object.values(window._chauffeurDrivers) : [];
+    var driver  = drivers.find(function(d){
+      return (d.email || '').toLowerCase().trim() === email ||
+             (d.uid   || '') === uid;
+    });
+    if(!driver) return;
+
+    var pseudo = driver.pseudo || driver.name || driver.prenom || email.split('@')[0];
+    var phone  = driver.phone  || driver.tel  || '';
+    var city   = driver.zone   || driver.quartier || 'Libreville';
+    var bio    = driver.bio    || driver.description || '';
+
+    /* Nom */
+    var nameEl = document.getElementById('pv-chauffeur-name');
+    if(nameEl){
+      nameEl.innerHTML = _esc(pseudo) + ' <span class="verified-icon vi-gold" title="Chauffeur certifié AMBI241">✓</span>';
+    }
+
+    /* Handle */
+    var handleEl = document.getElementById('pv-chauffeur-handle');
+    if(handleEl){
+      var parts = ['Chauffeur AMBI241', city];
+      if(driver.createdAt){
+        try{
+          var dt = new Date(driver.createdAt);
+          var mois = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+          parts.push('Depuis ' + mois[dt.getMonth()] + ' ' + dt.getFullYear());
+        }catch(e){}
+      }
+      handleEl.innerHTML = parts.map(function(p){ return '<span>' + _esc(p) + '</span>'; })
+                                 .join('<span class="handle-sep">·</span>');
+    }
+
+    /* Bio */
+    var bioEl = document.getElementById('pv-chauffeur-bio');
+    if(bioEl){
+      if(bio){ bioEl.textContent = bio; bioEl.style.fontStyle = 'normal'; bioEl.style.opacity = '1'; }
+      else   { bioEl.style.fontStyle = 'italic'; bioEl.style.opacity = '0.5'; }
+    }
+
+    /* Avatar initiales */
+    var av = document.getElementById('pav-chauffeur');
+    if(av){
+      var initiales = pseudo.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2);
+      Array.from(av.childNodes).forEach(function(n){ if(n.nodeType === 3) n.textContent = initiales; });
+    }
+
+    /* Compte (email / tel) */
+    var emailEl = document.getElementById('pv-chauffeur-email');
+    if(emailEl && email) emailEl.textContent = email;
+    var phoneEl = document.getElementById('pv-chauffeur-phone');
+    if(phoneEl && phone) phoneEl.textContent = phone;
+  }
+
+  /* ── 4. Injection coordonnées dans la vue Membre ── */
+  function _injectMembreCoordonnees(uid, email, role){
+    if(role !== 'membre' && role !== 'admin') return;
+    /* Compléter le handle avec l'email réel si pas de pseudo chargé */
+    var handleEl = document.querySelector('#pv-membre .profile-handle');
+    if(handleEl && email && !handleEl.dataset.synced){
+      handleEl.dataset.synced = '1';
+      /* Ne pas écraser si déjà rempli par _syncProfilSection avec pseudo Firebase */
+      /* On laisse _syncProfilSection gérer — juste vérifier la cohérence */
+    }
+    /* Vérifier badge rôle : si admin mais affiché comme Membre, corriger */
+    var roleBadge = document.querySelector('#pv-membre .p-role-badge');
+    if(roleBadge && role === 'admin'){
+      roleBadge.className = 'p-role-badge rb-membre';
+      roleBadge.innerHTML = '<span class="rb-dot"></span>⭐ Administrateur';
+    }
+  }
+
+  /* ── 5. Utilitaire escHtml local ── */
+  function _esc(s){
+    return typeof escHtml === 'function' ? escHtml(s) : String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  /* ── 6. Re-patcher à chaque connexion/déconnexion Firebase ── */
+  var _origOnAuth = window._ambi241_onAuthCb;
+  // Hook sur onAuthStateChanged en surveillant currentUserUID
+  var _prevUID = null;
+  setInterval(function(){
+    var uid = window.currentUserUID || null;
+    if(uid !== _prevUID){
+      _prevUID = uid;
+      if(uid && document.querySelector('#sec-profil.active-section, #sec-profil:not(.section-hidden)')){
+        setTimeout(_patchProfilCoherence, 400);
+      }
+    }
+  }, 800);
+
+  console.log('[AMBI241] ✅ Patch cohérence Profil actif — rôle/vues synchronisés');
+})();
+
 function navHandleProfil(btn){
   var connected = !!(window.currentUserUID);
   if(connected){
@@ -13522,29 +13698,7 @@ document.addEventListener("change",function(e){
   }
 });
 
-// ── Bouton retour en haut ─────────────────────────────────────────
-(function(){
-  var btn = document.getElementById("backToTopBtn");
-  if(!btn) return;
-  var _lastScrollY = 0;
-  window.addEventListener("scroll", function(){
-    var y = window.scrollY || window.pageYOffset;
-    if(y > 320){
-      btn.style.display = "flex";
-      btn.style.alignItems = "center";
-      btn.style.justifyContent = "center";
-      btn.style.opacity = "1";
-    } else {
-      btn.style.opacity = "0";
-      setTimeout(function(){ if((window.scrollY||window.pageYOffset)<320) btn.style.display="none"; }, 300);
-    }
-    _lastScrollY = y;
-  }, {passive:true});
-  btn.addEventListener("mousedown", function(){ btn.style.transform="scale(0.9)"; });
-  btn.addEventListener("mouseup",   function(){ btn.style.transform=""; });
-  btn.addEventListener("touchstart",function(){ btn.style.transform="scale(0.9)"; },{passive:true});
-  btn.addEventListener("touchend",  function(){ btn.style.transform=""; },{passive:true});
-})();
+
 (function(){
   var _touchStartX = 0;
   var _touchStartY = 0;
@@ -17882,9 +18036,95 @@ function resetDataMembres(){ if(!confirm("R\u00e9initialiser les donn\u00e9es de
 window.resetDataMembres=resetDataMembres;
 function resetDataChauffeurs(){ if(!confirm("R\u00e9initialiser les donn\u00e9es des chauffeurs Taxi Pro ?")) return; var keys=[]; for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(!k)continue;if(k.indexOf("ambi241_driver_")===0||k.indexOf("ambi241_taxi_cycle_")===0)keys.push(k);} keys.forEach(function(k){try{localStorage.removeItem(k);}catch(e){}});if(window.db&&window.fbCollection&&window.fbGetDocs&&window.fbDeleteDoc){try{window.fbGetDocs(window.fbCollection(window.db,"taxi_scores")).then(function(s){s.forEach(function(d){window.fbDeleteDoc(d.ref).catch(function(){});});}).catch(function(){});}catch(e){}}showToast("\u2705 Chauffeurs r\u00e9initialis\u00e9s"); }
 window.resetDataChauffeurs=resetDataChauffeurs;
-function resetDataGerants(){ if(!confirm("R\u00e9initialiser les donn\u00e9es des g\u00e9rants ?")) return; if(typeof etablissements!=="undefined"&&etablissements)etablissements.forEach(function(e){e.affluence=0;if(e._voteData)e._voteData={pos:0,neg:0};}); var keys=[]; for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(!k)continue;if(k.indexOf("ambi241_gerant_")===0||k.indexOf("ambi241_etab_aff_")===0)keys.push(k);} keys.forEach(function(k){try{localStorage.removeItem(k);}catch(e){}}); if(typeof renderAll==="function")setTimeout(renderAll,300); showToast("\u2705 G\u00e9rants r\u00e9initialis\u00e9s"); }
+function resetDataGerants(){
+  if(!confirm("R\u00e9initialiser les donn\u00e9es des g\u00e9rants ?")) return;
+  // Mémoire locale
+  if(typeof etablissements!=="undefined"&&etablissements){
+    etablissements.forEach(function(e){
+      e.affluence=0;
+      e.avis=0;
+      e._adminOverride=false;
+      if(e._voteData)e._voteData={pos:0,neg:0};
+    });
+  }
+  // localStorage
+  var keys=[];
+  for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(!k)continue;if(k.indexOf("ambi241_gerant_")===0||k.indexOf("ambi241_etab_aff_")===0)keys.push(k);}
+  keys.forEach(function(k){try{localStorage.removeItem(k);}catch(e){}});
+  // ★ CORRECTION : persister dans Firebase
+  if(window.db&&window.fbUpdateDoc&&window.fbDoc&&typeof etablissements!=="undefined"){
+    etablissements.forEach(function(etab){
+      if(etab._docId){
+        try{
+          window.fbUpdateDoc(
+            window.fbDoc(window.db,"etablissements",etab._docId),
+            {affluence:0,avis:0,_adminOverride:false}
+          ).catch(function(){});
+        }catch(e){}
+      }
+    });
+  }
+  if(typeof renderAll==="function")setTimeout(renderAll,300);
+  showToast("\u2705 G\u00e9rants r\u00e9initialis\u00e9s");
+}
 window.resetDataGerants=resetDataGerants;
-function resetAllDataComplet(){ if(!confirm("\u26A0\uFE0F RESET TOTAL\n\nCette action r\u00e9initialise :\n\u2022 Classement \u00e9tablissements\n\u2022 Membres simples\n\u2022 Chauffeurs Taxi Pro\n\u2022 G\u00e9rants\u2019 scores\n\nProfils et photos resteront intacts.\n\nConfirmer ?")) return; try{localStorage.removeItem("ambi241_all_presence");localStorage.removeItem("ambi241_all_votes");}catch(e){} var del=[]; for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(!k)continue;if(k.indexOf("ambi241_lastpres_")===0||k.indexOf("ambi241_vcd_")===0||k.indexOf("ambi241_anon_presence_")===0||k.indexOf("ambi241_membre_score_")===0||k.indexOf("ambi241_membre_activity_")===0||k.indexOf("ambi241_driver_")===0||k.indexOf("ambi241_taxi_cycle_")===0||k.indexOf("ambi241_gerant_")===0||k.indexOf("ambi241_etab_aff_")===0)del.push(k);} del.forEach(function(k){try{localStorage.removeItem(k);}catch(e){}}); var ss=[]; for(var j=0;j<sessionStorage.length;j++){var sk=sessionStorage.key(j);if(sk&&sk.indexOf("ambi241_anon_")===0)ss.push(sk);} ss.forEach(function(k){try{sessionStorage.removeItem(k);}catch(e){}}); if(typeof etablissements!=="undefined"&&etablissements)etablissements.forEach(function(e){e.affluence=0;if(e._voteData)e._voteData={pos:0,neg:0};}); if(window.db&&window.fbCollection&&window.fbGetDocs&&window.fbDeleteDoc){["presences","votes","taxi_scores"].forEach(function(col){try{window.fbGetDocs(window.fbCollection(window.db,col)).then(function(s){s.forEach(function(d){window.fbDeleteDoc(d.ref).catch(function(){});});}).catch(function(){});}catch(e){}});} var now=Date.now(); try{localStorage.setItem("ambi241_cycle_start",String(now));localStorage.setItem("ambi241_cycle_reset_count",String(parseInt(localStorage.getItem("ambi241_cycle_reset_count")||"0")+1));}catch(e){} if(typeof _rankSort!=="undefined")_rankSort={col:"score",asc:false}; showToast("\u2705 Reset total \u2014 nouveau cycle d\u00e9marr\u00e9 !"); setTimeout(function(){if(typeof renderAll==="function")renderAll();if(typeof renderAdmClassement==="function")renderAdmClassement();renderAdmSettings();},400); }
+function resetAllDataComplet(){
+  if(!confirm("\u26A0\uFE0F RESET TOTAL\n\nCette action r\u00e9initialise :\n\u2022 Classement \u00e9tablissements\n\u2022 Membres simples\n\u2022 Chauffeurs Taxi Pro\n\u2022 G\u00e9rants\u2019 scores\n\nProfils et photos resteront intacts.\n\nConfirmer ?")) return;
+  // 1. localStorage
+  try{localStorage.removeItem("ambi241_all_presence");localStorage.removeItem("ambi241_all_votes");}catch(e){}
+  var del=[];
+  for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(!k)continue;if(k.indexOf("ambi241_lastpres_")===0||k.indexOf("ambi241_vcd_")===0||k.indexOf("ambi241_anon_presence_")===0||k.indexOf("ambi241_membre_score_")===0||k.indexOf("ambi241_membre_activity_")===0||k.indexOf("ambi241_driver_")===0||k.indexOf("ambi241_taxi_cycle_")===0||k.indexOf("ambi241_gerant_")===0||k.indexOf("ambi241_etab_aff_")===0)del.push(k);}
+  del.forEach(function(k){try{localStorage.removeItem(k);}catch(e){}});
+  // 2. sessionStorage
+  var ss=[];
+  for(var j=0;j<sessionStorage.length;j++){var sk=sessionStorage.key(j);if(sk&&sk.indexOf("ambi241_anon_")===0)ss.push(sk);}
+  ss.forEach(function(k){try{sessionStorage.removeItem(k);}catch(e){}});
+  // 3. Reset mémoire locale
+  if(typeof etablissements!=="undefined"&&etablissements){
+    etablissements.forEach(function(e){
+      e.affluence=0;
+      e.avis=0;
+      e._adminOverride=false;
+      e.statut="Fermé";
+      if(e._voteData)e._voteData={pos:0,neg:0};
+    });
+  }
+  // 4. Firebase : collections globales + sous-collections par étab + ★ doc principal
+  if(window.db&&window.fbCollection&&window.fbGetDocs&&window.fbDeleteDoc){
+    ["presences","votes","taxi_scores","votes_communautaires","affluence_signalements"].forEach(function(col){
+      try{window.fbGetDocs(window.fbCollection(window.db,col)).then(function(s){s.forEach(function(d){window.fbDeleteDoc(d.ref).catch(function(){});});}).catch(function(){});}catch(e){}
+    });
+    // ★ CORRECTION PRINCIPALE : persister affluence=0/avis=0 dans chaque doc Firestore
+    if(typeof etablissements!=="undefined"&&window.fbUpdateDoc&&window.fbDoc){
+      etablissements.forEach(function(etab){
+        var eidStr=String(etab.id);
+        // Sous-collections presences / votes / ratings
+        ["presences","votes","ratings"].forEach(function(sub){
+          try{
+            window.fbGetDocs(window.fbCollection(window.db,"etablissements",eidStr,sub))
+              .then(function(s){s.forEach(function(d){window.fbDeleteDoc(d.ref).catch(function(){});});})
+              .catch(function(){});
+          }catch(e){}
+        });
+        // Mise à zéro dans le document principal etablissements/{docId}
+        if(etab._docId){
+          try{
+            window.fbUpdateDoc(
+              window.fbDoc(window.db,"etablissements",etab._docId),
+              {affluence:0,avis:0,_adminOverride:false}
+            ).catch(function(){});
+          }catch(e){}
+        }
+      });
+    }
+  }
+  // 5. Cycle + tri
+  var now=Date.now();
+  try{localStorage.setItem("ambi241_cycle_start",String(now));localStorage.setItem("ambi241_cycle_reset_count",String(parseInt(localStorage.getItem("ambi241_cycle_reset_count")||"0")+1));}catch(e){}
+  if(typeof _rankSort!=="undefined")_rankSort={col:"score",asc:false};
+  showToast("\u2705 Reset total \u2014 nouveau cycle d\u00e9marr\u00e9 !");
+  setTimeout(function(){if(typeof renderAll==="function")renderAll();if(typeof renderAdmClassement==="function")renderAdmClassement();renderAdmSettings();},400);
+}
 window.resetAllDataComplet=resetAllDataComplet;
 
 function changeAdminPin(){
@@ -30115,9 +30355,9 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
       <div class="avatar-meta"><span class="p-role-badge rb-chauffeur"><span class="rb-dot"></span>Chauffeur Certifié</span></div>
     </div>
     <div class="profile-header">
-      <div class="profile-name">Jean-Olivier Nze <span class="verified-icon vi-gold" title="Chauffeur certifié AMBI241">✓</span></div>
-      <div class="profile-handle"><span>Chauffeur AMBI241</span><span class="handle-sep">·</span><span>Libreville Centre</span><span class="handle-sep">·</span><span>Depuis mars 2023</span></div>
-      <p class="profile-bio">Chauffeur professionnel disponible 7j/7. Confort garanti, ponctualité assurée. Je vous emmène où vous voulez à Libreville 🏙️</p>
+      <div class="profile-name" id="pv-chauffeur-name">— <span class="verified-icon vi-gold" title="Chauffeur certifié AMBI241">✓</span></div>
+      <div class="profile-handle" id="pv-chauffeur-handle"><span>Chauffeur AMBI241</span><span class="handle-sep">·</span><span>Libreville</span></div>
+      <p class="profile-bio" id="pv-chauffeur-bio">Chauffeur professionnel disponible 7j/7. Confort garanti, ponctualité assurée.</p>
       <div class="profile-tags"><span class="ptag-item">🌙 Nuits</span><span class="ptag-item">✈️ Aéroport</span><span class="ptag-item">💼 Business</span><span class="ptag-item">🇬🇦 Libreville</span></div>
     </div>
     <div class="profile-actions">
@@ -30188,10 +30428,10 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
       <div class="p-section-block">
         <div class="section-head"><span class="section-title">⚙️ Mon compte</span></div>
         <div class="info-list">
-          <div class="info-row"><div class="info-icon">📞</div><div class="info-text"><div class="info-label">Téléphone</div><div class="info-value">+241 77 45 23 18</div></div></div>
-          <div class="info-row"><div class="info-icon">✉️</div><div class="info-text"><div class="info-label">Email</div><div class="info-value">j.nze@ambi241.ga</div></div></div>
-          <div class="info-row"><div class="info-icon">🏦</div><div class="info-text"><div class="info-label">Paiement des gains</div><div class="info-value">Airtel Money · **** 8821</div></div></div>
-          <div class="info-row"><div class="info-icon">📋</div><div class="info-text"><div class="info-label">Permis de conduire</div><div class="info-value">Valide jusqu'en 2027 ✅</div></div></div>
+          <div class="info-row"><div class="info-icon">📞</div><div class="info-text"><div class="info-label">Téléphone</div><div class="info-value" id="pv-chauffeur-phone">—</div></div></div>
+          <div class="info-row"><div class="info-icon">✉️</div><div class="info-text"><div class="info-label">Email</div><div class="info-value" id="pv-chauffeur-email">—</div></div></div>
+          <div class="info-row"><div class="info-icon">🏦</div><div class="info-text"><div class="info-label">Paiement des gains</div><div class="info-value">Mobile Money</div></div></div>
+          <div class="info-row"><div class="info-icon">📋</div><div class="info-text"><div class="info-label">Permis de conduire</div><div class="info-value">Vérifié ✅</div></div></div>
         </div>
       </div>
     </div>
@@ -31698,5 +31938,148 @@ console.log('[AMBI241] ✅ Système Profils Publics chargé — openPublicProfil
 })();
 
 })(); // fin IIFE
+
+/* ══════════════════════════════════════════════════════════════
+   ══ SCROLL NAV ARROWS — Luxury & Discrete                    ══
+   ══════════════════════════════════════════════════════════════ */
+(function(){
+  // CSS injection
+  var css = `
+    .ambi-scroll-nav {
+      position: fixed;
+      right: 14px;
+      bottom: 88px; /* au-dessus de la tab bar (62px) */
+      z-index: 500;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .ambi-scroll-btn {
+      pointer-events: all;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(26, 10, 40, 0.72);
+      backdrop-filter: blur(18px) saturate(1.6);
+      -webkit-backdrop-filter: blur(18px) saturate(1.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: opacity 0.35s ease, transform 0.25s cubic-bezier(0.34,1.56,0.64,1), border-color 0.25s, box-shadow 0.25s;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+      opacity: 0;
+      transform: translateX(6px);
+      will-change: opacity, transform;
+    }
+
+    .ambi-scroll-btn.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .ambi-scroll-btn:hover {
+      border-color: rgba(255,45,155,0.45);
+      box-shadow: 0 4px 22px rgba(255,45,155,0.22), inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+
+    .ambi-scroll-btn:active {
+      transform: scale(0.88);
+    }
+
+    /* Icône SVG chevron */
+    .ambi-scroll-btn svg {
+      width: 14px;
+      height: 14px;
+      stroke: rgba(255,255,255,0.55);
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+      transition: stroke 0.2s;
+      flex-shrink: 0;
+    }
+
+    .ambi-scroll-btn:hover svg {
+      stroke: var(--pink, #ff2d9b);
+    }
+
+    /* Trait doré ultra-fin entre les deux boutons */
+    .ambi-scroll-divider {
+      width: 1px;
+      height: 14px;
+      background: linear-gradient(to bottom, transparent, rgba(255,215,0,0.25), transparent);
+      margin: 0 auto;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.35s ease;
+    }
+
+    .ambi-scroll-divider.visible {
+      opacity: 1;
+    }
+  `;
+
+  var styleEl = document.createElement('style');
+  styleEl.textContent = css;
+  document.head.appendChild(styleEl);
+
+  // DOM
+  var nav = document.createElement('div');
+  nav.className = 'ambi-scroll-nav';
+  nav.setAttribute('aria-label', 'Navigation scroll');
+
+  var btnUp = document.createElement('button');
+  btnUp.className = 'ambi-scroll-btn';
+  btnUp.setAttribute('aria-label', 'Remonter');
+  btnUp.innerHTML = `<svg viewBox="0 0 16 16"><polyline points="3,10 8,5 13,10"/></svg>`;
+
+  var divider = document.createElement('div');
+  divider.className = 'ambi-scroll-divider';
+
+  var btnDown = document.createElement('button');
+  btnDown.className = 'ambi-scroll-btn';
+  btnDown.setAttribute('aria-label', 'Descendre');
+  btnDown.innerHTML = `<svg viewBox="0 0 16 16"><polyline points="3,6 8,11 13,6"/></svg>`;
+
+  nav.appendChild(btnUp);
+  nav.appendChild(divider);
+  nav.appendChild(btnDown);
+  document.body.appendChild(nav);
+
+  // Logique scroll smooth par page
+  function scrollPage(dir) {
+    var amount = Math.max(window.innerHeight * 0.82, 300);
+    window.scrollBy({ top: dir * amount, behavior: 'smooth' });
+  }
+
+  btnUp.addEventListener('click', function(){ scrollPage(-1); });
+  btnDown.addEventListener('click', function(){ scrollPage(1); });
+
+  // Visibilité conditionnelle
+  var ticking = false;
+  function onScroll() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(function(){
+      var scrollTop = window.scrollY || document.documentElement.scrollTop;
+      var scrollMax = document.documentElement.scrollHeight - window.innerHeight;
+      var canUp   = scrollTop > 60;
+      var canDown = scrollTop < scrollMax - 60;
+
+      btnUp.classList.toggle('visible', canUp);
+      btnDown.classList.toggle('visible', canDown);
+      divider.classList.toggle('visible', canUp || canDown);
+      ticking = false;
+    });
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  // Vérifier au chargement (contenu déjà scrollé, ou page courte)
+  setTimeout(onScroll, 400);
+})();
 </script>
 </html>
