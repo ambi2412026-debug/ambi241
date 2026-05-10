@@ -5528,6 +5528,9 @@ if (document.readyState === 'loading') {
 <!-- ══ BOUTON RETOUR EN HAUT ══ -->
 <button id="backToTopBtn" onclick="window.scrollTo({top:0,behavior:'smooth'})" style="display:none;position:fixed;bottom:66px;right:12px;z-index:40;width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));border:none;color:#fff;font-size:1.1rem;cursor:pointer;box-shadow:0 4px 18px rgba(255,45,155,0.45);transition:opacity 0.3s,transform 0.2s;-webkit-tap-highlight-color:transparent;" title="Retour en haut">&#8593;</button>
 
+<!-- ══ BOUTON SCROLL BAS ══ -->
+<button id="scrollDownBtn" onclick="window.scrollTo({top:document.documentElement.scrollHeight,behavior:'smooth'})" style="display:flex;align-items:center;justify-content:center;position:fixed;bottom:66px;right:12px;z-index:40;width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));border:none;color:#fff;font-size:1.1rem;cursor:pointer;box-shadow:0 4px 18px rgba(255,45,155,0.45);transition:opacity 0.3s,transform 0.2s;-webkit-tap-highlight-color:transparent;opacity:1;" title="Aller en bas">&#8595;</button>
+
 <!-- Inputs fichier pré-existants dans le DOM -->
 <input type="file" id="__filePermPhoto" accept="image/*" style="display:none" onchange="onPermPhotoSelected(this)">
 <input type="file" id="__fileSoireePhoto" accept="image/*" style="display:none">
@@ -13417,6 +13420,44 @@ document.addEventListener("change",function(e){
   btn.addEventListener("touchstart",function(){ btn.style.transform="scale(0.9)"; },{passive:true});
   btn.addEventListener("touchend",  function(){ btn.style.transform=""; },{passive:true});
 })();
+
+/* ══ BOUTON SCROLL BAS — visible en haut, masqué en bas ══ */
+(function(){
+  var dnBtn = document.getElementById("scrollDownBtn");
+  if(!dnBtn) return;
+  var THRESHOLD_TOP = 100;   // px depuis le haut : bouton visible si en-dessous
+  var THRESHOLD_BOT = 120;   // px depuis le bas  : bouton masqué si trop proche
+
+  function _updateScrollDownBtn(){
+    var y    = window.scrollY || window.pageYOffset;
+    var maxY = document.documentElement.scrollHeight - window.innerHeight;
+    var nearBottom = maxY > 0 && (maxY - y) < THRESHOLD_BOT;
+    var nearTop    = y < THRESHOLD_TOP;
+
+    if(nearBottom || !nearTop){
+      dnBtn.style.opacity = "0";
+      dnBtn.style.pointerEvents = "none";
+      setTimeout(function(){
+        if(parseFloat(dnBtn.style.opacity || "0") < 0.05) dnBtn.style.display = "none";
+      }, 300);
+    } else {
+      dnBtn.style.display = "flex";
+      dnBtn.offsetHeight; // force reflow pour la transition
+      dnBtn.style.opacity = "1";
+      dnBtn.style.pointerEvents = "auto";
+    }
+  }
+
+  _updateScrollDownBtn();
+  window.addEventListener("scroll", _updateScrollDownBtn, {passive:true});
+  window.addEventListener("resize", _updateScrollDownBtn, {passive:true});
+
+  dnBtn.addEventListener("mousedown",  function(){ dnBtn.style.transform="scale(0.9)"; });
+  dnBtn.addEventListener("mouseup",    function(){ dnBtn.style.transform=""; });
+  dnBtn.addEventListener("touchstart", function(){ dnBtn.style.transform="scale(0.9)"; },{passive:true});
+  dnBtn.addEventListener("touchend",   function(){ dnBtn.style.transform=""; },{passive:true});
+})();
+
 (function(){
   var _touchStartX = 0;
   var _touchStartY = 0;
@@ -27744,7 +27785,10 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
       /* Pas de crossOrigin par défaut pour maximiser la compatibilité */
     }
     a.preload = 'metadata';          // 'metadata' d'abord pour éviter téléchargement complet inutile
-    a.volume  = 0.8;
+    /* Volume : lire le slider en priorité, sinon cfg sauvegardée, sinon 80% par défaut */
+    var _volSlider = document.getElementById('wspVol');
+    var _initVol = _volSlider ? (parseInt(_volSlider.value) || 80) : ((_cfg && _cfg.volume) || 80);
+    a.volume  = Math.max(0.01, _initVol / 100); // jamais 0 par défaut
     a.loop    = !_cfg || _cfg.loop !== false;
 
     a.addEventListener('canplay', function() {
@@ -27754,9 +27798,12 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
     a.addEventListener('timeupdate', _updateProgress);
     a.addEventListener('loadedmetadata', function() {
       _updateProgress();
-      /* Synchroniser le volume depuis le slider si présent */
+      /* Synchroniser le volume depuis le slider si présent — garantir jamais 0 */
       var vol = document.getElementById('wspVol');
-      if (vol) a.volume = vol.value / 100;
+      if (vol) {
+        var v = parseInt(vol.value) || 80;
+        a.volume = Math.max(0.01, v / 100);
+      }
     });
     a.addEventListener('play',  function() { _setPlaying(true); });
     a.addEventListener('pause', function() { _setPlaying(false); });
@@ -27822,11 +27869,11 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
     a.src = url;
     a.load();
     _fillPlayer();
-    /* Appliquer le volume sauvegardé */
+    /* Appliquer le volume sauvegardé — garantir jamais silencieux */
     var vol = document.getElementById('wspVol');
     if (vol) {
       vol.value = (_cfg && _cfg.volume) || 80;
-      a.volume  = vol.value / 100;
+      a.volume  = Math.max(0.01, vol.value / 100);
     }
   }
 
