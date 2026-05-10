@@ -17904,17 +17904,83 @@ function renderAdmSettings(){
 
   // ── MODE APP ──
   var _appMode = (typeof lsGet==="function") ? (lsGet("ambi241_app_mode","live")) : "live";
-  var modes = [{v:"live",l:"🟢 Live — Application normale",c:"var(--green)"},{v:"prelancement",l:"🔵 Pré-lancement",c:"var(--cyan)"},{v:"maintenance",l:"🔴 Maintenance",c:"var(--red)"}];
-  html+="<div style='background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.2);border-radius:14px;padding:1rem;margin-bottom:1rem;'>";
-  html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--cyan);font-size:0.85rem;margin-bottom:0.7rem;'>🌐 Mode de l'application</div>";
+  var modes = [
+    {
+      v:"live",
+      l:"Live — Application normale",
+      emoji:"🟢",
+      c:"var(--green)",
+      bc:"rgba(0,255,170,0.18)",
+      details:[
+        "Accès complet pour tous les utilisateurs et membres inscrits — toutes les fonctionnalités sont disponibles.",
+        "Les établissements partenaires sont visibles en temps réel avec leurs statuts d'ambiance, avis et galeries.",
+        "Paiements, réservations et module Taxi Pro opérationnels. Aucune restriction côté public."
+      ]
+    },
+    {
+      v:"prelancement",
+      l:"Pré-lancement",
+      emoji:"🔵",
+      c:"var(--cyan)",
+      bc:"rgba(0,229,255,0.12)",
+      details:[
+        "L'application est visible mais signalée comme étant en phase de test — aucune donnée réelle n'est collectée ni comptabilisée.",
+        "Les visiteurs et membres peuvent naviguer, mais les actions sensibles (paiements, votes, réservations) sont désactivées ou simulées.",
+        "Idéal pour valider l'interface avant un lancement officiel. Aucun impact sur les données Firebase de production."
+      ]
+    },
+    {
+      v:"maintenance",
+      l:"Maintenance",
+      emoji:"🔴",
+      c:"var(--red)",
+      bc:"rgba(255,68,102,0.12)",
+      details:[
+        "Un écran de maintenance remplace l'application pour tous les visiteurs et membres non-admins — l'accès est bloqué.",
+        "Seuls les administrateurs connectés conservent l'accès complet au panneau de contrôle et aux données.",
+        "À utiliser lors de mises à jour critiques, migrations Firebase ou corrections urgentes. Durée recommandée : moins de 30 minutes."
+      ]
+    }
+  ];
+
+  html+="<div style='background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.2);border-radius:14px;padding:1rem 1rem 0.6rem;margin-bottom:1rem;'>";
+  html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--cyan);font-size:0.85rem;margin-bottom:0.9rem;'>🌐 Mode de l'application</div>";
+
   modes.forEach(function(m){
     var active = _appMode===m.v;
-    html+="<div onclick='setAppMode(\""+m.v+"\");renderAdmSettings();' style='display:flex;align-items:center;gap:0.6rem;padding:0.55rem 0.7rem;border-radius:9px;border:1.5px solid "+(active?"rgba(0,229,255,0.4)":"rgba(255,255,255,0.06)")+";background:"+(active?"rgba(0,229,255,0.08)":"rgba(255,255,255,0.02)")+";cursor:pointer;margin-bottom:0.35rem;transition:all 0.2s;'>";
-    html+="<div style='width:10px;height:10px;border-radius:50%;background:"+m.c+";flex-shrink:0;"+(active?"box-shadow:0 0 8px "+m.c+";":"opacity:0.3;")+";'></div>";
-    html+="<span style='font-size:0.78rem;color:"+(active?"var(--text)":"var(--muted)")+";font-weight:"+(active?"700":"400")+";'>"+m.l+"</span>";
-    if(active) html+="<span style='margin-left:auto;font-size:0.6rem;color:var(--cyan);font-weight:800;'>ACTIF</span>";
+    var borderCol = active ? m.c : "rgba(255,255,255,0.07)";
+    var bgCol     = active ? m.bc : "rgba(255,255,255,0.02)";
+
+    html+="<div onclick='setAppMode(\""+m.v+"\");renderAdmSettings();' style='border:1.5px solid "+borderCol+";background:"+bgCol+";border-radius:11px;padding:0.7rem 0.8rem;cursor:pointer;margin-bottom:0.55rem;transition:all 0.22s;position:relative;overflow:hidden;'>";
+
+    // En-tête du mode
+    html+="<div style='display:flex;align-items:center;gap:0.55rem;margin-bottom:"+(active?"0.65rem":"0")+"'>";
+    html+="<div style='width:10px;height:10px;border-radius:50%;background:"+m.c+";flex-shrink:0;"+(active?"box-shadow:0 0 10px "+m.c+";":"opacity:0.35;")+";transition:all 0.2s;'></div>";
+    html+="<span style='font-size:0.8rem;color:"+(active?"var(--text)":"var(--muted)")+";font-weight:"+(active?"800":"500")+";font-family:Syne,sans-serif;'>"+m.emoji+" "+m.l+"</span>";
+    if(active) html+="<span style='margin-left:auto;font-size:0.58rem;font-weight:800;letter-spacing:0.08em;color:"+m.c+";background:rgba(255,255,255,0.06);padding:0.15rem 0.45rem;border-radius:20px;border:1px solid "+m.c+";'>ACTIF</span>";
+    html+="</div>";
+
+    // Détails explicatifs — affichés seulement si actif
+    if(active){
+      html+="<div style='display:flex;flex-direction:column;gap:0.4rem;padding-left:0.2rem;border-top:1px solid rgba(255,255,255,0.07);padding-top:0.55rem;'>";
+      m.details.forEach(function(pt, idx){
+        html+="<div style='display:flex;align-items:flex-start;gap:0.5rem;'>";
+        html+="<span style='font-size:0.6rem;font-weight:800;color:"+m.c+";background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);min-width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:0.05rem;font-family:Syne,sans-serif;'>"+(idx+1)+"</span>";
+        html+="<span style='font-size:0.72rem;color:var(--muted);line-height:1.5;'>"+pt+"</span>";
+        html+="</div>";
+      });
+      html+="</div>";
+    }
+
     html+="</div>";
   });
+
+  // Note d'avertissement global
+  html+="<div style='display:flex;align-items:flex-start;gap:0.45rem;background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.2);border-radius:8px;padding:0.55rem 0.7rem;margin-top:0.2rem;margin-bottom:0.6rem;'>";
+  html+="<span style='font-size:0.9rem;flex-shrink:0;margin-top:0.02rem;'>⚠️</span>";
+  html+="<span style='font-size:0.68rem;color:rgba(255,215,0,0.8);line-height:1.5;'>Tout changement de mode est <strong>immédiat et global</strong>. Il affecte l'ensemble des utilisateurs connectés en temps réel.</span>";
+  html+="</div>";
+
   html+="</div>";
 
   // ── TOGGLES FONCTIONNALITÉS ──
