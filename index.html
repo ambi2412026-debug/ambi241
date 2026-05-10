@@ -1734,7 +1734,9 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .add-soiree-btn{flex-shrink:0;width:65px;height:65px;border-radius:8px;border:2px dashed rgba(255,45,155,0.3);background:rgba(255,45,155,0.05);color:var(--pink);font-size:1.5rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
 .card-top{padding:0.8rem 0.9rem 0.6rem;width:100%;box-sizing:border-box;}
 .card-row1{display:flex;justify-content:space-between;align-items:flex-start;width:100%;}
-.card-num{font-size:0.62rem;color:var(--muted);font-family:'Syne',sans-serif;font-weight:900;display:inline-block;margin-bottom:0.2rem;min-width:18px;text-align:center;}
+.card-num{font-size:0.6rem;color:var(--muted);font-family:'Syne',sans-serif;font-weight:900;display:inline-flex;align-items:center;gap:0.22rem;margin-bottom:0.2rem;}
+.card-num-circle{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);font-size:0.55rem;font-weight:900;color:var(--muted);font-family:'Syne',sans-serif;line-height:1;flex-shrink:0;}
+.card-num-label{font-size:0.6rem;font-weight:900;color:var(--muted);letter-spacing:0.03em;}
 .card-name{font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;margin-top:0.15rem;line-height:1.2;color:var(--text);}
 .cat-badge{font-size:0.64rem;font-weight:700;padding:0.15rem 0.5rem;border-radius:6px;margin-top:0.25rem;display:inline-block;}
 .cb-bar{background:rgba(255,45,155,0.12);color:var(--pink);border:1px solid rgba(255,45,155,0.25);}
@@ -6210,7 +6212,7 @@ function _updateRankScoreLive() {
   // Mettre à jour les badges de rang dans le DOM
   scored.forEach(function(r, idx) {
     var rankEls = document.querySelectorAll("[data-live-rank='"+r.id+"']");
-    var medal = idx === 0 ? "🏆 N°1" : idx === 1 ? "🥈 N°2" : idx === 2 ? "🥉 N°3" : "N°" + (idx + 1);
+    var medal = idx === 0 ? "🏆 Nº 1" : idx === 1 ? "🥈 Nº 2" : idx === 2 ? "🥉 Nº 3" : "Nº " + (idx + 1);
     var color = idx === 0 ? "var(--amber)" : idx === 1 ? "#c0c0c0" : idx === 2 ? "#cd7f32" : "var(--muted)";
     rankEls.forEach(function(el) {
       el.textContent = medal;
@@ -11535,7 +11537,7 @@ function buildCard(e,delay,compact,rank){
     photosHtml+
     "<div class=\"card-top\">"+
     "<div class=\"card-row1\"><div>"+
-    "<div class=\"card-num\">"+(rank!=null?rank:e.id)+"</div>"+
+    (function(){var n=(rank!=null?rank:e.id);return "<div class=\"card-num\"><span class=\"card-num-circle\">"+n+"</span><span class=\"card-num-label\">N&#186; "+n+"</span></div>";})()+"+
     "<div class=\"card-name\"><button class=\"etab-name-order-btn\" onclick=\"window['_etabOrderBtn_'+"+e.id+"] && window['_etabOrderBtn_'+"+e.id+"]()\" title=\"📋 Réserver à "+e.nom.replace(/"/g,'')+"\" style=\"font-family:'Syne',sans-serif;font-size:inherit;font-weight:inherit;\">"+e.nom+" <span class=\"etab-name-order-pulse\">+</span></button> <span onclick=\"openGalerie("+e.id+")\" title=\"Voir la galerie de "+(e.nom||"").replace(/"/g,'')+"\" style=\"cursor:pointer;display:inline-flex;align-items:center;gap:0.35rem;flex-wrap:wrap;transition:color 0.2s;\"><span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span>"+(e._distKm!=null?"<span class=\"dist-badge "+distClass(e._distKm)+"\">"+fmtDist(e._distKm)+"</span>":"")+"</span></div>"+
     "<span class=\"cat-badge "+ci.badge+"\" style=\"cursor:pointer;\" onclick=\"goToTypeFilter('"+getCategory(e.type)+"')\" title=\"Filtrer par "+ci.label+"\">"+ci.icon+" "+ci.label+"</span>"+
     "<div style=\"font-size:0.7rem;color:var(--cyan);margin-top:0.2rem;cursor:pointer;display:inline-flex;align-items:center;gap:0.2rem;\" onclick=\"goToQuartier('"+e.quartier.replace(/'/g,"")+"')\">&#128205; "+e.quartier+"<span style='font-size:0.55rem;opacity:0.6;'> ›</span></div>"+
@@ -13120,6 +13122,9 @@ function _syncProfilSection(){
   var email  = window.currentUserEmail  || '';
   var pseudo = window.currentUserPseudo || email || '';
 
+  /* ── Adapter les onglets au rôle du membre connecté ── */
+  setTimeout(function(){ if(typeof _pInitProfilTabForUser === 'function') _pInitProfilTabForUser(); }, 100);
+
   /* Initiales (1 ou 2 mots) */
   var initials = pseudo.trim().split(/\s+/).slice(0,2)
     .map(function(w){ return w[0] || ''; }).join('').toUpperCase()
@@ -13258,16 +13263,34 @@ function navHandleProfil(btn){
   if(connected){
     _syncProfilSection();   /* ← injecter les vraies données AVANT d'afficher */
     switchSection('profil', btn);
+    /* Afficher uniquement l'onglet du type du membre connecté */
+    setTimeout(function(){ if(typeof _pInitProfilTabForUser === 'function') _pInitProfilTabForUser(); }, 50);
   } else {
-    /* Ouvrir le modal connexion/inscription */
-    var overlay = document.getElementById('userOverlay');
-    if(overlay){ overlay.classList.add('show'); }
-    if(typeof switchUserTab === 'function') switchUserTab('connexion');
-    /* Ne pas marquer ce bouton comme actif tant que pas connecté */
-    if(btn) btn.classList.remove('active');
+    /* Visiteur non connecté → afficher la section profil avec les 3 choix d'inscription */
+    switchSection('profil', btn);
+    setTimeout(function(){
+      /* Masquer les onglets de rôle et la nav */
+      document.getElementById('profil-role-nav').style.display = 'none';
+      /* Masquer toutes les vues membres/chauffeur/etab */
+      document.querySelectorAll('.profil-view').forEach(function(v){ v.classList.remove('active'); v.style.display = 'none'; });
+      /* Afficher la vue visiteur */
+      var vv = document.getElementById('pv-visiteur');
+      if(vv){ vv.style.display = 'block'; }
+    }, 30);
   }
 }
 window.navHandleProfil = navHandleProfil;
+
+/* Ouvre le modal inscription avec le type pré-sélectionné */
+function pVisiteurInscription(type){
+  var overlay = document.getElementById('userOverlay');
+  if(overlay){ overlay.classList.add('show'); }
+  if(typeof switchUserTab === 'function') switchUserTab('inscription');
+  setTimeout(function(){
+    if(typeof regSelectType === 'function') regSelectType(type);
+  }, 80);
+}
+window.pVisiteurInscription = pVisiteurInscription;
 
 /* Met à jour le label + icône du bouton Profil/Connexion selon l'état d'auth */
 function updateNavLabels(){
@@ -29781,11 +29804,53 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
 <input type="file" id="pFileCover"   accept="image/*" onchange="pHandleCoverUpload(this)"  style="display:none">
 <input type="file" id="pFileGallery" accept="image/*" multiple onchange="pHandleGalleryUpload(this)" style="display:none">
 
-<!-- SÉLECTEUR DE RÔLE -->
-<div class="demo-nav-profil">
-  <button class="demo-tab-profil active" data-role="membre"   onclick="pSwitchRole('membre')">👤 Membre</button>
-  <button class="demo-tab-profil"        data-role="chauffeur" onclick="pSwitchRole('chauffeur')">🚕 Chauffeur</button>
-  <button class="demo-tab-profil"        data-role="etab"      onclick="pSwitchRole('etab')">🏛️ Établissement</button>
+<!-- SÉLECTEUR DE RÔLE — affiché dynamiquement selon le type du membre connecté -->
+<div class="demo-nav-profil" id="profil-role-nav">
+  <button class="demo-tab-profil active" data-role="membre"   onclick="pSwitchRole('membre')"   style="display:none">👤 Membre</button>
+  <button class="demo-tab-profil"        data-role="chauffeur" onclick="pSwitchRole('chauffeur')" style="display:none">🚕 Chauffeur</button>
+  <button class="demo-tab-profil"        data-role="etab"      onclick="pSwitchRole('etab')"      style="display:none">🏛️ Établissement</button>
+</div>
+
+<!-- VUE VISITEUR (non connecté) — choix du type d'inscription -->
+<div id="pv-visiteur" class="profil-view" style="display:none;">
+  <div style="padding:2rem 1.2rem 1rem;text-align:center;">
+    <div style="font-size:2.4rem;margin-bottom:0.6rem;">✨</div>
+    <div style="font-family:'Syne',sans-serif;font-size:1.15rem;font-weight:800;color:var(--text);margin-bottom:0.3rem;">Rejoignez AMBI241</div>
+    <div style="font-size:0.82rem;color:var(--muted);line-height:1.5;margin-bottom:1.6rem;">Choisissez votre type de compte pour commencer</div>
+
+    <!-- Carte Membre -->
+    <div onclick="pVisiteurInscription('membre')" style="display:flex;align-items:center;gap:1rem;background:rgba(0,229,255,0.06);border:1.5px solid rgba(0,229,255,0.25);border-radius:18px;padding:1.1rem 1.2rem;margin-bottom:0.75rem;cursor:pointer;transition:all 0.2s;text-align:left;" onmouseover="this.style.background='rgba(0,229,255,0.12)'" onmouseout="this.style.background='rgba(0,229,255,0.06)'">
+      <div style="width:50px;height:50px;border-radius:14px;background:rgba(0,229,255,0.12);border:1.5px solid rgba(0,229,255,0.3);display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0;">👤</div>
+      <div style="flex:1;">
+        <div style="font-family:'Syne',sans-serif;font-size:0.92rem;font-weight:800;color:#00e5ff;margin-bottom:0.2rem;">Simple Membre</div>
+        <div style="font-size:0.75rem;color:var(--muted);line-height:1.4;">Explorez les bars & restos, votez, commentez et partagez vos soirées</div>
+      </div>
+      <div style="color:rgba(0,229,255,0.5);font-size:1.1rem;flex-shrink:0;">›</div>
+    </div>
+
+    <!-- Carte Chauffeur -->
+    <div onclick="pVisiteurInscription('chauffeur')" style="display:flex;align-items:center;gap:1rem;background:rgba(255,215,0,0.06);border:1.5px solid rgba(255,215,0,0.2);border-radius:18px;padding:1.1rem 1.2rem;margin-bottom:0.75rem;cursor:pointer;transition:all 0.2s;text-align:left;" onmouseover="this.style.background='rgba(255,215,0,0.12)'" onmouseout="this.style.background='rgba(255,215,0,0.06)'">
+      <div style="width:50px;height:50px;border-radius:14px;background:rgba(255,215,0,0.12);border:1.5px solid rgba(255,215,0,0.3);display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0;">🚕</div>
+      <div style="flex:1;">
+        <div style="font-family:'Syne',sans-serif;font-size:0.92rem;font-weight:800;color:#ffd700;margin-bottom:0.2rem;">Membre Chauffeur</div>
+        <div style="font-size:0.75rem;color:var(--muted);line-height:1.4;">Proposez vos services de transport, gérez vos courses et fidélisez vos clients</div>
+      </div>
+      <div style="color:rgba(255,215,0,0.5);font-size:1.1rem;flex-shrink:0;">›</div>
+    </div>
+
+    <!-- Carte Établissement -->
+    <div onclick="pVisiteurInscription('gerant')" style="display:flex;align-items:center;gap:1rem;background:rgba(255,45,155,0.06);border:1.5px solid rgba(255,45,155,0.2);border-radius:18px;padding:1.1rem 1.2rem;margin-bottom:1.4rem;cursor:pointer;transition:all 0.2s;text-align:left;" onmouseover="this.style.background='rgba(255,45,155,0.12)'" onmouseout="this.style.background='rgba(255,45,155,0.06)'">
+      <div style="width:50px;height:50px;border-radius:14px;background:rgba(255,45,155,0.12);border:1.5px solid rgba(255,45,155,0.3);display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0;">🏛️</div>
+      <div style="flex:1;">
+        <div style="font-family:'Syne',sans-serif;font-size:0.92rem;font-weight:800;color:var(--pink);margin-bottom:0.2rem;">Gérant d'Établissement</div>
+        <div style="font-size:0.75rem;color:var(--muted);line-height:1.4;">Inscrivez votre bar, restaurant ou club et gérez votre ambiance en temps réel</div>
+      </div>
+      <div style="color:rgba(255,45,155,0.5);font-size:1.1rem;flex-shrink:0;">›</div>
+    </div>
+
+    <!-- Lien connexion existant -->
+    <div style="font-size:0.8rem;color:var(--muted);">Déjà un compte ? <button onclick="document.getElementById('userOverlay').classList.add('show');switchUserTab('connexion')" style="background:none;border:none;color:var(--cyan);font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.8rem;text-decoration:underline;">Se connecter →</button></div>
+  </div>
 </div>
 
 <div class="profil-views">
@@ -30209,6 +30274,39 @@ function pSwitchRole(role) {
   if(vEl) vEl.classList.add('active');
   document.querySelectorAll('.demo-tab-profil').forEach(function(t){ t.classList.toggle('active', t.dataset.role === role); });
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ── Afficher uniquement l'onglet du type du membre connecté ── */
+function _pInitProfilTabForUser() {
+  var role = 'membre';
+  if(typeof getUserRole === 'function') {
+    var gr = getUserRole();
+    if(gr === 'etablissement') role = 'etab';
+    else if(gr === 'chauffeur' || (typeof currentUserData !== 'undefined' && currentUserData && currentUserData.type === 'chauffeur')) role = 'chauffeur';
+    else role = 'membre';
+  }
+  /* Masquer la vue visiteur, réafficher la nav */
+  var vv = document.getElementById('pv-visiteur');
+  if(vv){ vv.style.display = 'none'; }
+  var nav = document.getElementById('profil-role-nav');
+  if(nav){ nav.style.display = ''; }
+  /* Masquer tous les onglets, afficher uniquement celui du rôle */
+  document.querySelectorAll('.demo-tab-profil').forEach(function(t){
+    if(t.dataset.role === role){
+      t.style.display = '';
+      t.classList.add('active');
+    } else {
+      t.style.display = 'none';
+      t.classList.remove('active');
+    }
+  });
+  /* Activer la vue correspondante */
+  document.querySelectorAll('.profil-view').forEach(function(v){
+    v.classList.remove('active');
+    v.style.display = '';
+  });
+  var vEl = document.getElementById('pv-' + role);
+  if(vEl){ vEl.classList.add('active'); }
 }
 
 function pSetStab(btn, role, tab) {
