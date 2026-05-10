@@ -16468,7 +16468,7 @@ window.closeAdminDashboard=closeAdminDashboard;
 
 function switchAdmTab(tab){
   _currentAdmTab=tab;
-  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support","content","appconfig"];
+  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support","content","appconfig","publications"];
   tabs.forEach(function(t){
     var btn=document.getElementById("admtab-"+t);
     var panel=document.getElementById("admpanel-"+t);
@@ -16498,6 +16498,7 @@ function switchAdmTab(tab){
   else if(tab==="support") renderAdmSupport();
   else if(tab==="content") { if(typeof window.renderAdmContent==="function") window.renderAdmContent(); }
   else if(tab==="appconfig") { if(typeof window.renderAdmAppConfig==="function") window.renderAdmAppConfig(0); }
+  else if(tab==="publications") { if(typeof window.renderAdmPublications==="function") window.renderAdmPublications(); }
 }
 window.switchAdmTab=switchAdmTab;
 window.openAdminAddModal=openAdminAddModal;
@@ -19413,6 +19414,7 @@ window.doAssignEtab = doAssignEtab;
       <button class="adm-tab"        id="admtab-payments"      onclick="switchAdmTab('payments')">💰 Paiements</button>
       <button class="adm-tab"        id="admtab-content"       onclick="switchAdmTab('content');setTimeout(function(){if(typeof window.renderAdmContent==='function'&&document.getElementById('adminContentPanel').innerHTML.indexOf('Chargement')!==-1)window.renderAdmContent(0);},200);">📋 Contenu</button>
       <button class="adm-tab"        id="admtab-support"       onclick="switchAdmTab('support')" style="position:relative;">💬 Support<span id="admSupportBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:#fff;font-size:0.5rem;font-weight:800;width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center;border:1px solid var(--bg);"></span></button>
+      <button class="adm-tab"        id="admtab-publications"  onclick="switchAdmTab('publications')" style="position:relative;">📰 Publications<span id="admPubBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--purple);color:#fff;font-size:0.5rem;font-weight:800;width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center;border:1px solid var(--bg);"></span></button>
     </div>
 
     <!-- ── Contenu des panneaux ── -->
@@ -19589,6 +19591,13 @@ window.doAssignEtab = doAssignEtab;
       <!-- ══ Support / Tchat ══ -->
       <div id="admpanel-support" class="adm-panel" style="display:none;">
         <div id="adminSupportContent">Chargement...</div>
+      </div>
+
+      <!-- ══ Publications Admin ══ -->
+      <div id="admpanel-publications" class="adm-panel" style="display:none;">
+        <div id="adminPublicationsPanel">
+          <div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.8rem;">⏳ Chargement des publications…</div>
+        </div>
       </div>
 
     </div><!-- /adm-content -->
@@ -32354,6 +32363,391 @@ console.log('[AMBI241] ✅ Système Profils Publics chargé — openPublicProfil
   window.addEventListener('scroll', onScroll, { passive: true });
   // Vérifier au chargement (contenu déjà scrollé, ou page courte)
   setTimeout(onScroll, 400);
+})();
+
+/* ══════════════════════════════════════════════════════════════
+   ══ PANNEAU ADMIN — 📰 PUBLICATIONS (onglet complet)        ══
+   ══════════════════════════════════════════════════════════════ */
+(function(){
+  /* ── État interne ── */
+  var _pubs      = [];          // liste brute Firebase
+  var _loading   = false;
+  var _filters   = { type:'all', dateFrom:'', dateTo:'', auteur:'', etab:'' };
+  var _selected  = new Set();   // docIds cochés
+  var _sortBy    = 'date_desc'; // date_desc | date_asc | type | auteur
+
+  /* ── Helpers ── */
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function fmtDate(ts){
+    try{
+      var d = ts && ts.toDate ? ts.toDate() : (ts ? new Date(ts) : null);
+      if(!d || isNaN(d)) return '—';
+      return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    }catch(e){ return '—'; }
+  }
+  function fmtDateShort(ts){
+    try{
+      var d = ts && ts.toDate ? ts.toDate() : (ts ? new Date(ts) : null);
+      if(!d || isNaN(d)) return '';
+      return d.toISOString().slice(0,10);
+    }catch(e){ return ''; }
+  }
+  function typeLabel(t){
+    var MAP = { annonce:'📣 Annonce', soiree:'🎉 Soirée', avis:'⭐ Avis', info:'ℹ️ Info', photo:'📷 Photo', video:'🎬 Vidéo' };
+    return MAP[t] || ('📝 '+esc(t||'Autre'));
+  }
+  function typeBadgeColor(t){
+    var C = { annonce:'rgba(255,45,155,0.2)', soiree:'rgba(255,215,0,0.18)', avis:'rgba(0,255,170,0.18)', info:'rgba(0,229,255,0.15)', photo:'rgba(204,68,255,0.15)', video:'rgba(204,68,255,0.15)' };
+    return C[t]||'rgba(255,255,255,0.08)';
+  }
+  function typeBorderColor(t){
+    var C = { annonce:'rgba(255,45,155,0.45)', soiree:'rgba(255,215,0,0.45)', avis:'rgba(0,255,170,0.45)', info:'rgba(0,229,255,0.35)', photo:'rgba(204,68,255,0.4)', video:'rgba(204,68,255,0.4)' };
+    return C[t]||'rgba(255,255,255,0.15)';
+  }
+
+  /* ── Appliquer les filtres + tri ── */
+  function applyFilters(){
+    var f = _filters;
+    return _pubs.filter(function(p){
+      if(f.type !== 'all' && (p.type||'info') !== f.type) return false;
+      if(f.auteur){
+        var a = (p.pseudo||p.auteur||p.uid||'').toLowerCase();
+        if(a.indexOf(f.auteur.toLowerCase()) === -1) return false;
+      }
+      if(f.etab){
+        var e2 = (p.etablissement||p.etab||p.lieu||'').toLowerCase();
+        if(e2.indexOf(f.etab.toLowerCase()) === -1) return false;
+      }
+      if(f.dateFrom){
+        var dFrom = new Date(f.dateFrom);
+        var dPub = fmtDateShort(p.createdAt);
+        if(dPub && dPub < f.dateFrom) return false;
+      }
+      if(f.dateTo){
+        var dPub2 = fmtDateShort(p.createdAt);
+        if(dPub2 && dPub2 > f.dateTo) return false;
+      }
+      return true;
+    }).sort(function(a,b){
+      if(_sortBy === 'date_desc'){
+        var tA = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt||0);
+        var tB = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate() : new Date(b.createdAt||0);
+        return tB - tA;
+      }
+      if(_sortBy === 'date_asc'){
+        var tA2 = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt||0);
+        var tB2 = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate() : new Date(b.createdAt||0);
+        return tA2 - tB2;
+      }
+      if(_sortBy === 'type') return (a.type||'').localeCompare(b.type||'');
+      if(_sortBy === 'auteur') return (a.pseudo||'').localeCompare(b.pseudo||'');
+      return 0;
+    });
+  }
+
+  /* ── Collecte auteurs et établissements uniques pour les filtres ── */
+  function uniqueValues(key){ return [...new Set(_pubs.map(function(p){ return p[key]||''; }).filter(Boolean))].sort(); }
+
+  /* ── Rendu principal ── */
+  window.renderAdmPublications = function(forceReload){
+    var panel = document.getElementById('adminPublicationsPanel');
+    if(!panel) return;
+    if(forceReload || _pubs.length === 0) return _loadPubs();
+    _renderPubUI();
+  };
+
+  function _loadPubs(){
+    var panel = document.getElementById('adminPublicationsPanel');
+    if(!panel || _loading) return;
+    _loading = true;
+    panel.innerHTML = '<div style="text-align:center;padding:3rem 1rem;">'
+      +'<div style="font-size:2.2rem;margin-bottom:0.5rem;animation:pulse 1.2s infinite;">⏳</div>'
+      +'<div style="color:var(--muted);font-size:0.82rem;">Chargement des publications…</div></div>';
+
+    if(!window.db || !window.fbCollection || !window.fbGetDocs || !window.fbQuery || !window.fbOrderBy){
+      _loading = false;
+      panel.innerHTML = '<div style="text-align:center;padding:3rem 1rem;">'
+        +'<div style="font-size:2rem;margin-bottom:0.6rem;">☁️</div>'
+        +'<div style="color:var(--muted);font-size:0.8rem;line-height:1.6;">Firebase non disponible en local.<br>Déployez l\'app pour accéder aux publications.</div>'
+        +'<button onclick="window.renderAdmPublications(true)" style="margin-top:1rem;padding:0.5rem 1.2rem;border-radius:10px;border:1px solid rgba(0,229,255,0.35);background:rgba(0,229,255,0.08);color:var(--cyan);font-family:DM Sans,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;">↻ Réessayer</button></div>';
+      return;
+    }
+
+    var q = window.fbQuery(window.fbCollection(window.db,'publications'), window.fbOrderBy('createdAt','desc'));
+    window.fbGetDocs(q).then(function(snap){
+      _pubs = [];
+      snap.forEach(function(doc){ _pubs.push(Object.assign({_docId:doc.id}, doc.data())); });
+      _loading = false;
+      _selected.clear();
+      _renderPubUI();
+      /* Badge dans la tab */
+      var badge = document.getElementById('admPubBadge');
+      if(badge){ badge.textContent = _pubs.length; badge.style.display = _pubs.length ? 'flex' : 'none'; }
+    }).catch(function(err){
+      _loading = false;
+      var panel2 = document.getElementById('adminPublicationsPanel');
+      if(panel2) panel2.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--red);font-size:0.8rem;">⚠️ Erreur : '+esc(err.message)+'<br><button onclick="window.renderAdmPublications(true)" style="margin-top:0.8rem;padding:0.4rem 1rem;border-radius:8px;border:1px solid rgba(255,68,102,0.35);background:rgba(255,68,102,0.06);color:var(--red);cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.78rem;">↻ Réessayer</button></div>';
+    });
+  }
+
+  function _renderPubUI(){
+    var panel = document.getElementById('adminPublicationsPanel');
+    if(!panel) return;
+    var filtered = applyFilters();
+    var allIds   = filtered.map(function(p){ return p._docId; });
+    var allChecked = allIds.length > 0 && allIds.every(function(id){ return _selected.has(id); });
+    var nSel = _selected.size;
+
+    var auteurs = uniqueValues('pseudo').concat(uniqueValues('auteur')).filter(function(v,i,a){ return a.indexOf(v)===i; }).sort();
+    var etabs   = uniqueValues('etablissement').concat(uniqueValues('etab')).filter(function(v,i,a){ return a.indexOf(v)===i; }).sort();
+
+    var TYPES = ['all','annonce','soiree','avis','info','photo','video'];
+    var TYPE_LABELS = { all:'🌐 Tous', annonce:'📣 Annonces', soiree:'🎉 Soirées', avis:'⭐ Avis', info:'ℹ️ Info', photo:'📷 Photos', video:'🎬 Vidéos' };
+
+    var h = '';
+
+    /* ── En-tête ── */
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">'
+      + '<div><div style="font-family:Syne,sans-serif;font-weight:800;color:var(--purple);font-size:1rem;">📰 Publications</div>'
+      + '<div style="font-size:0.68rem;color:var(--muted);margin-top:0.1rem;">'+_pubs.length+' au total · '+filtered.length+' affichée(s)</div></div>'
+      + '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;">'
+      + '<button onclick="window._admPubReload()" style="padding:0.38rem 0.7rem;border-radius:8px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.06);color:var(--cyan);font-size:0.72rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">↻ Actualiser</button>'
+      + (nSel > 0
+        ? '<button onclick="window._admPubDeleteSelected()" style="padding:0.38rem 0.7rem;border-radius:8px;border:1px solid rgba(255,68,102,0.45);background:rgba(255,68,102,0.1);color:var(--red);font-size:0.72rem;font-weight:800;cursor:pointer;font-family:DM Sans,sans-serif;">🗑️ Supprimer ('+nSel+')</button>'
+        : '')
+      + '</div></div>';
+
+    /* ── Barre de filtres ── */
+    h += '<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:0.85rem;margin-bottom:0.9rem;">';
+    h += '<div style="font-family:Syne,sans-serif;font-weight:700;color:var(--muted);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.65rem;">🔍 Filtres</div>';
+
+    /* Type chips */
+    h += '<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.65rem;">';
+    TYPES.forEach(function(t){
+      var active = _filters.type === t;
+      h += '<button onclick="window._admPubSetFilter(\'type\',\''+t+'\')" style="font-size:0.65rem;padding:0.22rem 0.55rem;border-radius:20px;border:1px solid '+(active?typeBorderColor(t):'rgba(255,255,255,0.1)')+';background:'+(active?typeBadgeColor(t):'rgba(255,255,255,0.03)')+';color:'+(active?'var(--text)':'var(--muted)')+';cursor:pointer;font-weight:'+(active?'800':'600')+';font-family:DM Sans,sans-serif;transition:all 0.15s;">'+TYPE_LABELS[t]+'</button>';
+    });
+    h += '</div>';
+
+    /* Auteur + Établissement */
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.55rem;">';
+    h += '<div><label style="font-size:0.6rem;color:var(--muted);display:block;margin-bottom:0.2rem;text-transform:uppercase;letter-spacing:0.06em;">Auteur</label>'
+       + '<select onchange="window._admPubSetFilter(\'auteur\',this.value)" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.4rem 0.5rem;font-size:0.75rem;">'
+       + '<option value="">— Tous —</option>'
+       + auteurs.map(function(a){ return '<option value="'+esc(a)+'"'+((_filters.auteur===a)?' selected':'')+'>'+esc(a)+'</option>'; }).join('')
+       + '</select></div>';
+    h += '<div><label style="font-size:0.6rem;color:var(--muted);display:block;margin-bottom:0.2rem;text-transform:uppercase;letter-spacing:0.06em;">Établissement</label>'
+       + '<select onchange="window._admPubSetFilter(\'etab\',this.value)" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.4rem 0.5rem;font-size:0.75rem;">'
+       + '<option value="">— Tous —</option>'
+       + etabs.map(function(e){ return '<option value="'+esc(e)+'"'+((_filters.etab===e)?' selected':'')+'>'+esc(e)+'</option>'; }).join('')
+       + '</select></div>';
+    h += '</div>';
+
+    /* Plage de dates */
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.55rem;">';
+    h += '<div><label style="font-size:0.6rem;color:var(--muted);display:block;margin-bottom:0.2rem;text-transform:uppercase;letter-spacing:0.06em;">Du</label>'
+       + '<input type="date" value="'+esc(_filters.dateFrom)+'" onchange="window._admPubSetFilter(\'dateFrom\',this.value)" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.4rem 0.5rem;font-size:0.75rem;"></div>';
+    h += '<div><label style="font-size:0.6rem;color:var(--muted);display:block;margin-bottom:0.2rem;text-transform:uppercase;letter-spacing:0.06em;">Au</label>'
+       + '<input type="date" value="'+esc(_filters.dateTo)+'" onchange="window._admPubSetFilter(\'dateTo\',this.value)" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.4rem 0.5rem;font-size:0.75rem;"></div>';
+    h += '</div>';
+
+    /* Tri */
+    h += '<div style="display:flex;align-items:center;gap:0.5rem;">'
+       + '<label style="font-size:0.62rem;color:var(--muted);white-space:nowrap;">Tri :</label>'
+       + '<select onchange="window._admPubSetSort(this.value)" style="flex:1;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.38rem 0.5rem;font-size:0.75rem;">'
+       + '<option value="date_desc"'+((_sortBy==='date_desc')?' selected':'')+'>⬇️ Plus récent</option>'
+       + '<option value="date_asc"'+((_sortBy==='date_asc')?' selected':'')+'>⬆️ Plus ancien</option>'
+       + '<option value="type"'+((_sortBy==='type')?' selected':'')+'>🔤 Par type</option>'
+       + '<option value="auteur"'+((_sortBy==='auteur')?' selected':'')+'>👤 Par auteur</option>'
+       + '</select>'
+       + ((_filters.type!=='all'||_filters.auteur||_filters.etab||_filters.dateFrom||_filters.dateTo)
+         ? '<button onclick="window._admPubResetFilters()" style="font-size:0.65rem;padding:0.3rem 0.6rem;border-radius:7px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.06);color:var(--red);cursor:pointer;white-space:nowrap;font-family:DM Sans,sans-serif;">✕ Effacer</button>'
+         : '')
+       + '</div>';
+    h += '</div>'; /* /filtres */
+
+    /* ── Sélection globale + compteur ── */
+    if(filtered.length > 0){
+      h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.55rem 0.75rem;background:rgba(204,68,255,0.05);border:1px solid rgba(204,68,255,0.2);border-radius:10px;margin-bottom:0.6rem;">';
+      h += '<label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.78rem;color:var(--text);font-weight:600;">'
+         + '<input type="checkbox" id="admPubCheckAll" '+(allChecked?'checked':'')+' onchange="window._admPubToggleAll(this.checked)" style="width:16px;height:16px;accent-color:var(--purple);cursor:pointer;">'
+         + 'Tout sélectionner ('+filtered.length+')</label>';
+      if(nSel > 0){
+        h += '<span style="font-size:0.68rem;background:rgba(255,68,102,0.15);border:1px solid rgba(255,68,102,0.35);color:var(--red);padding:0.18rem 0.55rem;border-radius:20px;font-weight:700;">'+nSel+' sélectionné(s)</span>';
+      }
+      h += '</div>';
+    }
+
+    /* ── Liste publications ── */
+    if(filtered.length === 0){
+      h += '<div style="text-align:center;padding:3rem 1rem;">'
+         + '<div style="font-size:2.5rem;margin-bottom:0.6rem;">🔍</div>'
+         + '<div style="color:var(--muted);font-size:0.82rem;">Aucune publication ne correspond aux filtres.</div></div>';
+    } else {
+      filtered.forEach(function(p){
+        var checked = _selected.has(p._docId);
+        var ds = fmtDate(p.createdAt);
+        var tColor = typeBorderColor(p.type||'info');
+        var tBg    = typeBadgeColor(p.type||'info');
+        var etabStr = p.etablissement || p.etab || p.lieu || '';
+        var imgUrl  = (p.images && p.images[0]) || p.imageUrl || p.coverUrl || '';
+
+        h += '<div style="border:1.5px solid '+(checked?'rgba(204,68,255,0.5)':tColor)+';border-radius:13px;padding:0.75rem 0.8rem;margin-bottom:0.5rem;background:'+(checked?'rgba(204,68,255,0.07)':'rgba(255,255,255,0.015)')+';transition:all 0.15s;">';
+
+        /* Ligne 1 : checkbox + type badge + auteur + date */
+        h += '<div style="display:flex;align-items:flex-start;gap:0.55rem;">';
+        h += '<input type="checkbox" '+(checked?'checked':'')+' onchange="window._admPubToggleOne(\''+esc(p._docId)+'\',this.checked)" style="width:16px;height:16px;flex-shrink:0;margin-top:0.1rem;accent-color:var(--purple);cursor:pointer;">';
+        h += '<div style="flex:1;min-width:0;">';
+
+        /* Badge type + statut */
+        h += '<div style="display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap;margin-bottom:0.28rem;">';
+        h += '<span style="font-size:0.6rem;font-weight:800;padding:0.15rem 0.45rem;border-radius:20px;border:1px solid '+tColor+';background:'+tBg+';color:var(--text);">'+typeLabel(p.type||'info')+'</span>';
+        if(p._pinned)  h += '<span style="font-size:0.58rem;background:rgba(255,215,0,0.15);border:1px solid rgba(255,215,0,0.4);color:var(--amber);padding:0.1rem 0.35rem;border-radius:10px;">📌 Épinglé</span>';
+        if(p._hidden)  h += '<span style="font-size:0.58rem;background:rgba(255,68,102,0.12);border:1px solid rgba(255,68,102,0.3);color:var(--red);padding:0.1rem 0.35rem;border-radius:10px;">🚫 Masqué</span>';
+        if(p._approved === false) h += '<span style="font-size:0.58rem;background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.3);color:var(--amber);padding:0.1rem 0.35rem;border-radius:10px;">⏳ En attente</span>';
+        h += '</div>';
+
+        /* Titre */
+        h += '<div style="font-family:Syne,sans-serif;font-size:0.85rem;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:0.2rem;">'+esc(p.titre||p.texte||'Sans titre')+'</div>';
+
+        /* Méta */
+        h += '<div style="font-size:0.63rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:0.4rem;">';
+        h += '<span>👤 '+esc(p.pseudo||p.auteur||p.uid||'Anonyme')+'</span>';
+        if(etabStr) h += '<span>🏙️ '+esc(etabStr)+'</span>';
+        h += '<span>🕒 '+esc(ds)+'</span>';
+        if(p.likes) h += '<span>❤️ '+p.likes+'</span>';
+        if(p.comments) h += '<span>💬 '+p.comments+'</span>';
+        if(p.signalements) h += '<span style="color:var(--red);">🚩 '+p.signalements+'</span>';
+        h += '</div>';
+
+        /* Aperçu image si présente */
+        if(imgUrl){
+          h += '<div style="margin-top:0.45rem;"><img src="'+esc(imgUrl)+'" onerror="this.style.display=\'none\'" style="height:52px;width:auto;border-radius:7px;object-fit:cover;max-width:100%;opacity:0.85;border:1px solid rgba(255,255,255,0.1);"></div>';
+        }
+
+        /* Actions */
+        h += '<div style="display:flex;gap:0.3rem;flex-wrap:wrap;margin-top:0.5rem;">';
+        h += '<button onclick="window._admPubPin(\''+esc(p._docId)+'\')" title="'+(p._pinned?'Désépingler':'Épingler')+'" style="font-size:0.6rem;padding:0.2rem 0.45rem;border-radius:6px;border:1px solid rgba(255,215,0,0.3);background:rgba(255,215,0,0.06);color:var(--amber);cursor:pointer;">'+(p._pinned?'📌 Désépingler':'📌 Épingler')+'</button>';
+        h += '<button onclick="window._admPubHide(\''+esc(p._docId)+'\','+(!p._hidden)+')" title="'+(p._hidden?'Afficher':'Masquer')+'" style="font-size:0.6rem;padding:0.2rem 0.45rem;border-radius:6px;border:1px solid rgba(0,229,255,0.25);background:rgba(0,229,255,0.05);color:var(--cyan);cursor:pointer;">'+(p._hidden?'👁️ Afficher':'🚫 Masquer')+'</button>';
+        if(p._approved === false){
+          h += '<button onclick="window._admPubApprove(\''+esc(p._docId)+'\')" style="font-size:0.6rem;padding:0.2rem 0.45rem;border-radius:6px;border:1px solid rgba(0,255,170,0.3);background:rgba(0,255,170,0.06);color:var(--green);cursor:pointer;">✅ Approuver</button>';
+        }
+        h += '<button onclick="window._admPubDeleteOne(\''+esc(p._docId)+'\')" style="font-size:0.6rem;padding:0.2rem 0.45rem;border-radius:6px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.06);color:var(--red);cursor:pointer;">🗑️ Supprimer</button>';
+        h += '</div>';
+
+        h += '</div></div>'; /* /col, /flex */
+        h += '</div>'; /* /card */
+      });
+    }
+
+    panel.innerHTML = h;
+  }
+
+  /* ── Actions UI ── */
+  window._admPubSetFilter = function(key, val){
+    _filters[key] = val;
+    _selected.clear();
+    _renderPubUI();
+  };
+  window._admPubSetSort = function(val){
+    _sortBy = val;
+    _renderPubUI();
+  };
+  window._admPubResetFilters = function(){
+    _filters = { type:'all', dateFrom:'', dateTo:'', auteur:'', etab:'' };
+    _selected.clear();
+    _renderPubUI();
+  };
+  window._admPubReload = function(){
+    _pubs = [];
+    _selected.clear();
+    window.renderAdmPublications(true);
+  };
+  window._admPubToggleAll = function(checked){
+    var filtered = applyFilters();
+    filtered.forEach(function(p){ checked ? _selected.add(p._docId) : _selected.delete(p._docId); });
+    _renderPubUI();
+  };
+  window._admPubToggleOne = function(docId, checked){
+    checked ? _selected.add(docId) : _selected.delete(docId);
+    _renderPubUI();
+  };
+
+  /* ── Suppression individuelle ── */
+  window._admPubDeleteOne = function(docId){
+    if(!confirm('Supprimer cette publication ?')) return;
+    if(!window.db || !window.fbDeleteDoc || !window.fbDoc){
+      _pubs = _pubs.filter(function(p){ return p._docId!==docId; });
+      _selected.delete(docId);
+      _renderPubUI();
+      return;
+    }
+    window.fbDeleteDoc(window.fbDoc(window.db,'publications',docId))
+      .then(function(){
+        _pubs = _pubs.filter(function(p){ return p._docId!==docId; });
+        _selected.delete(docId);
+        _renderPubUI();
+        if(typeof showToast==='function') showToast('✅ Publication supprimée');
+      })
+      .catch(function(e){ if(typeof showToast==='function') showToast('Erreur: '+e.message); });
+  };
+
+  /* ── Suppression groupée ── */
+  window._admPubDeleteSelected = function(){
+    var ids = Array.from(_selected);
+    if(!ids.length) return;
+    if(!confirm('Supprimer les '+ids.length+' publications sélectionnées ?')) return;
+    var doDelete = function(id){
+      if(window.db && window.fbDeleteDoc && window.fbDoc){
+        return window.fbDeleteDoc(window.fbDoc(window.db,'publications',id));
+      }
+      return Promise.resolve();
+    };
+    Promise.all(ids.map(doDelete))
+      .then(function(){
+        _pubs = _pubs.filter(function(p){ return !ids.includes(p._docId); });
+        _selected.clear();
+        _renderPubUI();
+        if(typeof showToast==='function') showToast('✅ '+ids.length+' publication(s) supprimée(s)');
+      })
+      .catch(function(e){ if(typeof showToast==='function') showToast('Erreur: '+e.message); });
+  };
+
+  /* ── Épingler ── */
+  window._admPubPin = function(docId){
+    var p = _pubs.find(function(x){ return x._docId===docId; });
+    if(!p) return;
+    var nv = !p._pinned;
+    var update = function(){ p._pinned = nv; _renderPubUI(); };
+    if(window.db && window.fbUpdateDoc && window.fbDoc){
+      window.fbUpdateDoc(window.fbDoc(window.db,'publications',docId),{_pinned:nv}).then(update)
+        .catch(function(e){ if(typeof showToast==='function') showToast('Erreur: '+e.message); });
+    } else update();
+  };
+
+  /* ── Masquer / Afficher ── */
+  window._admPubHide = function(docId, hide){
+    var p = _pubs.find(function(x){ return x._docId===docId; });
+    if(!p) return;
+    var update = function(){ p._hidden = hide; _renderPubUI(); };
+    if(window.db && window.fbUpdateDoc && window.fbDoc){
+      window.fbUpdateDoc(window.fbDoc(window.db,'publications',docId),{_hidden:hide}).then(update)
+        .catch(function(e){ if(typeof showToast==='function') showToast('Erreur: '+e.message); });
+    } else update();
+  };
+
+  /* ── Approuver ── */
+  window._admPubApprove = function(docId){
+    var p = _pubs.find(function(x){ return x._docId===docId; });
+    if(!p) return;
+    var update = function(){ p._approved = true; _renderPubUI(); if(typeof showToast==='function') showToast('✅ Publication approuvée'); };
+    if(window.db && window.fbUpdateDoc && window.fbDoc){
+      window.fbUpdateDoc(window.fbDoc(window.db,'publications',docId),{_approved:true}).then(update)
+        .catch(function(e){ if(typeof showToast==='function') showToast('Erreur: '+e.message); });
+    } else update();
+  };
+
+  console.log('[AMBI241] ✅ Panneau Admin Publications chargé');
 })();
 </script>
 </html>
