@@ -30494,75 +30494,80 @@ window.addEventListener('scroll', function(){
   });
 }, {passive:true});
 
-/* ─── Garde bottom-nav + flèches scroll : système visualViewport ─── */
+/* ─── Garde bottom-nav + flèches scroll ─── */
 (function(){
   var NAV_H = 54;
 
-  /* ── 1. Force le style de base ── */
-  function _applyNavStyle(nav, top, left, w){
-    nav.style.setProperty('position','fixed','important');
-    nav.style.setProperty('top', top + 'px','important');
-    nav.style.setProperty('bottom','auto','important');
-    nav.style.setProperty('left', left + 'px','important');
-    nav.style.setProperty('right','auto','important');
-    nav.style.setProperty('width', w + 'px','important');
-    nav.style.setProperty('height', NAV_H + 'px','important');
-    nav.style.setProperty('min-height', NAV_H + 'px','important');
-    nav.style.setProperty('z-index','9500','important');
-    nav.style.setProperty('background','rgba(13,0,20,0.99)','important');
-    nav.style.setProperty('border-top','1px solid rgba(255,45,155,0.25)','important');
-    nav.style.setProperty('display','flex','important');
-    nav.style.setProperty('box-sizing','border-box','important');
-    nav.style.setProperty('overflow','hidden','important');
-    nav.style.setProperty('visibility','visible','important');
-    nav.style.setProperty('opacity','1','important');
-    nav.style.setProperty('padding','0 4px','important');
-  }
-
-  function _applyArrowStyle(el, top, right){
-    el.style.setProperty('position','fixed','important');
-    el.style.setProperty('top', top + 'px','important');
-    el.style.setProperty('bottom','auto','important');
-    el.style.setProperty('right', right + 'px','important');
-    el.style.setProperty('z-index','9400','important');
-    el.style.setProperty('visibility','visible','important');
-  }
-
-  /* ── 2. Calcule et applique les positions ── */
+  /* position:fixed → les coordonnées sont TOUJOURS relatives au viewport,
+     jamais au document. On ne doit donc JAMAIS ajouter scrollY/pageTop.  */
   function _reposition(){
-    var nav = document.querySelector('.bottom-nav');
-    var upBtn  = document.getElementById('scrollUpBtn');
-    var dnBtn  = document.getElementById('scrollDownBtn');
+    var nav  = document.querySelector('.bottom-nav');
     if(!nav) return;
+    var upBtn = document.getElementById('scrollUpBtn');
+    var dnBtn = document.getElementById('scrollDownBtn');
 
     var vvp = window.visualViewport;
-    var vpTop    = vvp ? (vvp.offsetTop  + vvp.pageTop)  : window.scrollY;
-    var vpLeft   = vvp ? (vvp.offsetLeft + vvp.pageLeft) : window.scrollX;
-    var vpHeight = vvp ? vvp.height  : window.innerHeight;
-    var vpWidth  = vvp ? vvp.width   : window.innerWidth;
+    /* vvp.offsetTop : décalage dû au clavier virtuel (habituellement 0)
+       vvp.height    : hauteur visible réelle du viewport                */
+    var vpH  = vvp ? vvp.height     : window.innerHeight;
+    var vpW  = vvp ? vvp.width      : window.innerWidth;
+    var offT = vvp ? vvp.offsetTop  : 0;   /* décalage clavier */
+    var offL = vvp ? vvp.offsetLeft : 0;
 
-    var navTop = vpTop + vpHeight - NAV_H;
-    _applyNavStyle(nav, navTop, vpLeft, vpWidth);
+    /* Coordonnées en espace viewport (fixed) */
+    var navTop = offT + vpH - NAV_H;
 
-    /* Flèches : au-dessus de la nav */
-    if(dnBtn) _applyArrowStyle(dnBtn, navTop - 52, 12);
-    if(upBtn) _applyArrowStyle(upBtn, navTop - 104, 12);
+    /* ── nav ── */
+    nav.style.setProperty('position',  'fixed',             'important');
+    nav.style.setProperty('top',       navTop + 'px',       'important');
+    nav.style.setProperty('bottom',    'auto',              'important');
+    nav.style.setProperty('left',      offL + 'px',         'important');
+    nav.style.setProperty('right',     'auto',              'important');
+    nav.style.setProperty('width',     vpW  + 'px',         'important');
+    nav.style.setProperty('height',    NAV_H + 'px',        'important');
+    nav.style.setProperty('min-height',NAV_H + 'px',        'important');
+    nav.style.setProperty('z-index',   '9500',              'important');
+    nav.style.setProperty('background','rgba(13,0,20,0.99)','important');
+    nav.style.setProperty('border-top','1px solid rgba(255,45,155,0.25)','important');
+    nav.style.setProperty('display',   'flex',              'important');
+    nav.style.setProperty('align-items','center',           'important');
+    nav.style.setProperty('box-sizing','border-box',        'important');
+    nav.style.setProperty('overflow',  'hidden',            'important');
+    nav.style.setProperty('visibility','visible',           'important');
+    nav.style.setProperty('opacity',   '1',                 'important');
+    nav.style.setProperty('padding',   '0 4px',             'important');
+
+    /* ── flèches (au-dessus de la nav) ── */
+    if(dnBtn){
+      dnBtn.style.setProperty('position','fixed','important');
+      dnBtn.style.setProperty('top',   (offT + vpH - NAV_H - 52) + 'px','important');
+      dnBtn.style.setProperty('bottom','auto','important');
+      dnBtn.style.setProperty('right', '12px','important');
+      dnBtn.style.setProperty('z-index','9400','important');
+    }
+    if(upBtn){
+      upBtn.style.setProperty('position','fixed','important');
+      upBtn.style.setProperty('top',   (offT + vpH - NAV_H - 104) + 'px','important');
+      upBtn.style.setProperty('bottom','auto','important');
+      upBtn.style.setProperty('right', '12px','important');
+      upBtn.style.setProperty('z-index','9400','important');
+    }
   }
 
-  /* ── 3. Écoute tous les événements qui changent le viewport ── */
   function _bind(){
     _reposition();
-    window.addEventListener('scroll',  _reposition, {passive:true});
-    window.addEventListener('resize',  _reposition, {passive:true});
+    /* Seulement resize/clavier — PAS scroll (position:fixed n'en dépend pas) */
+    window.addEventListener('resize', _reposition, {passive:true});
     if(window.visualViewport){
-      window.visualViewport.addEventListener('scroll', _reposition);
       window.visualViewport.addEventListener('resize', _reposition);
     }
-    /* Rechecks de sécurité */
-    setTimeout(_reposition, 300);
-    setTimeout(_reposition, 800);
-    setTimeout(_reposition, 2000);
-    setInterval(_reposition, 5000); /* gardien permanent toutes les 5s */
+    /* Rechecks de sécurité au chargement */
+    setTimeout(_reposition, 200);
+    setTimeout(_reposition, 600);
+    setTimeout(_reposition, 1500);
+    setTimeout(_reposition, 3000);
+    /* Gardien permanent toutes les 4s au cas où un autre script perturbe */
+    setInterval(_reposition, 4000);
   }
 
   if(document.readyState === 'loading'){
