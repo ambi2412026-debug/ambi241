@@ -2031,7 +2031,7 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 #scrollUpBtn.show{opacity:1;pointer-events:auto;}
 #scrollDownBtn.hide{opacity:0;pointer-events:none;}
 /* BOTTOM NAV */
-.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:190;background:rgba(13,0,20,0.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid rgba(255,45,155,0.15);display:flex;height:54px;padding:0 0.25rem;width:100%;box-sizing:border-box;overflow:hidden;}
+.bottom-nav{position:fixed!important;bottom:0!important;left:0!important;right:0!important;z-index:9500!important;background:rgba(13,0,20,0.99)!important;border-top:1px solid rgba(255,45,155,0.25)!important;display:flex!important;height:54px!important;padding:0 0.25rem!important;width:100%!important;box-sizing:border-box!important;overflow:hidden!important;transform:translateZ(0)!important;-webkit-transform:translateZ(0)!important;}
 .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.1rem;cursor:pointer;color:var(--muted);font-size:0.52rem;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;padding:0.3rem;transition:color 0.2s,transform 0.15s;border:none;background:none;font-family:'DM Sans',sans-serif;-webkit-tap-highlight-color:transparent;user-select:none;}
 .nav-item:active{transform:scale(0.88);opacity:0.75;}
 .nav-item .nav-icon{font-size:1.1rem;transition:transform 0.2s;}
@@ -4121,15 +4121,7 @@ textarea.soc-input{resize:vertical;min-height:80px;line-height:1.5;}
   border-top:1px solid rgba(255,45,155,0.18);
   display:flex;padding:0.3rem 0 0.5rem;z-index:200;
 }
-.nav-item{
-  flex:1;display:flex;flex-direction:column;align-items:center;
-  gap:0.15rem;padding:0.3rem 0;cursor:pointer;
-  color:var(--muted);font-size:0.55rem;font-weight:700;
-  text-transform:uppercase;letter-spacing:0.06em;
-  transition:color 0.2s;
-}
-.nav-item.active{color:var(--pink);}
-.nav-icon{font-size:1.15rem;line-height:1;}
+/* NOTE: .nav-item défini globalement — pas de redéfinition ici */
 .nav-active-dot{
   width:4px;height:4px;border-radius:50%;background:var(--pink);
   opacity:0;transition:opacity 0.2s;
@@ -5590,7 +5582,7 @@ if (document.readyState === 'loading') {
 <div class="notif-toast" id="notifToast"></div>
 
 <!-- ══ BANNER INSTALL IOS ══ -->
-<div id="iosBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:rgba(13,0,20,0.97);border-top:1px solid rgba(204,68,255,0.4);padding:0.9rem 1rem;z-index:450;display:none;align-items:center;gap:0.7rem;box-shadow:0 -4px 24px rgba(204,68,255,0.2);">
+<div id="iosBanner" style="display:none;position:fixed;bottom:54px;left:0;right:0;background:rgba(13,0,20,0.97);border-top:1px solid rgba(204,68,255,0.4);padding:0.9rem 1rem;z-index:450;align-items:center;gap:0.7rem;box-shadow:0 -4px 24px rgba(204,68,255,0.2);">
   <div style="font-size:1.6rem;flex-shrink:0;">&#128640;</div>
   <div style="flex:1;">
     <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.85rem;color:var(--text);">Installer AMBI241</div>
@@ -5600,7 +5592,7 @@ if (document.readyState === 'loading') {
 </div>
 
 <!-- ══ BANNER INSTALL ANDROID ══ -->
-<div id="androidBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:rgba(13,0,20,0.97);border-top:1px solid rgba(204,68,255,0.4);padding:0.9rem 1rem;z-index:450;align-items:center;gap:0.7rem;box-shadow:0 -4px 24px rgba(204,68,255,0.2);">
+<div id="androidBanner" style="display:none;position:fixed;bottom:54px;left:0;right:0;background:rgba(13,0,20,0.97);border-top:1px solid rgba(204,68,255,0.4);padding:0.9rem 1rem;z-index:450;align-items:center;gap:0.7rem;box-shadow:0 -4px 24px rgba(204,68,255,0.2);">
   <div style="font-size:1.6rem;flex-shrink:0;">&#128640;</div>
   <div style="flex:1;">
     <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.85rem;color:var(--text);">Installer AMBI241</div>
@@ -30501,6 +30493,37 @@ window.addEventListener('scroll', function(){
     _ticking = false;
   });
 }, {passive:true});
+
+/* ─── Garde bottom-nav — force visibilité permanente ─── */
+(function(){
+  function _forceNav(){
+    var nav = document.querySelector('.bottom-nav');
+    if(!nav) return;
+    nav.style.cssText = [
+      'position:fixed',
+      'bottom:0',
+      'left:0',
+      'right:0',
+      'z-index:9500',
+      'background:rgba(13,0,20,0.99)',
+      'border-top:1px solid rgba(255,45,155,0.25)',
+      'display:flex',
+      'height:54px',
+      'width:100%',
+      'box-sizing:border-box',
+      'overflow:hidden',
+      'transform:translateZ(0)',
+      '-webkit-transform:translateZ(0)',
+      'padding:0 4px'
+    ].join('!important;') + '!important';
+  }
+  _forceNav();
+  document.addEventListener('DOMContentLoaded', _forceNav);
+  window.addEventListener('load', _forceNav);
+  /* Recheck après 1s et 3s au cas où un script cacherait la nav */
+  setTimeout(_forceNav, 1000);
+  setTimeout(_forceNav, 3000);
+})();
 
 if(REDUCED) return; /* Pas d'animations si prefers-reduced-motion */
 
