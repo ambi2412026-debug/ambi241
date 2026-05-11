@@ -2023,8 +2023,15 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   font-size:0.8rem;
   flex-shrink:0;
 }
+/* SCROLL ARROWS */
+.scroll-arrow{position:fixed;right:0.8rem;width:40px;height:40px;border-radius:50%;border:1.5px solid rgba(255,45,155,0.4);background:rgba(13,0,20,0.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:var(--pink);font-size:1.1rem;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:185;transition:opacity 0.3s,transform 0.2s,background 0.2s;box-shadow:0 2px 12px rgba(255,45,155,0.25);-webkit-tap-highlight-color:transparent;user-select:none;}
+.scroll-arrow:active{transform:scale(0.88);background:rgba(255,45,155,0.18);}
+#scrollUpBtn{bottom:130px;opacity:0;pointer-events:none;}
+#scrollDownBtn{bottom:80px;opacity:1;}
+#scrollUpBtn.show{opacity:1;pointer-events:auto;}
+#scrollDownBtn.hide{opacity:0;pointer-events:none;}
 /* BOTTOM NAV */
-.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:50;background:rgba(13,0,20,0.97);backdrop-filter:blur(20px);border-top:1px solid rgba(255,45,155,0.15);display:flex;height:54px;padding:0 0.25rem;width:100%;box-sizing:border-box;overflow:hidden;}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:190;background:rgba(13,0,20,0.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid rgba(255,45,155,0.15);display:flex;height:54px;padding:0 0.25rem;width:100%;box-sizing:border-box;overflow:hidden;}
 .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.1rem;cursor:pointer;color:var(--muted);font-size:0.52rem;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;padding:0.3rem;transition:color 0.2s,transform 0.15s;border:none;background:none;font-family:'DM Sans',sans-serif;-webkit-tap-highlight-color:transparent;user-select:none;}
 .nav-item:active{transform:scale(0.88);opacity:0.75;}
 .nav-item .nav-icon{font-size:1.1rem;transition:transform 0.2s;}
@@ -6516,8 +6523,10 @@ if (document.readyState === 'loading') {
 
 <!-- ── Toast ── -->
 <div class="soc-toast" id="socToast"></div>
-<!-- ── Toast ── -->
-<div class="soc-toast" id="socToast"></div>
+
+<!-- ── Boutons scroll haut / bas ── -->
+<button id="scrollUpBtn" class="scroll-arrow" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Remonter en haut">▲</button>
+<button id="scrollDownBtn" class="scroll-arrow" onclick="window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'})" aria-label="Descendre en bas">▼</button>
 
 <nav class="bottom-nav">
   <button class="nav-item active" onclick="switchSection('accueil',this)"><span class="nav-icon">&#127968;</span>Accueil</button>
@@ -6560,7 +6569,7 @@ window.db           = db;
 window.auth         = auth;
 window.storage      = storage;
 window.fbStorage    = storage;
-window.fbRef        = ref;
+window.fbRef        = storageRef;
 window.fbUploadBytes              = uploadBytes;
 window.fbUploadBytesResumable     = uploadBytesResumable;
 window.fbGetDownloadURL           = getDownloadURL;
@@ -30478,12 +30487,17 @@ var bar = document.createElement('div');
 bar.id = 'ambi-progress';
 document.body.appendChild(bar);
 var _ticking = false;
+var _scrollUpBtn = document.getElementById('scrollUpBtn');
+var _scrollDownBtn = document.getElementById('scrollDownBtn');
 window.addEventListener('scroll', function(){
   if(_ticking) return;
   _ticking = true;
   requestAnimationFrame(function(){
     var s = window.scrollY, t = document.documentElement.scrollHeight - window.innerHeight;
     bar.style.width = (t > 0 ? Math.min(100,(s/t)*100) : 0) + '%';
+    /* Flèches scroll */
+    if(_scrollUpBtn) _scrollUpBtn.classList.toggle('show', s > 120);
+    if(_scrollDownBtn) _scrollDownBtn.classList.toggle('hide', t <= 0 || s >= t - 40);
     _ticking = false;
   });
 }, {passive:true});
