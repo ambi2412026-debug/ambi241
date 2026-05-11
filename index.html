@@ -4825,14 +4825,14 @@ if (document.readyState === 'loading') {
   <div class="modal" style="position:relative;">
     <button class="modal-close" onclick="closeUserModal()">&#10005;</button>
     <div class="modal-tabs">
-      <button class="modal-tab active" id="tabInscription" onclick="switchUserTab('inscription')">&#128100; S inscrire</button>
-      <button class="modal-tab" id="tabConnexion" onclick="switchUserTab('connexion')">&#128274; Se connecter</button>
+      <button class="modal-tab active" id="tabConnexion" onclick="switchUserTab('connexion')">&#128274; Se connecter</button>
+      <button class="modal-tab" id="tabInscription" onclick="switchUserTab('inscription')">&#128100; S'inscrire</button>
       <button class="modal-tab" id="tabMonProfil" onclick="switchUserTab('monprofil')" style="display:none;">&#9728;&#65039; Mon Profil</button>
     </div>
     <!-- INSCRIPTION -->
-    <div id="formInscription">
-      <div class="modal-title">Creer mon compte</div>
-      <div class="modal-sub">Rejoignez la communaute AMBI241</div>
+    <div id="formInscription" style="display:none;">
+      <div class="modal-title">Créer mon compte</div>
+      <div class="modal-sub">Nouveau sur AMBI241 ? Choisis ton statut</div>
 
       <!-- ══ CHOIX TYPE DE MEMBRE ══ -->
       <div style="margin-bottom:1rem;">
@@ -4959,14 +4959,24 @@ if (document.readyState === 'loading') {
       <div id="regMsg" style="font-size:0.78rem;text-align:center;margin-top:0.5rem;display:none;"></div>
     </div>
     <!-- CONNEXION -->
-    <div id="formConnexion" style="display:none;">
+    <div id="formConnexion">
       <div class="modal-title">Se connecter</div>
-      <div class="modal-sub">Acces a votre espace AMBI241</div>
-      <div class="field"><label>Email</label><input type="email" id="loginEmail" placeholder="votre@email.com"></div>
-      <div class="field"><label>Mot de passe</label><input type="password" id="loginPwd" placeholder="Votre mot de passe"></div>
+      <div class="modal-sub">Accès à votre espace AMBI241</div>
+      <div class="field">
+        <label>Email ou numéro de téléphone <span class="req">*</span></label>
+        <input type="text" id="loginIdentifier" placeholder="votre@email.com ou +241 XX XXX XXX" autocomplete="username" inputmode="email">
+      </div>
+      <div class="field">
+        <label>Mot de passe <span class="req">*</span></label>
+        <input type="password" id="loginPwd" placeholder="Votre mot de passe" autocomplete="current-password">
+      </div>
       <button class="modal-btn" id="loginBtn" onclick="loginUser()">&#128274; Se connecter</button>
-      <div style="text-align:center;margin-top:0.8rem;">
+      <div style="text-align:center;margin-top:0.8rem;display:flex;align-items:center;justify-content:center;gap:1rem;">
         <button onclick="openForgotModal()" style="background:none;border:none;color:var(--cyan);font-size:0.78rem;cursor:pointer;font-family:'DM Sans',sans-serif;text-decoration:underline;">&#128273; Mot de passe oublié ?</button>
+      </div>
+      <div style="text-align:center;margin-top:0.9rem;padding:0.7rem 0.8rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;">
+        <span style="font-size:0.74rem;color:var(--muted);">Pas encore membre ? </span>
+        <button onclick="switchUserTab('inscription')" style="background:none;border:none;color:var(--pink);font-size:0.74rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;text-decoration:underline;">Créer un compte →</button>
       </div>
       <div id="loginMsg" style="font-size:0.78rem;text-align:center;margin-top:0.5rem;display:none;"></div>
     </div>
@@ -6531,7 +6541,6 @@ if (document.readyState === 'loading') {
 <nav class="bottom-nav">
   <button class="nav-item active" onclick="switchSection('accueil',this)"><span class="nav-icon">&#127968;</span>Accueil</button>
   <button class="nav-item" onclick="switchSection('etablissements',this)"><span class="nav-icon">&#128269;</span>Lieux</button>
-  <button class="nav-item" data-section="publications" onclick="switchSection('publications',this)"><span class="nav-disc-badge"></span><span class="nav-icon">&#128247;&#127916;</span>Discussions</button>
   <button class="nav-item" id="navProfilBtn" onclick="navHandleProfil(this)"><span class="nav-icon" id="navProfilIcon">&#128273;</span><span id="navProfilLabel">Connexion</span></button>
   <button class="nav-item" onclick="switchSection('social',this)"><span class="nav-icon">👥</span>Social</button>
   <button class="nav-item" id="navPaiementsBtn" onclick="switchSection('paiements',this)"><span class="nav-icon">&#128179;</span>Paiements</button>
@@ -10076,11 +10085,11 @@ function renderStatsAdmin(){
 
 // USER ACCOUNT
 function switchUserTab(tab){
-  document.getElementById("tabInscription").classList.toggle("active",tab==="inscription");
   document.getElementById("tabConnexion").classList.toggle("active",tab==="connexion");
+  document.getElementById("tabInscription").classList.toggle("active",tab==="inscription");
   document.getElementById("tabMonProfil").classList.toggle("active",tab==="monprofil");
-  document.getElementById("formInscription").style.display=tab==="inscription"?"block":"none";
   document.getElementById("formConnexion").style.display=tab==="connexion"?"block":"none";
+  document.getElementById("formInscription").style.display=tab==="inscription"?"block":"none";
   document.getElementById("formMonProfil").style.display=tab==="monprofil"?"block":"none";
   if(tab==="monprofil") _renderMyProfileTab();
 }
@@ -10644,49 +10653,112 @@ function registerUser(){
 }
 
 function loginUser(){
-  var email=document.getElementById("loginEmail").value.trim();
+  var identifier=(document.getElementById("loginIdentifier")||{value:''}).value.trim();
   var pwd=document.getElementById("loginPwd").value;
   var msg=document.getElementById("loginMsg");
   var btn=document.querySelector("#formConnexion .modal-btn");
-  if(!email||!pwd){
-    if(msg){msg.style.display="block";msg.style.color="var(--red)";msg.textContent="Email et mot de passe requis.";}
+
+  // Compat : ancien champ loginEmail si toujours présent
+  if(!identifier){
+    var legacyEmail = document.getElementById("loginEmail");
+    if(legacyEmail) identifier = legacyEmail.value.trim();
+  }
+
+  if(!identifier||!pwd){
+    if(msg){msg.style.display="block";msg.style.color="var(--red)";msg.textContent="Identifiant et mot de passe requis.";}
     return;
   }
   if(btn){btn.disabled=true;btn.textContent="Connexion...";}
-  // Attendre que Firebase soit prêt (max 5 secondes)
-  var _tryLogin = function(attempts){
-    if(!window.fbSignIn || !window.auth){
-      if(attempts > 50){
+
+  // Détecter si c'est un numéro de téléphone (commence par + ou chiffres, pas de @)
+  var isPhone = !identifier.includes("@") && /^[+\d]/.test(identifier);
+
+  var _doFirebaseLogin = function(email){
+    var _tryLogin = function(attempts){
+      if(!window.fbSignIn || !window.auth){
+        if(attempts > 50){
+          if(btn){btn.disabled=false;btn.textContent="🔒 Se connecter";}
+          if(msg){msg.style.display="block";msg.style.color="var(--red)";msg.textContent="Firebase non disponible. Rechargez la page.";}
+          return;
+        }
+        return setTimeout(function(){ _tryLogin(attempts+1); }, 100);
+      }
+      window.fbSignIn(window.auth,email,pwd).then(function(result){
+        var user=result.user;
+        msg.style.display="block";msg.style.color="var(--green)";
+        msg.textContent="Connexion réussie ! Bienvenue !";
         if(btn){btn.disabled=false;btn.textContent="🔒 Se connecter";}
-        if(msg){msg.style.display="block";msg.style.color="var(--red)";msg.textContent="Firebase non disponible. Rechargez la page.";}
+        window.fbGetDoc(window.fbDoc(window.db,"users",user.uid)).then(function(snap){
+          var pseudo = snap.exists() ? (snap.data().pseudo || user.email) : user.email;
+          window.currentUserPseudo = pseudo;
+          updateHeaderUser(pseudo);
+          msg.textContent = "Connexion réussie ! Bienvenue " + pseudo + " !";
+        }).catch(function(){ updateHeaderUser(user.email); });
+        setTimeout(function(){ checkPendingUserNotifications(user.uid, email); }, 1200);
+        setTimeout(function(){closeUserModal();},1500);
+      }).catch(function(err){
+        if(btn){btn.disabled=false;btn.textContent="🔒 Se connecter";}
+        msg.style.display="block";msg.style.color="var(--red)";
+        if(err.code==="auth/user-not-found"||err.code==="auth/wrong-password"||err.code==="auth/invalid-credential")
+          msg.textContent="Identifiant ou mot de passe incorrect.";
+        else msg.textContent="Erreur: "+err.message;
+      });
+    };
+    _tryLogin(0);
+  };
+
+  if(!isPhone){
+    // Connexion directe par email
+    _doFirebaseLogin(identifier);
+  } else {
+    // Recherche de l'email associé au numéro de téléphone dans Firestore
+    if(!window.db || !window.fbCollection || !window.fbQuery || !window.fbWhere || !window.fbGetDocs){
+      if(btn){btn.disabled=false;btn.textContent="🔒 Se connecter";}
+      if(msg){msg.style.display="block";msg.style.color="var(--red)";msg.textContent="Service non disponible, réessayez.";}
+      return;
+    }
+    // Normaliser le numéro (enlever espaces)
+    var tel = identifier.replace(/\s/g,'');
+    var q = window.fbQuery(
+      window.fbCollection(window.db,"users"),
+      window.fbWhere("tel","==",tel)
+    );
+    window.fbGetDocs(q).then(function(snap){
+      if(snap.empty){
+        // Essayer sans le +241 au cas où
+        var telAlt = tel.replace(/^\+241/,'').replace(/^241/,'');
+        var q2 = window.fbQuery(
+          window.fbCollection(window.db,"users"),
+          window.fbWhere("tel",">=",telAlt),
+          window.fbWhere("tel","<=",telAlt+"\uf8ff")
+        );
+        return window.fbGetDocs(q2).then(function(snap2){
+          if(snap2.empty){
+            if(btn){btn.disabled=false;btn.textContent="🔒 Se connecter";}
+            if(msg){msg.style.display="block";msg.style.color="var(--red)";msg.textContent="Aucun compte trouvé pour ce numéro.";}
+            return;
+          }
+          var email = snap2.docs[0].data().email;
+          if(!email){
+            if(btn){btn.disabled=false;btn.textContent="🔒 Se connecter";}
+            if(msg){msg.style.display="block";msg.style.color="var(--red)";msg.textContent="Compte sans email associé — utilisez votre email.";}
+            return;
+          }
+          _doFirebaseLogin(email);
+        });
+      }
+      var email = snap.docs[0].data().email;
+      if(!email){
+        if(btn){btn.disabled=false;btn.textContent="🔒 Se connecter";}
+        if(msg){msg.style.display="block";msg.style.color="var(--red)";msg.textContent="Compte sans email associé — utilisez votre email.";}
         return;
       }
-      return setTimeout(function(){ _tryLogin(attempts+1); }, 100);
-    }
-    window.fbSignIn(window.auth,email,pwd).then(function(result){
-    var user=result.user;
-    msg.style.display="block";msg.style.color="var(--green)";
-    msg.textContent="Connexion réussie ! Bienvenue !";
-    if(btn){btn.disabled=false;btn.textContent="🔒 Se connecter";}
-    // Récupérer le pseudo depuis Firestore
-    window.fbGetDoc(window.fbDoc(window.db,"users",user.uid)).then(function(snap){
-      var pseudo = snap.exists() ? (snap.data().pseudo || user.email) : user.email;
-      window.currentUserPseudo = pseudo;
-      updateHeaderUser(pseudo);
-      msg.textContent = "Connexion réussie ! Bienvenue " + pseudo + " !";
-    }).catch(function(){ updateHeaderUser(user.email); });
-    // ── Vérifier les notifications en attente pour cet utilisateur ──
-    setTimeout(function(){ checkPendingUserNotifications(user.uid, email); }, 1200);
-    setTimeout(function(){closeUserModal();},1500);
-  }).catch(function(err){
-    if(btn){btn.disabled=false;btn.textContent="🔒 Se connecter";}
-    msg.style.display="block";msg.style.color="var(--red)";
-    if(err.code==="auth/user-not-found"||err.code==="auth/wrong-password"||err.code==="auth/invalid-credential")
-      msg.textContent="Email ou mot de passe incorrect.";
-    else msg.textContent="Erreur: "+err.message;
-  });
-  }; // fin _tryLogin
-  _tryLogin(0);
+      _doFirebaseLogin(email);
+    }).catch(function(err){
+      if(btn){btn.disabled=false;btn.textContent="🔒 Se connecter";}
+      if(msg){msg.style.display="block";msg.style.color="var(--red)";msg.textContent="Erreur lors de la recherche: "+err.message;}
+    });
+  }
 }
 
 // ── Vérifie et affiche les notifications Firebase en attente ──────
@@ -14082,13 +14154,15 @@ function renderPayments(){
 }
 
 // NAV
-var SECS=["accueil","etablissements","publications","paiements","contacts","profil","social"];
+var SECS=["accueil","etablissements","paiements","contacts","profil","social"];
 function goHome(){switchSection("accueil",document.querySelector(".nav-item"));}
 function switchSection(name,btn){
   SECS.forEach(function(s){document.getElementById("sec-"+s).classList.toggle("section-hidden",s!==name);});
   if(btn){document.querySelectorAll(".nav-item").forEach(function(b){b.classList.remove("active");});btn.classList.add("active");}
   // Effacer le badge Discussions quand on arrive sur la section
   if(name === "publications" && window.markDiscBadge){ window.markDiscBadge(false); }
+  // Discussions redirigées vers Social
+  if(name === "social" && window.markDiscBadge){ window.markDiscBadge(false); }
   // Fermer la carte si on quitte l'onglet etablissements
   if(name!=="etablissements" && window.closeAmbiMap) window.closeAmbiMap();
   // Afficher le footer uniquement sur la page contacts
@@ -14647,7 +14721,7 @@ document.addEventListener("change",function(e){
   var _touchStartX = 0;
   var _touchStartY = 0;
   var _touchStartTime = 0;
-  var SECS_SWIPE = ["accueil","etablissements","publications","paiements","contacts"];
+  var SECS_SWIPE = ["accueil","etablissements","paiements","contacts"];
 
   function getCurrentSecIndex(){
     for(var i=0;i<SECS_SWIPE.length;i++){
@@ -15386,6 +15460,14 @@ function closeInvit(){
 }
 function openUserModal(){
   document.getElementById("userOverlay").classList.add("show");
+  // Connexion est la vue par défaut (membres existants)
+  // Si déjà connecté, le onAuthStateChanged aura switché vers monprofil
+  var currentTab = document.getElementById("tabConnexion");
+  if(currentTab && !currentTab.classList.contains("active")){
+    var profTab = document.getElementById("tabMonProfil");
+    var isProfVisible = profTab && profTab.style.display !== "none";
+    if(!isProfVisible) switchUserTab("connexion");
+  }
 }
 
 function renderGalerieGrid(){
@@ -31390,15 +31472,21 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
       <div class="stat-cell"><div class="stat-val">2.1k</div><div class="stat-lbl">Abonnés</div></div>
       <div class="stat-cell"><div class="stat-val">87</div><div class="stat-lbl">Favoris</div></div>
     </div>
+    <!-- ONGLETS COMPTE COMPLET -->
     <div style="margin-top:1rem;">
-      <div class="section-tabs-p">
-        <button class="stab-p active" onclick="pSetStab(this,'membre','fav')">Favoris</button>
-        <button class="stab-p" onclick="pSetStab(this,'membre','activite')">Activité</button>
-        <button class="stab-p" onclick="pSetStab(this,'membre','notif')">Préférences</button>
+      <div class="section-tabs-p" style="overflow-x:auto;scrollbar-width:none;display:flex;gap:0.3rem;padding:0 1rem;">
+        <button class="stab-p active" onclick="pMembreTab(this,'profil')" style="white-space:nowrap;">📋 Profil</button>
+        <button class="stab-p" onclick="pMembreTab(this,'photos')" style="white-space:nowrap;">📸 Photos</button>
+        <button class="stab-p" onclick="pMembreTab(this,'amis')" style="white-space:nowrap;">👥 Amis <span id="pm-count-amis" style="background:rgba(0,229,255,0.18);color:#00e5ff;font-size:0.6rem;padding:0.08rem 0.35rem;border-radius:10px;margin-left:0.2rem;">0</span></button>
+        <button class="stab-p" onclick="pMembreTab(this,'demandes')" style="white-space:nowrap;">🔔 Demandes <span id="pm-count-demandes" style="display:none;background:rgba(255,45,155,0.2);color:var(--pink);font-size:0.6rem;padding:0.08rem 0.35rem;border-radius:10px;margin-left:0.2rem;" id="pm-badge-demandes">0</span></button>
+        <button class="stab-p" onclick="pMembreTab(this,'infos')" style="white-space:nowrap;">ℹ️ Infos</button>
+        <button class="stab-p" onclick="pMembreTab(this,'activite')" style="white-space:nowrap;">⚡ Activité</button>
+        <button class="stab-p" onclick="pMembreTab(this,'prefs')" style="white-space:nowrap;">⚙️ Préférences</button>
       </div>
     </div>
-    <!-- FAVORIS -->
-    <div id="pm-tab-fav">
+
+    <!-- TAB: PROFIL -->
+    <div id="pm-tab-profil">
       <div class="p-section-block">
         <div class="section-head"><span class="section-title">🔥 Spots favoris</span><button class="section-action">Voir tout</button></div>
         <div class="fav-scroll">
@@ -31408,6 +31496,10 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
           <div class="fav-card"><div class="fav-img">🍷</div><div class="fav-info"><div class="fav-name">Le Bois Sacré</div><div class="fav-cat">Bar lounge · Akanda</div><div class="fav-live"><span class="fav-live-dot"></span>LIVE</div></div></div>
         </div>
       </div>
+    </div>
+
+    <!-- TAB: PHOTOS -->
+    <div id="pm-tab-photos" style="display:none;">
       <div class="p-section-block">
         <div class="section-head"><span class="section-title">📸 Ma galerie</span><label class="section-action" for="pFileGallery" style="cursor:pointer;">+ Ajouter</label></div>
         <div class="gallery-grid" id="pgallery-membre">
@@ -31420,7 +31512,101 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
         </div>
       </div>
     </div>
-    <!-- ACTIVITE -->
+
+    <!-- TAB: AMIS -->
+    <div id="pm-tab-amis" style="display:none;">
+      <div class="p-section-block">
+        <div class="section-head"><span class="section-title">👥 Mes amis</span></div>
+        <div id="pm-amis-list" style="display:flex;flex-direction:column;gap:0.5rem;margin-top:0.5rem;">
+          <!-- Chargé dynamiquement depuis _friends -->
+          <div style="text-align:center;padding:2rem 1rem;color:var(--muted);font-size:0.8rem;" id="pm-amis-empty">
+            <span style="font-size:2rem;display:block;margin-bottom:0.5rem;">👥</span>
+            Aucun ami pour l'instant.<br>Rejoignez la communauté !
+          </div>
+        </div>
+      </div>
+      <div class="p-section-block" style="margin-top:1rem;">
+        <div class="section-head"><span class="section-title">🔍 Trouver des amis</span></div>
+        <div style="display:flex;gap:0.5rem;margin-top:0.6rem;">
+          <input id="pm-friend-search" type="text" placeholder="Pseudo ou email…" oninput="pmSearchFriend(this.value)"
+            style="flex:1;padding:0.55rem 0.75rem;border-radius:10px;border:1px solid rgba(0,229,255,0.25);background:rgba(0,229,255,0.04);color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.8rem;outline:none;">
+          <button onclick="pmSendFriendRequest()" style="padding:0.55rem 0.9rem;border-radius:10px;background:rgba(0,229,255,0.12);border:1.5px solid rgba(0,229,255,0.35);color:#00e5ff;font-weight:800;font-size:0.78rem;cursor:pointer;font-family:'DM Sans',sans-serif;">Ajouter</button>
+        </div>
+        <div id="pm-friend-results" style="margin-top:0.5rem;"></div>
+      </div>
+    </div>
+
+    <!-- TAB: DEMANDES -->
+    <div id="pm-tab-demandes" style="display:none;">
+      <div class="p-section-block">
+        <div class="section-head"><span class="section-title">📨 Demandes reçues</span></div>
+        <div id="pm-demandes-in-list" style="display:flex;flex-direction:column;gap:0.5rem;margin-top:0.5rem;">
+          <div style="text-align:center;padding:1.5rem 1rem;color:var(--muted);font-size:0.8rem;" id="pm-demandes-empty">
+            <span style="font-size:1.8rem;display:block;margin-bottom:0.4rem;">📭</span>
+            Aucune demande en attente
+          </div>
+        </div>
+      </div>
+      <div class="p-section-block" style="margin-top:1rem;">
+        <div class="section-head"><span class="section-title">📤 Demandes envoyées</span></div>
+        <div id="pm-demandes-out-list" style="display:flex;flex-direction:column;gap:0.5rem;margin-top:0.5rem;">
+          <div style="text-align:center;padding:1.5rem 1rem;color:var(--muted);font-size:0.8rem;">Aucune demande envoyée</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: INFOS -->
+    <div id="pm-tab-infos" style="display:none;">
+      <div class="p-section-block">
+        <div class="section-head"><span class="section-title">ℹ️ Informations du compte</span><button class="section-action" onclick="pOpenEditModal('membre')">Modifier</button></div>
+        <div style="display:flex;flex-direction:column;gap:0.55rem;margin-top:0.6rem;">
+          <div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:11px;">
+            <span style="font-size:1.1rem;flex-shrink:0;">👤</span>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.1rem;">Pseudo</div>
+              <div id="pm-info-pseudo" style="font-size:0.82rem;font-weight:700;color:var(--text);">—</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:11px;">
+            <span style="font-size:1.1rem;flex-shrink:0;">📧</span>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.1rem;">Email</div>
+              <div id="pm-info-email" style="font-size:0.82rem;font-weight:700;color:var(--text);">—</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:11px;">
+            <span style="font-size:1.1rem;flex-shrink:0;">📍</span>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.1rem;">Ville</div>
+              <div style="font-size:0.82rem;font-weight:700;color:var(--text);">Libreville, Gabon</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:11px;">
+            <span style="font-size:1.1rem;flex-shrink:0;">🗓️</span>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.1rem;">Membre depuis</div>
+              <div id="pm-info-since" style="font-size:0.82rem;font-weight:700;color:var(--text);">—</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:11px;">
+            <span style="font-size:1.1rem;flex-shrink:0;">🏷️</span>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.1rem;">Rôle</div>
+              <div id="pm-info-role" style="font-size:0.82rem;font-weight:700;color:#00e5ff;">Membre</div>
+            </div>
+          </div>
+          <div id="pm-info-bio-block" style="display:flex;align-items:flex-start;gap:0.75rem;padding:0.6rem 0.75rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:11px;">
+            <span style="font-size:1.1rem;flex-shrink:0;margin-top:0.1rem;">✏️</span>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.1rem;">Bio</div>
+              <div id="pm-info-bio" style="font-size:0.8rem;color:var(--text);line-height:1.5;font-style:italic;opacity:0.6;">Non renseignée</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: ACTIVITE -->
     <div id="pm-tab-activite" style="display:none;">
       <div class="p-section-block">
         <div class="section-head"><span class="section-title">⚡ Activité récente</span></div>
@@ -31433,8 +31619,9 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
         </div>
       </div>
     </div>
-    <!-- NOTIF -->
-    <div id="pm-tab-notif" style="display:none;">
+
+    <!-- TAB: PRÉFÉRENCES -->
+    <div id="pm-tab-prefs" style="display:none;">
       <div class="p-section-block">
         <div class="section-head"><span class="section-title">🔔 Préférences de notifications</span></div>
         <div class="notif-prefs-p">
@@ -31453,6 +31640,159 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
         </div>
       </div>
     </div>
+
+    <script>
+    /* ── Switcher onglets compte membre ── */
+    var _pmTabList = ['profil','photos','amis','demandes','infos','activite','prefs'];
+    window.pMembreTab = function(btn, tab){
+      _pmTabList.forEach(function(t){
+        var el = document.getElementById('pm-tab-'+t);
+        if(el) el.style.display = (t===tab) ? 'block' : 'none';
+      });
+      var btns = document.querySelectorAll('#pv-membre .stab-p');
+      btns.forEach(function(b){ b.classList.remove('active'); });
+      if(btn) btn.classList.add('active');
+      if(tab === 'amis')     _pmRenderAmis();
+      if(tab === 'demandes') _pmRenderDemandes();
+      if(tab === 'infos')    _pmRenderInfos();
+    };
+
+    /* ── Remplir onglet Amis depuis _friends ── */
+    function _pmRenderAmis(){
+      var list = window._friends || [];
+      var el = document.getElementById('pm-amis-list');
+      var badge = document.getElementById('pm-count-amis');
+      if(badge) badge.textContent = list.length;
+      if(!el) return;
+      if(!list.length){
+        el.innerHTML = '<div style="text-align:center;padding:2rem 1rem;color:var(--muted);font-size:0.8rem;"><span style="font-size:2rem;display:block;margin-bottom:0.5rem;">👥</span>Aucun ami pour l\'instant.</div>';
+        return;
+      }
+      el.innerHTML = list.map(function(f){
+        return '<div style="display:flex;align-items:center;gap:0.65rem;padding:0.55rem 0.6rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;">'
+          +'<div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,rgba(0,229,255,0.2),rgba(204,68,255,0.15));display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;">'+f.avatar+'</div>'
+          +'<div style="flex:1;min-width:0;"><div style="font-size:0.82rem;font-weight:700;color:var(--text);">'+f.name+'</div>'
+          +(f.etab?'<div style="font-size:0.65rem;color:var(--muted);">'+f.etab+'</div>':'')+'</div>'
+          +'<div style="display:flex;gap:0.3rem;">'
+          +'<button onclick="if(window.switchSection&&window.openSocialProfileModal)openSocialProfileModal(\''+f.uid+'\')" style="padding:0.25rem 0.55rem;border-radius:8px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.25);color:#00e5ff;font-size:0.62rem;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif;">Voir</button>'
+          +'</div></div>';
+      }).join('');
+    }
+
+    /* ── Remplir onglet Demandes ── */
+    function _pmRenderDemandes(){
+      var inList  = window._requestsIn  || [];
+      var outList = window._requestsOut || [];
+      var badge   = document.getElementById('pm-count-demandes');
+      if(badge){ badge.textContent = inList.length; badge.style.display = inList.length ? 'inline' : 'none'; }
+      var elIn  = document.getElementById('pm-demandes-in-list');
+      var elOut = document.getElementById('pm-demandes-out-list');
+      if(elIn){
+        if(!inList.length){
+          elIn.innerHTML = '<div style="text-align:center;padding:1.2rem;color:var(--muted);font-size:0.8rem;"><span style="font-size:1.8rem;display:block;margin-bottom:0.35rem;">📭</span>Aucune demande reçue</div>';
+        } else {
+          elIn.innerHTML = inList.map(function(r){
+            return '<div style="display:flex;align-items:center;gap:0.6rem;padding:0.55rem;background:rgba(255,45,155,0.05);border:1px solid rgba(255,45,155,0.15);border-radius:12px;">'
+              +'<div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,rgba(255,45,155,0.2),rgba(204,68,255,0.15));display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">'+r.avatar+'</div>'
+              +'<div style="flex:1;min-width:0;"><div style="font-size:0.8rem;font-weight:700;color:var(--text);">'+r.name+'</div>'
+              +'<div style="font-size:0.62rem;color:var(--muted);">'+r.sentAt+'</div></div>'
+              +'<div style="display:flex;gap:0.3rem;">'
+              +'<button onclick="if(window.acceptFriend)window.acceptFriend(\''+r.uid+'\');_pmRenderDemandes();_pmRenderAmis();" style="padding:0.25rem 0.55rem;border-radius:8px;background:rgba(0,255,170,0.1);border:1px solid rgba(0,255,170,0.3);color:var(--green);font-size:0.62rem;font-weight:800;cursor:pointer;font-family:\'DM Sans\',sans-serif;">✓</button>'
+              +'<button onclick="if(window.declineFriend)window.declineFriend(\''+r.uid+'\');_pmRenderDemandes();" style="padding:0.25rem 0.55rem;border-radius:8px;background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.25);color:var(--red);font-size:0.62rem;font-weight:800;cursor:pointer;font-family:\'DM Sans\',sans-serif;">✕</button>'
+              +'</div></div>';
+          }).join('');
+        }
+      }
+      if(elOut){
+        if(!outList.length){
+          elOut.innerHTML = '<div style="text-align:center;padding:1.2rem;color:var(--muted);font-size:0.8rem;">Aucune demande envoyée</div>';
+        } else {
+          elOut.innerHTML = outList.map(function(r){
+            return '<div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;">'
+              +'<div style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;">'+r.avatar+'</div>'
+              +'<div style="flex:1;min-width:0;"><div style="font-size:0.78rem;font-weight:700;color:var(--text);">'+r.name+'</div>'
+              +'<div style="font-size:0.6rem;color:var(--muted);">Envoyée · '+r.sentAt+'</div></div>'
+              +'<span style="font-size:0.62rem;color:var(--amber);background:rgba(255,215,0,0.1);padding:0.18rem 0.45rem;border-radius:6px;border:1px solid rgba(255,215,0,0.2);">En attente</span>'
+              +'</div>';
+          }).join('');
+        }
+      }
+    }
+
+    /* ── Remplir onglet Infos ── */
+    function _pmRenderInfos(){
+      var pseudo = window.currentUserPseudo || window.currentUserEmail || '—';
+      var email  = window.currentUserEmail  || '—';
+      var uid    = window.currentUserUID;
+      var role   = (typeof getUserRole==='function') ? getUserRole() : 'membre';
+      var roleLabel = {admin:'⭐ Admin',super_admin:'🔑 Super Admin',establishment:'🏛️ Établissement',chauffeur:'🚕 Chauffeur',membre:'● Membre Premium',user:'● Membre'}[role] || '● Membre';
+      var setPseudo = document.getElementById('pm-info-pseudo');
+      var setEmail  = document.getElementById('pm-info-email');
+      var setRole   = document.getElementById('pm-info-role');
+      if(setPseudo) setPseudo.textContent = pseudo;
+      if(setEmail)  setEmail.textContent  = email;
+      if(setRole)   setRole.textContent   = roleLabel;
+      // Charger depuis Firestore si dispo
+      if(uid && window.db && window.fbGetDoc && window.fbDoc){
+        window.fbGetDoc(window.fbDoc(window.db,'users',uid)).then(function(snap){
+          var d = snap.exists() ? snap.data() : {};
+          var bioEl   = document.getElementById('pm-info-bio');
+          var sinceEl = document.getElementById('pm-info-since');
+          if(bioEl && d.bio){ bioEl.textContent = d.bio; bioEl.style.fontStyle='normal'; bioEl.style.opacity='1'; }
+          if(sinceEl && d.createdAt){
+            try{
+              var dt = new Date(d.createdAt);
+              var m  = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+              sinceEl.textContent = m[dt.getMonth()]+' '+dt.getFullYear();
+            }catch(e){}
+          }
+        }).catch(function(){});
+      }
+    }
+
+    /* ── Recherche amis (proxy vers searchUsers) ── */
+    window.pmSearchFriend = function(val){
+      var el = document.getElementById('pm-friend-results');
+      if(!el) return;
+      if(!val){ el.innerHTML=''; return; }
+      var mock = [
+        {uid:'m1',name:'Marcus T.',avatar:'🦅',etab:'Bus\'O'},
+        {uid:'m2',name:'Mariette K.',avatar:'🌹',etab:'Olako Beach'},
+      ].filter(function(u){ return u.name.toLowerCase().includes(val.toLowerCase()); });
+      if(!mock.length){ el.innerHTML='<div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem;">Aucun résultat</div>'; return; }
+      el.innerHTML = mock.map(function(u){
+        return '<div style="display:flex;align-items:center;gap:0.6rem;padding:0.45rem 0.5rem;background:rgba(255,255,255,0.03);border-radius:10px;margin-bottom:0.3rem;">'
+          +'<div style="width:34px;height:34px;border-radius:50%;background:rgba(0,229,255,0.1);display:flex;align-items:center;justify-content:center;font-size:1rem;">'+u.avatar+'</div>'
+          +'<div style="flex:1;min-width:0;"><div style="font-size:0.8rem;font-weight:700;color:var(--text);">'+u.name+'</div>'
+          +'<div style="font-size:0.65rem;color:var(--muted);">'+u.etab+'</div></div>'
+          +'<button onclick="if(window.quickAddFriend)window.quickAddFriend(\''+u.uid+'\',\''+u.name+'\');document.getElementById(\'pm-friend-search\').value=\'\';document.getElementById(\'pm-friend-results\').innerHTML=\'\';" style="padding:0.25rem 0.6rem;border-radius:8px;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.35);color:var(--pink);font-size:0.65rem;font-weight:800;cursor:pointer;font-family:\'DM Sans\',sans-serif;">+ Ajouter</button>'
+          +'</div>';
+      }).join('');
+    };
+
+    window.pmSendFriendRequest = function(){
+      var val = (document.getElementById('pm-friend-search')||{}).value||'';
+      if(!val.trim()){ return; }
+      if(window._requestsOut) window._requestsOut.push({uid:'pm'+Date.now(),name:val.trim(),avatar:'👤',sentAt:'À l\'instant'});
+      document.getElementById('pm-friend-search').value='';
+      document.getElementById('pm-friend-results').innerHTML='';
+      if(window.socToast) window.socToast('📨 Demande envoyée à '+val.trim()+' !');
+    };
+
+    /* ── Sync données infos au chargement profil (hook) ── */
+    var _origPatchAll = window._syncProfilSection;
+    window._syncProfilSection = function(){
+      if(typeof _origPatchAll === 'function') _origPatchAll.apply(this, arguments);
+      // Mettre à jour le badge demandes
+      setTimeout(function(){
+        var inList = window._requestsIn || [];
+        var badge  = document.getElementById('pm-count-demandes');
+        if(badge){ badge.textContent = inList.length; badge.style.display = inList.length ? 'inline' : 'none'; }
+        var cntAmis = document.getElementById('pm-count-amis');
+        if(cntAmis) cntAmis.textContent = (window._friends||[]).length;
+      }, 300);
+    };
+    </script>
   </div>
 </div>
 
