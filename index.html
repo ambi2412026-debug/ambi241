@@ -4607,8 +4607,7 @@ const i18n = {
     /* Hero buttons */
     const heroBtns = document.querySelectorAll('.hero-actions .hero-btn');
     if (heroBtns[0]) heroBtns[0].innerHTML = d.hero_explore;
-    if (heroBtns[1]) heroBtns[1].textContent = d.hero_inscrire;
-    if (heroBtns[2]) heroBtns[2].innerHTML = d.hero_nearby;
+    if (heroBtns[1]) heroBtns[1].innerHTML = d.hero_nearby;
 
     /* Top ce soir label */
     const topLabel = document.querySelector('#sec-accueil > div[style*="Top ce soir"], #sec-accueil > div[style*="top_ce_soir"]');
@@ -5892,16 +5891,6 @@ if (document.readyState === 'loading') {
       </div>
     </div>
 
-    <!-- ══ CTA INSCRIRE ══ -->
-    <div class="home-inscrire-cta">
-      <div class="hic-icon">&#127970;</div>
-      <div class="hic-text">
-        <div class="hic-title">Votre établissement sur AMBI241 ?</div>
-        <div class="hic-sub">Rejoignez l'annuaire des meilleures sorties de Libreville dès aujourd'hui.</div>
-      </div>
-      <button class="hic-btn" onclick="document.getElementById('etablModal').classList.add('show')">+ Inscrire<br><span style="font-weight:400;font-size:0.6rem">5 000 XAF</span></button>
-    </div>
-
     <!-- ══ TOP 6 LIEUX ══ -->
     <div class="home-top6-section">
       <div class="top6-header">
@@ -5914,16 +5903,20 @@ if (document.readyState === 'loading') {
       </div>
       <div class="top6-grid" id="topLieux"></div>
     </div>
+
+    <!-- ══ BOUTON INSCRIRE MON ÉTABLISSEMENT (en bas) ══ -->
+    <div style="padding:0 1rem 1.5rem;">
+      <button onclick="document.getElementById('etablModal').classList.add('show')" style="width:100%;padding:1rem;border-radius:16px;border:1.5px solid rgba(0,229,255,0.35);background:rgba(0,229,255,0.07);color:var(--cyan);font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.5rem;letter-spacing:0.01em;">
+        + Inscrire mon établissement
+        <span style="font-family:'DM Sans',sans-serif;font-size:0.7rem;font-weight:400;color:var(--muted);margin-left:0.3rem;">5 000 XAF</span>
+      </button>
+    </div>
   </div>
 
   <!-- SEC: LIEUX -->
   <div id="sec-etablissements" class="section-hidden">
     <div class="sync-bar"><div class="sync-left"><div class="sync-spinner" id="syncSpinner"></div><span id="syncStatus">Donnees en direct</span></div><div style="display:flex;align-items:center;gap:0.5rem;"><span id="meteoMiniSyncBar" class="meteo-mini" title="Météo Libreville">⏳</span><span class="sync-time" id="syncTime"></span><button onclick="loadData();showToast('Actualisation...')" style="background:rgba(0,255,170,0.1);border:1px solid rgba(0,255,170,0.25);color:var(--green);font-size:0.72rem;font-weight:700;padding:0.22rem 0.55rem;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;" title="Actualiser">&#8635;</button></div></div>
     <div class="traffic-badge" id="trafficBadge"><div class="tb-left">&#128202; Visiteurs aujourd hui</div><div class="tb-val" id="trafficVal">0</div></div>
-    <div class="inscrire-banner">
-      <div class="ib-text"><strong>Votre etablissement sur AMBI241 ?</strong> Rejoignez l annuaire des meilleures sorties de Libreville.</div>
-      <button class="inscrire-big-btn" onclick="document.getElementById('etablModal').classList.add('show')">+ Inscrire mon etablissement — 5 000 XAF</button>
-    </div>
     <div class="stats-scroll" id="statsRow"></div>
     <!-- ══ BOUTON PRÈS DE CHEZ VOUS ══ -->
     <button class="gps-nearby-btn" id="gpsNearbyBtn" onclick="toggleNearbyMode()">
@@ -6643,9 +6636,7 @@ if (document.readyState === 'loading') {
         <label class="soc-form-label">Lier à un événement AMBI241</label>
         <select class="soc-select" id="projEvent">
           <option value="">— Aucun événement —</option>
-          <option value="evt1">Nuit Afrobeat — Bus'O (14 mai)</option>
-          <option value="evt2">Festival Jazz Libreville (20 mai)</option>
-          <option value="evt3">Tournoi FIFA — Olako (25 mai)</option>
+          <!-- Les événements réels seront chargés dynamiquement depuis Firebase -->
         </select>
       </div>
       <div class="soc-form-field">
@@ -15022,8 +15013,11 @@ document.addEventListener("change",function(e){
   }
 
   document.addEventListener("touchstart",function(e){
-    // Ne pas déclencher si l'utilisateur fait défiler dans un overlay/modal
+    // Ne pas déclencher si l'utilisateur fait défiler dans un overlay/modal ou élément scrollable
     if(e.target.closest(".overlay,.modal,.adm-dash-overlay,.notif-panel")) return;
+    // Ne pas déclencher si on est dans un élément avec scroll horizontal
+    var scrollable = e.target.closest("[class*='scroll'],[class*='Scroll'],select,input,textarea,.types-grid,.soc-cat-row,.filter-row,.section-tabs-p");
+    if(scrollable) return;
     var t=e.touches[0];
     _touchStartX=t.clientX;
     _touchStartY=t.clientY;
@@ -15032,19 +15026,23 @@ document.addEventListener("change",function(e){
 
   document.addEventListener("touchend",function(e){
     if(!_touchStartTime) return;
+    if(e.target.closest(".overlay,.modal,.adm-dash-overlay,.notif-panel")) return;
+    var scrollable = e.target.closest("[class*='scroll'],[class*='Scroll'],select,input,textarea,.types-grid,.soc-cat-row,.filter-row,.section-tabs-p");
+    if(scrollable) return;
     var t=e.changedTouches[0];
     var dx=t.clientX-_touchStartX;
     var dy=t.clientY-_touchStartY;
     var dt=Date.now()-_touchStartTime;
-    // Swipe rapide (< 350ms), horizontal dominant, et distance min 60px
-    if(dt>350||Math.abs(dy)>Math.abs(dx)||Math.abs(dx)<60) return;
-    // Ne pas déclencher si scroll vertical ou depuis un overlay
-    if(e.target.closest(".overlay,.modal,.adm-dash-overlay,.notif-panel")) return;
+    // Swipe : horizontal dominant, distance min 50px, durée max 600ms
+    if(dt>600) return;
+    if(Math.abs(dy)>Math.abs(dx)*0.8) return; // tolérance diagonale
+    if(Math.abs(dx)<50) return;
     var cur=getCurrentSecIndex();
     var next=-1;
     if(dx<0 && cur<SECS_SWIPE.length-1) next=cur+1; // swipe left → section suivante
     if(dx>0 && cur>0) next=cur-1;                   // swipe right → section précédente
     if(next<0) return;
+    _touchStartTime=0; // reset pour éviter double déclenchement
     var navBtns=document.querySelectorAll(".nav-item");
     switchSection(SECS_SWIPE[next], navBtns[next]||null);
   },{passive:true});
@@ -32337,19 +32335,32 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
         var el = document.getElementById('pm-friend-results');
         if(!el) return;
         if(!val){ el.innerHTML=''; return; }
-        var mock = [
-          {uid:'m1',name:'Marcus T.',avatar:'🦅',etab:'Bus\'O'},
-          {uid:'m2',name:'Mariette K.',avatar:'🌹',etab:'Olako Beach'},
-        ].filter(function(u){ return u.name.toLowerCase().includes(val.toLowerCase()); });
-        if(!mock.length){ el.innerHTML='<div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem;">Aucun résultat</div>'; return; }
-        el.innerHTML = mock.map(function(u){
-          return '<div style="display:flex;align-items:center;gap:0.6rem;padding:0.45rem 0.5rem;background:rgba(255,255,255,0.03);border-radius:10px;margin-bottom:0.3rem;">'
-            +'<div style="width:34px;height:34px;border-radius:50%;background:rgba(0,229,255,0.1);display:flex;align-items:center;justify-content:center;font-size:1rem;">'+u.avatar+'</div>'
-            +'<div style="flex:1;min-width:0;"><div style="font-size:0.8rem;font-weight:700;color:var(--text);">'+u.name+'</div>'
-            +'<div style="font-size:0.65rem;color:var(--muted);">'+u.etab+'</div></div>'
-            +'<button onclick="if(window.quickAddFriend)window.quickAddFriend(\''+u.uid+'\',\''+u.name+'\');document.getElementById(\'pm-friend-search\').value=\'\';document.getElementById(\'pm-friend-results\').innerHTML=\'\';" style="padding:0.25rem 0.6rem;border-radius:8px;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.35);color:var(--pink);font-size:0.65rem;font-weight:800;cursor:pointer;font-family:\'DM Sans\',sans-serif;">+ Ajouter</button>'
-            +'</div>';
-        }).join('');
+        // Recherche dans Firebase — résultats réels uniquement
+        el.innerHTML='<div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem;">🔍 Recherche en cours…</div>';
+        if(window.db && window.fbCollection && window.fbGetDocs){
+          var q = window.fbCollection(window.db,'users');
+          window.fbGetDocs(q).then(function(snap){
+            var results = [];
+            snap.forEach(function(d){
+              var data = d.data();
+              var name = data.pseudo || data.displayName || (data.email ? data.email.split('@')[0] : '');
+              if(name && name.toLowerCase().includes(val.toLowerCase()) && d.id !== window.currentUserUID){
+                results.push({uid:d.id, name:name, avatar:data.avatarEmoji||'👤', etab:data.establishment||'Libreville'});
+              }
+            });
+            if(!results.length){ el.innerHTML='<div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem;">Aucun résultat</div>'; return; }
+            el.innerHTML = results.slice(0,5).map(function(u){
+              return '<div style="display:flex;align-items:center;gap:0.6rem;padding:0.45rem 0.5rem;background:rgba(255,255,255,0.03);border-radius:10px;margin-bottom:0.3rem;">'
+                +'<div style="width:34px;height:34px;border-radius:50%;background:rgba(0,229,255,0.1);display:flex;align-items:center;justify-content:center;font-size:1rem;">'+u.avatar+'</div>'
+                +'<div style="flex:1;min-width:0;"><div style="font-size:0.8rem;font-weight:700;color:var(--text);">'+u.name+'</div>'
+                +'<div style="font-size:0.65rem;color:var(--muted);">'+u.etab+'</div></div>'
+                +'<button onclick="if(window.quickAddFriend)window.quickAddFriend(\''+u.uid+'\',\''+u.name+'\');document.getElementById(\'pm-friend-search\').value=\'\';document.getElementById(\'pm-friend-results\').innerHTML=\'\';" style="padding:0.25rem 0.6rem;border-radius:8px;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.35);color:var(--pink);font-size:0.65rem;font-weight:800;cursor:pointer;font-family:\'DM Sans\',sans-serif;">+ Ajouter</button>'
+                +'</div>';
+            }).join('');
+          }).catch(function(){ el.innerHTML='<div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem;">Erreur de connexion</div>'; });
+        } else {
+          el.innerHTML='<div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem;">Connexion Firebase requise</div>';
+        }
       };
   
       window.pmSendFriendRequest = function(){
@@ -33838,56 +33849,41 @@ console.log('[AMBI241] ✅ Système Profils Publics chargé — openPublicProfil
 (function(){
 'use strict';
 
-/* ══ ÉTAT LOCAL (remplacé par Firebase en prod) ══ */
+/* ══ ÉTAT LOCAL (mis à jour dynamiquement depuis Firebase après login) ══ */
 var _currentUser = {
-  uid: 'user_me',
-  name: 'Moi (Akos)',
-  avatar: '🦁',
-  bio: 'Fan de afrobeat & soirées ambiance 🎵',
+  uid: '',
+  name: window.currentUserPseudo || window.currentUserEmail || '',
+  avatar: '👤',
+  bio: '',
   establishement: 'Libreville'
 };
 
 var _friends = [
-  { uid:'u1', name:'Darren K.', avatar:'🔥', status:'online', etab:'Bus\'O', mutualFriends:5, tag:'Habitué' },
-  { uid:'u2', name:'Laure-M.', avatar:'🌸', status:'away', etab:'Olako Beach', mutualFriends:3, tag:'DJ' },
-  { uid:'u3', name:'Christian B.', avatar:'⚡', status:'offline', etab:'Wato Bar', mutualFriends:8, tag:'Barman' },
-  { uid:'u4', name:'Nadège F.', avatar:'💫', status:'online', etab:'Le Méridien', mutualFriends:2, tag:null },
-  { uid:'u5', name:'Junior M.', avatar:'🎸', status:'online', etab:'Bus\'O', mutualFriends:6, tag:'Artiste' },
+  // Liste chargée depuis Firebase (amis réels uniquement)
 ];
 
 var _requestsIn = [
-  { uid:'r1', name:'Kevin O.', avatar:'🎯', etab:'Wato Bar', msg:'On s\'est vus à la soirée du 5 mai !', mutualFriends:4 },
-  { uid:'r2', name:'Stella A.', avatar:'🌟', etab:'Olako Beach', msg:'Salut ! Je cherche des amis pour sortir ce weekend 🙂', mutualFriends:2 },
+  // Demandes réelles chargées depuis Firebase
 ];
 
 var _requestsOut = [
-  { uid:'ro1', name:'Marc D.', avatar:'🎺', etab:'Jazz Club', sentAt:'Il y a 2j' },
+  // Demandes envoyées réelles depuis Firebase
 ];
 
 var _blocked = [
-  { uid:'b1', name:'Utilisateur inconnu', avatar:'👤', blockedAt:'15 avril' },
+  // Utilisateurs bloqués réels depuis Firebase
 ];
 
 var _communities = [
-  { id:'c1', name:'Fréquenteurs Bus\'O', emoji:'🍸', desc:'La communauté des fidèles du Bus\'O — soirées, événements exclusifs et bons plans.', cat:'sorties', etab:'Bus\'O', members:124, posts:47, joined:true, privacy:'public', tags:['Musique','Ambiance','Libreville'] },
-  { id:'c2', name:'Afrobeat Nation 241', emoji:'🎵', desc:'Fans de musique africaine, concerts, mix et découvertes. Rejoins la famille !', cat:'musique', etab:null, members:381, posts:129, joined:false, privacy:'public', tags:['Afrobeat','Musique','Culture'] },
-  { id:'c3', name:'Tournoi FIFA Libreville', emoji:'🎮', desc:'Compétitions FIFA organisées dans les bars et clubs gaming de la ville.', cat:'gaming', etab:'Olako Beach', members:67, posts:33, joined:true, privacy:'public', tags:['Gaming','FIFA','Sport'] },
-  { id:'c4', name:'Food Lovers 241', emoji:'🍽️', desc:'Découverte gastronomique, restaurants, recettes et chefs locaux.', cat:'food', etab:null, members:205, posts:88, joined:false, privacy:'public', tags:['Food','Gastronomie'] },
-  { id:'c5', name:'Artistes de Libreville', emoji:'🎨', desc:'Réseau des artistes, DJ, danseurs, photographes et créatifs gabonais.', cat:'art', etab:null, members:156, posts:201, joined:false, privacy:'invite', tags:['Art','Créativité','DJ'] },
+  // Communautés réelles chargées depuis Firebase
 ];
 
 var _projects = [
-  { id:'p1', name:'Nuit Afrobeat Spéciale', emoji:'🎵', type:'diverti', desc:'Organiser une soirée afrobeat exceptionnelle au Bus\'O avec 3 artistes locaux et une scène ouverte.', comm:'Fréquenteurs Bus\'O', event:'Nuit Afrobeat — Bus\'O (14 mai)', progress:65, members:['🦁','🔥','🌸','⚡'], membersCount:8, deadline:'14 Mai', status:'En cours' },
-  { id:'p2', name:'Tournoi FIFA Mai 2025', emoji:'🎮', type:'sport', desc:'Organiser le tournoi mensuel FIFA dans les établissements partenaires avec classement officiel.', comm:'Tournoi FIFA Libreville', event:'Tournoi FIFA — Olako (25 mai)', progress:30, members:['⚡','🎯','🌟'], membersCount:12, deadline:'25 Mai', status:'En cours' },
-  { id:'p3', name:'Collecte DJ Equipment', emoji:'🎛️', type:'collecte', desc:'Collecte collaborative pour l\'achat d\'équipement DJ pour les artistes de la communauté.', comm:'Artistes de Libreville', event:null, progress:48, members:['🎸','💫','🎺'], membersCount:6, deadline:'30 Mai', status:'En cours' },
+  // Projets réels chargés depuis Firebase
 ];
 
 var _suggestions = [
-  { uid:'s1', name:'Bianca K.', avatar:'🌺', mutual:3 },
-  { uid:'s2', name:'Franck O.', avatar:'🎷', mutual:5 },
-  { uid:'s3', name:'Aicha M.', avatar:'🦋', mutual:2 },
-  { uid:'s4', name:'Boris T.', avatar:'🦅', mutual:7 },
-  { uid:'s5', name:'Ingrid N.', avatar:'⭐', mutual:1 },
+  // Suggestions réelles chargées depuis Firebase (_socLoadMembresFirebase)
 ];
 
 var _confirmCallback = null;
@@ -34496,22 +34492,32 @@ window.socHandleSearch = function(val){
 window.searchUsers = function(val){
   var el = document.getElementById('userSearchResults');
   if(!el || !val) { if(el) el.innerHTML=''; return; }
-  // Simulation
-  var mock = [
-    {uid:'m1',name:'Marcus T.',avatar:'🦅',etab:'Bus\'O'},
-    {uid:'m2',name:'Mariette K.',avatar:'🌹',etab:'Olako Beach'},
-  ].filter(function(u){return u.name.toLowerCase().includes(val.toLowerCase());});
-  if(!mock.length){el.innerHTML='<div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem;">Aucun résultat</div>';return;}
-  var h = '';
-  mock.forEach(function(u){
-    h += '<div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem;background:rgba(255,255,255,0.03);border-radius:10px;margin-bottom:0.3rem;">';
-    h += '<div class="soc-avatar" style="width:34px;height:34px;font-size:0.9rem;">'+u.avatar+'</div>';
-    h += '<div style="flex:1;"><div style="font-size:0.8rem;font-weight:700;color:var(--text);">'+esc(u.name)+'</div>';
-    h += '<div style="font-size:0.65rem;color:var(--muted);">'+esc(u.etab)+'</div></div>';
-    h += '<button onclick="quickAddFriend(\''+u.uid+'\',\''+esc(u.name)+'\');document.getElementById(\'addFriendSearch\').value=\'\';document.getElementById(\'userSearchResults\').innerHTML=\'\'" style="padding:0.25rem 0.6rem;border-radius:8px;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.35);color:var(--pink);font-size:0.65rem;font-weight:800;cursor:pointer;font-family:\'DM Sans\',sans-serif;">+ Ajouter</button>';
-    h += '</div>';
-  });
-  el.innerHTML = h;
+  el.innerHTML='<div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem;">🔍 Recherche en cours…</div>';
+  if(window.db && window.fbCollection && window.fbGetDocs){
+    window.fbGetDocs(window.fbCollection(window.db,'users')).then(function(snap){
+      var results = [];
+      snap.forEach(function(d){
+        var data = d.data();
+        var name = data.pseudo || data.displayName || (data.email ? data.email.split('@')[0] : '');
+        if(name && name.toLowerCase().includes(val.toLowerCase()) && d.id !== window.currentUserUID){
+          results.push({uid:d.id, name:name, avatar:data.avatarEmoji||'👤', etab:data.establishment||'Libreville'});
+        }
+      });
+      if(!results.length){el.innerHTML='<div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem;">Aucun résultat</div>';return;}
+      var h = '';
+      results.slice(0,5).forEach(function(u){
+        h += '<div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem;background:rgba(255,255,255,0.03);border-radius:10px;margin-bottom:0.3rem;">';
+        h += '<div class="soc-avatar" style="width:34px;height:34px;font-size:0.9rem;">'+u.avatar+'</div>';
+        h += '<div style="flex:1;"><div style="font-size:0.8rem;font-weight:700;color:var(--text);">'+esc(u.name)+'</div>';
+        h += '<div style="font-size:0.65rem;color:var(--muted);">'+esc(u.etab)+'</div></div>';
+        h += '<button onclick="quickAddFriend(\''+u.uid+'\',\''+esc(u.name)+'\');document.getElementById(\'addFriendSearch\').value=\'\';document.getElementById(\'userSearchResults\').innerHTML=\'\'" style="padding:0.25rem 0.6rem;border-radius:8px;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.35);color:var(--pink);font-size:0.65rem;font-weight:800;cursor:pointer;font-family:\'DM Sans\',sans-serif;">+ Ajouter</button>';
+        h += '</div>';
+      });
+      el.innerHTML = h;
+    }).catch(function(){ el.innerHTML='<div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem;">Erreur de connexion</div>'; });
+  } else {
+    el.innerHTML='<div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem;">Connexion Firebase requise</div>';
+  }
 };
 
 window.sendFriendRequest = function(){
@@ -34669,46 +34675,27 @@ console.log('[AMBI241] ✅ Module Social chargé — Amis, Communautés, Projets
 /* ── État ── */
 var _smData = {
   accounts: {
-    ig:  { handle:'@ambi241', followers:4820, delta:'+142', color:'#e1306c', emoji:'📸', connected:true  },
-    fb:  { handle:'AMBI241', followers:3105, delta:'+87',  color:'#1877f2', emoji:'👍', connected:true  },
-    tk:  { handle:'@ambi_241', followers:9340, delta:'+650', color:'#fff', emoji:'🎵', connected:true  },
-    wa:  { handle:'+241 74 45 09 24', followers:612, delta:'+34', color:'#25d366', emoji:'💬', connected:false }
+    ig:  { handle:'@ambi241', followers:0, delta:'+0', color:'#e1306c', emoji:'📸', connected:false },
+    fb:  { handle:'AMBI241',  followers:0, delta:'+0', color:'#1877f2', emoji:'👍', connected:false },
+    tk:  { handle:'@ambi_241',followers:0, delta:'+0', color:'#fff',    emoji:'🎵', connected:false },
+    wa:  { handle:'+241 XX XX XX XX', followers:0, delta:'+0', color:'#25d366', emoji:'💬', connected:false }
   },
   reach: {
-    ig: { days:['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'], values:[1200,980,1450,1310,1670,2100,1890] },
-    fb: { days:['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'], values:[850,720,920,1100,1290,1540,1340] },
-    tk: { days:['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'], values:[3200,2800,4100,3700,5200,6800,5900] }
+    ig: { days:[], values:[] },
+    fb: { days:[], values:[] },
+    tk: { days:[], values:[] }
   },
-  posts: [
-    { id:'p1', caption:'🎉 Ce soir c\'est la fête chez Bus\'O ! Venez nombreux, la DJ @nana_mix assure le show dès 22h. #Libreville #Ambi241', platforms:['ig','fb'], status:'published', date:'2025-01-10 22:00', likes:214, comments:18, reach:3420 },
-    { id:'p2', caption:'🍸 Happy Hour de 18h à 21h chez Olako Beach. Cocktails à -40% ! Réservez votre table maintenant. #HappyHour #Sortir241', platforms:['ig','fb','wa'], status:'published', date:'2025-01-09 17:30', likes:187, comments:12, reach:2890 },
-    { id:'p3', caption:'🔥 Soirée Afrobeats ce vendredi au N\'Djinn Lounge. Entrée gratuite avant minuit. #Afrobeats #Nightlife241', platforms:['ig','tk'], status:'scheduled', date:'2025-01-17 20:00', likes:null, comments:null, reach:null },
-    { id:'p4', caption:'📸 [Brouillon] Nouvelle carte de cocktails disponible à partir du 20 janvier...', platforms:['ig'], status:'draft', date:null, likes:null, comments:null, reach:null },
-    { id:'p5', caption:'🎶 Chanson de la semaine sur AMBI241 : découvrez notre playlist ambiance Libreville ! #Playlist #Gabon', platforms:['ig','fb','tk'], status:'published', date:'2025-01-08 12:00', likes:342, comments:29, reach:5610 }
-  ],
-  comments: [
-    { id:'c1', author:'@kezia_lbv', platform:'ig', time:'Il y a 12 min', text:'Soirée de malade hier 🔥🔥 on revient vendredi !', status:'pending', emoji:'🦋' },
-    { id:'c2', author:'@tonton_frank', platform:'fb', time:'Il y a 35 min', text:'Où est le lien pour réserver une table ??', status:'pending', emoji:'👨' },
-    { id:'c3', author:'@spam_bot_237', platform:'ig', time:'Il y a 1h', text:'CLICK HERE WIN IPHONE FREE !!!! http://spam.link', status:'flagged', emoji:'🤖', reason:'Spam / Lien suspect' },
-    { id:'c4', author:'@marieange_241', platform:'tk', time:'Il y a 2h', text:'Le DJ était incroyable ! Prochaine date ?', status:'approved', emoji:'🌹' },
-    { id:'c5', author:'@inconnu_troll', platform:'ig', time:'Il y a 3h', text:'C\'est nul et cher et le service est mauvais', status:'flagged', emoji:'👤', reason:'Commentaire offensant' },
-    { id:'c6', author:'@linda_g', platform:'fb', time:'Il y a 4h', text:'On était 6 et tout le monde a adoré 🥂 Merci AMBI241 !', status:'approved', emoji:'💃' }
-  ],
+  posts: [],
+  comments: [],
   trends: [
-    { rank:1, tag:'#LibrevilleNight', vol:'8.2K posts/j', badge:'hot' },
-    { rank:2, tag:'#Ambi241', vol:'3.1K posts/j', badge:'rise' },
-    { rank:3, tag:'#Sortir241', vol:'2.7K posts/j', badge:'rise' },
-    { rank:4, tag:'#Gabon2025', vol:'2.1K posts/j', badge:'new' },
-    { rank:5, tag:'#NightlifeLibreville', vol:'1.9K posts/j', badge:'hot' },
-    { rank:6, tag:'#Bar241', vol:'1.4K posts/j', badge:'new' },
-    { rank:7, tag:'#Weekend241', vol:'1.2K posts/j', badge:'rise' }
+    { rank:1, tag:'#LibrevilleNight',    vol:'—', badge:'hot' },
+    { rank:2, tag:'#Ambi241',            vol:'—', badge:'rise' },
+    { rank:3, tag:'#Sortir241',          vol:'—', badge:'rise' },
+    { rank:4, tag:'#Gabon',              vol:'—', badge:'new' },
+    { rank:5, tag:'#NightlifeLibreville',vol:'—', badge:'hot' },
   ],
-  savedHashtags: ['#Ambi241','#Libreville','#Sortir241','#Gabon','#Nightlife'],
-  topPosts: [
-    { caption:'🎶 Chanson de la semaine...', platform:'ig', likes:342, comments:29, reach:5610, date:'08 Jan' },
-    { caption:'🎉 Ce soir c\'est la fête chez Bus\'O...', platform:'ig', likes:214, comments:18, reach:3420, date:'10 Jan' },
-    { caption:'🍸 Happy Hour de 18h à 21h...', platform:'fb', likes:187, comments:12, reach:2890, date:'09 Jan' }
-  ]
+  savedHashtags: ['#Ambi241','#Libreville','#Sortir241','#Gabon'],
+  topPosts: []
 };
 var _currentReachPlatform = 'ig';
 var _currentPostFilter = 'all';
