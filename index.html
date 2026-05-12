@@ -5729,16 +5729,16 @@ if (document.readyState === 'loading') {
 
           <!-- Avatar cliquable -->
           <div id="avatarDropArea" class="avatar-drop-zone" title="Changer ma photo" style="border:none;padding:0;background:none;flex-shrink:0;">
-            <label for="avatarFileInput" style="display:block;cursor:pointer;">
+            <label style="display:block;cursor:pointer;">
               <div style="position:relative;width:80px;height:80px;">
                 <div id="myAvatarWrap" class="user-avatar-ring" style="cursor:pointer;width:80px;height:80px;border:3px solid var(--surface2);border-radius:50%;background:rgba(255,45,155,0.15);box-shadow:0 4px 20px rgba(255,45,155,0.4),0 0 0 2px rgba(255,45,155,0.3);overflow:hidden;display:flex;align-items:center;justify-content:center;">
                   <div id="myAvatarInner" class="user-avatar-initiale" style="font-size:2rem;">?</div>
                 </div>
                 <div style="position:absolute;bottom:0;right:0;width:24px;height:24px;border-radius:50%;background:var(--pink);border:2px solid var(--surface2);display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:0.75rem;">📷</div>
               </div>
+              <input type="file" accept="image/*" style="display:none;" onchange="onAvatarFileSelected(this)">
             </label>
           </div>
-          <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="onAvatarFileSelected(this)">
 
           <!-- Nom + badge -->
           <div style="flex:1;min-width:0;padding-bottom:0.2rem;">
@@ -5787,7 +5787,7 @@ if (document.readyState === 'loading') {
 
           <!-- Boutons rapides -->
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem;">
-            <label for="avatarFileInput" style="padding:0.6rem 0.5rem;border-radius:12px;border:1px solid rgba(255,45,155,0.3);background:rgba(255,45,155,0.07);color:var(--pink);font-family:'DM Sans',sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.35rem;transition:background 0.2s;">📷 Changer photo</label>
+            <label style="padding:0.6rem 0.5rem;border-radius:12px;border:1px solid rgba(255,45,155,0.3);background:rgba(255,45,155,0.07);color:var(--pink);font-family:'DM Sans',sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.35rem;transition:background 0.2s;">📷 Changer photo<input type="file" accept="image/*" style="display:none;" onchange="onAvatarFileSelected(this)"></label>
             <button onclick="openEditPseudoModal()" style="padding:0.6rem 0.5rem;border-radius:12px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.07);color:var(--cyan);font-family:'DM Sans',sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.35rem;transition:background 0.2s;">✏️ Modifier pseudo</button>
           </div>
           <div id="avatarUploadStatus" style="font-size:0.68rem;min-height:1rem;text-align:center;color:var(--cyan);"></div>
@@ -11773,55 +11773,47 @@ function onAvatarFileSelected(input){
 }
 window.onAvatarFileSelected = onAvatarFileSelected;
 
-// Traitement fichier avatar (commun upload + drag-drop)
+// Traitement fichier avatar (commun clic + drag-drop)
+// ── Méthode : FileReader → canvas → base64 → Firestore (pas de Firebase Storage)
+// ── Identique à adminDefaultPhotoSelected() qui fonctionne bien
 function _processAvatarFile(file){
   if(!file) return;
-  // Accepter tous les formats image (JPEG, PNG, WEBP, GIF, HEIC, AVIF, BMP, TIFF, SVG…)
   var isImgType = file.type.startsWith("image/") ||
     /\.(jpe?g|png|webp|gif|heic|heif|avif|bmp|tiff?|svg|ico)$/i.test(file.name);
   if(!isImgType){ _setAvatarStatus("error","❌ Fichier non reconnu comme image"); return; }
   if(file.size > 10*1024*1024){ _setAvatarStatus("error","❌ Image trop grande (max 10 Mo)"); return; }
   var uid = window.currentUserUID;
   if(!uid){ _setAvatarStatus("error","❌ Connectez-vous d'abord"); return; }
-  _setAvatarStatus("uploading","⏳ Upload en cours…");
-  showUploadProgress(10, "Avatar...");
+  _setAvatarStatus("uploading","⏳ Traitement en cours…");
 
   var reader = new FileReader();
   reader.onload = function(ev){
     var img = new Image();
     img.onload = function(){
       var canvas = document.createElement("canvas");
-      var size = 240;
-      canvas.width = size; canvas.height = size;
-      var ctx2 = canvas.getContext("2d");
-      var s = Math.min(img.width, img.height);
-      var sx = (img.width-s)/2, sy = (img.height-s)/2;
-      ctx2.drawImage(img, sx, sy, s, s, 0, 0, size, size);
-      canvas.toBlob(function(blob){
-        var path = "avatars/"+uid+"/avatar.jpg";
-        var storRef = window.fbRef(window.fbStorage, path);
-        showUploadProgress(40, "Upload...");
-        window.fbUploadBytes(storRef, blob).then(function(){
-          showUploadProgress(80, "Finalisation...");
-          return window.fbGetDownloadURL(storRef);
-        }).then(function(downloadUrl){
-          return window.fbUpdateDoc(window.fbDoc(window.db,"users",uid),{ avatarUrl: downloadUrl })
-            .then(function(){ return downloadUrl; });
-        }).then(function(downloadUrl){
-          hideUploadProgress(700);
-          _userAvatarCache[uid] = downloadUrl;
+      var MAX = 240;
+      var w = img.width, h = img.height;
+      var ratio = Math.min(MAX/w, MAX/h, 1);
+      canvas.width  = Math.round(w * ratio);
+      canvas.height = Math.round(h * ratio);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      var dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+      // Sauvegarder directement en base64 dans Firestore (même méthode que admin)
+      window.fbUpdateDoc(window.fbDoc(window.db,"users",uid),{ avatarUrl: dataUrl })
+        .then(function(){
+          _userAvatarCache[uid] = dataUrl;
           var pseudo = window.currentUserPseudo||window.currentUserEmail||"?";
           var initiale = (pseudo||"?")[0].toUpperCase();
           _renderMyAvatar(uid, initiale);
           _setAvatarStatus("success","✅ Photo mise à jour !");
           setTimeout(function(){ _setAvatarStatus("",""); }, 3500);
           showToast("📷 Photo de profil mise à jour !");
-        }).catch(function(e){
-          hideUploadProgress(0);
+        })
+        .catch(function(e){
           _setAvatarStatus("error","❌ Erreur : "+(e.message||""));
         });
-      }, "image/jpeg", 0.88);
     };
+    img.onerror = function(){ _setAvatarStatus("error","❌ Image invalide"); };
     img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
