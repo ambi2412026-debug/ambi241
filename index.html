@@ -18899,7 +18899,7 @@ window.closeAdminDashboard=closeAdminDashboard;
 
 function switchAdmTab(tab){
   _currentAdmTab=tab;
-  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support","content","appconfig"];
+  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support","content","appconfig","importgmaps"];
   tabs.forEach(function(t){
     var btn=document.getElementById("admtab-"+t);
     var panel=document.getElementById("admpanel-"+t);
@@ -18910,9 +18910,7 @@ function switchAdmTab(tab){
   if(tab==="overview") renderAdmOverview();
   else if(tab==="etabl") renderAdmEtabl();
   else if(tab==="users"){
-    // renderAdmUsers gere lui-meme le retry Firebase en interne
     renderAdmUsers();
-    // Lancer aussi loadAdminConfig si superadmin pas encore resolu
     if(!_superAdminEmail) loadAdminConfig();
   }
   else if(tab==="notifs") renderAdminNotifs();
@@ -18920,7 +18918,6 @@ function switchAdmTab(tab){
   else if(tab==="moderation") renderAdmModeration();
   else if(tab==="connexions") renderAdmConnexions();
   else if(tab==="settings"){
-    // Idem pour l'onglet paramètres
     if(!_superAdminEmail && window.db) loadAdminConfig();
     else renderAdmSettings();
   }
@@ -18929,6 +18926,7 @@ function switchAdmTab(tab){
   else if(tab==="support") renderAdmSupport();
   else if(tab==="content") { if(typeof window.renderAdmContent==="function") window.renderAdmContent(); }
   else if(tab==="appconfig") { if(typeof window.renderAdmAppConfig==="function") window.renderAdmAppConfig(0); }
+  else if(tab==="importgmaps") { if(!window._igm2Inited) igm2Init(); }
 }
 window.switchAdmTab=switchAdmTab;
 window.openAdminAddModal=openAdminAddModal;
@@ -21844,6 +21842,7 @@ window.doAssignEtab = doAssignEtab;
       <button class="adm-tab"        id="admtab-payments"      onclick="switchAdmTab('payments')">💰 Paiements</button>
       <button class="adm-tab"        id="admtab-content"       onclick="switchAdmTab('content');setTimeout(function(){if(typeof window.renderAdmContent==='function'&&document.getElementById('adminContentPanel').innerHTML.indexOf('Chargement')!==-1)window.renderAdmContent(0);},200);">📋 Contenu</button>
       <button class="adm-tab"        id="admtab-support"       onclick="switchAdmTab('support')" style="position:relative;">💬 Support<span id="admSupportBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:#fff;font-size:0.5rem;font-weight:800;width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center;border:1px solid var(--bg);"></span></button>
+      <button class="adm-tab"        id="admtab-importgmaps"   onclick="switchAdmTab('importgmaps')" style="color:var(--green);">🗺️ Import Maps</button>
     </div>
 
     <!-- ── Contenu des panneaux ── -->
@@ -22021,6 +22020,105 @@ window.doAssignEtab = doAssignEtab;
       <div id="admpanel-support" class="adm-panel" style="display:none;">
         <div id="adminSupportContent">Chargement...</div>
       </div>
+
+      <!-- ══ Import Google Maps ══ -->
+      <div id="admpanel-importgmaps" class="adm-panel" style="display:none;">
+
+        <!-- Steps -->
+        <div class="igm-steps" id="igmSteps2">
+          <div class="igm-step igm-active" id="igm2-step1"><div class="igm-step-num">1</div> Catégories</div>
+          <div class="igm-step" id="igm2-step2"><div class="igm-step-num">2</div> Recherche</div>
+          <div class="igm-step" id="igm2-step3"><div class="igm-step-num">3</div> Sélection</div>
+          <div class="igm-step" id="igm2-step4"><div class="igm-step-num">4</div> Import</div>
+        </div>
+
+        <!-- Section 1 : Guide + Catégories -->
+        <div class="igm-section igm-active" id="igm2-sec1">
+
+          <div class="igm-guide">
+            <div class="igm-guide-title">📖 Comment ça marche ?</div>
+            <div class="igm-guide-steps">
+              <div class="igm-gs"><div class="igm-gs-num">1</div><div class="igm-gs-body"><div class="igm-gs-label">Choisis les catégories</div><div class="igm-gs-desc">Sélectionne les types d'établissements à importer : bars, restos, hôtels, clubs…</div></div></div>
+              <div class="igm-gs"><div class="igm-gs-num">2</div><div class="igm-gs-body"><div class="igm-gs-label">Recherche automatique</div><div class="igm-gs-desc">L'outil interroge Google Maps Places API sur Libreville et récupère les établissements publiés (nom, note, adresse, coordonnées GPS).</div></div></div>
+              <div class="igm-gs"><div class="igm-gs-num">3</div><div class="igm-gs-body"><div class="igm-gs-label">Vérifie et sélectionne</div><div class="igm-gs-desc">Les doublons déjà présents dans Firebase sont automatiquement détectés et marqués. Tu choisis ce que tu importes.</div></div></div>
+              <div class="igm-gs"><div class="igm-gs-num">4</div><div class="igm-gs-body"><div class="igm-gs-label">Import en un clic</div><div class="igm-gs-desc">Les établissements sélectionnés sont ajoutés à Firebase avec tous leurs champs et apparaissent immédiatement dans l'appli.</div></div></div>
+            </div>
+            <div class="igm-guide-note">💡 La recherche peut prendre 30 à 60 secondes selon les catégories. Une connexion internet stable est requise.</div>
+          </div>
+
+          <div class="igm-panel">
+            <div class="igm-panel-title">🗂️ Choisir les catégories à importer</div>
+            <div class="igm-panel-sub">Sélectionne les types d'établissements à récupérer sur Google Maps à Libreville.</div>
+            <div class="igm-cat-grid">
+              <div class="igm-cat-btn igm-cat-sel" data-key="Hotel" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🏨</span><div class="igm-cat-name">Hôtels & Motels</div><div class="igm-cat-count" id="igm2-cnt-Hotel">—</div></div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Bar" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🍺</span><div class="igm-cat-name">Bars</div><div class="igm-cat-count" id="igm2-cnt-Bar">—</div></div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Bar Terrasse" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🍹</span><div class="igm-cat-name">Bar Terrasses</div><div class="igm-cat-count" id="igm2-cnt-Bar Terrasse">—</div></div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Snack" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🍟</span><div class="igm-cat-name">Snacks</div><div class="igm-cat-count" id="igm2-cnt-Snack">—</div></div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Restaurant" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🍽️</span><div class="igm-cat-name">Restos & Pâtisseries</div><div class="igm-cat-count" id="igm2-cnt-Restaurant">—</div></div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Discotheque" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🎵</span><div class="igm-cat-name">Clubs</div><div class="igm-cat-count" id="igm2-cnt-Discotheque">—</div></div>
+            </div>
+            <button class="igm-btn igm-btn-primary" onclick="igm2StartSearch()">🔍 Lancer la recherche Google Maps</button>
+          </div>
+        </div>
+
+        <!-- Section 2 : Recherche -->
+        <div class="igm-section" id="igm2-sec2">
+          <div class="igm-panel">
+            <div class="igm-panel-title">⏳ Recherche en cours...</div>
+            <div class="igm-panel-sub" id="igm2SearchStatus">Connexion à Google Maps Places API...</div>
+            <div class="igm-progress-wrap">
+              <div class="igm-progress-bar"><div class="igm-progress-fill" id="igm2ProgressFill"></div></div>
+              <div class="igm-progress-label"><span id="igm2ProgressLabel">0%</span><span id="igm2ProgressDetail"></span></div>
+            </div>
+            <div class="igm-log-wrap" id="igm2LogWrap"></div>
+          </div>
+        </div>
+
+        <!-- Section 3 : Sélection -->
+        <div class="igm-section" id="igm2-sec3">
+          <div class="igm-panel">
+            <div class="igm-panel-title">✅ Résultats trouvés</div>
+            <div class="igm-stat-row">
+              <div class="igm-stat-chip"><div class="igm-stat-val" id="igm2StatTotal" style="color:var(--cyan)">0</div><div class="igm-stat-lbl">Trouvés</div></div>
+              <div class="igm-stat-chip"><div class="igm-stat-val" id="igm2StatNew" style="color:var(--green)">0</div><div class="igm-stat-lbl">Nouveaux</div></div>
+              <div class="igm-stat-chip"><div class="igm-stat-val" id="igm2StatExists" style="color:var(--amber)">0</div><div class="igm-stat-lbl">Déjà présents</div></div>
+            </div>
+            <div class="igm-results-header">
+              <div class="igm-results-count">Sélectionne les établissements · <strong id="igm2SelectedCount">0</strong> sélectionnés</div>
+              <div style="display:flex;gap:0.4rem;">
+                <button class="igm-btn igm-btn-outline igm-btn-sm" onclick="igm2SelectAll(true)">Tout cocher</button>
+                <button class="igm-btn igm-btn-outline igm-btn-sm" onclick="igm2SelectAll(false)">Tout décocher</button>
+              </div>
+            </div>
+            <div id="igm2ResultsList"></div>
+            <div style="margin-top:1rem;">
+              <button class="igm-btn igm-btn-green" onclick="igm2StartImport()">🚀 Importer dans Firebase</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 4 : Import -->
+        <div class="igm-section" id="igm2-sec4">
+          <div class="igm-panel">
+            <div class="igm-panel-title">🚀 Import Firebase en cours...</div>
+            <div class="igm-progress-wrap">
+              <div class="igm-progress-bar"><div class="igm-progress-fill" id="igm2ImportProgressFill"></div></div>
+              <div class="igm-progress-label"><span id="igm2ImportProgressLabel">0%</span><span id="igm2ImportProgressDetail"></span></div>
+            </div>
+            <div class="igm-log-wrap" id="igm2ImportLog"></div>
+            <div id="igm2ImportDone" style="display:none;margin-top:1.2rem;">
+              <div style="text-align:center;padding:1.5rem;">
+                <div style="font-size:2.5rem;margin-bottom:0.5rem;">🎉</div>
+                <div style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:var(--green);margin-bottom:0.3rem;">Import terminé !</div>
+                <div style="font-size:0.75rem;color:var(--muted);margin-bottom:1.2rem;" id="igm2ImportSummary"></div>
+                <button class="igm-btn igm-btn-primary" onclick="igm2Reset()">🔄 Nouvelle recherche</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <!-- FIN Import Google Maps ══ -->
 
     </div><!-- /adm-content -->
   </div><!-- /adminDashPanel -->
@@ -37311,6 +37409,232 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
   window.igmStartImport = igmStartImport;
 
   console.log('[AMBI241] ✅ Import Google Maps Panel — chargé');
+})();
+</script>
+<!-- ══ IMPORT GOOGLE MAPS — Dashboard admin réel (admtab-importgmaps) ══ -->
+<script>
+(function(){
+  var GMAPS_KEY2 = "AIzaSyCx3hD28Lb9EtUrawHbTnM-6vmXdgO1ABw";
+  var _r2 = [], _sel2 = new Set();
+  var _cats2 = new Set(['Hotel','Bar','Bar Terrasse','Snack','Restaurant','Discotheque']);
+
+  var CFG2 = {
+    "Hotel":        {label:"Hôtels & Motels",  icon:"🏨", queries:["hotel Libreville Gabon","motel Libreville Gabon","résidence hôtelière Libreville"]},
+    "Bar":          {label:"Bars",             icon:"🍺", queries:["bar Libreville Gabon","pub Libreville Gabon","lounge bar Libreville"]},
+    "Bar Terrasse": {label:"Bar Terrasses",    icon:"🍹", queries:["bar terrasse Libreville Gabon","rooftop bar Libreville"]},
+    "Snack":        {label:"Snacks",           icon:"🍟", queries:["snack Libreville Gabon","fast food Libreville Gabon","maquis Libreville"]},
+    "Restaurant":   {label:"Restos & Pâtiss.",icon:"🍽️", queries:["restaurant Libreville Gabon","patisserie Libreville Gabon"]},
+    "Discotheque":  {label:"Clubs",            icon:"🎵", queries:["nightclub Libreville Gabon","discothèque Libreville Gabon"]}
+  };
+  var QTRS2 = ["Centre-ville","Akanda","Glass","Louis","Owendo","Nombakélé","Batterie IV","PK5","PK8","PK12","Angondjé","Nzeng-Ayong","La Sablière"];
+
+  function igm2Init() {
+    window._igm2Inited = true;
+    igm2Reset(false);
+    if(!window.db||!window.fbGetDocs||!window.fbCollection) return;
+    window.fbGetDocs(window.fbCollection(window.db,"etablissements")).then(function(snap){
+      var ex=new Set(), maxId=0;
+      snap.forEach(function(d){
+        var v=d.data();
+        if(v.nom) ex.add(v.nom.toLowerCase().trim());
+        if(v.place_id) ex.add(v.place_id);
+        if(v.id&&v.id>maxId) maxId=v.id;
+      });
+      window._igm2Ex=ex; window._igm2Max=maxId;
+    }).catch(function(){});
+  }
+  window.igm2Init=igm2Init;
+
+  function igm2Reset(reload) {
+    _r2=[]; _sel2.clear();
+    if(reload!==false){
+      igm2Step(1);
+      ['igm2LogWrap','igm2ImportLog'].forEach(function(id){ var e=document.getElementById(id); if(e) e.innerHTML=''; });
+      var d=document.getElementById('igm2ImportDone'); if(d) d.style.display='none';
+      var rl=document.getElementById('igm2ResultsList'); if(rl) rl.innerHTML='';
+    }
+  }
+  window.igm2Reset=igm2Reset;
+
+  function igm2Step(n){
+    [1,2,3,4].forEach(function(i){
+      var s=document.getElementById('igm2-step'+i), sec=document.getElementById('igm2-sec'+i);
+      if(s){s.classList.toggle('igm-active',i===n);s.classList.toggle('igm-done',i<n);}
+      if(sec) sec.classList.toggle('igm-active',i===n);
+    });
+  }
+
+  function igm2ToggleCat(el){
+    var k=el.dataset.key;
+    if(_cats2.has(k)) _cats2.delete(k); else _cats2.add(k);
+    el.classList.toggle('igm-cat-sel',_cats2.has(k));
+  }
+  window.igm2ToggleCat=igm2ToggleCat;
+
+  function igm2Log(msg,type){
+    var w=document.getElementById('igm2LogWrap'); if(!w) return;
+    var l=document.createElement('div');
+    l.className='igm-log-line'+(type?' igm-'+type:'');
+    l.textContent=new Date().toLocaleTimeString('fr')+' — '+msg;
+    w.appendChild(l); w.scrollTop=w.scrollHeight;
+  }
+
+  function igm2Prog(pct,label,detail){
+    var f=document.getElementById('igm2ProgressFill'),lb=document.getElementById('igm2ProgressLabel'),dt=document.getElementById('igm2ProgressDetail'),st=document.getElementById('igm2SearchStatus');
+    if(f) f.style.width=pct+'%';
+    if(lb) lb.textContent=Math.round(pct)+'%';
+    if(dt&&detail) dt.textContent=detail;
+    if(st&&label) st.textContent=label;
+  }
+
+  function igm2LoadSDK(){
+    return new Promise(function(res,rej){
+      if(window.google&&window.google.maps&&window.google.maps.places){res();return;}
+      var s=document.createElement('script');
+      s.src='https://maps.googleapis.com/maps/api/js?key='+GMAPS_KEY2+'&libraries=places&language=fr';
+      s.onload=res; s.onerror=function(){rej(new Error('Impossible de charger Google Maps SDK'));};
+      document.head.appendChild(s);
+    });
+  }
+
+  function igm2Search(q,svc){
+    return new Promise(function(res){
+      svc.textSearch({query:q,location:new google.maps.LatLng(0.4162,9.4673),radius:25000,language:'fr'},function(results,status,pag){
+        var all=results||[];
+        if(status===google.maps.places.PlacesServiceStatus.OK&&pag&&pag.hasNextPage){
+          setTimeout(function(){pag.nextPage();svc.textSearch({query:q,location:new google.maps.LatLng(0.4162,9.4673),radius:25000,language:'fr'},function(r2){res(all.concat(r2||[]));});},1200);
+        } else res(all);
+      });
+    });
+  }
+
+  function igm2IsEx(p){
+    if(!window._igm2Ex) return false;
+    return (p.place_id&&window._igm2Ex.has(p.place_id))||(p.name&&window._igm2Ex.has(p.name.toLowerCase().trim()));
+  }
+
+  function igm2Qrt(addr){
+    if(!addr) return 'Libreville';
+    for(var i=0;i<QTRS2.length;i++) if(addr.toLowerCase().indexOf(QTRS2[i].toLowerCase())!==-1) return QTRS2[i];
+    return 'Libreville';
+  }
+
+  function igm2Esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  async function igm2StartSearch(){
+    if(!_cats2.size){if(typeof showToast==='function')showToast('⚠️ Sélectionne au moins une catégorie');return;}
+    igm2Step(2); _r2=[]; var seen=new Set();
+    try{
+      igm2Log('Chargement SDK Google Maps...');
+      await igm2LoadSDK();
+      igm2Log('SDK chargé ✓','ok');
+      var div=document.createElement('div');
+      div.style.cssText='position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
+      document.body.appendChild(div);
+      var gm=new google.maps.Map(div,{center:{lat:0.4162,lng:9.4673},zoom:12});
+      var svc=new google.maps.places.PlacesService(gm);
+      var cats=Array.from(_cats2);
+      var total=cats.reduce(function(s,c){return s+CFG2[c].queries.length;},0), done=0;
+      for(var ci=0;ci<cats.length;ci++){
+        var cat=cats[ci],cfg=CFG2[cat];
+        igm2Log('🔍 '+cfg.label+'...');
+        for(var qi=0;qi<cfg.queries.length;qi++){
+          var q=cfg.queries[qi];
+          igm2Prog((done/total)*100,'Recherche "'+q+'"...',done+'/'+total+' requêtes');
+          igm2Log('  → "'+q+'"');
+          try{
+            var res=await igm2Search(q,svc);
+            var nf=0;
+            for(var ri=0;ri<res.length;ri++){
+              var p=res[ri]; if(seen.has(p.place_id)) continue; seen.add(p.place_id);
+              var ex=igm2IsEx(p);
+              _r2.push({place_id:p.place_id,nom:p.name,adresse:p.formatted_address||p.vicinity||'',quartier:igm2Qrt(p.formatted_address||p.vicinity||''),note:p.rating||0,avis:p.user_ratings_total||0,lat:(p.geometry&&p.geometry.location)?p.geometry.location.lat():0,lng:(p.geometry&&p.geometry.location)?p.geometry.location.lng():0,catKey:cat,type:cat,isExisting:ex,selected:!ex});
+              if(!ex) nf++;
+            }
+            igm2Log('  ✓ '+res.length+' résultats ('+nf+' nouveaux)','ok');
+            var ce=document.getElementById('igm2-cnt-'+cat); if(ce) ce.textContent=_r2.filter(function(r){return r.catKey===cat&&!r.isExisting;}).length+' nv';
+          }catch(e){igm2Log('  ⚠️ '+e.message,'warn');}
+          done++;
+          await new Promise(function(r){setTimeout(r,400);});
+        }
+      }
+      igm2Prog(100,'Terminé !',total+'/'+total+' requêtes');
+      igm2Log('🎉 '+_r2.length+' établissements trouvés','ok');
+      igm2Log('✅ Nouveaux : '+_r2.filter(function(r){return !r.isExisting;}).length,'ok');
+      igm2Log('⚠️ Déjà présents : '+_r2.filter(function(r){return r.isExisting;}).length,'warn');
+      setTimeout(igm2ShowResults,800);
+    }catch(e){igm2Log('❌ '+e.message,'err');if(typeof showToast==='function')showToast('❌ '+e.message);}
+  }
+  window.igm2StartSearch=igm2StartSearch;
+
+  function igm2ShowResults(){
+    igm2Step(3);
+    var ne=_r2.filter(function(r){return !r.isExisting;}).length, ex=_r2.filter(function(r){return r.isExisting;}).length;
+    ['igm2StatTotal','igm2StatNew','igm2StatExists'].forEach(function(id,i){ var e=document.getElementById(id); if(e) e.textContent=[_r2.length,ne,ex][i]; });
+    _r2.sort(function(a,b){return a.isExisting!==b.isExisting?(a.isExisting?1:-1):b.note-a.note;});
+    _sel2=new Set(_r2.filter(function(r){return r.selected;}).map(function(r){return r.place_id;}));
+    igm2Render();
+  }
+
+  function igm2Render(){
+    var list=document.getElementById('igm2ResultsList'), html='';
+    for(var i=0;i<_r2.length;i++){
+      var r=_r2[i],sel=_sel2.has(r.place_id),cfg=CFG2[r.catKey];
+      html+='<div class="igm-result-card '+(sel?'igm-rc-sel':'')+' '+(r.isExisting?'igm-rc-exists':'')+'" onclick="igm2Toggle(\''+igm2Esc(r.place_id)+'\')" data-i2="'+igm2Esc(r.place_id)+'">';
+      html+='<div class="igm-rc-check">'+(sel?'✓':'')+'</div>';
+      html+='<div style="flex:1;min-width:0;"><div class="igm-rc-name">'+cfg.icon+' '+igm2Esc(r.nom)+'</div>';
+      html+='<div class="igm-rc-meta"><span class="igm-rc-tag igm-rc-tag-type">'+cfg.label+'</span>';
+      if(r.note) html+='<span class="igm-rc-tag igm-rc-tag-rating">⭐ '+r.note.toFixed(1)+'</span>';
+      if(r.avis) html+='<span class="igm-rc-tag igm-rc-tag-reviews">'+r.avis+' avis</span>';
+      if(r.isExisting) html+='<span class="igm-rc-tag igm-rc-tag-exists">⚠️ Déjà présent</span>';
+      html+='</div><div class="igm-rc-addr">📍 '+igm2Esc(r.adresse||r.quartier)+'</div></div></div>';
+    }
+    list.innerHTML=html; igm2Count();
+  }
+
+  function igm2Toggle(id){
+    if(_sel2.has(id)) _sel2.delete(id); else _sel2.add(id);
+    var c=document.querySelector('[data-i2="'+id+'"]');
+    if(c){var s=_sel2.has(id);c.classList.toggle('igm-rc-sel',s);c.querySelector('.igm-rc-check').textContent=s?'✓':'';}
+    igm2Count();
+  }
+  window.igm2Toggle=igm2Toggle;
+
+  function igm2SelectAll(v){_sel2.clear();if(v)_r2.filter(function(r){return !r.isExisting;}).forEach(function(r){_sel2.add(r.place_id);});igm2Render();}
+  window.igm2SelectAll=igm2SelectAll;
+
+  function igm2Count(){var e=document.getElementById('igm2SelectedCount');if(e)e.textContent=_sel2.size;}
+
+  async function igm2StartImport(){
+    var toImp=_r2.filter(function(r){return _sel2.has(r.place_id);});
+    if(!toImp.length){if(typeof showToast==='function')showToast('⚠️ Aucun établissement sélectionné');return;}
+    if(!window.db||!window.fbAddDoc||!window.fbCollection){if(typeof showToast==='function')showToast('❌ Firebase non disponible');return;}
+    igm2Step(4);
+    var lw=document.getElementById('igm2ImportLog');
+    function il(msg,type){var l=document.createElement('div');l.className='igm-log-line'+(type?' igm-'+type:'');l.textContent=new Date().toLocaleTimeString('fr')+' — '+msg;lw.appendChild(l);lw.scrollTop=lw.scrollHeight;}
+    var maxId=window._igm2Max||100, imp=0, err=0;
+    il('🚀 Import de '+toImp.length+' établissements...','ok');
+    for(var i=0;i<toImp.length;i++){
+      var r=toImp[i], pct=((i+1)/toImp.length)*100;
+      var f=document.getElementById('igm2ImportProgressFill'),lb=document.getElementById('igm2ImportProgressLabel'),dt=document.getElementById('igm2ImportProgressDetail');
+      if(f) f.style.width=pct+'%'; if(lb) lb.textContent=Math.round(pct)+'%'; if(dt) dt.textContent=(i+1)+'/'+toImp.length;
+      var newId=++maxId;
+      var doc={id:newId,nom:r.nom,type:r.type,quartier:r.quartier,ambiance:"Chill",statut:"",note:r.note||0,avis:r.avis||0,contact:"",paiement:"En attente",affluence:0,lat:r.lat,lng:r.lng,place_id:r.place_id,maps_url:"https://www.google.com/maps/place/?q=place_id:"+r.place_id,photo_interieur:"",photo_exterieur:""};
+      try{await window.fbAddDoc(window.fbCollection(window.db,"etablissements"),doc);il('✅ ['+newId+'] '+r.nom+' ('+CFG2[r.catKey].label+')','ok');imp++;}
+      catch(e){il('❌ '+r.nom+': '+e.message,'err');err++;}
+      await new Promise(function(res){setTimeout(res,150);});
+    }
+    window._igm2Max=maxId;
+    il('🎉 Terminé ! '+imp+' importés, '+err+' erreur(s).','ok');
+    var sm=document.getElementById('igm2ImportSummary'); if(sm) sm.textContent=imp+' établissements ajoutés · '+err+' erreur(s)';
+    var dn=document.getElementById('igm2ImportDone'); if(dn) dn.style.display='block';
+    window._igm2Inited=false;
+    if(typeof window.loadEtablissements==='function') setTimeout(function(){window.loadEtablissements();},800);
+    if(typeof window.admRefreshEtabl==='function') setTimeout(function(){window.admRefreshEtabl();},1200);
+  }
+  window.igm2StartImport=igm2StartImport;
+
+  console.log('[AMBI241] ✅ Import Maps (dashboard réel) — chargé');
 })();
 </script>
 </body>
