@@ -14431,8 +14431,11 @@ function renderPayments(){
 var SECS=["accueil","etablissements","paiements","contacts","profil","social"];
 function goHome(){switchSection("accueil",document.querySelector(".nav-item"));}
 function switchSection(name,btn){
-  SECS.forEach(function(s){document.getElementById("sec-"+s).classList.toggle("section-hidden",s!==name);});
+  /* FIX#2b — Mise à jour active immédiate, DOM section via rAF pour fluidité */
   if(btn){document.querySelectorAll(".nav-item").forEach(function(b){b.classList.remove("active");});btn.classList.add("active");}
+  requestAnimationFrame(function(){
+    SECS.forEach(function(s){document.getElementById("sec-"+s).classList.toggle("section-hidden",s!==name);});
+  });
   // Effacer le badge Discussions quand on arrive sur la section
   if(name === "publications" && window.markDiscBadge){ window.markDiscBadge(false); }
   // Discussions redirigées vers Social
@@ -14855,8 +14858,11 @@ window._syncProfilSection = _syncProfilSection;
 function navHandleProfil(btn){
   var connected = !!(window.currentUserUID);
   if(connected){
-    _syncProfilSection();   /* ← injecter les vraies données AVANT d'afficher */
+    /* FIX#2 — Naviguer immédiatement, synchroniser les données en async */
     switchSection('profil', btn);
+    requestAnimationFrame(function(){
+      setTimeout(function(){ _syncProfilSection(); }, 0);
+    });
   } else {
     /* Visiteur : afficher l'écran de choix d'inscription dans la section Profil */
     _renderVisitorProfilScreen();
@@ -32590,6 +32596,13 @@ function _pGalleryRestore(gridId) {
 
 /* Upload : lecture, compression, sauvegarde, affichage */
 function pHandleGalleryUpload(input) {
+  /* FIX#1 — Require UID to save photos permanently */
+  if(!window.currentUserUID) {
+    if(typeof pShowToast === 'function') pShowToast('🔒 Connectez-vous pour sauvegarder vos photos');
+    else if(typeof window.showToast === 'function') window.showToast('🔒 Connectez-vous pour sauvegarder vos photos');
+    input.value = '';
+    return;
+  }
   var files = Array.from(input.files || []);
   if(!files.length) return;
   var activeView = document.querySelector('#sec-profil .profil-view.active');
@@ -32623,9 +32636,11 @@ function pHandleGalleryUpload(input) {
         if(addBtn) grid.insertBefore(item, addBtn);
         else grid.appendChild(item);
 
-        /* Sauvegarder */
+        /* Sauvegarder en localStorage */
         saved.push(finalUrl);
         _pGallerySave(saved);
+        /* FIX#1b — Aussi sauvegarder dans Firestore pour persistance cross-session */
+        _pGallerySaveToFirestore(saved);
 
         count++;
         if(count === total) pShowToast('✅ ' + count + ' photo' + (count>1?'s':'') + ' ajoutée' + (count>1?'s':''));
@@ -34306,6 +34321,8 @@ window.cancelRequest = function(uid){
 };
 
 window.quickAddFriend = function(uid, name){
+  /* FIX#3 — Ajouter ami requiert connexion */
+  if(!_requireAuth('Ajouter un ami')) return;
   _suggestions = _suggestions.filter(function(s){return s.uid!==uid;});
   _requestsOut.push({ uid:uid, name:name, avatar:'👤', sentAt:'À l\'instant' });
   renderSuggestions();renderRequests();
@@ -34351,6 +34368,8 @@ window.openMemberProfile = function(uid){
 
 /* ════════════ COMMUNAUTÉS ACTIONS ════════════ */
 window.toggleJoinComm = function(id){
+  /* FIX#3 — Rejoindre communauté requiert connexion */
+  if(!_requireAuth('Rejoindre une communauté')) return;
   var c = _communities.find(function(x){return x.id===id;});
   if(!c || c.privacy==='private') return;
   c.joined = !c.joined;
@@ -34534,7 +34553,39 @@ window.sendFriendRequest = function(){
 };
 
 /* ════════════ MODALE + UTILITAIRES ════════════ */
+/* FIX#3 — Redirection inscription pour visiteurs non connectés */
+function _requireAuth(actionLabel, cb) {
+  if(window.currentUserUID || window.currentUserEmail) {
+    if(typeof cb === 'function') cb();
+    return true;
+  }
+  closeSocFab();
+  /* Toast informatif */
+  var msg = '👤 ' + (actionLabel || 'Cette action') + ' nécessite un compte gratuit';
+  if(typeof window.showToast === 'function') window.showToast(msg);
+  else if(typeof socToast === 'function') socToast(msg);
+  /* Ouvrir le modal d'inscription après un léger délai */
+  setTimeout(function(){
+    var overlay = document.getElementById('userOverlay');
+    if(overlay) overlay.classList.add('show');
+    if(typeof switchUserTab === 'function') switchUserTab('inscription');
+  }, 350);
+  return false;
+}
+window._requireAuth = _requireAuth;
+
 window.openModal = function(id){
+  /* Modales sociales nécessitant une connexion */
+  var authRequired = ['modalAddFriend','modalCreateComm','modalCreateProj','modalMemberProfile'];
+  var labels = {
+    modalAddFriend:   'Ajouter un ami',
+    modalCreateComm:  'Créer une communauté',
+    modalCreateProj:  'Lancer un projet',
+    modalMemberProfile: 'Voir ce profil'
+  };
+  if(authRequired.indexOf(id) !== -1) {
+    if(!_requireAuth(labels[id] || 'Cette fonctionnalité')) return;
+  }
   var el = document.getElementById(id);
   if(el) el.classList.add('open');
   closeSocFab();
@@ -35115,6 +35166,136 @@ function smToast(msg){ if(typeof window.showToast==='function'){ window.showToas
 window.renderSocialMediaAdmin = window.renderSocialMediaAdmin;
 console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 })();
+
+/* ══════════════════════════════════════════════════════════════
+   AMBI241 — PATCH CORRECTIFS v3.1 (Bugs #1 #2 #3)
+   1. Persistance photos galerie profil
+   2. Vitesse nav bar
+   3. Redirection inscription visiteurs
+   ══════════════════════════════════════════════════════════════ */
+(function(){
+
+  /* ── FIX #1 : Firestore sync galerie ── */
+  window._pGallerySaveToFirestore = function(urls) {
+    if(!window.currentUserUID || !window.db || !window.fbDoc || !window.fbUpdateDoc) return;
+    try {
+      // Ne stocker que les 12 premières; chaque URL est déjà compressée (base64 ~20-80KB)
+      var toStore = (urls || []).slice(0, 12);
+      window.fbUpdateDoc(
+        window.fbDoc(window.db, 'users', window.currentUserUID),
+        { galleryPhotos: toStore, galleryUpdatedAt: Date.now() }
+      ).catch(function(e){ console.warn('[AMBI241] Gallery Firestore save failed:', e); });
+    } catch(e) {}
+  };
+
+  window._pGalleryRestoreFromFirestore = function() {
+    var uid = window.currentUserUID;
+    if(!uid || !window.db || !window.fbDoc || !window.fbGetDoc) return;
+    window.fbGetDoc(window.fbDoc(window.db, 'users', uid)).then(function(snap) {
+      if(!snap.exists()) return;
+      var data = snap.data();
+      var fsUrls = data.galleryPhotos;
+      if(!Array.isArray(fsUrls) || !fsUrls.length) return;
+      // Fusionner avec localStorage (Firestore gagne en cas de conflit)
+      var localUrls = [];
+      try { localUrls = JSON.parse(localStorage.getItem('ambi241_pgallery_' + uid) || '[]'); } catch(e){}
+      // Firestore est la source de vérité
+      try { localStorage.setItem('ambi241_pgallery_' + uid, JSON.stringify(fsUrls.slice(0,12))); } catch(e){}
+      // Raffraîchir la galerie dans l'UI
+      setTimeout(function(){
+        if(typeof _pGalleryRestore === 'function') {
+          _pGalleryRestore('pgallery-membre');
+          _pGalleryRestore('pgallery-etab');
+        }
+      }, 200);
+    }).catch(function(e){ console.warn('[AMBI241] Gallery Firestore restore failed:', e); });
+  };
+
+  /* ── FIX #1 : Hook onAuthStateChanged pour restore galerie ── */
+  // Surveiller le changement de UID pour déclencher la restauration
+  var _lastGalleryUID = null;
+  setInterval(function() {
+    var uid = window.currentUserUID || null;
+    if(uid && uid !== _lastGalleryUID) {
+      _lastGalleryUID = uid;
+      // Délai pour laisser Firebase initialiser
+      setTimeout(function() {
+        _pGalleryRestoreFromFirestore();
+      }, 1500);
+    }
+  }, 600);
+
+  /* ── FIX #1 : Avatar profil — reload depuis Firestore à chaque connexion ── */
+  var _lastAvatarUID = null;
+  setInterval(function() {
+    var uid = window.currentUserUID || null;
+    if(uid && uid !== _lastAvatarUID) {
+      _lastAvatarUID = uid;
+      // Attendre que l'UI soit prête
+      setTimeout(function() {
+        if(typeof window._renderUserPhotosUI === 'function') {
+          window._renderUserPhotosUI();
+        }
+        // Aussi recharger l'avatar dans la barre de nav / header
+        if(typeof loadUserAvatar === 'function') {
+          loadUserAvatar(uid, function(url) {
+            if(!url) return;
+            // Avatar du profil principal
+            var pavEl = document.getElementById('pav-membre');
+            if(pavEl) {
+              var img = pavEl.querySelector('img') || document.createElement('img');
+              img.src = url;
+              img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%;z-index:1;';
+              if(!pavEl.contains(img)) pavEl.prepend(img);
+              Array.from(pavEl.childNodes).forEach(function(n){ if(n.nodeType===3) n.textContent=''; });
+            }
+            // Mini-avatar dans la quickbar publication
+            var qba = document.getElementById('pubQuickbarAvatar');
+            if(qba) {
+              qba.innerHTML = '<img src="'+url+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
+            }
+          });
+        }
+      }, 1200);
+    }
+  }, 600);
+
+  /* ── FIX #2 : Nav bar — ajouter touch-action: manipulation ── */
+  // Injecter CSS pour réduire le délai tactile sur mobile
+  var navStyle = document.createElement('style');
+  navStyle.textContent = [
+    '.nav-item { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }',
+    '.nav-item:active { transform: scale(0.88); opacity: 0.75; transition: transform 0.08s, opacity 0.08s; }',
+    '/* Réduire la durée des transitions de sections */',
+    '.section-hidden { display: none !important; }',
+    '#sec-profil, #sec-accueil, #sec-etablissements, #sec-social, #sec-paiements {',
+    '  will-change: auto;',  /* éviter les repaints coûteux sur sections cachées */
+    '}'
+  ].join('\n');
+  document.head.appendChild(navStyle);
+
+  /* ── FIX #3 : Toast amélioré pour redirection inscription ── */
+  // Surcharger le toggleSocFab pour les visiteurs : afficher les options mais intercepter les clics
+  var _origToggleSocFab = window.toggleSocFab;
+  window.toggleSocFab = function() {
+    if(!window.currentUserUID && !window.currentUserEmail) {
+      // Visiteur : ouvrir directement l'inscription au lieu du FAB
+      if(typeof window.showToast === 'function') {
+        window.showToast('👤 Créez un compte gratuit pour accéder au social');
+      }
+      setTimeout(function(){
+        var overlay = document.getElementById('userOverlay');
+        if(overlay) overlay.classList.add('show');
+        if(typeof switchUserTab === 'function') switchUserTab('inscription');
+      }, 300);
+      return;
+    }
+    if(typeof _origToggleSocFab === 'function') _origToggleSocFab();
+  };
+
+  console.log('[AMBI241] ✅ Patch v3.1 appliqué — Bugs #1 (photos) #2 (nav speed) #3 (guest redirect)');
+})();
+
 </script>
 </body>
 </html>
