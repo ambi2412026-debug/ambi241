@@ -82,7 +82,28 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .igm-log-line.igm-ok{color:var(--green);}
 .igm-log-line.igm-warn{color:var(--amber);}
 .igm-log-line.igm-err{color:var(--red);}
-/* Guide tuto */
+/* ══ AJOUTER AMI — liste membres ══ */
+.af-filter-btn{flex-shrink:0;padding:0.26rem 0.6rem;border-radius:20px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:var(--muted);font-size:0.67rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;white-space:nowrap;}
+.af-filter-btn.af-active{background:rgba(255,45,155,0.12);border-color:rgba(255,45,155,0.4);color:var(--pink);}
+.af-member-row{display:flex;align-items:center;gap:0.6rem;padding:0.55rem 0.45rem;border-radius:11px;cursor:pointer;transition:background 0.15s;margin-bottom:0.18rem;user-select:none;-webkit-tap-highlight-color:transparent;}
+.af-member-row.af-selected{background:rgba(0,255,170,0.06);}
+.af-check{width:20px;height:20px;border-radius:6px;border:1.5px solid rgba(255,255,255,0.18);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:0.72rem;transition:all 0.15s;color:transparent;}
+.af-member-row.af-selected .af-check{background:var(--green);border-color:var(--green);color:#001a0e;}
+.af-avatar{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:1.05rem;flex-shrink:0;position:relative;}
+.af-status-dot{position:absolute;bottom:1px;right:1px;width:8px;height:8px;border-radius:50%;background:var(--green);border:1.5px solid var(--bg);}
+.af-name{font-family:'Syne',sans-serif;font-size:0.78rem;font-weight:800;color:var(--text);margin-bottom:0.1rem;}
+.af-meta{display:flex;flex-wrap:wrap;gap:0.2rem;align-items:center;}
+.af-badge{font-size:0.54rem;font-weight:800;padding:0.06rem 0.3rem;border-radius:4px;text-transform:uppercase;letter-spacing:0.04em;}
+.af-badge-membre,.af-badge-user{background:rgba(0,229,255,0.08);color:var(--cyan);border:1px solid rgba(0,229,255,0.18);}
+.af-badge-chauffeur{background:rgba(255,215,0,0.1);color:var(--amber);border:1px solid rgba(255,215,0,0.22);}
+.af-badge-establishment{background:rgba(0,255,170,0.09);color:var(--green);border:1px solid rgba(0,255,170,0.2);}
+.af-badge-admin,.af-badge-super_admin{background:rgba(255,45,155,0.1);color:var(--pink);border:1px solid rgba(255,45,155,0.22);}
+.af-etab{font-size:0.62rem;color:var(--muted);margin-left:0.15rem;}
+.af-already{opacity:0.42;pointer-events:none;}
+.af-already .af-check{background:rgba(255,215,0,0.1);border-color:rgba(255,215,0,0.3);color:var(--amber);}
+.af-empty{text-align:center;padding:2.2rem 1rem;color:var(--muted);font-size:0.78rem;}
+.af-empty-icon{font-size:2rem;margin-bottom:0.5rem;}
+
 .igm-guide{background:linear-gradient(135deg,rgba(0,229,255,0.07),rgba(0,255,170,0.05));border:1px solid rgba(0,229,255,0.22);border-radius:16px;padding:1.1rem 1.1rem 0.9rem;margin-bottom:1rem;}
 .igm-guide-title{font-family:'Syne',sans-serif;font-size:0.85rem;font-weight:800;color:var(--cyan);margin-bottom:0.85rem;display:flex;align-items:center;gap:0.4rem;}
 .igm-guide-steps{display:flex;flex-direction:column;gap:0.7rem;margin-bottom:0.85rem;}
@@ -7654,7 +7675,7 @@ if (document.readyState === 'loading') {
 <button class="soc-fab" id="socFab" onclick="toggleSocFab()">＋</button>
 <div class="soc-fab-menu" id="socFabMenu">
   <div class="soc-fab-item">
-    <button class="soc-fab-item-btn" onclick="openModal('modalAddFriend')">Ajouter un ami</button>
+    <button class="soc-fab-item-btn" onclick="openModal('modalAddFriend');afLoadMembers()">Ajouter un ami</button>
     <div class="soc-fab-item-icon">👤</div>
   </div>
   <div class="soc-fab-item">
@@ -7674,26 +7695,42 @@ if (document.readyState === 'loading') {
 
 <!-- ─── Modal : Ajouter un ami ─── -->
 <div class="soc-modal-overlay" id="modalAddFriend">
-  <div class="soc-modal-sheet">
+  <div class="soc-modal-sheet" style="max-height:92vh;display:flex;flex-direction:column;">
     <div class="soc-modal-handle"></div>
-    <div class="soc-modal-head">
+    <div class="soc-modal-head" style="flex-shrink:0;">
       <div class="soc-modal-title">👤 Ajouter un ami</div>
       <button class="soc-modal-close" onclick="closeModal('modalAddFriend')">✕</button>
     </div>
-    <div class="soc-modal-body">
-      <div class="soc-form-field">
-        <label class="soc-form-label">Rechercher par pseudo / email / téléphone</label>
-        <input type="text" class="soc-input" id="addFriendSearch" placeholder="@pseudo ou nom complet…" oninput="searchUsers(this.value)">
+    <!-- Corps scrollable -->
+    <div style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+      <!-- Barre de recherche -->
+      <div style="padding:0.75rem 1rem 0.4rem;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:0.5rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,45,155,0.2);border-radius:10px;padding:0.48rem 0.75rem;">
+          <span style="color:var(--muted);">🔍</span>
+          <input type="text" id="afSearchInput" placeholder="Filtrer par pseudo…" oninput="afFilterList(this.value)" style="background:none;border:none;outline:none;color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.82rem;width:100%;">
+        </div>
       </div>
-      <div id="userSearchResults" style="margin-bottom:0.8rem;">
-        <!-- Résultats de recherche -->
+      <!-- Filtres par type -->
+      <div style="display:flex;gap:0.35rem;padding:0 1rem 0.6rem;overflow-x:auto;flex-shrink:0;">
+        <button class="af-filter-btn af-active" onclick="afSetFilter('tous',this)" data-af-filter="tous">Tous</button>
+        <button class="af-filter-btn" onclick="afSetFilter('membre',this)" data-af-filter="membre">👤 Membres</button>
+        <button class="af-filter-btn" onclick="afSetFilter('chauffeur',this)" data-af-filter="chauffeur">🚕 Chauffeurs</button>
+        <button class="af-filter-btn" onclick="afSetFilter('establishment',this)" data-af-filter="establishment">🏛️ Établissements</button>
       </div>
-      <div class="soc-form-field">
-        <label class="soc-form-label">Message (optionnel)</label>
-        <textarea class="soc-input" id="addFriendMsg" placeholder="Salut ! On se connaît de…" style="min-height:60px;"></textarea>
+      <!-- Barre compteur -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:0.38rem 1rem;border-top:1px solid rgba(255,255,255,0.06);border-bottom:1px solid rgba(255,255,255,0.06);flex-shrink:0;">
+        <span id="afSelCount" style="font-size:0.7rem;color:var(--muted);">0 sélectionné(s)</span>
+        <button onclick="afSelectAll()" style="font-size:0.68rem;color:var(--cyan);background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:700;">Tout sélectionner</button>
       </div>
-      <button class="soc-btn-primary" onclick="sendFriendRequest()">📨 Envoyer la demande</button>
-      <button class="soc-btn-secondary" onclick="closeModal('modalAddFriend')">Annuler</button>
+      <!-- Liste des membres (scroll) -->
+      <div id="afMemberList" style="flex:1;overflow-y:auto;padding:0.4rem 0.7rem;">
+        <div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.8rem;">⏳ Chargement des membres…</div>
+      </div>
+      <!-- Bouton envoi -->
+      <div style="padding:0.8rem 1rem 0.7rem;border-top:1px solid rgba(255,255,255,0.06);flex-shrink:0;">
+        <button class="soc-btn-primary" id="afSendBtn" onclick="afSendRequests()" disabled style="opacity:0.45;">📨 Envoyer les demandes (0)</button>
+        <button class="soc-btn-secondary" onclick="closeModal('modalAddFriend')">Annuler</button>
+      </div>
     </div>
   </div>
 </div>
@@ -35860,70 +35897,231 @@ window.socHandleSearch = function(val){
   // Firebase : query(collection(db,'users'), where('nameLower','>=',val.toLowerCase()))
 };
 
-window.searchUsers = function(val){
-  var el = document.getElementById('userSearchResults');
-  if(!el || !val) { if(el) el.innerHTML=''; return; }
-  el.innerHTML='<div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem;">🔍 Recherche en cours…</div>';
-  if(window.db && window.fbCollection && window.fbGetDocs){
-    window.fbGetDocs(window.fbCollection(window.db,'users')).then(function(snap){
-      var results = [];
-      snap.forEach(function(d){
-        var data = d.data();
-        var name = data.pseudo || data.displayName || (data.email ? data.email.split('@')[0] : '');
-        if(name && name.toLowerCase().includes(val.toLowerCase()) && d.id !== window.currentUserUID){
-          results.push({uid:d.id, name:name, avatar:data.avatarEmoji||'👤', etab:data.establishment||'Libreville'});
-        }
-      });
-      if(!results.length){el.innerHTML='<div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem;">Aucun résultat</div>';return;}
-      var h = '';
-      results.slice(0,5).forEach(function(u){
-        h += '<div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem;background:rgba(255,255,255,0.03);border-radius:10px;margin-bottom:0.3rem;">';
-        h += '<div class="soc-avatar" style="width:34px;height:34px;font-size:0.9rem;">'+u.avatar+'</div>';
-        h += '<div style="flex:1;"><div style="font-size:0.8rem;font-weight:700;color:var(--text);">'+esc(u.name)+'</div>';
-        h += '<div style="font-size:0.65rem;color:var(--muted);">'+esc(u.etab)+'</div></div>';
-        h += '<button onclick="quickAddFriend(\''+u.uid+'\',\''+esc(u.name)+'\');document.getElementById(\'addFriendSearch\').value=\'\';document.getElementById(\'userSearchResults\').innerHTML=\'\'" style="padding:0.25rem 0.6rem;border-radius:8px;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.35);color:var(--pink);font-size:0.65rem;font-weight:800;cursor:pointer;font-family:\'DM Sans\',sans-serif;">+ Ajouter</button>';
-        h += '</div>';
-      });
-      el.innerHTML = h;
-    }).catch(function(){ el.innerHTML='<div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem;">Erreur de connexion</div>'; });
-  } else {
-    el.innerHTML='<div style="font-size:0.75rem;color:var(--muted);text-align:center;padding:0.5rem;">Connexion Firebase requise</div>';
-  }
+/* ════════════ AJOUTER AMI — liste membres ════════════
+   Remplace l'ancien champ de recherche par une liste checkable
+   de tous les abonnés, filtrée par type (membre / chauffeur / établissement).
+   ═══════════════════════════════════════════════════════════ */
+var _afAllMembers  = [];   // tous les membres chargés
+var _afSelected    = new Set();
+var _afFilterType  = 'tous';
+var _afSearchVal   = '';
+
+/* ── Types : label + badge class ── */
+var _afTypeMap = {
+  super_admin:   { label:'⭐ Super Admin',   cls:'af-badge-super_admin' },
+  admin:         { label:'⭐ Admin',          cls:'af-badge-admin' },
+  establishment: { label:'🏛️ Établissement',  cls:'af-badge-establishment' },
+  chauffeur:     { label:'🚕 Chauffeur',      cls:'af-badge-chauffeur' },
+  gerant:        { label:'🏛️ Gérant',         cls:'af-badge-establishment' },
+  membre:        { label:'👤 Membre',         cls:'af-badge-membre' },
+  user:          { label:'👤 Membre',         cls:'af-badge-user' }
 };
 
-window.sendFriendRequest = function(){
-  var search = document.getElementById('addFriendSearch').value.trim();
-  var msg    = document.getElementById('addFriendMsg').value.trim() || "Salut, ajoutons-nous !";
-  if(!search){socToast('⚠️ Indique un pseudo ou email');return;}
-  var meUID  = window.currentUserUID;
-  // Chercher le UID cible dans les suggestions ou les membres chargés
-  var target = _suggestions.find(function(u){
-    return u.name.toLowerCase()===search.toLowerCase() || (u.email && u.email.toLowerCase()===search.toLowerCase());
+/* ── Ouvre et charge la liste ── */
+window.afLoadMembers = function(){
+  if(!_requireAuth('Ajouter un ami')) return;
+  _afSelected.clear();
+  _afFilterType = 'tous';
+  _afSearchVal  = '';
+  var si = document.getElementById('afSearchInput'); if(si) si.value='';
+  document.querySelectorAll('[data-af-filter]').forEach(function(b){
+    b.classList.toggle('af-active', b.dataset.afFilter==='tous');
   });
-  var targetUID = target ? target.uid : ('search_'+Date.now());
-  if(_requestsOut.find(function(r){return r.uid===targetUID;})){
-    socToast('⚠️ Demande déjà envoyée à '+search); return;
+  afUpdateSendBtn();
+
+  var el = document.getElementById('afMemberList');
+  if(!el) return;
+
+  /* 1) Utiliser les suggestions déjà chargées si Firebase absent */
+  if(!window.db || !window.fbCollection || !window.fbGetDocs){
+    _afAllMembers = _suggestions.map(function(u){
+      return {uid:u.uid, name:u.name, avatar:u.avatar, etab:u.etab||'Libreville', role:u.role||'user'};
+    });
+    afRenderList(); return;
   }
-  _requestsOut.push({ uid:targetUID, name:search, avatar:'👤', sentAt:"À l'instant" });
-  document.getElementById('addFriendSearch').value='';
-  document.getElementById('addFriendMsg').value='';
-  document.getElementById('userSearchResults').innerHTML='';
-  closeModal('modalAddFriend');
-  renderRequests();
-  socToast('📨 Demande envoyée à '+search+' !');
-  // ── Écriture Firebase (seulement si UID cible connu) ──
-  if(meUID && target && window.db && window.fbDoc && window.fbSetDoc){
-    var senderData = {
-      pseudo: window.currentUserPseudo || window.currentUserEmail || 'Membre',
-      avatarEmoji: '👤', msg: msg, sentAt: Date.now()
-    };
-    window.fbSetDoc(window.fbDoc(window.db,'users',targetUID,'friend_requests_in',meUID), senderData)
-      .catch(function(e){ console.warn('[AMBI241] friend_requests_in write error:', e); });
-    window.fbSetDoc(window.fbDoc(window.db,'users',meUID,'friend_requests_out',targetUID), {
-      name: search, avatar:'👤', sentAt: Date.now()
-    }).catch(function(e){ console.warn('[AMBI241] friend_requests_out write error:', e); });
-  }
+
+  el.innerHTML='<div class="af-empty"><div class="af-empty-icon">⏳</div>Chargement…</div>';
+  var meUID = window.currentUserUID;
+  var alreadyOut = _requestsOut.map(function(r){return r.uid;});
+  var alreadyFriends = _friends.map(function(f){return f.uid;});
+
+  window.fbGetDocs(window.fbCollection(window.db,'users')).then(function(snap){
+    var list = [];
+    snap.forEach(function(d){
+      if(d.id === meUID) return;
+      var data = d.data();
+      var name = data.pseudo || data.displayName || (data.email ? data.email.split('@')[0] : 'Membre');
+      var role = data.role || data.memberType || 'user';
+      var isAlready = alreadyOut.indexOf(d.id)!==-1 || alreadyFriends.indexOf(d.id)!==-1;
+      list.push({
+        uid:      d.id,
+        name:     name,
+        avatar:   data.avatarEmoji || data.avatarInitials || '👤',
+        etab:     data.establishment || data.ville || 'Libreville',
+        role:     role,
+        already:  isAlready
+      });
+    });
+    // Trier : non-amis en premier, puis par rôle
+    list.sort(function(a,b){
+      if(a.already !== b.already) return a.already ? 1 : -1;
+      var order = {establishment:0, chauffeur:1, gerant:0, admin:2, super_admin:2, membre:3, user:3};
+      return (order[a.role]||3) - (order[b.role]||3);
+    });
+    _afAllMembers = list;
+    afRenderList();
+  }).catch(function(){
+    /* Fallback sur suggestions */
+    _afAllMembers = _suggestions.map(function(u){
+      return {uid:u.uid, name:u.name, avatar:u.avatar, etab:u.etab||'Libreville', role:u.role||'user', already:false};
+    });
+    afRenderList();
+  });
 };
+window.afLoadMembers = afLoadMembers;
+
+/* ── Rendu de la liste filtrée ── */
+function afRenderList(){
+  var el = document.getElementById('afMemberList');
+  if(!el) return;
+  var filtered = _afAllMembers.filter(function(m){
+    var matchType = _afFilterType === 'tous' || m.role === _afFilterType
+      || (_afFilterType === 'membre' && (m.role==='user'||m.role==='membre'));
+    var matchSearch = !_afSearchVal || m.name.toLowerCase().includes(_afSearchVal.toLowerCase());
+    return matchType && matchSearch;
+  });
+  if(!filtered.length){
+    el.innerHTML='<div class="af-empty"><div class="af-empty-icon">🔍</div>Aucun membre trouvé</div>';
+    return;
+  }
+  var h = '';
+  filtered.forEach(function(m){
+    var sel = _afSelected.has(m.uid);
+    var tm  = _afTypeMap[m.role] || _afTypeMap.user;
+    var rowCls = 'af-member-row' + (sel?' af-selected':'') + (m.already?' af-already':'');
+    var checkContent = m.already ? '✓' : (sel ? '✓' : '');
+    h += '<div class="'+rowCls+'" onclick="'+(m.already?'':'"afToggle(\''+m.uid+'\')"')+'" data-af-uid="'+m.uid+'">';
+    h += '<div class="af-check">'+checkContent+'</div>';
+    h += '<div class="af-avatar">'+m.avatar+'</div>';
+    h += '<div style="flex:1;min-width:0;">';
+    h += '<div class="af-name">'+esc(m.name)+'</div>';
+    h += '<div class="af-meta">';
+    h += '<span class="af-badge '+tm.cls+'">'+tm.label+'</span>';
+    if(m.etab && m.etab !== 'Libreville') h += '<span class="af-etab">· '+esc(m.etab)+'</span>';
+    if(m.already) h += '<span class="af-badge" style="background:rgba(255,215,0,0.08);color:var(--amber);border-color:rgba(255,215,0,0.2);">✔ Demande envoyée</span>';
+    h += '</div></div>';
+    if(!m.already){
+      h += '<div style="width:26px;height:26px;border-radius:50%;background:'+(sel?'rgba(0,255,170,0.12)':'rgba(255,255,255,0.04)')+';border:1px solid '+(sel?'rgba(0,255,170,0.35)':'rgba(255,255,255,0.1)')+';display:flex;align-items:center;justify-content:center;font-size:0.7rem;flex-shrink:0;transition:all 0.15s;">'+(sel?'✓':'＋')+'</div>';
+    }
+    h += '</div>';
+  });
+  el.innerHTML = h;
+  afUpdateSendBtn();
+}
+
+/* ── Toggle sélection ── */
+window.afToggle = function(uid){
+  if(_afSelected.has(uid)) _afSelected.delete(uid); else _afSelected.add(uid);
+  // Mise à jour visuelle ciblée
+  var row = document.querySelector('[data-af-uid="'+uid+'"]');
+  if(row){
+    var sel = _afSelected.has(uid);
+    row.classList.toggle('af-selected', sel);
+    var chk = row.querySelector('.af-check');
+    if(chk) chk.textContent = sel ? '✓' : '';
+    var plus = row.querySelector('div[style*="border-radius:50%"]');
+    if(plus){
+      plus.style.background = sel ? 'rgba(0,255,170,0.12)' : 'rgba(255,255,255,0.04)';
+      plus.style.borderColor = sel ? 'rgba(0,255,170,0.35)' : 'rgba(255,255,255,0.1)';
+      plus.textContent = sel ? '✓' : '＋';
+    }
+  }
+  afUpdateSendBtn();
+};
+
+/* ── Sélectionner tout (visibles, non déjà envoyés) ── */
+window.afSelectAll = function(){
+  var filtered = _afAllMembers.filter(function(m){
+    var matchType = _afFilterType === 'tous' || m.role === _afFilterType
+      || (_afFilterType === 'membre' && (m.role==='user'||m.role==='membre'));
+    var matchSearch = !_afSearchVal || m.name.toLowerCase().includes(_afSearchVal.toLowerCase());
+    return matchType && matchSearch && !m.already;
+  });
+  var allSel = filtered.every(function(m){return _afSelected.has(m.uid);});
+  filtered.forEach(function(m){ if(allSel) _afSelected.delete(m.uid); else _afSelected.add(m.uid); });
+  afRenderList();
+};
+
+/* ── Filtre texte ── */
+window.afFilterList = function(val){
+  _afSearchVal = val.trim();
+  afRenderList();
+};
+
+/* ── Filtre par type ── */
+window.afSetFilter = function(type, btn){
+  _afFilterType = type;
+  document.querySelectorAll('[data-af-filter]').forEach(function(b){ b.classList.remove('af-active'); });
+  if(btn) btn.classList.add('af-active');
+  afRenderList();
+};
+
+/* ── Mise à jour bouton envoi ── */
+function afUpdateSendBtn(){
+  var n = _afSelected.size;
+  var lbl = document.getElementById('afSelCount');
+  if(lbl) lbl.textContent = n + ' sélectionné(s)';
+  var btn = document.getElementById('afSendBtn');
+  if(btn){
+    btn.textContent = '📨 Envoyer les demandes (' + n + ')';
+    btn.disabled = n === 0;
+    btn.style.opacity = n === 0 ? '0.45' : '1';
+  }
+}
+
+/* ── Envoi en lot ── */
+window.afSendRequests = function(){
+  if(!_requireAuth('Ajouter un ami')) return;
+  if(!_afSelected.size){ socToast('⚠️ Sélectionne au moins un membre'); return; }
+  var meUID   = window.currentUserUID;
+  var senderData = {
+    pseudo:      window.currentUserPseudo || window.currentUserEmail || 'Membre',
+    avatarEmoji: '👤',
+    msg:         'Salut, on se retrouve sur AMBI241 !',
+    sentAt:      Date.now()
+  };
+  var sent = 0;
+  _afSelected.forEach(function(uid){
+    var m = _afAllMembers.find(function(x){return x.uid===uid;});
+    if(!m) return;
+    // éviter doublon local
+    if(!_requestsOut.find(function(r){return r.uid===uid;})){
+      _requestsOut.push({ uid:uid, name:m.name, avatar:m.avatar, sentAt:"À l'instant" });
+      sent++;
+    }
+    // Écriture Firebase
+    if(meUID && window.db && window.fbDoc && window.fbSetDoc){
+      window.fbSetDoc(window.fbDoc(window.db,'users',uid,'friend_requests_in',meUID), senderData)
+        .catch(function(e){ console.warn('[AMBI241] friend_requests_in write error:', e); });
+      window.fbSetDoc(window.fbDoc(window.db,'users',meUID,'friend_requests_out',uid), {
+        name: m.name, avatar: m.avatar, sentAt: Date.now()
+      }).catch(function(e){ console.warn('[AMBI241] friend_requests_out write error:', e); });
+    }
+  });
+  // Retirer des suggestions
+  _afSelected.forEach(function(uid){
+    _suggestions = _suggestions.filter(function(s){return s.uid!==uid;});
+  });
+  _afSelected.clear();
+  closeModal('modalAddFriend');
+  renderSuggestions();
+  renderRequests();
+  socToast('📨 ' + sent + ' demande(s) d\'amitié envoyée(s) !');
+};
+
+/* ── Compat : garder searchUsers / sendFriendRequest pour d'autres appels éventuels ── */
+window.searchUsers = function(){ /* remplacé par afLoadMembers */ };
+window.sendFriendRequest = function(){ afSendRequests(); };
 
 /* ════════════ MODALE + UTILITAIRES ════════════ */
 /* FIX#3 — Redirection inscription pour visiteurs non connectés */
