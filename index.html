@@ -4095,28 +4095,46 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 .soc-fab:active{transform:scale(0.88);}
 .soc-fab-menu{
   position:fixed;bottom:130px;right:0.7rem;
-  display:none;flex-direction:column;gap:0.5rem;
+  display:flex;flex-direction:column;gap:0.5rem;
   z-index:149;
+  /* Toujours flex — masqué par opacity/transform pour animation instantanée */
+  opacity:0;
+  pointer-events:none;
+  transform:scale(0.85) translateY(12px);
+  transform-origin:bottom right;
+  transition:opacity 0.15s ease, transform 0.15s cubic-bezier(0.34,1.56,0.64,1);
 }
-.soc-fab-menu.open{display:flex;}
+.soc-fab-menu.open{
+  opacity:1;
+  pointer-events:auto;
+  transform:scale(1) translateY(0);
+}
 .soc-fab-item{
   display:flex;align-items:center;gap:0.5rem;justify-content:flex-end;
+  transition:opacity 0.12s ease, transform 0.12s ease;
 }
+/* Entrée décalée pour chaque item */
+.soc-fab-menu.open .soc-fab-item:nth-child(1){transition-delay:0.05s;}
+.soc-fab-menu.open .soc-fab-item:nth-child(2){transition-delay:0.08s;}
+.soc-fab-menu.open .soc-fab-item:nth-child(3){transition-delay:0.11s;}
 .soc-fab-item-btn{
   padding:0.4rem 0.75rem;border-radius:20px;
   background:var(--surface);border:1px solid rgba(255,45,155,0.35);
   color:var(--text);font-size:0.73rem;font-weight:700;
   cursor:pointer;font-family:'DM Sans',sans-serif;
   box-shadow:0 2px 12px rgba(0,0,0,0.5);
-  transition:all 0.2s;white-space:nowrap;
+  transition:background 0.12s;white-space:nowrap;
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;
 }
-.soc-fab-item-btn:active{background:rgba(255,45,155,0.15);}
+.soc-fab-item-btn:active{background:rgba(255,45,155,0.18);transform:scale(0.96);}
 .soc-fab-item-icon{
   width:36px;height:36px;border-radius:50%;
   background:var(--surface);border:1px solid rgba(255,45,155,0.3);
   display:flex;align-items:center;justify-content:center;font-size:0.95rem;
   box-shadow:0 2px 10px rgba(0,0,0,0.5);
 }
+/* FAB lui-même : réaction tactile sans délai */
+.soc-fab{touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
 
 /* ── MODAL OVERLAY ── */
 .soc-modal-overlay{
@@ -34027,6 +34045,24 @@ function _socLoadFriendships(meUID, allUsers){
     renderRequests();
     updateBadges();
   }).catch(function(){});
+
+  // Charger les demandes ENVOYÉES par cet utilisateur (sous-collection propre)
+  window.fbGetDocs(window.fbCollection(window.db,'users',meUID,'friend_requests_out')).then(function(snap){
+    if(snap.empty) return;
+    snap.forEach(function(d){
+      var data = d.data();
+      var already = _requestsOut.find(function(r){ return r.uid===d.id; });
+      if(!already){
+        _requestsOut.push({
+          uid: d.id,
+          name: data.name || data.pseudo || d.id,
+          avatar: data.avatar || '👤',
+          sentAt: data.sentAt ? new Date(data.sentAt).toLocaleDateString('fr') : "À l'instant"
+        });
+      }
+    });
+    renderRequests();
+  }).catch(function(){});
 }
 
 /* Génère un emoji avatar à partir des initiales */
@@ -34318,15 +34354,44 @@ window.cancelRequest = function(uid){
   _requestsOut = _requestsOut.filter(function(r){return r.uid!==uid;});
   renderRequests();
   socToast('↩️ Demande annulée');
+  // Supprimer de Firebase (sous-collections propres)
+  var meUID = window.currentUserUID;
+  if(meUID && window.db && window.fbDoc && window.fbDeleteDoc){
+    window.fbDeleteDoc(window.fbDoc(window.db,'users',meUID,'friend_requests_out',uid))
+      .catch(function(){});
+    window.fbDeleteDoc(window.fbDoc(window.db,'users',uid,'friend_requests_in',meUID))
+      .catch(function(){});
+  }
 };
 
 window.quickAddFriend = function(uid, name){
   /* FIX#3 — Ajouter ami requiert connexion */
   if(!_requireAuth('Ajouter un ami')) return;
+  var meUID = window.currentUserUID;
+  // Vérifier doublon
+  if(_requestsOut.find(function(r){return r.uid===uid;})) {
+    socToast('⚠️ Demande déjà envoyée à '+name); return;
+  }
   _suggestions = _suggestions.filter(function(s){return s.uid!==uid;});
-  _requestsOut.push({ uid:uid, name:name, avatar:'👤', sentAt:'À l\'instant' });
+  _requestsOut.push({ uid:uid, name:name, avatar:'👤', sentAt:"À l'instant" });
   renderSuggestions();renderRequests();
   socToast('📨 Demande envoyée à '+name+' !');
+  // ── Écriture Firebase (sous-collections propres à chaque utilisateur) ──
+  if(meUID && window.db && window.fbDoc && window.fbSetDoc){
+    var senderData = {
+      pseudo: window.currentUserPseudo || window.currentUserEmail || 'Membre',
+      avatarEmoji: '👤',
+      msg: 'Salut, ajoutons-nous !',
+      sentAt: Date.now()
+    };
+    // Écrire dans la boîte de réception du destinataire
+    window.fbSetDoc(window.fbDoc(window.db,'users',uid,'friend_requests_in',meUID), senderData)
+      .catch(function(e){ console.warn('[AMBI241] friend_requests_in write error:', e); });
+    // Écrire dans les envois du demandeur (pour reload sessions futures)
+    window.fbSetDoc(window.fbDoc(window.db,'users',meUID,'friend_requests_out',uid), {
+      name: name, avatar:'👤', sentAt: Date.now()
+    }).catch(function(e){ console.warn('[AMBI241] friend_requests_out write error:', e); });
+  }
 };
 
 /* ════════════ MODALE PROFIL MEMBRE ════════════ */
@@ -34541,15 +34606,36 @@ window.searchUsers = function(val){
 
 window.sendFriendRequest = function(){
   var search = document.getElementById('addFriendSearch').value.trim();
+  var msg    = document.getElementById('addFriendMsg').value.trim() || "Salut, ajoutons-nous !";
   if(!search){socToast('⚠️ Indique un pseudo ou email');return;}
-  _requestsOut.push({ uid:'new'+Date.now(), name:search, avatar:'👤', sentAt:'À l\'instant' });
+  var meUID  = window.currentUserUID;
+  // Chercher le UID cible dans les suggestions ou les membres chargés
+  var target = _suggestions.find(function(u){
+    return u.name.toLowerCase()===search.toLowerCase() || (u.email && u.email.toLowerCase()===search.toLowerCase());
+  });
+  var targetUID = target ? target.uid : ('search_'+Date.now());
+  if(_requestsOut.find(function(r){return r.uid===targetUID;})){
+    socToast('⚠️ Demande déjà envoyée à '+search); return;
+  }
+  _requestsOut.push({ uid:targetUID, name:search, avatar:'👤', sentAt:"À l'instant" });
   document.getElementById('addFriendSearch').value='';
   document.getElementById('addFriendMsg').value='';
   document.getElementById('userSearchResults').innerHTML='';
   closeModal('modalAddFriend');
   renderRequests();
   socToast('📨 Demande envoyée à '+search+' !');
-  // Firebase : addDoc(collection(db,'friendRequests'), {from:currentUser.uid, to:targetUid, msg:..., sentAt:serverTimestamp()})
+  // ── Écriture Firebase (seulement si UID cible connu) ──
+  if(meUID && target && window.db && window.fbDoc && window.fbSetDoc){
+    var senderData = {
+      pseudo: window.currentUserPseudo || window.currentUserEmail || 'Membre',
+      avatarEmoji: '👤', msg: msg, sentAt: Date.now()
+    };
+    window.fbSetDoc(window.fbDoc(window.db,'users',targetUID,'friend_requests_in',meUID), senderData)
+      .catch(function(e){ console.warn('[AMBI241] friend_requests_in write error:', e); });
+    window.fbSetDoc(window.fbDoc(window.db,'users',meUID,'friend_requests_out',targetUID), {
+      name: search, avatar:'👤', sentAt: Date.now()
+    }).catch(function(e){ console.warn('[AMBI241] friend_requests_out write error:', e); });
+  }
 };
 
 /* ════════════ MODALE + UTILITAIRES ════════════ */
