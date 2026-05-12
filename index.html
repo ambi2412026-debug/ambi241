@@ -10190,15 +10190,27 @@ var CATEGORIES=[
 
 function getCategory(type){
   if(!type)return "Bar";
-  var t=type.toLowerCase();
-  if(t.indexOf("hotel")!==-1||t.indexOf("h\u00f4tel")!==-1||t.indexOf("motel")!==-1||t.indexOf("residence")!==-1||t.indexOf("r\u00e9sidence")!==-1||t.indexOf("lodge")!==-1||t.indexOf("inn")!==-1||t.indexOf("suites")!==-1)return "Hotel";
-  if(t.indexOf("disco")!==-1||t.indexOf("nightclub")!==-1||t.indexOf("night club")!==-1)return "Discotheque";
+  var t=type.toLowerCase().trim();
+  // 1. Correspondance exacte avec les clés de catégorie (priorité absolue)
+  if(t==="hotel")return "Hotel";
+  if(t==="discotheque")return "Discotheque";
+  if(t==="snack")return "Snack";
+  if(t==="bar terrasse"||t==="bar-terrasse")return "Bar Terrasse";
+  if(t==="restaurant")return "Restaurant";
+  if(t==="bar")return "Bar";
+  // 2. Hôtels & Résidences (détection large, en premier pour éviter faux positifs)
+  if(t.indexOf("h\u00f4tel")!==-1||t.indexOf("hotel")!==-1||t.indexOf("motel")!==-1||t.indexOf("r\u00e9sidence")!==-1||t.indexOf("residence")!==-1||t.indexOf("balnéaire")!==-1||t.indexOf("resort")!==-1||t.indexOf("lodge")!==-1||t.indexOf("suites")!==-1)return "Hotel";
+  // 3. Discothèques
+  if(t.indexOf("disco")!==-1||t.indexOf("nightclub")!==-1||t.indexOf("night club")!==-1||t.indexOf("club")!==-1)return "Discotheque";
+  // 4. Bar Terrasse (avant Snack et Bar pour éviter conflits)
+  if(t.indexOf("terrasse")!==-1||t.indexOf("bar terrasse")!==-1||t.indexOf("bar-terrasse")!==-1)return "Bar Terrasse";
+  // 5. Snack (avant Bar pour éviter que "snack-bar" parte dans Bar)
   if(t.indexOf("snack")!==-1)return "Snack";
-  if(t.indexOf("bar-terrasse")!==-1||t.indexOf("bar terrasse")!==-1||t.indexOf("terrasse")!==-1)return "Bar Terrasse";
-  if(t.indexOf("patisserie")!==-1||t.indexOf("patisserie")!==-1)return "Restaurant";
-  if(t.indexOf("resto")!==-1||t.indexOf("restaurant")!==-1)return "Restaurant";
-  if(t.indexOf("cafe")!==-1||t.indexOf("caf")!==-1)return "Restaurant";
-  if(t.indexOf("bar")!==-1||t.indexOf("lounge")!==-1)return "Bar";
+  // 6. Restaurants & Cafés
+  if(t.indexOf("restaurant")!==-1||t.indexOf("resto")!==-1||t.indexOf("patisserie")!==-1||t.indexOf("pâtisserie")!==-1||t.indexOf("brasserie")!==-1||t.indexOf("café")!==-1||t.indexOf("cafe")!==-1)return "Restaurant";
+  // 7. Bars & Lounges
+  if(t.indexOf("bar")!==-1||t.indexOf("lounge")!==-1||t.indexOf("pub")!==-1||t.indexOf("taverne")!==-1)return "Bar";
+  // 8. Fallback
   return "Bar";
 }
 function getCatInfo(key){
