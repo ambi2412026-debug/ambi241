@@ -37479,13 +37479,33 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     w.appendChild(l); w.scrollTop=w.scrollHeight;
   }
 
+  var _igm2ProgTimer=null, _igm2ProgCurrent=0;
+
   function igm2Prog(pct,label,detail){
+    _igm2ProgCurrent=pct;
     var f=document.getElementById('igm2ProgressFill'),lb=document.getElementById('igm2ProgressLabel'),dt=document.getElementById('igm2ProgressDetail'),st=document.getElementById('igm2SearchStatus');
     if(f) f.style.width=pct+'%';
     if(lb) lb.textContent=Math.round(pct)+'%';
     if(dt&&detail) dt.textContent=detail;
     if(st&&label) st.textContent=label;
   }
+
+  /* Animation fluide vers le palier suivant (s'arrête ~1.5% avant) */
+  function igm2ProgAnimate(from,to){
+    clearInterval(_igm2ProgTimer);
+    _igm2ProgCurrent=from;
+    var cap=to-1.5;
+    var f=document.getElementById('igm2ProgressFill'),lb=document.getElementById('igm2ProgressLabel');
+    _igm2ProgTimer=setInterval(function(){
+      var rem=cap-_igm2ProgCurrent;
+      if(rem<0.05){clearInterval(_igm2ProgTimer);return;}
+      _igm2ProgCurrent+=rem*0.07;
+      if(f) f.style.width=_igm2ProgCurrent+'%';
+      if(lb) lb.textContent=Math.round(_igm2ProgCurrent)+'%';
+    },80);
+  }
+
+  function igm2ProgStop(){clearInterval(_igm2ProgTimer);_igm2ProgTimer=null;}
 
   function igm2LoadSDK(){
     return new Promise(function(res,rej){
@@ -37526,7 +37546,13 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     igm2Step(2); _r2=[]; var seen=new Set();
     try{
       igm2Log('Chargement SDK Google Maps...');
-      await igm2LoadSDK();
+      igm2ProgAnimate(0,12);
+      await Promise.race([
+        igm2LoadSDK(),
+        new Promise(function(_,rej){setTimeout(function(){rej(new Error('Timeout chargement Google Maps SDK (15s)'));},15000);})
+      ]);
+      igm2ProgStop();
+      igm2Prog(0,'Initialisation...','');
       igm2Log('SDK chargé ✓','ok');
       var div=document.createElement('div');
       div.style.cssText='position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
@@ -37540,10 +37566,13 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
         igm2Log('🔍 '+cfg.label+'...');
         for(var qi=0;qi<cfg.queries.length;qi++){
           var q=cfg.queries[qi];
-          igm2Prog((done/total)*100,'Recherche "'+q+'"...',done+'/'+total+' requêtes');
+          var _pFrom=(done/total)*100, _pTo=((done+1)/total)*100;
+          igm2Prog(_pFrom,'Recherche "'+q+'"...',done+'/'+total+' requêtes');
+          igm2ProgAnimate(_pFrom,_pTo);
           igm2Log('  → "'+q+'"');
           try{
             var res=await igm2Search(q,svc);
+            igm2ProgStop();
             var nf=0;
             for(var ri=0;ri<res.length;ri++){
               var p=res[ri]; if(seen.has(p.place_id)) continue; seen.add(p.place_id);
@@ -37553,8 +37582,9 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
             }
             igm2Log('  ✓ '+res.length+' résultats ('+nf+' nouveaux)','ok');
             var ce=document.getElementById('igm2-cnt-'+cat); if(ce) ce.textContent=_r2.filter(function(r){return r.catKey===cat&&!r.isExisting;}).length+' nv';
-          }catch(e){igm2Log('  ⚠️ '+e.message,'warn');}
+          }catch(e){igm2ProgStop();igm2Log('  ⚠️ '+e.message,'warn');}
           done++;
+          igm2Prog((done/total)*100,'Recherche en cours...',done+'/'+total+' requêtes');
           await new Promise(function(r){setTimeout(r,400);});
         }
       }
