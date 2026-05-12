@@ -35239,11 +35239,11 @@ var _friends = [
 ];
 
 var _requestsIn = [
-  // Demandes réelles chargées depuis Firebase
+  // Demandes reçues — chargées depuis Firebase pour cet utilisateur uniquement
 ];
 
 var _requestsOut = [
-  // Demandes envoyées réelles depuis Firebase
+  // Demandes envoyées — chargées depuis Firebase pour cet utilisateur uniquement
 ];
 
 var _blocked = [
@@ -35281,6 +35281,11 @@ document.addEventListener('DOMContentLoaded', function(){
   updateBadges();
   // Peupler les selects projets avec les communautés
   populateProjCommSelect();
+  
+  // ✅ Charger les demandes de l'utilisateur courant depuis Firebase
+  if(window.currentUserUID){
+    _socLoadFriendships(window.currentUserUID, []);
+  }
 });
 
 /* ════════════ CHARGEMENT MEMBRES FIREBASE ════════════
@@ -35492,6 +35497,9 @@ function renderSuggestions(){
 
 /* ════════════ REQUESTS RENDER ════════════ */
 function renderRequests(){
+  // ✅ SÉCURITÉ : Vérifier que les demandes appartiennent à l'utilisateur courant
+  var meUID = window.currentUserUID;
+  
   // Reçues
   var el = document.getElementById('requestsIn');
   if(el){
