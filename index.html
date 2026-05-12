@@ -5401,11 +5401,12 @@ if (document.readyState === 'loading') {
       <button class="profile-close-btn" onclick="closeUserProfile()">✕</button>
     </div>
     <div class="profile-photo-section">
-      <label for="photoUploadInput" style="cursor:pointer;display:block;text-align:center;">
-        <img id="profilePhotoImg" src="" alt="Photo profil" class="profile-photo" style="cursor:pointer;">
-        <input type="file" id="photoUploadInput" accept="image/*" style="display:none;" onchange="uploadProfilePhoto(event)">
-        <div style="font-size:0.7rem;color:var(--muted);margin-top:0.5rem;">📷 Cliquez pour modifier</div>
-      </label>
+      <div style="text-align:center;">
+        <img id="profilePhotoImg" src="" alt="Photo profil" class="profile-photo" style="cursor:pointer;" onclick="triggerProfilePhotoUpload()">
+        <div style="margin-top:0.5rem;">
+          <button onclick="triggerProfilePhotoUpload()" style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.45rem 1rem;border-radius:20px;border:1.5px solid rgba(255,45,155,0.4);background:rgba(255,45,155,0.09);color:var(--pink);font-family:'DM Sans',sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer;">📷 Changer photo</button>
+        </div>
+      </div>
     </div>
     <div class="profile-info">
       <div class="profile-name" id="profileNameEl">Chargement...</div>
@@ -29411,30 +29412,56 @@ function closeUserProfile() {
 }
 
 function triggerPhotoUpload() {
-  document.getElementById('photoUploadInput').click();
+  triggerProfilePhotoUpload();
 }
 
+/* ── Upload photo profil membre — même système que Admin Config App ── */
+function triggerProfilePhotoUpload() {
+  // Supprimer l'ancien input si présent pour éviter accumulation
+  var old = document.getElementById('_profileMemberFileInput');
+  if (old) old.remove();
+
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.id = '_profileMemberFileInput';
+  input.accept = 'image/*';
+  input.style.display = 'none';
+  input.onchange = function() {
+    var file = input.files && input.files[0];
+    input.value = '';
+    // Retirer du DOM immédiatement pour ne pas bloquer la navigation
+    if (input.parentNode) input.parentNode.removeChild(input);
+    if (!file) return;
+    if (typeof window._processAvatarFile === 'function') {
+      window._processAvatarFile(file);
+    } else {
+      // Fallback : lecture locale directe
+      var uid = window.currentUserUID;
+      if (!uid) { if(typeof showToast==='function') showToast('🔒 Connectez-vous d\'abord'); return; }
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        var dataUrl = ev.target.result;
+        try { localStorage.setItem('ambi241_avatar_'+uid, dataUrl); } catch(e) {}
+        var img = document.getElementById('profilePhotoImg');
+        if (img) img.src = dataUrl;
+        if (typeof showToast==='function') showToast('✅ Photo de profil mise à jour !');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  document.body.appendChild(input);
+  // Délai court pour garantir l'attachement au DOM avant le click (mobile Safari)
+  setTimeout(function() { input.click(); }, 50);
+}
+window.triggerProfilePhotoUpload = triggerProfilePhotoUpload;
+
 function uploadProfilePhoto(event) {
-  var file = event.target && event.target.files && event.target.files[0];
-  if (event.target) event.target.value = '';
+  // Conservé pour compatibilité — délègue à la nouvelle fonction
+  var file = event && event.target && event.target.files && event.target.files[0];
+  if (event && event.target) event.target.value = '';
   if (!file) return;
-  // Réutiliser _processAvatarFile qui gère Firebase Storage + progress bar + fallback
   if (typeof window._processAvatarFile === 'function') {
     window._processAvatarFile(file);
-  } else {
-    // Fallback minimal si _processAvatarFile pas encore chargé
-    var uid = window.currentUserUID;
-    if (!uid) { if(typeof showToast==='function') showToast('🔒 Connectez-vous d\'abord'); return; }
-    if(typeof showUploadProgress==='function') showUploadProgress(10,'Upload...');
-    if(typeof compressImage==='function'){
-      compressImage(file, function(dataUrl){
-        try{ localStorage.setItem('ambi241_avatar_'+uid, dataUrl); }catch(e){}
-        if(typeof hideUploadProgress==='function') hideUploadProgress(700);
-        var img=document.getElementById('profilePhotoImg');
-        if(img) img.src=dataUrl;
-        if(typeof showToast==='function') showToast('✅ Photo de profil mise à jour !');
-      });
-    }
   }
 }
 
@@ -35005,17 +35032,8 @@ console.log('[AMBI241] ✅ Système Profils Publics chargé — openPublicProfil
     if(typeof _origPPOnAvatar === 'function') _origPPOnAvatar.call(this, inp);
   };
 
-  /* ── Patcher uploadProfilePhoto pour accepter tous formats ── */
-  var _origUploadProfile = window.uploadProfilePhoto;
-  window.uploadProfilePhoto = function(event){
-    var file = event.target && event.target.files && event.target.files[0];
-    if(file && !window.ambi_isImageFile(file)){
-      if(typeof showToast === 'function') showToast('❌ Fichier non reconnu comme image');
-      if(event.target) event.target.value = '';
-      return;
-    }
-    if(typeof _origUploadProfile === 'function') _origUploadProfile.call(this, event);
-  };
+  /* ── uploadProfilePhoto — délègue désormais à triggerProfilePhotoUpload (non-bloquant) ── */
+  /* Le patch format universel reste actif via _processAvatarFile et onAvatarFileSelected */
 
   console.log('[AMBI241] ✅ Patch universel import fichiers actif — tous formats image/vidéo acceptés');
 })();
