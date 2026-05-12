@@ -27,6 +27,73 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 /* ══════════════════════════════════════════════════════════════
    ══ OPTION 1 — FLASH ÉVÉNEMENT (bandeau dans la carte)       ══
    ══════════════════════════════════════════════════════════════ */
+/* ══ IMPORT GOOGLE MAPS PANEL ══════════════════════════════════ */
+.igm-steps{display:flex;gap:0.4rem;margin-bottom:1.2rem;overflow-x:auto;padding-bottom:0.2rem;}
+.igm-step{display:flex;align-items:center;gap:0.35rem;padding:0.38rem 0.7rem;border-radius:20px;border:1px solid rgba(255,45,155,0.18);font-size:0.68rem;font-weight:700;white-space:nowrap;color:var(--muted);background:var(--surface2);transition:all 0.25s;}
+.igm-step.igm-active{background:rgba(0,255,170,0.1);border-color:rgba(0,255,170,0.4);color:var(--green);}
+.igm-step.igm-done{background:rgba(0,255,170,0.06);border-color:rgba(0,255,170,0.25);color:var(--green);opacity:0.6;}
+.igm-step-num{width:16px;height:16px;border-radius:50%;background:currentColor;color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:0.58rem;font-weight:900;flex-shrink:0;}
+.igm-section{display:none;}
+.igm-section.igm-active{display:block;}
+.igm-panel{background:var(--surface2);border:1px solid rgba(255,45,155,0.18);border-radius:16px;padding:1.2rem;margin-bottom:1rem;}
+.igm-panel-title{font-family:'Syne',sans-serif;font-size:0.9rem;font-weight:800;margin-bottom:0.4rem;display:flex;align-items:center;gap:0.4rem;}
+.igm-panel-sub{font-size:0.7rem;color:var(--muted);line-height:1.5;margin-bottom:1rem;}
+.igm-cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0.45rem;margin-bottom:1rem;}
+.igm-cat-btn{background:rgba(255,255,255,0.03);border:1.5px solid rgba(255,45,155,0.18);border-radius:11px;padding:0.6rem 0.35rem;text-align:center;cursor:pointer;transition:all 0.2s;user-select:none;}
+.igm-cat-btn.igm-cat-sel{border-color:var(--green);background:rgba(0,255,170,0.08);}
+.igm-cat-icon{font-size:1.3rem;display:block;margin-bottom:0.15rem;}
+.igm-cat-name{font-size:0.58rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;}
+.igm-cat-btn.igm-cat-sel .igm-cat-name{color:var(--green);}
+.igm-cat-count{font-size:0.52rem;color:var(--cyan);margin-top:0.1rem;font-weight:700;}
+.igm-btn{display:inline-flex;align-items:center;justify-content:center;gap:0.4rem;padding:0.65rem 1.2rem;border-radius:10px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;border:none;transition:all 0.2s;width:100%;}
+.igm-btn:active{transform:scale(0.97);}
+.igm-btn-primary{background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;box-shadow:0 4px 16px rgba(255,45,155,0.28);}
+.igm-btn-primary:disabled{opacity:0.4;cursor:not-allowed;transform:none;}
+.igm-btn-green{background:linear-gradient(135deg,#00c878,var(--green));color:#001a0e;box-shadow:0 4px 14px rgba(0,255,170,0.22);}
+.igm-btn-outline{background:transparent;border:1.5px solid rgba(255,255,255,0.15);color:var(--muted);}
+.igm-btn-sm{padding:0.3rem 0.7rem;font-size:0.68rem;border-radius:7px;width:auto;}
+.igm-stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-bottom:1rem;}
+.igm-stat-chip{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:11px;padding:0.65rem;text-align:center;}
+.igm-stat-val{font-family:'Syne',sans-serif;font-size:1.2rem;font-weight:800;}
+.igm-stat-lbl{font-size:0.56rem;color:var(--muted);margin-top:0.08rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;}
+.igm-results-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.7rem;flex-wrap:wrap;gap:0.4rem;}
+.igm-results-count{font-size:0.7rem;color:var(--muted);}
+.igm-results-count strong{color:var(--cyan);}
+.igm-result-card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:0.75rem;margin-bottom:0.45rem;display:flex;align-items:flex-start;gap:0.65rem;transition:all 0.15s;cursor:pointer;}
+.igm-result-card:hover{border-color:rgba(255,45,155,0.3);}
+.igm-result-card.igm-rc-sel{border-color:rgba(0,255,170,0.4);background:rgba(0,255,170,0.04);}
+.igm-result-card.igm-rc-exists{border-color:rgba(255,215,0,0.25);background:rgba(255,215,0,0.02);opacity:0.55;}
+.igm-rc-check{width:18px;height:18px;border-radius:5px;border:1.5px solid rgba(255,255,255,0.15);flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-top:0.1rem;font-size:0.72rem;transition:all 0.15s;}
+.igm-result-card.igm-rc-sel .igm-rc-check{background:var(--green);border-color:var(--green);color:#001a0e;}
+.igm-rc-name{font-family:'Syne',sans-serif;font-size:0.78rem;font-weight:800;color:var(--text);margin-bottom:0.15rem;line-height:1.3;}
+.igm-rc-meta{display:flex;flex-wrap:wrap;gap:0.25rem;margin-bottom:0.15rem;}
+.igm-rc-tag{font-size:0.56rem;font-weight:700;padding:0.08rem 0.35rem;border-radius:5px;}
+.igm-rc-tag-type{background:rgba(255,45,155,0.1);color:var(--pink);border:1px solid rgba(255,45,155,0.2);}
+.igm-rc-tag-rating{background:rgba(255,215,0,0.1);color:var(--amber);border:1px solid rgba(255,215,0,0.2);}
+.igm-rc-tag-reviews{background:rgba(0,229,255,0.08);color:var(--cyan);border:1px solid rgba(0,229,255,0.18);}
+.igm-rc-tag-exists{background:rgba(255,215,0,0.1);color:var(--amber);border:1px solid rgba(255,215,0,0.2);}
+.igm-rc-addr{font-size:0.62rem;color:var(--muted);line-height:1.4;}
+.igm-progress-wrap{margin:0.8rem 0;}
+.igm-progress-bar{height:5px;background:rgba(255,255,255,0.06);border-radius:10px;overflow:hidden;}
+.igm-progress-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--cyan));border-radius:10px;transition:width 0.4s ease;width:0%;}
+.igm-progress-label{font-size:0.65rem;color:var(--muted);margin-top:0.3rem;display:flex;justify-content:space-between;}
+.igm-log-wrap{background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:0.7rem;max-height:160px;overflow-y:auto;font-size:0.63rem;font-family:monospace;line-height:1.7;}
+.igm-log-line{color:var(--muted);}
+.igm-log-line.igm-ok{color:var(--green);}
+.igm-log-line.igm-warn{color:var(--amber);}
+.igm-log-line.igm-err{color:var(--red);}
+/* Guide tuto */
+.igm-guide{background:linear-gradient(135deg,rgba(0,229,255,0.07),rgba(0,255,170,0.05));border:1px solid rgba(0,229,255,0.22);border-radius:16px;padding:1.1rem 1.1rem 0.9rem;margin-bottom:1rem;}
+.igm-guide-title{font-family:'Syne',sans-serif;font-size:0.85rem;font-weight:800;color:var(--cyan);margin-bottom:0.85rem;display:flex;align-items:center;gap:0.4rem;}
+.igm-guide-steps{display:flex;flex-direction:column;gap:0.7rem;margin-bottom:0.85rem;}
+.igm-gs{display:flex;align-items:flex-start;gap:0.7rem;}
+.igm-gs-num{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--green));color:#001a0e;font-size:0.65rem;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:0.05rem;}
+.igm-gs-body{flex:1;}
+.igm-gs-label{font-size:0.78rem;font-weight:700;color:var(--text);margin-bottom:0.12rem;}
+.igm-gs-desc{font-size:0.67rem;color:var(--muted);line-height:1.5;}
+.igm-guide-note{font-size:0.65rem;color:rgba(0,229,255,0.7);background:rgba(0,229,255,0.06);border-radius:8px;padding:0.45rem 0.65rem;line-height:1.5;}
+/* ══════════════════════════════════════════════════════════════ */
+
 .card-event-flash{
   display:flex;align-items:center;gap:0.6rem;
   background:linear-gradient(135deg,rgba(255,45,155,0.16),rgba(204,68,255,0.10));
@@ -6556,6 +6623,7 @@ if (document.readyState === 'loading') {
         <button id="tabMonetisation" onclick="switchAdminTab('monetisation')" style="flex:1;min-width:80px;padding:0.45rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:1px solid rgba(255,215,0,0.45);background:transparent;color:var(--amber);font-family:'DM Sans',sans-serif;transition:all 0.2s;">💰 Revenus</button>
         <button id="tabSocialMedia" onclick="switchAdminTab('socialmedia')" style="flex:1;min-width:80px;padding:0.45rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:1px solid rgba(225,48,108,0.45);background:transparent;color:#e1306c;font-family:'DM Sans',sans-serif;transition:all 0.2s;">📱 Social</button>
         <button id="tabPublicationsMod" onclick="switchAdminTab('publicationsmod')" style="flex:1;min-width:80px;padding:0.45rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:1px solid rgba(0,229,255,0.45);background:transparent;color:var(--cyan);font-family:'DM Sans',sans-serif;transition:all 0.2s;">📰 Posts</button>
+        <button id="tabImportGMaps" onclick="switchAdminTab('importgmaps')" style="flex:1;min-width:80px;padding:0.45rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:1px solid rgba(0,255,170,0.45);background:transparent;color:var(--green);font-family:'DM Sans',sans-serif;transition:all 0.2s;">🗺️ Import</button>
       </div>
       <!-- BOUTON AJOUT ADMIN GRATUIT -->
       <button onclick="openAdminAddModal()" style="width:100%;padding:0.75rem;border-radius:12px;border:2px dashed rgba(255,215,0,0.5);background:rgba(255,215,0,0.08);color:var(--amber);font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;margin-bottom:1rem;transition:all 0.2s;">&#43; Ajouter un établissement (gratuit)</button>
@@ -6878,6 +6946,154 @@ if (document.readyState === 'loading') {
 
       </div>
       <!-- FIN PANEL PUBLICATIONS MOD ═══════════════════════════ -->
+
+      <!-- ══ PANEL IMPORT GOOGLE MAPS ══════════════════════════ -->
+      <div id="panelImportGMaps" style="display:none;animation:fadeUp 0.3s ease both;">
+
+        <!-- Steps -->
+        <div class="igm-steps" id="igmSteps">
+          <div class="igm-step igm-active" id="igm-step1"><div class="igm-step-num">1</div> Catégories</div>
+          <div class="igm-step" id="igm-step2"><div class="igm-step-num">2</div> Recherche</div>
+          <div class="igm-step" id="igm-step3"><div class="igm-step-num">3</div> Sélection</div>
+          <div class="igm-step" id="igm-step4"><div class="igm-step-num">4</div> Import</div>
+        </div>
+
+        <!-- Section 1 : Catégories -->
+        <div class="igm-section igm-active" id="igm-sec1">
+
+          <!-- Guide tuto -->
+          <div class="igm-guide">
+            <div class="igm-guide-title">📖 Comment ça marche ?</div>
+            <div class="igm-guide-steps">
+              <div class="igm-gs">
+                <div class="igm-gs-num">1</div>
+                <div class="igm-gs-body">
+                  <div class="igm-gs-label">Choisis les catégories</div>
+                  <div class="igm-gs-desc">Sélectionne les types d'établissements à importer : bars, restos, hôtels, clubs…</div>
+                </div>
+              </div>
+              <div class="igm-gs">
+                <div class="igm-gs-num">2</div>
+                <div class="igm-gs-body">
+                  <div class="igm-gs-label">Recherche automatique</div>
+                  <div class="igm-gs-desc">L'outil interroge Google Maps Places API sur Libreville et récupère les établissements publiés (nom, note, adresse, coordonnées GPS).</div>
+                </div>
+              </div>
+              <div class="igm-gs">
+                <div class="igm-gs-num">3</div>
+                <div class="igm-gs-body">
+                  <div class="igm-gs-label">Vérifie et sélectionne</div>
+                  <div class="igm-gs-desc">Les doublons déjà présents dans Firebase sont automatiquement détectés et marqués. Tu choisis ce que tu importes.</div>
+                </div>
+              </div>
+              <div class="igm-gs">
+                <div class="igm-gs-num">4</div>
+                <div class="igm-gs-body">
+                  <div class="igm-gs-label">Import en un clic</div>
+                  <div class="igm-gs-desc">Les établissements sélectionnés sont ajoutés à Firebase avec tous leurs champs (type, quartier, GPS, note, lien Maps) et apparaissent immédiatement dans l'appli.</div>
+                </div>
+              </div>
+            </div>
+            <div class="igm-guide-note">💡 La recherche peut prendre 30 à 60 secondes selon le nombre de catégories sélectionnées. Une connexion internet stable est requise.</div>
+          </div>
+
+          <div class="igm-panel">
+            <div class="igm-panel-title">🗂️ Choisir les catégories à importer</div>
+            <div class="igm-panel-sub">Sélectionne les types d'établissements à récupérer sur Google Maps à Libreville. L'outil recherche automatiquement par quartier pour maximiser les résultats.</div>
+            <div class="igm-cat-grid" id="igmCatGrid">
+              <div class="igm-cat-btn igm-cat-sel" data-key="Hotel" onclick="igmToggleCat(this)">
+                <span class="igm-cat-icon">🏨</span>
+                <div class="igm-cat-name">Hôtels & Motels</div>
+                <div class="igm-cat-count" id="igm-cnt-Hotel">—</div>
+              </div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Bar" onclick="igmToggleCat(this)">
+                <span class="igm-cat-icon">🍺</span>
+                <div class="igm-cat-name">Bars</div>
+                <div class="igm-cat-count" id="igm-cnt-Bar">—</div>
+              </div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Bar Terrasse" onclick="igmToggleCat(this)">
+                <span class="igm-cat-icon">🍹</span>
+                <div class="igm-cat-name">Bar Terrasses</div>
+                <div class="igm-cat-count" id="igm-cnt-Bar Terrasse">—</div>
+              </div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Snack" onclick="igmToggleCat(this)">
+                <span class="igm-cat-icon">🍟</span>
+                <div class="igm-cat-name">Snacks</div>
+                <div class="igm-cat-count" id="igm-cnt-Snack">—</div>
+              </div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Restaurant" onclick="igmToggleCat(this)">
+                <span class="igm-cat-icon">🍽️</span>
+                <div class="igm-cat-name">Restos & Pâtisseries</div>
+                <div class="igm-cat-count" id="igm-cnt-Restaurant">—</div>
+              </div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Discotheque" onclick="igmToggleCat(this)">
+                <span class="igm-cat-icon">🎵</span>
+                <div class="igm-cat-name">Clubs</div>
+                <div class="igm-cat-count" id="igm-cnt-Discotheque">—</div>
+              </div>
+            </div>
+            <button class="igm-btn igm-btn-primary" onclick="igmStartSearch()">🔍 Lancer la recherche Google Maps</button>
+          </div>
+        </div>
+
+        <!-- Section 2 : Recherche -->
+        <div class="igm-section" id="igm-sec2">
+          <div class="igm-panel">
+            <div class="igm-panel-title">⏳ Recherche en cours...</div>
+            <div class="igm-panel-sub" id="igmSearchStatus">Connexion à Google Maps Places API...</div>
+            <div class="igm-progress-wrap">
+              <div class="igm-progress-bar"><div class="igm-progress-fill" id="igmProgressFill"></div></div>
+              <div class="igm-progress-label"><span id="igmProgressLabel">0%</span><span id="igmProgressDetail"></span></div>
+            </div>
+            <div class="igm-log-wrap" id="igmLogWrap"></div>
+          </div>
+        </div>
+
+        <!-- Section 3 : Sélection -->
+        <div class="igm-section" id="igm-sec3">
+          <div class="igm-panel">
+            <div class="igm-panel-title">✅ Résultats trouvés</div>
+            <div class="igm-stat-row">
+              <div class="igm-stat-chip"><div class="igm-stat-val" id="igmStatTotal" style="color:var(--cyan)">0</div><div class="igm-stat-lbl">Trouvés</div></div>
+              <div class="igm-stat-chip"><div class="igm-stat-val" id="igmStatNew" style="color:var(--green)">0</div><div class="igm-stat-lbl">Nouveaux</div></div>
+              <div class="igm-stat-chip"><div class="igm-stat-val" id="igmStatExists" style="color:var(--amber)">0</div><div class="igm-stat-lbl">Déjà présents</div></div>
+            </div>
+            <div class="igm-results-header">
+              <div class="igm-results-count">Sélectionne les établissements à importer · <strong id="igmSelectedCount">0</strong> sélectionnés</div>
+              <div style="display:flex;gap:0.4rem;">
+                <button class="igm-btn igm-btn-outline igm-btn-sm" onclick="igmSelectAll(true)">Tout cocher</button>
+                <button class="igm-btn igm-btn-outline igm-btn-sm" onclick="igmSelectAll(false)">Tout décocher</button>
+              </div>
+            </div>
+            <div id="igmResultsList"></div>
+            <div style="margin-top:1rem;">
+              <button class="igm-btn igm-btn-green" onclick="igmStartImport()">🚀 Importer dans Firebase</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 4 : Import -->
+        <div class="igm-section" id="igm-sec4">
+          <div class="igm-panel">
+            <div class="igm-panel-title">🚀 Import Firebase en cours...</div>
+            <div class="igm-progress-wrap">
+              <div class="igm-progress-bar"><div class="igm-progress-fill" id="igmImportProgressFill"></div></div>
+              <div class="igm-progress-label"><span id="igmImportProgressLabel">0%</span><span id="igmImportProgressDetail"></span></div>
+            </div>
+            <div class="igm-log-wrap" id="igmImportLog"></div>
+            <div id="igmImportDone" style="display:none;margin-top:1.2rem;">
+              <div style="text-align:center;padding:1.5rem;">
+                <div style="font-size:2.5rem;margin-bottom:0.5rem;">🎉</div>
+                <div style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:var(--green);margin-bottom:0.3rem;">Import terminé !</div>
+                <div style="font-size:0.75rem;color:var(--muted);margin-bottom:1.2rem;" id="igmImportSummary"></div>
+                <button class="igm-btn igm-btn-primary" onclick="igmReset()">🔄 Nouvelle recherche</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <!-- FIN PANEL IMPORT GOOGLE MAPS ════════════════════════ -->
 
             <!-- PANEL TRANSACTIONS TAXI PRO -->
       <div id="panelTaxiPro" style="display:none">
@@ -11047,6 +11263,13 @@ function switchAdminTab(tab){
   var smActive=tab==="socialmedia";
   if(btnSM){btnSM.style.background=smActive?"rgba(225,48,108,0.18)":"transparent";btnSM.style.color="#e1306c";btnSM.style.borderColor=smActive?"#e1306c":"rgba(225,48,108,0.45)";}
   if(panelSM)panelSM.style.display=smActive?"block":"none";
+  /* onglet Import Google Maps */
+  var btnIG=document.getElementById("tabImportGMaps");
+  var panelIG=document.getElementById("panelImportGMaps");
+  var igActive=tab==="importgmaps";
+  if(btnIG){btnIG.style.background=igActive?"rgba(0,255,170,0.18)":"transparent";btnIG.style.color="var(--green)";btnIG.style.borderColor=igActive?"var(--green)":"rgba(0,255,170,0.45)";}
+  if(panelIG)panelIG.style.display=igActive?"block":"none";
+  if(igActive && !window._igmInited) igmInit();
   if(tab==="contacts") renderContactsAdmin();
   if(tab==="taxipro") renderTaxiProTransactions();
   if(tab==="monetisation") renderAdmMonetisation();
@@ -36711,6 +36934,384 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
   console.log('[AMBI241] ✅ Social Publications Panel — chargé');
 })();
 
+<!-- ══════════════════════════════════════════════════════════════
+     IMPORT GOOGLE MAPS — Logique embarquée dans le dashboard admin
+     ══════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  var GMAPS_KEY = "AIzaSyCx3hD28Lb9EtUrawHbTnM-6vmXdgO1ABw";
+  var _igmResults = [];
+  var _igmSelectedIds = new Set();
+  var _igmSelectedCats = new Set(['Hotel','Bar','Bar Terrasse','Snack','Restaurant','Discotheque']);
+
+  var IGM_CAT_CONFIG = {
+    "Hotel":        {label:"Hôtels & Motels",  icon:"🏨", queries:["hotel Libreville Gabon","motel Libreville Gabon","lodge Libreville Gabon","résidence hôtelière Libreville"]},
+    "Bar":          {label:"Bars",             icon:"🍺", queries:["bar Libreville Gabon","pub Libreville Gabon","lounge bar Libreville"]},
+    "Bar Terrasse": {label:"Bar Terrasses",    icon:"🍹", queries:["bar terrasse Libreville Gabon","rooftop bar Libreville"]},
+    "Snack":        {label:"Snacks",           icon:"🍟", queries:["snack Libreville Gabon","fast food Libreville Gabon","maquis Libreville"]},
+    "Restaurant":   {label:"Restos & Pâtiss.",icon:"🍽️", queries:["restaurant Libreville Gabon","patisserie Libreville Gabon","café restaurant Libreville"]},
+    "Discotheque":  {label:"Clubs",            icon:"🎵", queries:["nightclub Libreville Gabon","discothèque Libreville Gabon","boite de nuit Libreville"]}
+  };
+
+  var IGM_QUARTIERS = ["Centre-ville","Akanda","Glass","Libreville","Louis","Owendo","Nombakélé","Batterie IV","PK5","PK8","PK12","Angondjé","Nzeng-Ayong","La Sablière"];
+
+  /* ── Init : charger les existants depuis Firebase ── */
+  function igmInit() {
+    window._igmInited = true;
+    igmReset(false);
+    if(!window.db || !window.fbGetDocs || !window.fbCollection) return;
+    window.fbGetDocs(window.fbCollection(window.db, "etablissements")).then(function(snap){
+      var existing = new Set();
+      var maxId = 0;
+      snap.forEach(function(d){
+        var data = d.data();
+        if(data.nom) existing.add(data.nom.toLowerCase().trim());
+        if(data.place_id) existing.add(data.place_id);
+        if(data.id && data.id > maxId) maxId = data.id;
+      });
+      window._igmExisting = existing;
+      window._igmMaxId = maxId;
+    }).catch(function(){});
+  }
+  window.igmInit = igmInit;
+
+  /* ── Reset ── */
+  function igmReset(reload) {
+    _igmResults = [];
+    _igmSelectedIds.clear();
+    if(reload !== false) {
+      igmSetStep(1);
+      document.querySelectorAll('#igmLogWrap,#igmImportLog').forEach(function(el){ el.innerHTML=''; });
+      document.getElementById('igmImportDone').style.display = 'none';
+      document.getElementById('igmResultsList').innerHTML = '';
+    }
+  }
+  window.igmReset = igmReset;
+
+  /* ── Étapes ── */
+  function igmSetStep(n) {
+    [1,2,3,4].forEach(function(i){
+      var s = document.getElementById('igm-step'+i);
+      var sec = document.getElementById('igm-sec'+i);
+      if(s){ s.classList.toggle('igm-active', i===n); s.classList.toggle('igm-done', i<n); }
+      if(sec) sec.classList.toggle('igm-active', i===n);
+    });
+  }
+
+  /* ── Toggles catégories ── */
+  function igmToggleCat(el) {
+    var key = el.dataset.key;
+    if(_igmSelectedCats.has(key)) _igmSelectedCats.delete(key);
+    else _igmSelectedCats.add(key);
+    el.classList.toggle('igm-cat-sel', _igmSelectedCats.has(key));
+  }
+  window.igmToggleCat = igmToggleCat;
+
+  /* ── Log ── */
+  function igmLog(msg, type) {
+    var wrap = document.getElementById('igmLogWrap');
+    if(!wrap) return;
+    var line = document.createElement('div');
+    line.className = 'igm-log-line' + (type ? ' igm-'+type : '');
+    line.textContent = new Date().toLocaleTimeString('fr') + ' — ' + msg;
+    wrap.appendChild(line);
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+
+  /* ── Progression ── */
+  function igmSetProgress(pct, label, detail) {
+    var fill = document.getElementById('igmProgressFill');
+    var lbl  = document.getElementById('igmProgressLabel');
+    var det  = document.getElementById('igmProgressDetail');
+    var stat = document.getElementById('igmSearchStatus');
+    if(fill) fill.style.width = pct + '%';
+    if(lbl) lbl.textContent = Math.round(pct) + '%';
+    if(det && detail) det.textContent = detail;
+    if(stat && label) stat.textContent = label;
+  }
+
+  /* ── Chargement SDK Google Maps ── */
+  function igmLoadSDK() {
+    return new Promise(function(resolve, reject){
+      if(window.google && window.google.maps && window.google.maps.places){ resolve(); return; }
+      var s = document.createElement('script');
+      s.src = 'https://maps.googleapis.com/maps/api/js?key=' + GMAPS_KEY + '&libraries=places&language=fr';
+      s.onload = resolve;
+      s.onerror = function(){ reject(new Error('Impossible de charger Google Maps SDK')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  /* ── Recherche Places ── */
+  function igmSearchPlaces(q, service) {
+    return new Promise(function(resolve){
+      var req = { query: q, location: new google.maps.LatLng(0.4162, 9.4673), radius: 25000, language: 'fr' };
+      service.textSearch(req, function(results, status, pagination){
+        var all = results || [];
+        if(status === google.maps.places.PlacesServiceStatus.OK) {
+          if(pagination && pagination.hasNextPage) {
+            setTimeout(function(){
+              pagination.nextPage();
+              service.textSearch(req, function(r2){ resolve(all.concat(r2 || [])); });
+            }, 1200);
+          } else {
+            resolve(all);
+          }
+        } else { resolve([]); }
+      });
+    });
+  }
+
+  /* ── Helpers ── */
+  function igmIsExisting(place) {
+    if(!window._igmExisting) return false;
+    if(place.place_id && window._igmExisting.has(place.place_id)) return true;
+    if(place.name && window._igmExisting.has(place.name.toLowerCase().trim())) return true;
+    return false;
+  }
+
+  function igmExtractQuartier(addr) {
+    if(!addr) return 'Libreville';
+    for(var i=0;i<IGM_QUARTIERS.length;i++){
+      if(addr.toLowerCase().indexOf(IGM_QUARTIERS[i].toLowerCase()) !== -1) return IGM_QUARTIERS[i];
+    }
+    return 'Libreville';
+  }
+
+  function igmEsc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  /* ── LANCER LA RECHERCHE ── */
+  async function igmStartSearch() {
+    if(_igmSelectedCats.size === 0){ if(typeof showToast==='function') showToast('⚠️ Sélectionne au moins une catégorie'); return; }
+    igmSetStep(2);
+    _igmResults = [];
+    var seen = new Set();
+
+    try {
+      igmLog('Chargement du SDK Google Maps...');
+      await igmLoadSDK();
+      igmLog('SDK Google Maps chargé ✓', 'ok');
+
+      var mapDiv = document.createElement('div');
+      mapDiv.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
+      document.body.appendChild(mapDiv);
+      var gmap = new google.maps.Map(mapDiv, {center:{lat:0.4162,lng:9.4673}, zoom:12});
+      var service = new google.maps.places.PlacesService(gmap);
+
+      var cats = Array.from(_igmSelectedCats);
+      var totalQ = cats.reduce(function(s,c){ return s + IGM_CAT_CONFIG[c].queries.length; }, 0);
+      var done = 0;
+
+      for(var ci=0; ci<cats.length; ci++){
+        var catKey = cats[ci];
+        var cfg = IGM_CAT_CONFIG[catKey];
+        igmLog('🔍 Catégorie : ' + cfg.label + '...');
+
+        for(var qi=0; qi<cfg.queries.length; qi++){
+          var q = cfg.queries[qi];
+          igmSetProgress((done/totalQ)*100, 'Recherche "' + q + '"...', done+'/'+totalQ+' requêtes');
+          igmLog('  → "' + q + '"');
+
+          try {
+            var results = await igmSearchPlaces(q, service);
+            var newFound = 0;
+            for(var ri=0; ri<results.length; ri++){
+              var p = results[ri];
+              if(seen.has(p.place_id)) continue;
+              seen.add(p.place_id);
+              var existing = igmIsExisting(p);
+              _igmResults.push({
+                place_id: p.place_id,
+                nom: p.name,
+                adresse: p.formatted_address || p.vicinity || '',
+                quartier: igmExtractQuartier(p.formatted_address || p.vicinity || ''),
+                note: p.rating || 0,
+                avis: p.user_ratings_total || 0,
+                lat: (p.geometry && p.geometry.location) ? p.geometry.location.lat() : 0,
+                lng: (p.geometry && p.geometry.location) ? p.geometry.location.lng() : 0,
+                catKey: catKey,
+                type: catKey,
+                isExisting: existing,
+                selected: !existing
+              });
+              if(!existing) newFound++;
+            }
+            igmLog('  ✓ ' + results.length + ' résultats (' + newFound + ' nouveaux)', 'ok');
+            var cntEl = document.getElementById('igm-cnt-' + catKey);
+            if(cntEl) cntEl.textContent = _igmResults.filter(function(r){ return r.catKey===catKey && !r.isExisting; }).length + ' nv';
+          } catch(e) {
+            igmLog('  ⚠️ Erreur: ' + e.message, 'warn');
+          }
+
+          done++;
+          await new Promise(function(r){ setTimeout(r, 400); });
+        }
+      }
+
+      igmSetProgress(100, 'Recherche terminée !', totalQ+'/'+totalQ+' requêtes');
+      igmLog('🎉 Total : ' + _igmResults.length + ' établissements', 'ok');
+      igmLog('✅ Nouveaux : ' + _igmResults.filter(function(r){ return !r.isExisting; }).length, 'ok');
+      igmLog('⚠️ Déjà présents : ' + _igmResults.filter(function(r){ return r.isExisting; }).length, 'warn');
+
+      setTimeout(igmShowResults, 800);
+
+    } catch(e) {
+      igmLog('❌ Erreur fatale : ' + e.message, 'err');
+      if(typeof showToast==='function') showToast('❌ ' + e.message);
+    }
+  }
+  window.igmStartSearch = igmStartSearch;
+
+  /* ── Afficher les résultats ── */
+  function igmShowResults() {
+    igmSetStep(3);
+    var newCount = _igmResults.filter(function(r){ return !r.isExisting; }).length;
+    var existCount = _igmResults.filter(function(r){ return r.isExisting; }).length;
+    var el;
+    el = document.getElementById('igmStatTotal'); if(el) el.textContent = _igmResults.length;
+    el = document.getElementById('igmStatNew');   if(el) el.textContent = newCount;
+    el = document.getElementById('igmStatExists');if(el) el.textContent = existCount;
+
+    _igmResults.sort(function(a,b){
+      if(a.isExisting !== b.isExisting) return a.isExisting ? 1 : -1;
+      return b.note - a.note;
+    });
+
+    _igmSelectedIds = new Set(_igmResults.filter(function(r){ return r.selected; }).map(function(r){ return r.place_id; }));
+    igmRenderResults();
+  }
+
+  function igmRenderResults() {
+    var list = document.getElementById('igmResultsList');
+    var html = '';
+    for(var i=0; i<_igmResults.length; i++){
+      var r = _igmResults[i];
+      var sel = _igmSelectedIds.has(r.place_id);
+      var cfg = IGM_CAT_CONFIG[r.catKey];
+      html += '<div class="igm-result-card ' + (sel?'igm-rc-sel':'') + ' ' + (r.isExisting?'igm-rc-exists':'') + '" onclick="igmToggleResult(\''+igmEsc(r.place_id)+'\') " data-igm-id="'+igmEsc(r.place_id)+'">';
+      html += '<div class="igm-rc-check">'+(sel?'✓':'')+'</div>';
+      html += '<div style="flex:1;min-width:0;">';
+      html += '<div class="igm-rc-name">'+cfg.icon+' '+igmEsc(r.nom)+'</div>';
+      html += '<div class="igm-rc-meta">';
+      html += '<span class="igm-rc-tag igm-rc-tag-type">'+cfg.label+'</span>';
+      if(r.note) html += '<span class="igm-rc-tag igm-rc-tag-rating">⭐ '+r.note.toFixed(1)+'</span>';
+      if(r.avis) html += '<span class="igm-rc-tag igm-rc-tag-reviews">'+r.avis+' avis</span>';
+      if(r.isExisting) html += '<span class="igm-rc-tag igm-rc-tag-exists">⚠️ Déjà présent</span>';
+      html += '</div>';
+      html += '<div class="igm-rc-addr">📍 '+igmEsc(r.adresse || r.quartier)+'</div>';
+      html += '</div></div>';
+    }
+    list.innerHTML = html;
+    igmUpdateCount();
+  }
+
+  function igmToggleResult(placeId) {
+    if(_igmSelectedIds.has(placeId)) _igmSelectedIds.delete(placeId);
+    else _igmSelectedIds.add(placeId);
+    var card = document.querySelector('[data-igm-id="'+placeId+'"]');
+    if(card){
+      var sel = _igmSelectedIds.has(placeId);
+      card.classList.toggle('igm-rc-sel', sel);
+      card.querySelector('.igm-rc-check').textContent = sel ? '✓' : '';
+    }
+    igmUpdateCount();
+  }
+  window.igmToggleResult = igmToggleResult;
+
+  function igmSelectAll(val) {
+    _igmSelectedIds.clear();
+    if(val) _igmResults.filter(function(r){ return !r.isExisting; }).forEach(function(r){ _igmSelectedIds.add(r.place_id); });
+    igmRenderResults();
+  }
+  window.igmSelectAll = igmSelectAll;
+
+  function igmUpdateCount() {
+    var el = document.getElementById('igmSelectedCount');
+    if(el) el.textContent = _igmSelectedIds.size;
+  }
+
+  /* ── IMPORT FIREBASE ── */
+  async function igmStartImport() {
+    var toImport = _igmResults.filter(function(r){ return _igmSelectedIds.has(r.place_id); });
+    if(!toImport.length){ if(typeof showToast==='function') showToast('⚠️ Aucun établissement sélectionné'); return; }
+    if(!window.db || !window.fbAddDoc || !window.fbCollection){ if(typeof showToast==='function') showToast('❌ Firebase non disponible'); return; }
+
+    igmSetStep(4);
+    var logWrap = document.getElementById('igmImportLog');
+
+    function ilog(msg, type) {
+      var line = document.createElement('div');
+      line.className = 'igm-log-line' + (type ? ' igm-'+type : '');
+      line.textContent = new Date().toLocaleTimeString('fr') + ' — ' + msg;
+      logWrap.appendChild(line);
+      logWrap.scrollTop = logWrap.scrollHeight;
+    }
+
+    var maxId = window._igmMaxId || 100;
+    var imported = 0, errors = 0;
+    ilog('🚀 Import de ' + toImport.length + ' établissements...', 'ok');
+
+    for(var i=0; i<toImport.length; i++){
+      var r = toImport[i];
+      var pct = ((i+1)/toImport.length)*100;
+      var fill = document.getElementById('igmImportProgressFill');
+      var lbl  = document.getElementById('igmImportProgressLabel');
+      var det  = document.getElementById('igmImportProgressDetail');
+      if(fill) fill.style.width = pct + '%';
+      if(lbl) lbl.textContent = Math.round(pct) + '%';
+      if(det) det.textContent = (i+1) + '/' + toImport.length;
+
+      var newId = ++maxId;
+      var doc = {
+        id: newId,
+        nom: r.nom,
+        type: r.type,
+        quartier: r.quartier,
+        ambiance: "Chill",
+        statut: "",
+        note: r.note || 0,
+        avis: r.avis || 0,
+        contact: "",
+        paiement: "En attente",
+        affluence: 0,
+        lat: r.lat,
+        lng: r.lng,
+        place_id: r.place_id,
+        maps_url: "https://www.google.com/maps/place/?q=place_id:" + r.place_id,
+        photo_interieur: "",
+        photo_exterieur: ""
+      };
+
+      try {
+        await window.fbAddDoc(window.fbCollection(window.db, "etablissements"), doc);
+        ilog('✅ [' + newId + '] ' + r.nom + ' (' + IGM_CAT_CONFIG[r.catKey].label + ')', 'ok');
+        imported++;
+      } catch(e) {
+        ilog('❌ Erreur ' + r.nom + ': ' + e.message, 'err');
+        errors++;
+      }
+      await new Promise(function(res){ setTimeout(res, 150); });
+    }
+
+    window._igmMaxId = maxId;
+    ilog('🎉 Terminé ! ' + imported + ' importés, ' + errors + ' erreur(s).', 'ok');
+    var sumEl = document.getElementById('igmImportSummary');
+    if(sumEl) sumEl.textContent = imported + ' établissements ajoutés à Firebase · ' + errors + ' erreur(s)';
+    var doneEl = document.getElementById('igmImportDone');
+    if(doneEl) doneEl.style.display = 'block';
+
+    /* Invalider le cache local pour forcer un rechargement des établissements */
+    window._igmInited = false;
+    if(typeof window.loadEtablissements === 'function') {
+      setTimeout(function(){ window.loadEtablissements(); }, 800);
+    }
+  }
+  window.igmStartImport = igmStartImport;
+
+  console.log('[AMBI241] ✅ Import Google Maps Panel — chargé');
+})();
 </script>
 </body>
 </html>
