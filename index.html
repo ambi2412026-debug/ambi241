@@ -1158,6 +1158,15 @@ body.wsp-open.wsp-minimized{padding-bottom:88px;}
 .socpub-media-tool-btn.event{border-color:rgba(255,215,0,0.3);color:var(--amber);}
 .socpub-media-tool-btn.location{border-color:rgba(0,255,170,0.3);color:var(--green);}
 .socpub-media-tool-btn:active{opacity:0.75;}
+.socpub-media-tool-btn.gif{border-color:rgba(0,229,255,0.35);color:var(--cyan);font-weight:900;font-size:0.68rem;letter-spacing:0.05em;}
+/* Mood chips */
+.socpub-mood-chip{width:36px;height:36px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);font-size:1.15rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.18s;}
+.socpub-mood-chip.active{background:rgba(255,45,155,0.15);border-color:var(--pink);transform:scale(1.12);}
+.socpub-mood-chip:active{transform:scale(0.9);}
+/* Visibility buttons */
+.socpub-vis-btn{flex:1;padding:0.38rem 0.4rem;border-radius:9px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:var(--muted);font-size:0.68rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.18s;text-align:center;}
+.socpub-vis-btn.active{background:rgba(0,229,255,0.1);border-color:rgba(0,229,255,0.4);color:var(--cyan);}
+.socpub-vis-btn:active{opacity:0.75;}
 
 /* Bouton publier */
 .socpub-submit-btn{
@@ -7638,38 +7647,93 @@ if (document.readyState === 'loading') {
 <!-- ══ MODAL PUBLIER (SOCIAL) ══ -->
 <div id="socPubModal" onclick="if(event.target===this)socClosePubModal()">
   <div class="socpub-modal-sheet">
+
+    <!-- ── Drag handle ── -->
+    <div style="width:38px;height:4px;background:rgba(255,255,255,0.12);border-radius:99px;margin:0 auto 1.1rem;"></div>
+
+    <!-- ── Header ── -->
     <div class="socpub-modal-head">
       <div class="socpub-modal-title">✍️ Nouvelle publication</div>
       <button class="socpub-modal-close" onclick="socClosePubModal()">✕</button>
     </div>
 
-    <!-- Type -->
-    <div class="socpub-type-row">
-      <button class="socpub-type-chip active" onclick="socPubSelectType('avis',this)">⭐ Avis</button>
+    <!-- ── Types (scrollable, inclut Vidéo) ── -->
+    <div class="socpub-type-row" style="overflow-x:auto;padding-bottom:0.2rem;flex-wrap:nowrap;">
+      <button class="socpub-type-chip active" onclick="socPubSelectType('ambiance',this)">🔥 Ambiance</button>
+      <button class="socpub-type-chip" onclick="socPubSelectType('avis',this)">⭐ Avis</button>
+      <button class="socpub-type-chip" onclick="socPubSelectType('photo',this)">📷 Photo</button>
+      <button class="socpub-type-chip" onclick="socPubSelectType('video',this)">🎬 Vidéo</button>
       <button class="socpub-type-chip" onclick="socPubSelectType('soiree',this)">🎉 Soirée</button>
       <button class="socpub-type-chip" onclick="socPubSelectType('annonce',this)">📣 Annonce</button>
-      <button class="socpub-type-chip" onclick="socPubSelectType('photo',this)">📷 Photo</button>
+      <button class="socpub-type-chip" onclick="socPubSelectType('sondage',this)">📊 Sondage</button>
       <button class="socpub-type-chip" onclick="socPubSelectType('event',this)">🗓 Événement</button>
     </div>
 
-    <!-- Texte -->
-    <textarea class="socpub-compose-textarea" id="socPubTextarea" placeholder="Quoi de neuf ? Partagez l'ambiance, un avis, une soirée…" maxlength="600"></textarea>
-    <div style="font-size:0.62rem;color:var(--muted);text-align:right;margin-top:-0.55rem;margin-bottom:0.7rem;"><span id="socPubCharCount">0</span>/600</div>
+    <!-- ── Zone Ambiance/Mood ── -->
+    <div id="socPubMoodRow" style="display:flex;gap:0.4rem;margin-bottom:0.85rem;overflow-x:auto;padding-bottom:0.1rem;">
+      <button class="socpub-mood-chip active" onclick="socPubSelectMood('🔥',this)" title="Ambiance de feu">🔥</button>
+      <button class="socpub-mood-chip" onclick="socPubSelectMood('🥂',this)" title="Festif">🥂</button>
+      <button class="socpub-mood-chip" onclick="socPubSelectMood('🎵',this)" title="Musique">🎵</button>
+      <button class="socpub-mood-chip" onclick="socPubSelectMood('😍',this)" title="Incroyable">😍</button>
+      <button class="socpub-mood-chip" onclick="socPubSelectMood('😴',this)" title="Calme">😴</button>
+      <button class="socpub-mood-chip" onclick="socPubSelectMood('💃',this)" title="Dance">💃</button>
+      <button class="socpub-mood-chip" onclick="socPubSelectMood('🍺',this)" title="Drinks">🍺</button>
+      <button class="socpub-mood-chip" onclick="socPubSelectMood('🌙',this)" title="Nuit">🌙</button>
+    </div>
 
-    <!-- Toolbar médias -->
+    <!-- ── Texte avec mention @ ── -->
+    <div style="position:relative;">
+      <textarea class="socpub-compose-textarea" id="socPubTextarea" placeholder="🔥 Quelle ambiance ce soir ? Partagez… @mention possible" maxlength="600" oninput="socPubOnTextInput(this)"></textarea>
+      <!-- Suggestions @mentions -->
+      <div id="socPubMentionBox" style="display:none;position:absolute;bottom:calc(100% + 4px);left:0;right:0;background:var(--surface2);border:1px solid rgba(255,45,155,0.3);border-radius:12px;padding:0.4rem;z-index:10;max-height:140px;overflow-y:auto;"></div>
+    </div>
+    <div style="font-size:0.62rem;color:var(--muted);text-align:right;margin-top:-0.5rem;margin-bottom:0.7rem;display:flex;justify-content:space-between;align-items:center;">
+      <span id="socPubMentionsList" style="color:var(--cyan);font-size:0.6rem;"></span>
+      <span><span id="socPubCharCount">0</span>/600</span>
+    </div>
+
+    <!-- ── Panneau Sondage (caché par défaut) ── -->
+    <div id="socPubPollPanel" style="display:none;background:rgba(204,68,255,0.07);border:1px solid rgba(204,68,255,0.25);border-radius:14px;padding:0.9rem;margin-bottom:0.85rem;">
+      <div style="font-size:0.72rem;font-weight:800;color:var(--purple);margin-bottom:0.6rem;font-family:'Syne',sans-serif;">📊 Créer un sondage</div>
+      <input class="socpub-poll-input" id="socPubPollQ" placeholder="Votre question…" maxlength="120" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(204,68,255,0.25);border-radius:9px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.8rem;padding:0.5rem 0.75rem;outline:none;margin-bottom:0.5rem;">
+      <div id="socPubPollOptions">
+        <input class="socpub-poll-input socpub-poll-opt" placeholder="Option 1" maxlength="60" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(204,68,255,0.2);border-radius:9px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.78rem;padding:0.42rem 0.7rem;outline:none;margin-bottom:0.35rem;">
+        <input class="socpub-poll-input socpub-poll-opt" placeholder="Option 2" maxlength="60" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(204,68,255,0.2);border-radius:9px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.78rem;padding:0.42rem 0.7rem;outline:none;margin-bottom:0.35rem;">
+      </div>
+      <button onclick="socPubAddPollOption()" style="background:none;border:1px dashed rgba(204,68,255,0.3);border-radius:8px;color:var(--purple);font-size:0.7rem;font-weight:700;padding:0.35rem 0.7rem;cursor:pointer;width:100%;">+ Ajouter une option</button>
+      <div style="display:flex;gap:0.5rem;margin-top:0.5rem;align-items:center;">
+        <span style="font-size:0.68rem;color:var(--muted);">Durée :</span>
+        <select id="socPubPollDuration" style="background:rgba(255,255,255,0.04);border:1px solid rgba(204,68,255,0.2);border-radius:8px;color:var(--text);font-size:0.7rem;padding:0.3rem 0.5rem;outline:none;">
+          <option value="1">1 jour</option>
+          <option value="3" selected>3 jours</option>
+          <option value="7">7 jours</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- ── Toolbar médias ── -->
     <div class="socpub-media-toolbar">
       <button class="socpub-media-tool-btn photo" onclick="document.getElementById('socPubPhotoInput').click()">📷 Photo</button>
       <button class="socpub-media-tool-btn video" onclick="document.getElementById('socPubVideoInput').click()">🎬 Vidéo</button>
-      <button class="socpub-media-tool-btn event">🎉 Événement</button>
+      <button class="socpub-media-tool-btn gif" onclick="socPubOpenGif()">GIF</button>
       <button class="socpub-media-tool-btn location" onclick="socPubAddLocation()">📍 Lieu</button>
     </div>
     <input type="file" id="socPubPhotoInput" accept="image/*" multiple style="display:none" onchange="socPubOnPhotosSelected(this)">
-    <input type="file" id="socPubVideoInput" accept="video/*" style="display:none">
+    <input type="file" id="socPubVideoInput" accept="video/*" style="display:none" onchange="socPubOnVideoSelected(this)">
 
-    <!-- Préview médias -->
-    <div id="socPubMediaPreview" style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.7rem;"></div>
+    <!-- ── Préview médias (photos + vidéo) ── -->
+    <div id="socPubMediaPreview" style="display:flex;gap:0.45rem;flex-wrap:wrap;margin-bottom:0.75rem;"></div>
 
-    <!-- Champ établissement -->
+    <!-- ── GIF picker (caché par défaut) ── -->
+    <div id="socPubGifPanel" style="display:none;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:14px;padding:0.8rem;margin-bottom:0.8rem;">
+      <div style="display:flex;gap:0.5rem;margin-bottom:0.6rem;">
+        <input id="socPubGifSearch" placeholder="🔍 Chercher un GIF (Tenor)…" style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:9px;color:var(--text);font-size:0.78rem;padding:0.42rem 0.7rem;outline:none;" oninput="socPubSearchGif(this.value)">
+        <button onclick="document.getElementById('socPubGifPanel').style.display='none'" style="background:none;border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--muted);font-size:0.72rem;padding:0.3rem 0.55rem;cursor:pointer;">✕</button>
+      </div>
+      <div id="socPubGifGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.35rem;max-height:150px;overflow-y:auto;"></div>
+    </div>
+
+    <!-- ── Champ établissement ── -->
     <div style="margin-bottom:0.75rem;">
       <select style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.82rem;padding:0.5rem 0.75rem;outline:none;" id="socPubEtabSelect">
         <option value="">📍 Lier à un établissement (optionnel)</option>
@@ -7680,13 +7744,30 @@ if (document.readyState === 'loading') {
       </select>
     </div>
 
-    <!-- Limite quotidienne -->
-    <div style="background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);border-radius:10px;padding:0.5rem 0.75rem;margin-bottom:0.85rem;display:flex;align-items:center;gap:0.5rem;">
-      <span style="font-size:0.75rem;">📊</span>
-      <span style="font-size:0.7rem;color:var(--muted);flex:1;">Publications aujourd'hui : <strong id="socPubDailyUsed" style="color:var(--amber);">2</strong> / 5</span>
+    <!-- ── Visibilité ── -->
+    <div style="margin-bottom:0.85rem;">
+      <div style="font-size:0.68rem;color:var(--muted);margin-bottom:0.4rem;font-weight:700;">👁 Visibilité</div>
+      <div style="display:flex;gap:0.4rem;">
+        <button class="socpub-vis-btn active" onclick="socPubSetVisibility('public',this)">🌐 Public</button>
+        <button class="socpub-vis-btn" onclick="socPubSetVisibility('amis',this)">👥 Amis</button>
+        <button class="socpub-vis-btn" onclick="socPubSetVisibility('moi',this)">🔒 Moi seul</button>
+      </div>
     </div>
 
-    <button class="socpub-submit-btn" onclick="socSubmitNewPub()">🚀 Publier maintenant</button>
+    <!-- ── Limite quotidienne ── -->
+    <div style="background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);border-radius:10px;padding:0.5rem 0.75rem;margin-bottom:0.95rem;display:flex;align-items:center;gap:0.5rem;">
+      <span style="font-size:0.75rem;">📊</span>
+      <span style="font-size:0.7rem;color:var(--muted);flex:1;">Publications aujourd'hui : <strong id="socPubDailyUsed" style="color:var(--amber);">2</strong> / 5</span>
+      <div id="socPubDailyBar" style="display:flex;gap:3px;">
+        <div style="width:10px;height:10px;border-radius:3px;background:var(--amber);opacity:1;"></div>
+        <div style="width:10px;height:10px;border-radius:3px;background:var(--amber);opacity:1;"></div>
+        <div style="width:10px;height:10px;border-radius:3px;background:rgba(255,255,255,0.1);"></div>
+        <div style="width:10px;height:10px;border-radius:3px;background:rgba(255,255,255,0.1);"></div>
+        <div style="width:10px;height:10px;border-radius:3px;background:rgba(255,255,255,0.1);"></div>
+      </div>
+    </div>
+
+    <button class="socpub-submit-btn" id="socPubSubmitBtn" onclick="socSubmitNewPub()">🚀 Publier maintenant</button>
   </div>
 </div>
 
@@ -37119,39 +37200,115 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     if(typeof window.showToast === 'function') window.showToast('⬇ Chargement des publications…');
   };
 
-  /* ── Modal Publier ── */
+  /* ══════════════════════════════════════════════════════════
+     ══  MODAL PUBLICATION — version enrichie AMBI241 PRO  ══
+     ══════════════════════════════════════════════════════════ */
+
+  /* ── État interne du composer ── */
+  var _spState = {
+    type: 'ambiance',
+    mood: '🔥',
+    visibility: 'public',
+    mentions: [],
+    gifUrl: null,
+    videoPreviewUrl: null,
+    pollData: null,
+    location: null
+  };
+
+  /* ── Ouvrir / Fermer ── */
   window.socOpenPublishModal = function(type) {
     var modal = document.getElementById('socPubModal');
     if(!modal) return;
     modal.classList.add('open');
-    if(type) {
-      var chip = document.querySelector('.socpub-type-chip[onclick*="\''+type+'\'"]');
-      if(chip) socPubSelectType(type, chip);
-    }
+    var t = type || 'ambiance';
+    var chip = document.querySelector('.socpub-type-chip[onclick*="\''+t+'\'"]');
+    if(chip) socPubSelectType(t, chip);
     _socPubInitAvatars();
+    // reset
+    _spState = { type:t, mood:'🔥', visibility:'public', mentions:[], gifUrl:null, videoPreviewUrl:null, pollData:null, location:null };
   };
   window.socClosePubModal = function() {
     var modal = document.getElementById('socPubModal');
     if(modal) modal.classList.remove('open');
   };
+
+  /* ── Sélection du type ── */
   window.socPubSelectType = function(type, btn) {
+    _spState.type = type;
     document.querySelectorAll('.socpub-type-chip').forEach(function(c){ c.classList.remove('active'); });
     if(btn) btn.classList.add('active');
     var ta = document.getElementById('socPubTextarea');
-    var placeholders = { avis:'⭐ Donnez votre avis sur un établissement…', soiree:'🎉 Décrivez l\'ambiance de la soirée…', annonce:'📣 Votre annonce pour la communauté…', photo:'📷 Décrivez votre photo…', event:'🗓 Détails de votre événement…' };
-    if(ta && placeholders[type]) ta.placeholder = placeholders[type];
+    var placeholders = {
+      ambiance: '🔥 Quelle ambiance ce soir ? @mention possible…',
+      avis:     '⭐ Donnez votre avis sur un établissement…',
+      soiree:   '🎉 Décrivez l\'ambiance de la soirée…',
+      annonce:  '📣 Votre annonce pour la communauté…',
+      photo:    '📷 Décrivez votre photo…',
+      video:    '🎬 Décrivez votre vidéo…',
+      event:    '🗓 Détails de votre événement…',
+      sondage:  '📊 Contexte du sondage (optionnel)…'
+    };
+    if(ta) ta.placeholder = placeholders[type] || placeholders.ambiance;
+    // Afficher/masquer panneau sondage
+    var pollPanel = document.getElementById('socPubPollPanel');
+    if(pollPanel) pollPanel.style.display = (type==='sondage') ? 'block' : 'none';
+    // Si type vidéo, cliquer input vidéo directement
+    if(type==='video') document.getElementById('socPubVideoInput').click();
   };
 
-  /* ── Compteur caractères ── */
-  var ta = document.getElementById('socPubTextarea');
-  if(ta) {
-    ta.addEventListener('input', function(){
-      var countEl = document.getElementById('socPubCharCount');
-      if(countEl) countEl.textContent = ta.value.length;
-    });
-  }
+  /* ── Sélection mood/ambiance ── */
+  window.socPubSelectMood = function(mood, btn) {
+    _spState.mood = mood;
+    document.querySelectorAll('.socpub-mood-chip').forEach(function(c){ c.classList.remove('active'); });
+    if(btn) btn.classList.add('active');
+  };
 
-  /* ── Photos dans compose ── */
+  /* ── Visibilité ── */
+  window.socPubSetVisibility = function(vis, btn) {
+    _spState.visibility = vis;
+    document.querySelectorAll('.socpub-vis-btn').forEach(function(b){ b.classList.remove('active'); });
+    if(btn) btn.classList.add('active');
+  };
+
+  /* ── Input texte + mentions @ ── */
+  var _mentionUsers = ['Patrick','Kozangue','Sylvie','Marc241','JolieLiv','AMBI_admin','Leo','Nadia','Guest'];
+  window.socPubOnTextInput = function(ta) {
+    // Compteur
+    var cc = document.getElementById('socPubCharCount'); if(cc) cc.textContent = ta.value.length;
+    // Détection @mention
+    var val = ta.value, curPos = ta.selectionStart;
+    var before = val.substring(0, curPos);
+    var m = before.match(/@(\w*)$/);
+    var box = document.getElementById('socPubMentionBox');
+    if(m && box) {
+      var q = m[1].toLowerCase();
+      var filtered = _mentionUsers.filter(function(u){ return u.toLowerCase().startsWith(q); });
+      if(filtered.length) {
+        box.style.display='block';
+        box.innerHTML = filtered.map(function(u){
+          return '<div onclick="socPubInsertMention(\''+u+'\')" style="padding:0.35rem 0.6rem;border-radius:8px;font-size:0.75rem;cursor:pointer;display:flex;align-items:center;gap:0.4rem;transition:background 0.15s;" onmouseover="this.style.background=\'rgba(255,45,155,0.12)\'" onmouseout="this.style.background=\'transparent\'">'
+            +'<span style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));display:inline-flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:800;color:#fff;flex-shrink:0;">'+u[0].toUpperCase()+'</span>'
+            +'<span style="color:var(--text);font-weight:600;">@'+u+'</span></div>';
+        }).join('');
+      } else { box.style.display='none'; }
+    } else if(box) { box.style.display='none'; }
+  };
+  window.socPubInsertMention = function(user) {
+    var ta = document.getElementById('socPubTextarea');
+    var box = document.getElementById('socPubMentionBox');
+    if(!ta) return;
+    var val = ta.value, cur = ta.selectionStart;
+    var before = val.substring(0,cur).replace(/@\w*$/, '@'+user+' ');
+    ta.value = before + val.substring(cur);
+    if(box) box.style.display='none';
+    if(!_spState.mentions.includes(user)) _spState.mentions.push(user);
+    var ml = document.getElementById('socPubMentionsList');
+    if(ml) ml.textContent = _spState.mentions.map(function(u){return '@'+u;}).join(' ');
+    ta.focus();
+  };
+
+  /* ── Photos ── */
   window.socPubOnPhotosSelected = function(inp) {
     var preview = document.getElementById('socPubMediaPreview');
     if(!preview || !inp.files) return;
@@ -37159,56 +37316,305 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       var reader = new FileReader();
       reader.onload = function(ev) {
         var div = document.createElement('div');
-        div.style.cssText = 'width:70px;height:70px;border-radius:10px;overflow:hidden;border:2px solid rgba(255,45,155,0.3);position:relative;flex-shrink:0;';
+        div.style.cssText = 'width:74px;height:74px;border-radius:12px;overflow:hidden;border:2px solid rgba(255,45,155,0.35);position:relative;flex-shrink:0;cursor:pointer;';
         div.innerHTML = '<img src="'+ev.target.result+'" style="width:100%;height:100%;object-fit:cover;">'
-          + '<button onclick="this.parentNode.remove()" style="position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,0.7);color:#fff;border:none;font-size:0.65rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>';
+          + '<button onclick="this.parentNode.remove()" style="position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,0.75);color:#fff;border:none;font-size:0.62rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;">✕</button>';
         preview.appendChild(div);
       };
       reader.readAsDataURL(file);
     });
+    // auto-select type photo
+    var chipPhoto = document.querySelector('.socpub-type-chip[onclick*="\'photo\'"]');
+    if(chipPhoto) socPubSelectType('photo', chipPhoto);
   };
 
-  window.socPubAddLocation = function() {
-    if(typeof window.showToast === 'function') window.showToast('📍 Localisation ajoutée : Libreville, Gabon');
+  /* ── Vidéo avec preview ── */
+  window.socPubOnVideoSelected = function(inp) {
+    var preview = document.getElementById('socPubMediaPreview');
+    if(!preview || !inp.files || !inp.files[0]) return;
+    var file = inp.files[0];
+    var url = URL.createObjectURL(file);
+    _spState.videoPreviewUrl = url;
+    // Vignette vidéo
+    var div = document.createElement('div');
+    div.id = 'socPubVideoPreviewDiv';
+    div.style.cssText = 'width:100%;border-radius:14px;overflow:hidden;border:2px solid rgba(0,229,255,0.35);position:relative;margin-bottom:0.5rem;';
+    div.innerHTML = '<video src="'+url+'" controls style="width:100%;max-height:200px;display:block;background:#000;" playsinline></video>'
+      + '<div style="position:absolute;top:6px;right:6px;display:flex;gap:4px;">'
+      + '<span style="background:rgba(0,229,255,0.85);color:#000;font-size:0.6rem;font-weight:800;padding:2px 7px;border-radius:5px;">VIDÉO</span>'
+      + '<button onclick="document.getElementById(\'socPubVideoPreviewDiv\').remove();_spState.videoPreviewUrl=null;" style="width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,0.75);color:#fff;border:none;font-size:0.65rem;cursor:pointer;">✕</button>'
+      + '</div>';
+    // Supprimer ancien preview vidéo si présent
+    var old = document.getElementById('socPubVideoPreviewDiv');
+    if(old) old.remove();
+    preview.prepend(div);
+    // auto-select type vidéo
+    var chipVid = document.querySelector('.socpub-type-chip[onclick*="\'video\'"]');
+    if(chipVid) { document.querySelectorAll('.socpub-type-chip').forEach(function(c){c.classList.remove('active');}); chipVid.classList.add('active'); _spState.type='video'; }
   };
+
+  /* ── Localisation ── */
+  window.socPubAddLocation = function() {
+    if(navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(function(pos){
+        _spState.location = { lat: pos.coords.latitude, lng: pos.coords.longitude, label: 'Libreville, Gabon' };
+        if(typeof window.showToast==='function') window.showToast('📍 Position GPS capturée !');
+      }, function(){
+        _spState.location = { lat:-0.7893, lng:8.7776, label:'Libreville, Gabon' };
+        if(typeof window.showToast==='function') window.showToast('📍 Libreville, Gabon ajouté');
+      });
+    } else {
+      _spState.location = { lat:-0.7893, lng:8.7776, label:'Libreville, Gabon' };
+      if(typeof window.showToast==='function') window.showToast('📍 Libreville, Gabon ajouté');
+    }
+  };
+
+  /* ── GIF picker (Tenor via proxy CORS) ── */
+  var _gifTimer = null;
+  window.socPubOpenGif = function() {
+    var panel = document.getElementById('socPubGifPanel');
+    if(!panel) return;
+    panel.style.display = panel.style.display==='none' ? 'block' : 'none';
+    if(panel.style.display==='block') socPubSearchGif('ambiance gabon');
+  };
+  window.socPubSearchGif = function(q) {
+    clearTimeout(_gifTimer);
+    if(!q || q.length < 2) return;
+    _gifTimer = setTimeout(function(){
+      var grid = document.getElementById('socPubGifGrid');
+      if(!grid) return;
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:1rem;color:var(--muted);font-size:0.7rem;">🔍 Recherche en cours…</div>';
+      // Tenor API (clé publique de démo)
+      var url = 'https://tenor.googleapis.com/v2/search?q='+encodeURIComponent(q)+'&key=AIzaSyAyimkuYQYF_FXVALexPmHA2zHg0B8XHHA&limit=9&media_filter=gif';
+      fetch(url)
+        .then(function(r){return r.json();})
+        .then(function(data){
+          grid.innerHTML='';
+          if(!data.results||!data.results.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:0.8rem;color:var(--muted);font-size:0.7rem;">Aucun GIF trouvé</div>';return;}
+          data.results.forEach(function(item){
+            var gifUrl = item.media_formats && item.media_formats.tinygif ? item.media_formats.tinygif.url : '';
+            if(!gifUrl) return;
+            var img = document.createElement('img');
+            img.src = gifUrl;
+            img.style.cssText='width:100%;height:70px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent;transition:border-color 0.15s;';
+            img.onclick = function(){ socPubSelectGif(gifUrl); };
+            img.onmouseover=function(){this.style.borderColor='var(--cyan)';};
+            img.onmouseout=function(){this.style.borderColor=this.classList.contains('selected')?'var(--cyan)':'transparent';};
+            grid.appendChild(img);
+          });
+        })
+        .catch(function(){
+          grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:0.8rem;color:var(--muted);font-size:0.7rem;">⚠️ GIF indisponible hors connexion</div>';
+        });
+    }, 500);
+  };
+  window.socPubSelectGif = function(url) {
+    _spState.gifUrl = url;
+    var preview = document.getElementById('socPubMediaPreview');
+    var old = document.getElementById('socPubGifPreviewItem');
+    if(old) old.remove();
+    if(preview) {
+      var div=document.createElement('div');
+      div.id='socPubGifPreviewItem';
+      div.style.cssText='width:90px;height:70px;border-radius:10px;overflow:hidden;border:2px solid rgba(0,229,255,0.4);position:relative;flex-shrink:0;';
+      div.innerHTML='<img src="'+url+'" style="width:100%;height:100%;object-fit:cover;">'
+        +'<span style="position:absolute;bottom:2px;left:3px;background:rgba(0,229,255,0.85);color:#000;font-size:0.52rem;font-weight:900;padding:1px 4px;border-radius:4px;">GIF</span>'
+        +'<button onclick="this.parentNode.remove();_spState.gifUrl=null;" style="position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,0.75);color:#fff;border:none;font-size:0.55rem;cursor:pointer;">✕</button>';
+      preview.appendChild(div);
+    }
+    var panel = document.getElementById('socPubGifPanel');
+    if(panel) panel.style.display='none';
+    if(typeof window.showToast==='function') window.showToast('🎞️ GIF sélectionné !');
+  };
+
+  /* ── Sondage : ajouter option ── */
+  window.socPubAddPollOption = function() {
+    var opts = document.querySelectorAll('.socpub-poll-opt');
+    if(opts.length >= 4) { if(typeof window.showToast==='function') window.showToast('Maximum 4 options'); return; }
+    var inp = document.createElement('input');
+    inp.className='socpub-poll-input socpub-poll-opt';
+    inp.placeholder='Option '+(opts.length+1);
+    inp.maxLength=60;
+    inp.style.cssText='width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(204,68,255,0.2);border-radius:9px;color:var(--text);font-family:\'DM Sans\',sans-serif;font-size:0.78rem;padding:0.42rem 0.7rem;outline:none;margin-bottom:0.35rem;';
+    document.getElementById('socPubPollOptions').appendChild(inp);
+  };
+
+  /* ── Save Firebase ── */
+  async function _socPubSaveFirebase(pubData) {
+    if(!window.db || !window.fbAddDoc || !window.fbCollection) return null;
+    try {
+      var ref = await window.fbAddDoc(window.fbCollection(window.db, 'publications'), pubData);
+      return ref.id;
+    } catch(e) { console.warn('[AMBI241] Firebase save error:', e); return null; }
+  }
 
   /* ── Soumettre publication ── */
   window.socSubmitNewPub = function() {
     var ta = document.getElementById('socPubTextarea');
-    if(!ta || !ta.value.trim()) {
-      if(typeof window.showToast === 'function') window.showToast('✍️ Écrivez quelque chose avant de publier');
+    var text = ta ? ta.value.trim() : '';
+    // Sondage : vérifier question
+    var isPoll = _spState.type === 'sondage';
+    if(isPoll) {
+      var pollQ = document.getElementById('socPubPollQ');
+      if(!pollQ || !pollQ.value.trim()) {
+        if(typeof window.showToast==='function') window.showToast('📊 Entrez une question pour le sondage');
+        return;
+      }
+    } else if(!text && !_spState.gifUrl && !_spState.videoPreviewUrl && document.querySelectorAll('#socPubMediaPreview > div').length === 0) {
+      if(typeof window.showToast==='function') window.showToast('✍️ Ajoutez du contenu avant de publier');
       return;
     }
+    var submitBtn = document.getElementById('socPubSubmitBtn');
+    if(submitBtn) { submitBtn.disabled=true; submitBtn.textContent='⏳ Publication…'; }
+
     var pseudo = window.currentUserPseudo || window.currentUserEmail || 'Moi';
+    var uid = window.currentUserId || ('anon_'+Date.now());
     var letter = (pseudo[0]||'?').toUpperCase();
-    var text = ta.value.trim();
-    var activeType = document.querySelector('.socpub-type-chip.active');
-    var type = activeType ? (activeType.textContent.trim().split(' ').pop().toLowerCase()) : 'post';
-    var now = 'À l\'instant';
-    var html = '<article class="socpub-card" data-pub-id="sp_new_'+Date.now()+'" data-type="post" style="border-color:rgba(0,255,170,0.3);">'
+    var etab = document.getElementById('socPubEtabSelect');
+    var etabVal = etab ? etab.value : '';
+    var etabName = etab && etab.value ? etab.options[etab.selectedIndex].text : '';
+    var ts = Date.now();
+    var pubId = 'sp_new_'+ts;
+
+    // Construire objet publication
+    var pubData = {
+      id: pubId,
+      type: _spState.type,
+      mood: _spState.mood,
+      visibility: _spState.visibility,
+      text: text,
+      mentions: _spState.mentions,
+      etab: etabVal,
+      etabName: etabName,
+      location: _spState.location,
+      gifUrl: _spState.gifUrl || null,
+      hasVideo: !!_spState.videoPreviewUrl,
+      author: pseudo,
+      authorUid: uid,
+      authorLetter: letter,
+      timestamp: ts,
+      createdAt: new Date().toISOString(),
+      likes: 0,
+      comments: 0
+    };
+
+    // Sondage
+    if(isPoll) {
+      var opts = Array.from(document.querySelectorAll('.socpub-poll-opt')).map(function(i){return i.value.trim();}).filter(Boolean);
+      var dur = document.getElementById('socPubPollDuration');
+      pubData.poll = { question: document.getElementById('socPubPollQ').value.trim(), options: opts, duration: dur ? parseInt(dur.value) : 3, votes: opts.map(function(){return 0;}) };
+    }
+
+    // Construire le HTML feed
+    var mediaHtml = '';
+    var imgs = document.querySelectorAll('#socPubMediaPreview img:not([style*="height:100"])'); // hack: photos uniquement
+    // Preview vidéo
+    if(_spState.videoPreviewUrl) {
+      mediaHtml += '<div style="border-radius:12px;overflow:hidden;margin:0.6rem 0;border:1.5px solid rgba(0,229,255,0.25);">'
+        +'<video src="'+_spState.videoPreviewUrl+'" controls style="width:100%;max-height:240px;display:block;background:#000;" playsinline></video></div>';
+    }
+    // GIF
+    if(_spState.gifUrl) {
+      mediaHtml += '<div style="border-radius:12px;overflow:hidden;margin:0.6rem 0;"><img src="'+_spState.gifUrl+'" style="width:100%;max-height:200px;object-fit:cover;display:block;"></div>';
+    }
+    // Photos
+    var photoEls = document.querySelectorAll('#socPubMediaPreview > div:not(#socPubVideoPreviewDiv):not(#socPubGifPreviewItem)');
+    if(photoEls.length) {
+      var cols = photoEls.length===1?'1fr':(photoEls.length===2?'1fr 1fr':'1fr 1fr 1fr');
+      mediaHtml += '<div style="display:grid;grid-template-columns:'+cols+';gap:4px;margin:0.6rem 0;border-radius:12px;overflow:hidden;">';
+      photoEls.forEach(function(el){
+        var img = el.querySelector('img');
+        if(img) mediaHtml += '<img src="'+img.src+'" style="width:100%;height:110px;object-fit:cover;">';
+      });
+      mediaHtml += '</div>';
+    }
+    // Sondage
+    if(isPoll && pubData.poll) {
+      var pq = pubData.poll;
+      mediaHtml += '<div style="background:rgba(204,68,255,0.08);border:1px solid rgba(204,68,255,0.25);border-radius:14px;padding:0.85rem;margin:0.6rem 0;">'
+        +'<div style="font-family:\'Syne\',sans-serif;font-size:0.85rem;font-weight:800;color:var(--purple);margin-bottom:0.6rem;">📊 '+_esc(pq.question)+'</div>'
+        + pq.options.map(function(opt,i){
+          return '<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(204,68,255,0.2);border-radius:9px;padding:0.45rem 0.75rem;margin-bottom:0.3rem;font-size:0.78rem;cursor:pointer;transition:all 0.15s;" onclick="socPubVotePoll(this,'+i+')">'
+            +'<div style="display:flex;justify-content:space-between;align-items:center;"><span>'+_esc(opt)+'</span><span style="color:var(--purple);font-size:0.68rem;font-weight:700;">0%</span></div>'
+            +'<div style="height:3px;background:rgba(204,68,255,0.15);border-radius:3px;margin-top:0.3rem;"><div style="height:100%;width:0%;background:var(--purple);border-radius:3px;transition:width 0.4s;"></div></div></div>';
+        }).join('')
+        +'<div style="font-size:0.62rem;color:var(--muted);margin-top:0.3rem;">Expire dans '+pq.duration+' jour(s)</div></div>';
+    }
+    // Localisation
+    var locHtml = _spState.location ? ' · <span style="color:var(--green);">📍 '+_esc(_spState.location.label)+'</span>' : ' · 📍 Libreville';
+    // Mood badge
+    var moodBadge = '<span style="background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.25);border-radius:6px;font-size:0.65rem;padding:1px 6px;margin-left:0.3rem;">'+_spState.mood+'</span>';
+    // Visibilité
+    var visIcons = {public:'🌐',amis:'👥',moi:'🔒'};
+
+    var html = '<article class="socpub-card" data-pub-id="'+pubId+'" data-type="'+_spState.type+'" style="border-color:rgba(0,255,170,0.3);">'
       + '<div class="socpub-card-header">'
       + '<div class="socpub-avatar">'+letter+'</div>'
-      + '<div class="socpub-meta"><div class="socpub-author">'+_esc(pseudo)+' <span class="socpub-badge verifie">✓</span></div>'
-      + '<div class="socpub-time">'+now+' · 📍 Libreville</div></div>'
-      + '<div class="socpub-more-btn">⋯</div></div>'
-      + '<p class="socpub-text">'+_esc(text)+'</p>'
+      + '<div class="socpub-meta"><div class="socpub-author">'+_esc(pseudo)+' <span class="socpub-badge verifie">✓</span>'+moodBadge+'</div>'
+      + '<div class="socpub-time">À l\'instant'+locHtml+' <span style="font-size:0.6rem;opacity:0.6;">'+visIcons[_spState.visibility]+'</span></div></div>'
+      + '<div class="socpub-more-btn" onclick="socPubMoreMenu(\''+pubId+'\',this)">⋯</div></div>'
+      + (text ? '<p class="socpub-text">'+_esc(text).replace(/@(\w+)/g,'<span style="color:var(--cyan);">@$1</span>')+'</p>' : '')
+      + mediaHtml
+      + (etabName ? '<div style="display:inline-flex;align-items:center;gap:0.3rem;background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.18);border-radius:8px;padding:0.25rem 0.55rem;font-size:0.65rem;color:var(--cyan);margin:0.35rem 0 0.5rem;">📍 '+_esc(etabName)+'</div>' : '')
       + '<div class="socpub-action-bar">'
-      + '<button class="socpub-action-btn like" onclick="socPubToggleLike(\'sp_new_'+Date.now()+'\',this)"><span class="socpub-action-icon">❤️</span> J\'aime <span class="socpub-action-count" id="likeCount_sp_new_'+Date.now()+'">0</span></button>'
-      + '<button class="socpub-action-btn comment"><span class="socpub-action-icon">💬</span> Commenter</button>'
-      + '<button class="socpub-action-btn share"><span class="socpub-action-icon">↪️</span> Partager</button>'
+      + '<button class="socpub-action-btn like" onclick="socPubToggleLike(\''+pubId+'\',this)"><span class="socpub-action-icon">❤️</span> J\'aime <span class="socpub-action-count">0</span></button>'
+      + '<button class="socpub-action-btn comment" onclick="socPubToggleComments(\''+pubId+'\')"><span class="socpub-action-icon">💬</span> Commenter</button>'
+      + '<button class="socpub-action-btn share" onclick="socPubShare(\''+pubId+'\')"><span class="socpub-action-icon">↪️</span> Partager</button>'
       + '</div></article>';
+
     var feed = document.getElementById('socPubFeed');
     if(feed) {
       var loadMore = feed.querySelector('.socpub-load-more');
-      if(loadMore) { loadMore.insertAdjacentHTML('beforebegin', html); }
-      else { feed.insertAdjacentHTML('afterbegin', html); }
+      if(loadMore) loadMore.insertAdjacentHTML('beforebegin', html);
+      else feed.insertAdjacentHTML('afterbegin', html);
     }
-    ta.value = '';
-    var cc = document.getElementById('socPubCharCount'); if(cc) cc.textContent = '0';
-    var prev = document.getElementById('socPubMediaPreview'); if(prev) prev.innerHTML = '';
+
+    // Reset modal
+    if(ta) ta.value = '';
+    var cc = document.getElementById('socPubCharCount'); if(cc) cc.textContent='0';
+    var prev = document.getElementById('socPubMediaPreview'); if(prev) prev.innerHTML='';
+    var pollPanel = document.getElementById('socPubPollPanel'); if(pollPanel) pollPanel.style.display='none';
+    var gifPanel = document.getElementById('socPubGifPanel'); if(gifPanel) gifPanel.style.display='none';
+    var mb = document.getElementById('socPubMentionsList'); if(mb) mb.textContent='';
+    var mentBox = document.getElementById('socPubMentionBox'); if(mentBox) mentBox.style.display='none';
+    _spState = {type:'ambiance',mood:'🔥',visibility:'public',mentions:[],gifUrl:null,videoPreviewUrl:null,pollData:null,location:null};
+
+    // Compteur quotidien
+    var used = document.getElementById('socPubDailyUsed');
+    if(used) { var n=parseInt(used.textContent)+1; used.textContent=n; }
+
     socClosePubModal();
-    if(typeof window.showToast === 'function') window.showToast('🚀 Publication partagée !');
+    if(typeof window.showToast==='function') window.showToast('🚀 Publication partagée !');
+
+    // Sauvegarde Firebase (async, non bloquant)
+    _socPubSaveFirebase(pubData).then(function(fid){
+      if(fid && typeof window.showToast==='function') console.log('[AMBI241] pub saved firebase id:', fid);
+    });
+
+    if(submitBtn) { submitBtn.disabled=false; submitBtn.textContent='🚀 Publier maintenant'; }
   };
+
+  /* ── Vote sondage (UI locale) ── */
+  window.socPubVotePoll = function(optEl, idx) {
+    var pollWrap = optEl.closest('div[style*="border-radius:14px"]');
+    if(!pollWrap || optEl.dataset.voted) return;
+    var bars = pollWrap.querySelectorAll('[style*="height:3px"]');
+    var fills = pollWrap.querySelectorAll('[style*="width:0%"]');
+    var pcts = pollWrap.querySelectorAll('[style*="0%"]');
+    // Simuler vote : option choisie 67%, autres 33%/(n-1)
+    var n = bars.length; if(!n) return;
+    optEl.dataset.voted='1';
+    optEl.style.borderColor='var(--purple)'; optEl.style.background='rgba(204,68,255,0.1)';
+    Array.from(pollWrap.querySelectorAll('[onclick^="socPubVotePoll"]')).forEach(function(el,i){
+      var pct = i===idx ? 67 : Math.floor(33/(n-1));
+      var fill = el.querySelector('[style*="height:100%"]');
+      var pctEl = el.querySelector('[style*="color:var(--purple)"]');
+      if(fill) fill.style.width=pct+'%';
+      if(pctEl) pctEl.textContent=pct+'%';
+      el.style.pointerEvents='none';
+    });
+  };
+  window.socPubVotePoll = window.socPubVotePoll;
 
   /* ── ADMIN : switchAdminTab patch ── */
   var _origSwitchAdminTab = window.switchAdminTab;
