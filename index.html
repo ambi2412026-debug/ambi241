@@ -9237,6 +9237,21 @@ function _showPhotoChoiceModal(eid, etab) {
           field['_photo_profile_approved'] = dataUrl;
           updateField(eid, field);
           if (etab) etab._photo_profile_approved = dataUrl;
+          /* ── Persistance locale des photos ── */
+          try{localStorage.setItem('ambi_photo_'+eid+'_interieur',dataUrl);localStorage.setItem('ambi_photo_'+eid+'_profile',dataUrl);}catch(e){console.warn('localStorage full:',e);}
+          if('indexedDB' in window){
+            var req=indexedDB.open('AMBI241_DB',1);
+            req.onsuccess=function(ev){
+              var db=ev.target.result;
+              if(db.objectStoreNames.contains('photos')){
+                var tx=db.transaction('photos','readwrite');
+                tx.objectStore('photos').put(dataUrl,'ambi_photo_'+eid+'_interieur');
+                tx.objectStore('photos').put(dataUrl,'ambi_photo_'+eid+'_profile');
+                db.close();
+              }else{db.close();}
+            };
+            req.onupgradeneeded=function(ev){ev.target.result.createObjectStore('photos');};
+          }
           showToast("✅ Photo enregistrée !");
           if (typeof renderAll === "function") setTimeout(renderAll, 200);
         });
@@ -9247,6 +9262,21 @@ function _showPhotoChoiceModal(eid, etab) {
         hideUploadProgress(700);
         updateField(eid, {photo_interieur: dataUrl, _photo_profile_approved: dataUrl});
         if (etab) etab._photo_profile_approved = dataUrl;
+        /* ── Persistance locale des photos ── */
+        try{localStorage.setItem('ambi_photo_'+eid+'_interieur',dataUrl);localStorage.setItem('ambi_photo_'+eid+'_profile',dataUrl);}catch(e){console.warn('localStorage full:',e);}
+        if('indexedDB' in window){
+          var req=indexedDB.open('AMBI241_DB',1);
+          req.onsuccess=function(ev){
+            var db=ev.target.result;
+            if(db.objectStoreNames.contains('photos')){
+              var tx=db.transaction('photos','readwrite');
+              tx.objectStore('photos').put(dataUrl,'ambi_photo_'+eid+'_interieur');
+              tx.objectStore('photos').put(dataUrl,'ambi_photo_'+eid+'_profile');
+              db.close();
+            }else{db.close();}
+          };
+          req.onupgradeneeded=function(ev){ev.target.result.createObjectStore('photos');};
+        }
         showToast("✅ Photo enregistrée !");
         if (typeof renderAll === "function") setTimeout(renderAll, 200);
       });
@@ -9274,7 +9304,9 @@ function _showPhotoChoiceModal(eid, etab) {
     // Supprimer photo si elle existe
     currentPhoto ? '<button onclick="if(confirm(\'Supprimer la photo de présentation ?\')){'
       +'var obj={photo_interieur:\'\',_photo_profile_approved:\'\'};updateField('+eid+',obj);'
-      +'var et=etablissements.find(function(x){return String(x.id)===\''+eidStr+'\';});if(et){et._photo_profile_approved=\'\';et.photo_interieur=\'\';}showToast(\'Photo supprimée\');'
+      +'var et=etablissements.find(function(x){return String(x.id)===\''+eidStr+'\';});if(et){et._photo_profile_approved=\'\';et.photo_interieur=\'\';}localStorage.removeItem(\'ambi_photo_'+eid+'_interieur\');localStorage.removeItem(\'ambi_photo_'+eid+'_profile\');'
+      +'if(\'indexedDB\' in window){var req=indexedDB.open(\'AMBI241_DB\',1);req.onsuccess=function(ev){var db=ev.target.result;if(db.objectStoreNames.contains(\'photos\')){var tx=db.transaction(\'photos\',\'readwrite\');tx.objectStore(\'photos\').delete(\'ambi_photo_'+eid+'_interieur\');tx.objectStore(\'photos\').delete(\'ambi_photo_'+eid+'_profile\');}db.close();};}'
+      +'showToast(\'Photo supprimée\');'
       +'if(typeof renderAll===\'function\')setTimeout(renderAll,200);document.getElementById(\'_photoChoiceModal\').remove();}" '
       +'style="display:block;width:100%;padding:0.5rem;border-radius:10px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.07);color:#ff4466;font-family:DM Sans,sans-serif;font-size:0.75rem;cursor:pointer;margin-bottom:0.5rem;">🗑️ Supprimer la photo actuelle</button>' : '',
     // Fermer
@@ -15091,12 +15123,48 @@ var _renderAllTimer = null;
 var _renderAllPending = false;
 var _renderAllOrig = renderAllImmediate;
 
+/* ── Restaurer les photos sauvegardées localement au chargement ── */
+function restorePhotosPersistence(){
+  if(!window.etablissements || !Array.isArray(window.etablissements)) return;
+  for(var i=0;i<window.etablissements.length;i++){
+    var e=window.etablissements[i];
+    var eid=e.id;
+    /* Tenter localStorage en priorité */
+    var photoInterieur=localStorage.getItem('ambi_photo_'+eid+'_interieur');
+    var photoProfile=localStorage.getItem('ambi_photo_'+eid+'_profile');
+    if(photoInterieur && !e.photo_interieur) e.photo_interieur=photoInterieur;
+    if(photoProfile && !e._photo_profile_approved) e._photo_profile_approved=photoProfile;
+    /* Fallback IndexedDB */
+    if(!photoInterieur && 'indexedDB' in window){
+      (function(eid){
+        var req=indexedDB.open('AMBI241_DB',1);
+        req.onsuccess=function(ev){
+          var db=ev.target.result;
+          if(db.objectStoreNames.contains('photos')){
+            var tx=db.transaction('photos','readonly');
+            var getReq=tx.objectStore('photos').get('ambi_photo_'+eid+'_interieur');
+            getReq.onsuccess=function(){
+              if(getReq.result){
+                var et=window.etablissements.find(function(x){return x.id===eid;});
+                if(et && !et.photo_interieur) et.photo_interieur=getReq.result;
+              }
+            };
+          }
+          db.close();
+        };
+      })(eid);
+    }
+  }
+}
+
 function renderAll(){
   if(_renderAllTimer) clearTimeout(_renderAllTimer);
   _renderAllTimer = setTimeout(renderAllImmediate, 16); // 1 frame ~16ms
 }
 
 function renderAllImmediate(){
+  /* ── Restaurer les photos persistantes au chaque rendu ── */
+  restorePhotosPersistence();
   _rankCache = null; // invalider le cache rankings
   loadSoireePhotos();
 
