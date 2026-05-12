@@ -33628,6 +33628,136 @@ document.addEventListener('DOMContentLoaded', function(){
   populateProjCommSelect();
 });
 
+/* ════════════ CHARGEMENT MEMBRES FIREBASE ════════════
+   Au login, on charge tous les membres inscrits dans Firestore
+   et on les intègre automatiquement dans la communauté sociale.
+   Leurs données réelles (pseudo, email, role, photo...) sont utilisées.
+   ════════════════════════════════════════════════════════ */
+function _socLoadMembresFirebase(){
+  if(!window.db || !window.fbCollection || !window.fbGetDocs) return;
+  var meUID = window.currentUserUID;
+  window.fbGetDocs(window.fbCollection(window.db,'users')).then(function(snap){
+    var allUsers = [];
+    snap.forEach(function(d){
+      var data = d.data();
+      if(d.id === meUID) return; // on exclut le membre connecté
+      var roleLabel = { admin:'Admin', super_admin:'Super Admin', establishment:'Établissement', chauffeur:'Chauffeur', membre:'Membre Premium', user:'Membre' }[data.role||'user'] || 'Membre';
+      var pseudo = data.pseudo || data.displayName || (data.email ? data.email.split('@')[0] : 'Membre');
+      var initials = pseudo.slice(0,2).toUpperCase();
+      var avatar = data.avatarEmoji || _socInitialsAvatar(initials);
+      allUsers.push({
+        uid:    d.id,
+        name:   pseudo,
+        email:  data.email || '',
+        avatar: avatar,
+        initials: initials,
+        status: 'online',
+        etab:   data.establishment || data.ville || 'Libreville',
+        role:   data.role || 'user',
+        roleLabel: roleLabel,
+        mutualFriends: 0,
+        tag:    data.role === 'chauffeur' ? '🚕 Chauffeur' : data.role === 'establishment' ? '🏛️ Établissement' : null,
+        createdAt: data.createdAt || null
+      });
+    });
+
+    // ── Séparer amis (si déjà liés) vs suggestions ──
+    // Pour l'instant tous sont en suggestions + membres de la communauté
+    // Les vraies relations "amis" viendront de la collection 'friendships'
+    var newSuggestions = allUsers.slice(0, 8).map(function(u){
+      return { uid:u.uid, name:u.name, avatar:u.avatar, mutual:u.mutualFriends||0, etab:u.etab, role:u.roleLabel };
+    });
+
+    if(newSuggestions.length){
+      _suggestions = newSuggestions;
+      renderSuggestions();
+    }
+
+    // ── Charger les vraies relations d'amis depuis Firestore ──
+    if(meUID){
+      _socLoadFriendships(meUID, allUsers);
+    }
+
+    // ── Mettre à jour le membre courant dans _currentUser ──
+    _currentUser.uid  = meUID || 'me';
+    _currentUser.name = window.currentUserPseudo || window.currentUserEmail || 'Moi';
+
+    console.log('[AMBI241 Social] ✅ '+allUsers.length+' membres chargés depuis Firebase');
+  }).catch(function(e){
+    console.warn('[AMBI241 Social] Erreur chargement membres:', e);
+  });
+}
+
+/* Charger les vraies relations amis depuis la collection 'friendships' */
+function _socLoadFriendships(meUID, allUsers){
+  if(!window.db || !window.fbCollection || !window.fbGetDocs) return;
+  // Collection : friendships/{uid_a}_{uid_b} ou sous-collection users/{uid}/friends
+  // On tente d'abord la sous-collection friends
+  window.fbGetDocs(window.fbCollection(window.db,'users',meUID,'friends')).then(function(snap){
+    if(snap.empty){
+      // Pas de sous-collection — on laisse les suggestions
+      return;
+    }
+    var friendUIDs = [];
+    snap.forEach(function(d){ friendUIDs.push(d.id); });
+    var newFriends = allUsers.filter(function(u){ return friendUIDs.indexOf(u.uid) > -1; });
+    if(newFriends.length){
+      // Fusionner avec les _friends existants (sans doublons)
+      newFriends.forEach(function(u){
+        if(!_friends.find(function(f){ return f.uid===u.uid; })){
+          _friends.push(u);
+        }
+      });
+      renderFriends();
+      updateBadges();
+    }
+  }).catch(function(){});
+
+  // Charger les demandes reçues
+  window.fbGetDocs(window.fbCollection(window.db,'users',meUID,'friend_requests_in')).then(function(snap){
+    if(snap.empty) return;
+    snap.forEach(function(d){
+      var data = d.data();
+      var already = _requestsIn.find(function(r){ return r.uid===d.id; });
+      if(!already){
+        _requestsIn.push({
+          uid: d.id,
+          name: data.pseudo || data.name || data.email || d.id,
+          avatar: data.avatarEmoji || '👤',
+          etab: data.etab || 'Libreville',
+          msg: data.msg || 'Salut, ajoutons-nous !',
+          mutualFriends: 0
+        });
+      }
+    });
+    renderRequests();
+    updateBadges();
+  }).catch(function(){});
+}
+
+/* Génère un emoji avatar à partir des initiales */
+function _socInitialsAvatar(initials){
+  var pool = ['🦁','🔥','🌸','⚡','💫','🎸','🎵','🌺','🦅','🎷','🌹','🦋','⭐','🎯','🌴','🌊'];
+  var code = (initials.charCodeAt(0)||65) + (initials.charCodeAt(1)||65);
+  return pool[code % pool.length];
+}
+
+/* ── Hook : déclencher le chargement Firebase dès la connexion ── */
+(function(){
+  var _origOnAuth = window._onSocAuthReady;
+  // On s'accroche à onAuthStateChanged via un watcher sur currentUserUID
+  var _socAuthWatcher = setInterval(function(){
+    if(window.currentUserUID){
+      clearInterval(_socAuthWatcher);
+      setTimeout(_socLoadMembresFirebase, 800);
+    }
+  }, 500);
+  // Aussi au cas où l'utilisateur est déjà connecté au chargement
+  setTimeout(function(){
+    if(window.currentUserUID) _socLoadMembresFirebase();
+  }, 2500);
+})();
+
 /* ════════════ ONGLETS ════════════ */
 window.socSwitchTab = function(tab){
   _activeTab = tab;
@@ -33654,7 +33784,8 @@ function renderFriends(){
   var h = '';
   _friends.forEach(function(f){
     h += '<div class="friend-card fade-in" onclick="openMemberProfile(\''+f.uid+'\')">';
-    h += '<div class="soc-avatar">'+f.avatar+'<div class="soc-online-dot '+(f.status==='online'?'':'f.status==='away'?'away':'offline')+'"></div></div>';
+    var dotCls = f.status==='online' ? 'online' : f.status==='away' ? 'away' : 'offline';
+    h += '<div class="soc-avatar">'+f.avatar+'<div class="soc-online-dot '+dotCls+'"></div></div>';
     h += '<div class="friend-info">';
     h += '<div class="friend-name">'+esc(f.name)+'</div>';
     h += '<div class="friend-meta"><span>'+esc(f.etab)+'</span><span class="friend-meta-dot"></span><span>'+f.mutualFriends+' amis communs</span>';
@@ -33678,11 +33809,12 @@ function renderSuggestions(){
     h += '<div class="soc-suggest-item">';
     h += '<div class="soc-suggest-avatar">'+s.avatar+'</div>';
     h += '<div class="soc-suggest-name">'+esc(s.name)+'</div>';
-    h += '<div class="soc-suggest-sub">'+s.mutual+' communs</div>';
+    var sub = s.role ? s.role : (s.mutual ? s.mutual+' communs' : 'Membre');
+    h += '<div class="soc-suggest-sub">'+sub+'</div>';
     h += '<button class="soc-suggest-add" onclick="quickAddFriend(\''+s.uid+'\',\''+esc(s.name)+'\')">+ Ajouter</button>';
     h += '</div>';
   });
-  el.innerHTML = h;
+  el.innerHTML = h || '<div style="padding:0.6rem 1rem;font-size:0.75rem;color:var(--muted);">Aucune suggestion disponible</div>';
 }
 
 /* ════════════ REQUESTS RENDER ════════════ */
