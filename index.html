@@ -37517,12 +37517,25 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     });
   }
 
+  /* ── Recherche une requête + récupère la page suivante si dispo (délai réduit à 300ms) ── */
   function igm2Search(q,svc){
     return new Promise(function(res){
       svc.textSearch({query:q,location:new google.maps.LatLng(0.4162,9.4673),radius:25000,language:'fr'},function(results,status,pag){
         var all=results||[];
         if(status===google.maps.places.PlacesServiceStatus.OK&&pag&&pag.hasNextPage){
-          setTimeout(function(){pag.nextPage();svc.textSearch({query:q,location:new google.maps.LatLng(0.4162,9.4673),radius:25000,language:'fr'},function(r2){res(all.concat(r2||[]));});},1200);
+          setTimeout(function(){
+            pag.nextPage();
+            svc.textSearch({query:q,location:new google.maps.LatLng(0.4162,9.4673),radius:25000,language:'fr'},function(r2,s2,pag2){
+              all=all.concat(r2||[]);
+              /* Optionnel : 3e page si disponible */
+              if(s2===google.maps.places.PlacesServiceStatus.OK&&pag2&&pag2.hasNextPage){
+                setTimeout(function(){
+                  pag2.nextPage();
+                  svc.textSearch({query:q,location:new google.maps.LatLng(0.4162,9.4673),radius:25000,language:'fr'},function(r3){res(all.concat(r3||[]));});
+                },300);
+              } else res(all);
+            });
+          },300); /* 300ms au lieu de 1200ms */
         } else res(all);
       });
     });
@@ -37540,6 +37553,40 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
   }
 
   function igm2Esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  /* ── Traite un lot de requêtes en parallèle (max CONCURRENCY à la fois) ── */
+  var IGM2_CONCURRENCY = 3; /* 3 requêtes simultanées — ajustable */
+
+  async function igm2RunBatch(tasks, svc, seen, onProgress){
+    var results = [];
+    for(var i=0; i<tasks.length; i+=IGM2_CONCURRENCY){
+      var batch = tasks.slice(i, i+IGM2_CONCURRENCY);
+      var batchResults = await Promise.allSettled(
+        batch.map(function(t){ return igm2Search(t.q, svc).then(function(r){ return {r:r, cat:t.cat}; }); })
+      );
+      for(var bi=0; bi<batchResults.length; bi++){
+        var br = batchResults[bi];
+        if(br.status==='fulfilled'){
+          var res=br.value.r, cat=br.value.cat;
+          var nf=0;
+          for(var ri=0;ri<res.length;ri++){
+            var p=res[ri]; if(seen.has(p.place_id)) continue; seen.add(p.place_id);
+            var ex=igm2IsEx(p);
+            _r2.push({place_id:p.place_id,nom:p.name,adresse:p.formatted_address||p.vicinity||'',quartier:igm2Qrt(p.formatted_address||p.vicinity||''),note:p.rating||0,avis:p.user_ratings_total||0,lat:(p.geometry&&p.geometry.location)?p.geometry.location.lat():0,lng:(p.geometry&&p.geometry.location)?p.geometry.location.lng():0,catKey:cat,type:cat,isExisting:ex,selected:!ex});
+            if(!ex) nf++;
+          }
+          igm2Log('  ✓ '+batch[bi].q+' → '+res.length+' résultats ('+nf+' nv)','ok');
+          var ce=document.getElementById('igm2-cnt-'+cat); if(ce) ce.textContent=_r2.filter(function(r){return r.catKey===cat&&!r.isExisting;}).length+' nv';
+        } else {
+          igm2Log('  ⚠️ '+batch[bi].q+': '+(batchResults[bi].reason&&batchResults[bi].reason.message||'erreur'),'warn');
+        }
+        if(onProgress) onProgress();
+      }
+      /* Petit délai entre lots pour éviter le rate-limit Google (50ms suffit) */
+      if(i+IGM2_CONCURRENCY < tasks.length) await new Promise(function(r){setTimeout(r,50);});
+    }
+    return results;
+  }
 
   async function igm2StartSearch(){
     if(!_cats2.size){if(typeof showToast==='function')showToast('⚠️ Sélectionne au moins une catégorie');return;}
@@ -37559,40 +37606,29 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       document.body.appendChild(div);
       var gm=new google.maps.Map(div,{center:{lat:0.4162,lng:9.4673},zoom:12});
       var svc=new google.maps.places.PlacesService(gm);
+
+      /* Aplatir toutes les requêtes de toutes les catégories sélectionnées */
       var cats=Array.from(_cats2);
-      var total=cats.reduce(function(s,c){return s+CFG2[c].queries.length;},0), done=0;
+      var allTasks=[];
       for(var ci=0;ci<cats.length;ci++){
-        var cat=cats[ci],cfg=CFG2[cat];
-        igm2Log('🔍 '+cfg.label+'...');
-        for(var qi=0;qi<cfg.queries.length;qi++){
-          var q=cfg.queries[qi];
-          var _pFrom=(done/total)*100, _pTo=((done+1)/total)*100;
-          igm2Prog(_pFrom,'Recherche "'+q+'"...',done+'/'+total+' requêtes');
-          igm2ProgAnimate(_pFrom,_pTo);
-          igm2Log('  → "'+q+'"');
-          try{
-            var res=await igm2Search(q,svc);
-            igm2ProgStop();
-            var nf=0;
-            for(var ri=0;ri<res.length;ri++){
-              var p=res[ri]; if(seen.has(p.place_id)) continue; seen.add(p.place_id);
-              var ex=igm2IsEx(p);
-              _r2.push({place_id:p.place_id,nom:p.name,adresse:p.formatted_address||p.vicinity||'',quartier:igm2Qrt(p.formatted_address||p.vicinity||''),note:p.rating||0,avis:p.user_ratings_total||0,lat:(p.geometry&&p.geometry.location)?p.geometry.location.lat():0,lng:(p.geometry&&p.geometry.location)?p.geometry.location.lng():0,catKey:cat,type:cat,isExisting:ex,selected:!ex});
-              if(!ex) nf++;
-            }
-            igm2Log('  ✓ '+res.length+' résultats ('+nf+' nouveaux)','ok');
-            var ce=document.getElementById('igm2-cnt-'+cat); if(ce) ce.textContent=_r2.filter(function(r){return r.catKey===cat&&!r.isExisting;}).length+' nv';
-          }catch(e){igm2ProgStop();igm2Log('  ⚠️ '+e.message,'warn');}
-          done++;
-          igm2Prog((done/total)*100,'Recherche en cours...',done+'/'+total+' requêtes');
-          await new Promise(function(r){setTimeout(r,400);});
-        }
+        var cat=cats[ci], cfg=CFG2[cat];
+        igm2Log('🔍 '+cfg.label+' ('+cfg.queries.length+' requêtes)...');
+        for(var qi=0;qi<cfg.queries.length;qi++) allTasks.push({q:cfg.queries[qi],cat:cat});
       }
+
+      var total=allTasks.length, done=0;
+      igm2Prog(0,'Recherche parallèle ('+IGM2_CONCURRENCY+'x)...',done+'/'+total+' requêtes');
+
+      await igm2RunBatch(allTasks, svc, seen, function(){
+        done++;
+        igm2Prog(Math.round((done/total)*100),'Recherche en cours...',done+'/'+total+' requêtes');
+      });
+
       igm2Prog(100,'Terminé !',total+'/'+total+' requêtes');
       igm2Log('🎉 '+_r2.length+' établissements trouvés','ok');
       igm2Log('✅ Nouveaux : '+_r2.filter(function(r){return !r.isExisting;}).length,'ok');
       igm2Log('⚠️ Déjà présents : '+_r2.filter(function(r){return r.isExisting;}).length,'warn');
-      setTimeout(igm2ShowResults,800);
+      setTimeout(igm2ShowResults,400);
     }catch(e){igm2Log('❌ '+e.message,'err');if(typeof showToast==='function')showToast('❌ '+e.message);}
   }
   window.igm2StartSearch=igm2StartSearch;
@@ -37635,6 +37671,9 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
   function igm2Count(){var e=document.getElementById('igm2SelectedCount');if(e)e.textContent=_sel2.size;}
 
+  /* ── Import Firebase en lots parallèles (BATCH_SIZE docs simultanés) ── */
+  var IGM2_IMPORT_BATCH = 5; /* 5 écritures en parallèle — réduit le temps x5 */
+
   async function igm2StartImport(){
     var toImp=_r2.filter(function(r){return _sel2.has(r.place_id);});
     if(!toImp.length){if(typeof showToast==='function')showToast('⚠️ Aucun établissement sélectionné');return;}
@@ -37643,18 +37682,40 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     var lw=document.getElementById('igm2ImportLog');
     function il(msg,type){var l=document.createElement('div');l.className='igm-log-line'+(type?' igm-'+type:'');l.textContent=new Date().toLocaleTimeString('fr')+' — '+msg;lw.appendChild(l);lw.scrollTop=lw.scrollHeight;}
     var maxId=window._igm2Max||100, imp=0, err=0;
-    il('🚀 Import de '+toImp.length+' établissements...','ok');
-    for(var i=0;i<toImp.length;i++){
-      var r=toImp[i], pct=((i+1)/toImp.length)*100;
-      var f=document.getElementById('igm2ImportProgressFill'),lb=document.getElementById('igm2ImportProgressLabel'),dt=document.getElementById('igm2ImportProgressDetail');
-      if(f) f.style.width=pct+'%'; if(lb) lb.textContent=Math.round(pct)+'%'; if(dt) dt.textContent=(i+1)+'/'+toImp.length;
+    il('🚀 Import de '+toImp.length+' établissements ('+IGM2_IMPORT_BATCH+'x parallèle)...','ok');
+
+    /* Pré-attribuer les IDs pour éviter les conflits */
+    var docs=toImp.map(function(r){
       var newId=++maxId;
-      var doc={id:newId,nom:r.nom,type:r.type,quartier:r.quartier,ambiance:"Chill",statut:"",note:r.note||0,avis:r.avis||0,contact:"",paiement:"En attente",affluence:0,lat:r.lat,lng:r.lng,place_id:r.place_id,maps_url:"https://www.google.com/maps/place/?q=place_id:"+r.place_id,photo_interieur:"",photo_exterieur:""};
-      try{await window.fbAddDoc(window.fbCollection(window.db,"etablissements"),doc);il('✅ ['+newId+'] '+r.nom+' ('+CFG2[r.catKey].label+')','ok');imp++;}
-      catch(e){il('❌ '+r.nom+': '+e.message,'err');err++;}
-      await new Promise(function(res){setTimeout(res,150);});
-    }
+      return {id:newId,nom:r.nom,type:r.type,quartier:r.quartier,ambiance:"Chill",statut:"",note:r.note||0,avis:r.avis||0,contact:"",paiement:"En attente",affluence:0,lat:r.lat,lng:r.lng,place_id:r.place_id,maps_url:"https://www.google.com/maps/place/?q=place_id:"+r.place_id,photo_interieur:"",photo_exterieur:"",catKey:r.catKey};
+    });
     window._igm2Max=maxId;
+
+    var total=docs.length, done=0;
+    var updateProg=function(){
+      done++;
+      var pct=(done/total)*100;
+      var f=document.getElementById('igm2ImportProgressFill'),lb=document.getElementById('igm2ImportProgressLabel'),dt=document.getElementById('igm2ImportProgressDetail');
+      if(f) f.style.width=pct+'%'; if(lb) lb.textContent=Math.round(pct)+'%'; if(dt) dt.textContent=done+'/'+total;
+    };
+
+    /* Traiter par lots parallèles */
+    for(var i=0;i<docs.length;i+=IGM2_IMPORT_BATCH){
+      var batch=docs.slice(i,i+IGM2_IMPORT_BATCH);
+      var batchResults=await Promise.allSettled(
+        batch.map(function(doc){
+          var d={id:doc.id,nom:doc.nom,type:doc.type,quartier:doc.quartier,ambiance:doc.ambiance,statut:doc.statut,note:doc.note,avis:doc.avis,contact:doc.contact,paiement:doc.paiement,affluence:doc.affluence,lat:doc.lat,lng:doc.lng,place_id:doc.place_id,maps_url:doc.maps_url,photo_interieur:doc.photo_interieur,photo_exterieur:doc.photo_exterieur};
+          return window.fbAddDoc(window.fbCollection(window.db,"etablissements"),d).then(function(){return doc;});
+        })
+      );
+      for(var bi=0;bi<batchResults.length;bi++){
+        var br=batchResults[bi];
+        if(br.status==='fulfilled'){il('✅ ['+br.value.id+'] '+br.value.nom+' ('+CFG2[br.value.catKey].label+')','ok');imp++;}
+        else{il('❌ '+batch[bi].nom+': '+(br.reason&&br.reason.message||'erreur'),'err');err++;}
+        updateProg();
+      }
+    }
+
     il('🎉 Terminé ! '+imp+' importés, '+err+' erreur(s).','ok');
     var sm=document.getElementById('igm2ImportSummary'); if(sm) sm.textContent=imp+' établissements ajoutés · '+err+' erreur(s)';
     var dn=document.getElementById('igm2ImportDone'); if(dn) dn.style.display='block';
