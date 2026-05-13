@@ -7925,7 +7925,7 @@ if (document.readyState === 'loading') {
 <!-- ══ FIREBASE SDK (module isolé) ══ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query, where, getDoc, addDoc, onSnapshot, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query, where, getDoc, addDoc, onSnapshot, serverTimestamp, limit, increment } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
 import { getStorage, ref, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-storage.js";
 
@@ -8297,6 +8297,7 @@ window._deleteDriverPhoto = function(contactIndex) {
 
 window.fbOnSnapshot = onSnapshot;
 window.fbServerTimestamp = serverTimestamp;
+window.fbFieldIncrement = increment;
 window.fbQuery      = query;
 window.fbOrderBy    = orderBy;
 window.fbWhere      = where;
@@ -25810,6 +25811,42 @@ function orderTaxi() {
     '✓ Votre chauffeur arrive dans 3-5 minutes');
 }
 
+/* ════════════════════════════════════════════════════════════
+   taxiContacts — Source unique : Firestore (taxi_contacts)
+   Partagé entre tous les appareils en temps réel.
+════════════════════════════════════════════════════════════ */
+var _taxiContactsUnsub = null;
+function _subscribeTaxiContactsFirestore(){
+  if(!window.db||!window.fbCollection||!window.fbOnSnapshot) return;
+  if(_taxiContactsUnsub) return;
+  _taxiContactsUnsub = window.fbOnSnapshot(
+    window.fbCollection(window.db,'taxi_contacts'),
+    function(snap){
+      var list2=[];
+      snap.forEach(function(d){ list2.push(Object.assign({_fsId:d.id},d.data())); });
+      try { localStorage.setItem('taxiContacts',JSON.stringify(list2)); } catch(e) {}
+      loadTaxiContacts();
+    },
+    function(err){ console.warn('[TaxiContacts] onSnapshot error',err); }
+  );
+}
+function _saveTaxiContactFs(c){
+  if(!window.db||!window.fbSetDoc||!window.fbDoc||!window.fbAddDoc||!window.fbCollection) return;
+  if(c._fsId){
+    window.fbSetDoc(window.fbDoc(window.db,'taxi_contacts',c._fsId),c,{merge:true}).catch(function(){});
+  } else {
+    window.fbAddDoc(window.fbCollection(window.db,'taxi_contacts'),c).then(function(r){ c._fsId=r.id; }).catch(function(){});
+  }
+}
+function _deleteTaxiContactFs(fsId){
+  if(!window.db||!window.fbDeleteDoc||!window.fbDoc||!fsId) return;
+  window.fbDeleteDoc(window.fbDoc(window.db,'taxi_contacts',fsId)).catch(function(){});
+}
+(function _waitFbTaxi(){
+  if(window.db&&window.fbCollection&&window.fbOnSnapshot){ _subscribeTaxiContactsFirestore(); }
+  else { setTimeout(_waitFbTaxi,900); }
+})();
+
 function loadTaxiContacts() {
   var contacts = JSON.parse(localStorage.getItem('taxiContacts') || '[]');
   var list = document.getElementById('taxiContactsList');
@@ -27244,11 +27281,39 @@ window.setAmbi241AppUrl = function(url) {
 };
 // ─────────────────────────────────────────────────────────────────────
 
+/* ════════════════════════════════════════════════════════════
+   _chauffeurDrivers — Source unique : Firestore (chauffeurs/{uid})
+   Le cache localStorage sert de fallback offline uniquement.
+════════════════════════════════════════════════════════════ */
 var _chauffeurDrivers = JSON.parse(localStorage.getItem('ambi241_chauffeurs') || '{}');
 
-function saveChauffeurDrivers() {
+function saveChauffeurDrivers(uid, data) {
+  if(uid && data) _chauffeurDrivers[uid] = data;
   try { localStorage.setItem('ambi241_chauffeurs', JSON.stringify(_chauffeurDrivers)); } catch(e) {}
+  if(!window.db || !window.fbSetDoc || !window.fbDoc) return;
+  if(uid && data){
+    window.fbSetDoc(window.fbDoc(window.db, 'chauffeurs', uid), data, { merge: true })
+      .catch(function(e){ console.warn('[Chauffeurs] Firestore write error', e); });
+  }
 }
+
+function loadChauffeurDriversFromFirestore(){
+  if(!window.db || !window.fbCollection || !window.fbOnSnapshot) return;
+  window.fbOnSnapshot(
+    window.fbCollection(window.db, 'chauffeurs'),
+    function(snap){
+      snap.forEach(function(d){ _chauffeurDrivers[d.id] = Object.assign({ uid: d.id }, d.data()); });
+      try { localStorage.setItem('ambi241_chauffeurs', JSON.stringify(_chauffeurDrivers)); } catch(e) {}
+      window._chauffeurDrivers = _chauffeurDrivers;
+      if(typeof loadTaxiContacts === 'function') loadTaxiContacts();
+    },
+    function(err){ console.warn('[Chauffeurs] onSnapshot error', err); }
+  );
+}
+(function _waitFbDrivers(){
+  if(window.db && window.fbCollection && window.fbOnSnapshot){ loadChauffeurDriversFromFirestore(); }
+  else { setTimeout(_waitFbDrivers, 800); }
+})();
 
 // ── Réparer les chauffeurs existants dont le phone est un email ──
 function repairDriverPhones() {
@@ -27271,14 +27336,14 @@ repairDriverPhones();
 
 // Appelé quand un membre s'inscrit avec le flag "chauffeur"
 function registerUserAsDriver(uid, email, pseudo, password) {
-  _chauffeurDrivers[uid] = {
+  var driverDataPending = {
     uid: uid, email: email, pseudo: pseudo,
     password: password,
     status: 'pending',
     joinedAt: new Date().toISOString(),
     courses: 0, gains: 0
   };
-  saveChauffeurDrivers();
+  saveChauffeurDrivers(uid, driverDataPending);
   // Notif admin
   if(typeof pushNotif === 'function') {
     pushNotif({ targetRole:'admin', key:'new_driver', icon:'🚗', title:'Nouveau Chauffeur inscrit',
@@ -27292,7 +27357,7 @@ window.registerUserAsDriver = registerUserAsDriver;
 window.adminDesignDriver = function(uid, email, pseudo, password, phone) {
   if(!isAdmin) { showToast('Admin requis'); return; }
   var cleanPhone = (phone || '').replace(/\s|\+/g,'');
-  _chauffeurDrivers[uid] = {
+  var driverDataApproved = {
     uid: uid, email: email, pseudo: pseudo,
     password: password || 'Ambi@241',
     phone: cleanPhone,
@@ -27301,41 +27366,36 @@ window.adminDesignDriver = function(uid, email, pseudo, password, phone) {
     approvedAt: new Date().toISOString(),
     courses: 0, gains: 0
   };
-  saveChauffeurDrivers();
+  saveChauffeurDrivers(uid, driverDataApproved);
 
-  // ── Ajouter automatiquement dans la liste Contacts 24H ──
-  var contacts = JSON.parse(localStorage.getItem('taxiContacts') || '[]');
-  // Mettre à jour si déjà présent, sinon ajouter
-  var existingIdx = contacts.findIndex(function(c){
-    return (c.email && c.email.toLowerCase() === email.toLowerCase()) ||
-           (c.addedBy === 'chauffeur_inscription' && c.name === pseudo);
-  });
+  // ── Ajouter/mettre à jour dans Firestore taxi_contacts (partagé) ──
   var contactEntry = {
-    name:         pseudo,
-    phone:        cleanPhone,  // ✅ vrai numéro téléphone
-    whatsapp:     cleanPhone,  // ✅ vrai numéro WhatsApp
-    type:         '🚗 Taxi Particulier',
-    active:       true,
-    online:       true,
-    hours:        '24H/24',
-    isEnterprise: false,
-    availability: 'open',
-    addedBy:      'chauffeur_inscription',
-    email:        email,
-    uid:          uid,
-    addedAt:      new Date().toISOString(),
-    photo:        '',
-    rating:       5.0,
-    courses:      0
+    name: pseudo, phone: cleanPhone, whatsapp: cleanPhone,
+    type: '🚗 Taxi Particulier',
+    active: true, online: true, hours: '24H/24',
+    isEnterprise: false, availability: 'open',
+    addedBy: 'chauffeur_inscription', email: email, uid: uid,
+    addedAt: new Date().toISOString(), photo: '', rating: 5.0, courses: 0
   };
-  if(existingIdx >= 0) {
-    contacts[existingIdx] = Object.assign(contacts[existingIdx], contactEntry);
+  if(window.db && window.fbCollection && window.fbQuery && window.fbWhere && window.fbGetDocs){
+    window.fbGetDocs(window.fbQuery(window.fbCollection(window.db,'taxi_contacts'), window.fbWhere('uid','==',uid)))
+      .then(function(snap){
+        if(!snap.empty){
+          snap.forEach(function(d){ window.fbSetDoc(window.fbDoc(window.db,'taxi_contacts',d.id), contactEntry, {merge:true}).catch(function(){}); });
+        } else {
+          window.fbAddDoc(window.fbCollection(window.db,'taxi_contacts'), contactEntry).catch(function(){});
+        }
+        if(typeof loadTaxiContacts==='function') loadTaxiContacts();
+        if(typeof loadAdminContacts==='function') loadAdminContacts();
+      }).catch(function(e){ console.warn('[taxiContacts] adminDesignDriver error', e); });
   } else {
-    contacts.push(contactEntry);
+    var lsContacts = JSON.parse(localStorage.getItem('taxiContacts')||'[]');
+    var eIdx = lsContacts.findIndex(function(c){ return c.uid===uid || (c.email&&c.email.toLowerCase()===email.toLowerCase()); });
+    if(eIdx>=0){ lsContacts[eIdx]=Object.assign(lsContacts[eIdx],contactEntry); } else { lsContacts.push(contactEntry); }
+    localStorage.setItem('taxiContacts',JSON.stringify(lsContacts));
+    if(typeof loadTaxiContacts==='function') loadTaxiContacts();
+    if(typeof loadAdminContacts==='function') loadAdminContacts();
   }
-  localStorage.setItem('taxiContacts', JSON.stringify(contacts));
-  if(typeof loadTaxiContacts === 'function') loadTaxiContacts();
-  if(typeof loadAdminContacts === 'function') loadAdminContacts();
 
   showToast('✅ ' + pseudo + ' désigné Chauffeur + ajouté à la liste 24H !');
   if(typeof renderAdmUsers === 'function') renderAdmUsers();
@@ -27346,7 +27406,7 @@ window.adminRevokeDriver = function(uid) {
   if(!isAdmin) { showToast('Admin requis'); return; }
   if(_chauffeurDrivers[uid]) {
     _chauffeurDrivers[uid].status = 'revoked';
-    saveChauffeurDrivers();
+    saveChauffeurDrivers(uid, _chauffeurDrivers[uid]);
     showToast('Statut chauffeur révoqué');
   }
 };
@@ -36114,97 +36174,123 @@ window.closeModal = function(id){
   if(el) el.classList.remove('open');
 };
 
-/* ════════════ DM CHAT ════════════
-   Stockage en mémoire : _dmHistory[uid] = [{me, text, time}]
-   Firebase peut être branché plus tard en remplaçant _dmHistory
-   par une sous-collection Firestore users/{me}/dm/{peer}/messages.
-════════════════════════════════════ */
-var _dmHistory = {};   // clé = uid du destinataire
-var _dmCurrentUid = null;
+/* ════════════════════════════════════════════════════════════
+   DM CHAT — Firebase Firestore Temps Réel
+   Collection : dm_conversations/{convId}/messages
+   convId = ordre alphabétique uid1_uid2
+   Listener onSnapshot actif pendant que le modal est ouvert.
+════════════════════════════════════════════════════════════ */
+var _dmCurrentUid    = null;
+var _dmCurrentConvId = null;
+var _dmUnsub         = null;
+
+function _dmConvId(a, b){ return a < b ? a+'_'+b : b+'_'+a; }
 
 window.openDM = function(uid){
-  /* Trouver le profil ami correspondant */
-  var friend = _friends.find(function(x){ return x.uid === uid; });
-  if(!friend){
-    socToast('⚠️ Ami introuvable');
+  if(!window.currentUserUID){
+    if(typeof socToast==='function') socToast('🔒 Connectez-vous pour envoyer un message');
     return;
   }
-  _dmCurrentUid = uid;
-  if(!_dmHistory[uid]) _dmHistory[uid] = [];
+  var friend = (_friends||[]).find(function(x){ return x.uid===uid; });
+  if(!friend){ if(typeof socToast==='function') socToast('⚠️ Ami introuvable'); return; }
 
-  /* Remplir l'en-tête */
-  var avEl = document.getElementById('dmPeerAv');
-  var nameEl = document.getElementById('dmPeerName');
-  if(avEl)   avEl.textContent  = friend.avatar || '👤';
-  if(nameEl) nameEl.textContent = friend.name  || 'Chat';
+  if(typeof _dmUnsub==='function'){ _dmUnsub(); _dmUnsub=null; }
 
-  /* Vider le champ de saisie */
-  var inp = document.getElementById('dmInput');
-  if(inp) inp.value = '';
+  _dmCurrentUid    = uid;
+  _dmCurrentConvId = _dmConvId(window.currentUserUID, uid);
 
-  /* Rendre les messages */
-  dmRender();
+  var avEl=document.getElementById('dmPeerAv');
+  var nameEl=document.getElementById('dmPeerName');
+  var peerName = friend.name||friend.pseudo||'Inconnu';
+  if(avEl)   avEl.textContent   = friend.avatar || (peerName[0]||'?').toUpperCase();
+  if(nameEl) nameEl.textContent = peerName;
 
-  /* Ajouter le modal à la liste auth si pas déjà présent (pour _requireAuth) */
+  var inp=document.getElementById('dmInput');
+  if(inp) inp.value='';
+  var box=document.getElementById('dmMessages');
+  if(box) box.innerHTML='<div class="dm-empty"><div class="dm-empty-icon">⏳</div><div class="dm-empty-txt">Chargement…</div></div>';
+
   openModal('modalDMChat');
+  _dmMarkRead(_dmCurrentConvId, window.currentUserUID);
 
-  /* Focus sur l'input après animation */
-  setTimeout(function(){
-    if(inp) inp.focus();
-  }, 380);
-};
-window.openDM = window.openDM; // expose globalement
-
-function dmRender(){
-  var box  = document.getElementById('dmMessages');
-  var empty = document.getElementById('dmEmpty');
-  if(!box) return;
-  var msgs = _dmCurrentUid ? (_dmHistory[_dmCurrentUid] || []) : [];
-
-  if(!msgs.length){
-    box.innerHTML = '<div class="dm-empty" id="dmEmpty"><div class="dm-empty-icon">💬</div><div class="dm-empty-txt">Commence la conversation !</div></div>';
-    return;
+  if(!window.db||!window.fbCollection||!window.fbOnSnapshot||!window.fbQuery||!window.fbOrderBy||!window.fbLimit){
+    if(box) box.innerHTML='<div class="dm-empty"><div class="dm-empty-icon">⚠️</div><div class="dm-empty-txt">Firebase non disponible</div></div>';
+    setTimeout(function(){ if(inp) inp.focus(); },380); return;
   }
 
-  var html = '';
+  var msgsQ=window.fbQuery(
+    window.fbCollection(window.db,'dm_conversations',_dmCurrentConvId,'messages'),
+    window.fbOrderBy('sentAt','asc'), window.fbLimit(100)
+  );
+  _dmUnsub=window.fbOnSnapshot(msgsQ, function(snap){
+    var msgs=[]; snap.forEach(function(d){ msgs.push(Object.assign({_id:d.id},d.data())); });
+    _dmRenderMessages(msgs);
+  }, function(err){ console.warn('[DM] onSnapshot error',err); });
+
+  setTimeout(function(){ if(inp) inp.focus(); },380);
+};
+window.openDM=window.openDM;
+
+function _dmRenderMessages(msgs){
+  var box=document.getElementById('dmMessages');
+  if(!box) return;
+  var meUid=window.currentUserUID||'';
+  if(!msgs.length){
+    box.innerHTML='<div class="dm-empty"><div class="dm-empty-icon">💬</div><div class="dm-empty-txt">Commence la conversation !</div></div>';
+    return;
+  }
+  var html='';
   msgs.forEach(function(m){
-    var cls = m.me ? 'dm-me' : 'dm-them';
-    html += '<div class="dm-bubble '+cls+'">';
-    html += esc(m.text);
-    html += '<div class="dm-bubble-time">'+m.time+'</div>';
-    html += '</div>';
+    var isMe=m.from===meUid;
+    var cls=isMe?'dm-me':'dm-them';
+    var t='';
+    if(m.sentAt){ var d=(typeof m.sentAt.toDate==='function')?m.sentAt.toDate():new Date(m.sentAt); t=d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0'); }
+    html+='<div class="dm-bubble '+cls+'">'+_escDM(m.text||'')+( t?'<div class="dm-bubble-time">'+t+'</div>':'')+'</div>';
   });
-  box.innerHTML = html;
-  /* Scroll vers le bas */
-  box.scrollTop = box.scrollHeight;
+  box.innerHTML=html; box.scrollTop=box.scrollHeight;
+}
+function _escDM(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _dmMarkRead(convId,uid){
+  if(!window.db||!window.fbSetDoc||!window.fbDoc) return;
+  var f={}; f['unread_'+uid]=0;
+  window.fbSetDoc(window.fbDoc(window.db,'dm_conversations',convId),f,{merge:true}).catch(function(){});
 }
 
 window.dmSend = function(){
-  var inp = document.getElementById('dmInput');
-  if(!inp || !_dmCurrentUid) return;
-  var txt = inp.value.trim();
-  if(!txt) return;
-
-  var now = new Date();
-  var hhmm = now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
-
-  /* Ajouter le message */
-  _dmHistory[_dmCurrentUid].push({ me:true, text:txt, time:hhmm });
-  inp.value = '';
-  dmRender();
-
-  /* ── Optionnel : écriture Firebase ──
-  if(window.db && window.fbAddDoc && window.fbCollection && meUID){
-    window.fbAddDoc(
-      window.fbCollection(window.db,'users',meUID,'dm',_dmCurrentUid,'messages'),
-      { text:txt, sentAt:Date.now(), from:meUID }
-    ).catch(function(e){ console.warn('[DM] write error',e); });
+  var inp=document.getElementById('dmInput');
+  if(!inp||!_dmCurrentUid||!_dmCurrentConvId) return;
+  var txt=inp.value.trim(); if(!txt||txt.length>500) return;
+  var meUid=window.currentUserUID;
+  if(!meUid){ if(typeof socToast==='function') socToast('🔒 Connexion requise'); return; }
+  var btn=document.getElementById('dmSendBtn'); if(btn) btn.disabled=true;
+  inp.value='';
+  if(!window.db||!window.fbAddDoc||!window.fbCollection||!window.fbSetDoc||!window.fbDoc||!window.fbServerTimestamp){
+    if(typeof socToast==='function') socToast('⚠️ Firebase non disponible');
+    if(btn) btn.disabled=false; return;
   }
-  ── */
-
-  /* Les réponses viennent des vrais membres via Firebase (pas de bot) */
+  var ts=window.fbServerTimestamp();
+  var msgData={ from:meUid, fromName:window.currentUserPseudo||window.currentUserEmail||'Moi', to:_dmCurrentUid, text:txt, sentAt:ts };
+  window.fbAddDoc(window.fbCollection(window.db,'dm_conversations',_dmCurrentConvId,'messages'), msgData)
+    .then(function(){
+      var meta={ participants:[meUid,_dmCurrentUid], lastMsg:txt.substring(0,80), lastMsgFrom:meUid, lastMsgAt:ts, updatedAt:ts };
+      if(window.fbFieldIncrement) meta['unread_'+_dmCurrentUid]=window.fbFieldIncrement(1);
+      window.fbSetDoc(window.fbDoc(window.db,'dm_conversations',_dmCurrentConvId),meta,{merge:true}).catch(function(){});
+      if(btn) btn.disabled=false;
+    }).catch(function(e){
+      console.warn('[DM] send error',e);
+      if(typeof socToast==='function') socToast('❌ Erreur : '+(e.message||'')); if(btn) btn.disabled=false;
+    });
 };
-window.dmSend = window.dmSend;
+window.dmSend=window.dmSend;
+
+/* Couper le listener quand le modal se ferme */
+(function(){
+  var _oc=window.closeModal;
+  window.closeModal=function(id){
+    if(id==='modalDMChat'&&typeof _dmUnsub==='function'){ _dmUnsub(); _dmUnsub=null; }
+    if(typeof _oc==='function') _oc(id);
+  };
+})();
 
 // Fermer modal au clic sur l'overlay
 document.querySelectorAll('.soc-modal-overlay').forEach(function(el){
@@ -36980,12 +37066,34 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
   /* ── Soumettre un commentaire ── */
   window.socSubmitComment = function(pubId) {
-    var inp = document.getElementById('commentInput_' + pubId);
+    /* Déléguer à sendPubComment (Firebase) si disponible */
+    if(!window.currentUserUID){
+      if(typeof window.showToast==='function') window.showToast('🔒 Connectez-vous pour commenter'); return;
+    }
+    var inpSoc = document.getElementById('commentInput_' + pubId);
+    /* sendPubComment attend un textarea id="pubCmtTxt_{pubId}" */
+    var inpPub = document.getElementById('pubCmtTxt_' + pubId);
+    if(inpSoc && !inpPub){
+      var fake = document.createElement('textarea');
+      fake.id = 'pubCmtTxt_' + pubId; fake.value = inpSoc.value; fake.style.display = 'none';
+      document.body.appendChild(fake);
+    } else if(inpSoc && inpPub && !inpPub.value){
+      inpPub.value = inpSoc.value;
+    }
+    if(typeof window.sendPubComment === 'function'){
+      window.sendPubComment(pubId);
+      setTimeout(function(){
+        var proxy = document.getElementById('pubCmtTxt_' + pubId);
+        if(proxy && proxy.style.display === 'none'){ if(inpSoc) inpSoc.value = ''; proxy.remove(); }
+        else if(inpSoc && inpPub) inpSoc.value = inpPub.value;
+      }, 500);
+      return;
+    }
+    /* Fallback DOM local */
+    var inp = inpSoc || document.getElementById('pubCmtTxt_' + pubId);
     if(!inp || !inp.value.trim()) return;
-    var text = inp.value.trim();
-    inp.value = '';
-    var list = document.getElementById('commentsList_' + pubId);
-    if(!list) return;
+    var text = inp.value.trim(); inp.value = '';
+    var list = document.getElementById('commentsList_' + pubId); if(!list) return;
     var pseudo = window.currentUserPseudo || window.currentUserEmail || 'Moi';
     var letter = (pseudo[0] || '?').toUpperCase();
     var html = '<div class="socpub-comment" style="animation:fadeUp 0.2s ease;">'
