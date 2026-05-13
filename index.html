@@ -38814,8 +38814,14 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
   function igmInit() {
     window._igmInited = true;
     igmReset(false);
-    if(!window.db || !window.fbGetDocs || !window.fbCollection) return;
-    window.fbGetDocs(window.fbCollection(window.db, "etablissements")).then(function(snap){
+    // Afficher l'info de domaine actuel pour le diagnostic
+    var statusEl = document.getElementById('igmSearchStatus');
+    if(statusEl) statusEl.textContent = '📡 Domaine : ' + window.location.hostname + ' — Prêt à lancer la recherche';
+    if(!window.db || !window.fbGetDocs || !window.fbCollection){
+      if(statusEl) statusEl.textContent += ' (Firebase non connecté — existants non chargés)';
+      return;
+    }
+    window.fbGetDocs(window.fbCollection(window.db, 'etablissements')).then(function(snap){
       var existing = new Set();
       var maxId = 0;
       snap.forEach(function(d){
@@ -38826,7 +38832,10 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       });
       window._igmExisting = existing;
       window._igmMaxId = maxId;
-    }).catch(function(){});
+      if(statusEl) statusEl.textContent = '✅ ' + snap.size + ' établissements déjà en base. Sélectionnez les catégories et lancez la recherche.';
+    }).catch(function(e){
+      if(statusEl) statusEl.textContent = '⚠️ Erreur Firebase : ' + e.message;
+    });
   }
   window.igmInit = igmInit;
 
@@ -38886,35 +38895,77 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
   }
 
   /* ── Chargement SDK Google Maps ── */
+  /* ══════════════════════════════════════════════════════════
+     MOTEUR DE RECHERCHE — double stratégie :
+     1) API REST Places (Text Search) via fetch — pas de restriction domaine
+     2) Fallback SDK JS si l'API REST échoue (CORS ou quota)
+     ══════════════════════════════════════════════════════════ */
+
+  /* ── Recherche via REST API Places (Text Search) ── */
+  function igmSearchREST(query) {
+    var url = 'https://maps.googleapis.com/maps/api/place/textsearch/json'
+      + '?query=' + encodeURIComponent(query)
+      + '&location=0.4162,9.4673'
+      + '&radius=25000'
+      + '&language=fr'
+      + '&key=' + GMAPS_KEY;
+    return fetch(url)
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if(data.status === 'OK' || data.status === 'ZERO_RESULTS'){
+          return data.results || [];
+        }
+        // CORS ou erreur quota — on lance l'erreur pour basculer sur SDK
+        throw new Error('REST API: ' + data.status + (data.error_message ? ' — ' + data.error_message : ''));
+      });
+  }
+
+  /* ── Charger le SDK Google Maps JS ── */
   function igmLoadSDK() {
     return new Promise(function(resolve, reject){
       if(window.google && window.google.maps && window.google.maps.places){ resolve(); return; }
       var s = document.createElement('script');
-      s.src = 'https://maps.googleapis.com/maps/api/js?key=' + GMAPS_KEY + '&libraries=places&language=fr';
-      s.onload = resolve;
+      s.src = 'https://maps.googleapis.com/maps/api/js?key=' + GMAPS_KEY + '&libraries=places&language=fr&callback=_igmSDKReady';
+      window._igmSDKReady = function(){ resolve(); };
       s.onerror = function(){ reject(new Error('Impossible de charger Google Maps SDK')); };
       document.head.appendChild(s);
     });
   }
 
-  /* ── Recherche Places ── */
-  function igmSearchPlaces(q, service) {
+  /* ── Recherche via SDK JS (fallback) ── */
+  function igmSearchSDK(q, service) {
     return new Promise(function(resolve){
       var req = { query: q, location: new google.maps.LatLng(0.4162, 9.4673), radius: 25000, language: 'fr' };
       service.textSearch(req, function(results, status, pagination){
         var all = results || [];
-        if(status === google.maps.places.PlacesServiceStatus.OK) {
-          if(pagination && pagination.hasNextPage) {
-            setTimeout(function(){
-              pagination.nextPage();
-              service.textSearch(req, function(r2){ resolve(all.concat(r2 || [])); });
-            }, 1200);
-          } else {
-            resolve(all);
-          }
-        } else { resolve([]); }
+        if(status === google.maps.places.PlacesServiceStatus.OK && pagination && pagination.hasNextPage){
+          setTimeout(function(){
+            pagination.nextPage();
+            service.textSearch(req, function(r2){ resolve(all.concat(r2||[])); });
+          }, 1200);
+        } else {
+          resolve(all);
+        }
       });
     });
+  }
+
+  /* ── Normaliser un résultat REST → format commun ── */
+  function igmNormalizeREST(p) {
+    return {
+      place_id: p.place_id,
+      name: p.name,
+      formatted_address: p.formatted_address || '',
+      vicinity: p.vicinity || '',
+      rating: p.rating || 0,
+      user_ratings_total: p.user_ratings_total || 0,
+      geometry: p.geometry ? {
+        location: {
+          lat: function(){ return p.geometry.location.lat; },
+          lng: function(){ return p.geometry.location.lng; }
+        }
+      } : null
+    };
   }
 
   /* ── Helpers ── */
@@ -38937,80 +38988,152 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  /* ── LANCER LA RECHERCHE ── */
+  /* ── Traiter un lot de résultats ── */
+  function igmProcessResults(rawResults, catKey, seen, isREST) {
+    var newFound = 0;
+    for(var ri=0; ri<rawResults.length; ri++){
+      var p = isREST ? igmNormalizeREST(rawResults[ri]) : rawResults[ri];
+      if(!p.place_id || seen.has(p.place_id)) continue;
+      seen.add(p.place_id);
+      var existing = igmIsExisting(p);
+      var lat = 0, lng = 0;
+      try {
+        if(p.geometry && p.geometry.location){
+          lat = typeof p.geometry.location.lat === 'function' ? p.geometry.location.lat() : p.geometry.location.lat;
+          lng = typeof p.geometry.location.lng === 'function' ? p.geometry.location.lng() : p.geometry.location.lng;
+        }
+      } catch(e){}
+      _igmResults.push({
+        place_id: p.place_id,
+        nom: p.name,
+        adresse: p.formatted_address || p.vicinity || '',
+        quartier: igmExtractQuartier(p.formatted_address || p.vicinity || ''),
+        note: p.rating || 0,
+        avis: p.user_ratings_total || 0,
+        lat: lat, lng: lng,
+        catKey: catKey, type: catKey,
+        isExisting: existing,
+        selected: !existing
+      });
+      if(!existing) newFound++;
+    }
+    return newFound;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     LANCER LA RECHERCHE — essaie REST d'abord, SDK en fallback
+     ══════════════════════════════════════════════════════════ */
   async function igmStartSearch() {
-    if(_igmSelectedCats.size === 0){ if(typeof showToast==='function') showToast('⚠️ Sélectionne au moins une catégorie'); return; }
+    if(_igmSelectedCats.size === 0){
+      if(typeof showToast==='function') showToast('⚠️ Sélectionne au moins une catégorie');
+      return;
+    }
     igmSetStep(2);
     _igmResults = [];
     var seen = new Set();
 
+    var cats   = Array.from(_igmSelectedCats);
+    var totalQ = cats.reduce(function(s,c){ return s + IGM_CAT_CONFIG[c].queries.length; }, 0);
+    var done   = 0;
+
+    /* ── Déterminer la stratégie : REST ou SDK ── */
+    var useREST = true;
+    var sdkService = null;
+
+    igmLog('🔍 Démarrage de la recherche (' + totalQ + ' requêtes)...');
+    igmLog('📡 Tentative via Places REST API...');
+
+    // Test rapide REST avec une requête minimaliste
     try {
-      igmLog('Chargement du SDK Google Maps...');
-      await igmLoadSDK();
-      igmLog('SDK Google Maps chargé ✓', 'ok');
+      var testRes = await igmSearchREST('bar Libreville Gabon');
+      igmLog('✅ REST API disponible — ' + testRes.length + ' résultats test', 'ok');
+    } catch(e) {
+      useREST = false;
+      igmLog('⚠️ REST API indisponible (' + e.message + ') → basculement sur SDK JS', 'warn');
+      try {
+        igmLog('⏳ Chargement du SDK Google Maps...');
+        await igmLoadSDK();
+        igmLog('✅ SDK Google Maps chargé', 'ok');
+        var mapDiv = document.createElement('div');
+        mapDiv.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
+        document.body.appendChild(mapDiv);
+        var gmap = new google.maps.Map(mapDiv, {center:{lat:0.4162,lng:9.4673}, zoom:12});
+        sdkService = new google.maps.places.PlacesService(gmap);
+      } catch(e2) {
+        igmLog('❌ SDK également indisponible : ' + e2.message, 'err');
+        igmLog('💡 Vérifiez que la clé API est autorisée pour ce domaine dans Google Cloud Console.', 'warn');
+        if(typeof showToast==='function') showToast('❌ Google Maps inaccessible — vérifiez la clé API');
+        return;
+      }
+    }
 
-      var mapDiv = document.createElement('div');
-      mapDiv.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
-      document.body.appendChild(mapDiv);
-      var gmap = new google.maps.Map(mapDiv, {center:{lat:0.4162,lng:9.4673}, zoom:12});
-      var service = new google.maps.places.PlacesService(gmap);
+    // Si REST a réussi le test, vider les résultats test (on ne les garde pas)
+    if(useREST) {
+      // on a juste testé, on ne garde pas ces résultats
+    }
 
-      var cats = Array.from(_igmSelectedCats);
-      var totalQ = cats.reduce(function(s,c){ return s + IGM_CAT_CONFIG[c].queries.length; }, 0);
-      var done = 0;
-
+    try {
       for(var ci=0; ci<cats.length; ci++){
         var catKey = cats[ci];
-        var cfg = IGM_CAT_CONFIG[catKey];
-        igmLog('🔍 Catégorie : ' + cfg.label + '...');
+        var cfg    = IGM_CAT_CONFIG[catKey];
+        igmLog('📂 Catégorie : ' + cfg.label + ' (' + cfg.queries.length + ' requêtes)');
 
         for(var qi=0; qi<cfg.queries.length; qi++){
           var q = cfg.queries[qi];
+          done++;
           igmSetProgress((done/totalQ)*100, 'Recherche "' + q + '"...', done+'/'+totalQ+' requêtes');
           igmLog('  → "' + q + '"');
 
           try {
-            var results = await igmSearchPlaces(q, service);
-            var newFound = 0;
-            for(var ri=0; ri<results.length; ri++){
-              var p = results[ri];
-              if(seen.has(p.place_id)) continue;
-              seen.add(p.place_id);
-              var existing = igmIsExisting(p);
-              _igmResults.push({
-                place_id: p.place_id,
-                nom: p.name,
-                adresse: p.formatted_address || p.vicinity || '',
-                quartier: igmExtractQuartier(p.formatted_address || p.vicinity || ''),
-                note: p.rating || 0,
-                avis: p.user_ratings_total || 0,
-                lat: (p.geometry && p.geometry.location) ? p.geometry.location.lat() : 0,
-                lng: (p.geometry && p.geometry.location) ? p.geometry.location.lng() : 0,
-                catKey: catKey,
-                type: catKey,
-                isExisting: existing,
-                selected: !existing
+            var rawResults;
+            if(useREST){
+              rawResults = await igmSearchREST(q);
+            } else {
+              var sdkRaw = await igmSearchSDK(q, sdkService);
+              // normaliser SDK vers format commun
+              rawResults = sdkRaw.map(function(p){
+                return {
+                  place_id: p.place_id, name: p.name,
+                  formatted_address: p.formatted_address||p.vicinity||'',
+                  vicinity: p.vicinity||'', rating: p.rating||0,
+                  user_ratings_total: p.user_ratings_total||0,
+                  geometry: p.geometry ? {location:{
+                    lat: p.geometry.location.lat(),
+                    lng: p.geometry.location.lng()
+                  }} : null
+                };
               });
-              if(!existing) newFound++;
+              useREST = false; // garder SDK si ça marche
             }
-            igmLog('  ✓ ' + results.length + ' résultats (' + newFound + ' nouveaux)', 'ok');
+
+            var newFound = igmProcessResults(rawResults, catKey, seen, useREST);
+            igmLog('  ✓ ' + rawResults.length + ' résultats (' + newFound + ' nouveaux)', 'ok');
             var cntEl = document.getElementById('igm-cnt-' + catKey);
             if(cntEl) cntEl.textContent = _igmResults.filter(function(r){ return r.catKey===catKey && !r.isExisting; }).length + ' nv';
+
           } catch(e) {
-            igmLog('  ⚠️ Erreur: ' + e.message, 'warn');
+            igmLog('  ⚠️ Erreur requête "' + q + '" : ' + e.message, 'warn');
           }
 
-          done++;
-          await new Promise(function(r){ setTimeout(r, 400); });
+          // Pause anti-quota
+          await new Promise(function(r){ setTimeout(r, useREST ? 300 : 500); });
         }
       }
 
       igmSetProgress(100, 'Recherche terminée !', totalQ+'/'+totalQ+' requêtes');
-      igmLog('🎉 Total : ' + _igmResults.length + ' établissements', 'ok');
+      igmLog('═══════════════════════════════════════', 'ok');
+      igmLog('🎉 Total trouvé : ' + _igmResults.length + ' établissements', 'ok');
       igmLog('✅ Nouveaux : ' + _igmResults.filter(function(r){ return !r.isExisting; }).length, 'ok');
       igmLog('⚠️ Déjà présents : ' + _igmResults.filter(function(r){ return r.isExisting; }).length, 'warn');
 
-      setTimeout(igmShowResults, 800);
+      if(_igmResults.length === 0){
+        igmLog('💡 Aucun résultat — vérifiez la clé API Google Maps (Places API activée ?)', 'warn');
+        if(typeof showToast==='function') showToast('⚠️ Aucun établissement trouvé — vérifiez la clé API');
+        igmSetStep(1);
+        return;
+      }
+
+      setTimeout(igmShowResults, 600);
 
     } catch(e) {
       igmLog('❌ Erreur fatale : ' + e.message, 'err');
