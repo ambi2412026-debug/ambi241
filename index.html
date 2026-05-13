@@ -6833,6 +6833,10 @@ if (document.readyState === 'loading') {
         </div>
       </div>
     </div>
+    <!-- DASHBOARD PAIEMENTS UTILISATEUR CONNECTÉ -->
+    <div id="payUserDashboard" style="display:none;margin-bottom:1rem;">
+      <div id="payUserDashboardContent"></div>
+    </div>
     <!-- ONGLETS ADMIN -->
     <div id="adminTabs" style="display:none">
       <div style="display:flex;gap:0.3rem;background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.15);border-radius:12px;padding:0.25rem;margin-bottom:1rem;flex-wrap:wrap;">
@@ -8460,6 +8464,8 @@ onAuthStateChanged(auth, function(user) {
       if(typeof updateNavLabels === "function") updateNavLabels();
       // ── Pré-remplir sec-profil avec les vraies données utilisateur ──
       if(typeof _syncProfilSection === "function") setTimeout(_syncProfilSection, 400);
+      // ── Actualiser le panneau paiements ──
+      if(typeof updatePayVis === "function") setTimeout(updatePayVis, 500);
     }, 2000);
   } else {
     window.currentUserEmail  = "";
@@ -8468,6 +8474,8 @@ onAuthStateChanged(auth, function(user) {
     updateHeaderUser(null);
     // ── Repasser le bouton en "Connexion" après déconnexion ──
     if(typeof updateNavLabels === "function") updateNavLabels();
+    // ── Réafficher les formules d'abonnement après déconnexion ──
+    if(typeof updatePayVis === "function") setTimeout(updatePayVis, 200);
   }
   // Déclenche le rendu si l'app est déjà initialisée
   if (typeof renderAll === "function") { renderAll(); renderHome(); }
@@ -11343,15 +11351,216 @@ function toggleAdmin(){
 function updatePayVis(){
   var vis=document.getElementById("payVisitor");
   var tabs=document.getElementById("adminTabs");
+  var userDash=document.getElementById("payUserDashboard");
   /* Toujours masquer l'ancien système adminTabs — le vrai dashboard est adminDashOverlay */
-  if(vis)vis.style.display=isAdmin?"none":"block";
   if(tabs)tabs.style.display="none";
   if(isAdmin){
+    /* Admin : masquer tout le front, ouvrir le vrai dashboard admin */
+    if(vis)vis.style.display="none";
+    if(userDash)userDash.style.display="none";
     renderVisitors();renderStatsAdmin();
-    /* Ouvrir automatiquement le vrai dashboard admin */
     if(typeof openAdminDashboard==="function") openAdminDashboard();
+  } else if(window.currentUserUID){
+    /* Utilisateur connecté (non-admin) : afficher son dashboard financier personnel */
+    if(vis)vis.style.display="none";
+    if(userDash)userDash.style.display="block";
+    renderUserPayDashboard();
+  } else {
+    /* Visiteur non connecté : afficher les formules d'abonnement */
+    if(vis)vis.style.display="block";
+    if(userDash)userDash.style.display="none";
   }
 }
+
+/* ══ DASHBOARD FINANCIER PERSONNEL (utilisateur connecté non-admin) ══════════
+   Affiche à l'utilisateur connecté :
+   — Son établissement lié, statut et formule d'abonnement
+   — L'échéance en cours et le nombre de jours restants
+   — L'historique de ses paiements
+   — Un bouton de renouvellement si proche de l'échéance                     */
+function renderUserPayDashboard(){
+  var el=document.getElementById("payUserDashboardContent");
+  if(!el) return;
+
+  var email=(window.currentUserEmail||"").toLowerCase().trim();
+  var pseudo=window.currentUserPseudo||email||"Utilisateur";
+
+  /* ── Trouver l'établissement lié à cet email ── */
+  var myEtab=null;
+  if(typeof etablissements!=="undefined"){
+    myEtab=etablissements.find(function(e){
+      return (e.responsable_email||"").toLowerCase().trim()===email ||
+             (e.email||"").toLowerCase().trim()===email;
+    });
+  }
+
+  /* ── Trouver les paiements liés ── */
+  var myPayments=[];
+  if(typeof paiements!=="undefined" && myEtab){
+    myPayments=paiements.filter(function(p){
+      return (p.nom||"").toLowerCase()===myEtab.nom.toLowerCase();
+    });
+  }
+
+  /* ── Calcul de l'échéance ── */
+  var echeance=null, joursRestants=null, planLabel="—", planColor="var(--muted)";
+  if(myEtab){
+    var planType=(myEtab.abonnement_type||"mensuel").toLowerCase();
+    var planDurations={mensuel:30, trimestriel:90, annuel:365};
+    var duree=planDurations[planType]||30;
+    if(planType==="mensuel"){planLabel="Mensuel";planColor="var(--amber)";}
+    else if(planType==="trimestriel"){planLabel="Trimestriel";planColor="var(--pink)";}
+    else if(planType==="annuel"){planLabel="Annuel";planColor="var(--cyan)";}
+
+    /* Date d'activation */
+    var dateActiv=null;
+    if(myEtab.abonnement_activated_at){
+      dateActiv=new Date(myEtab.abonnement_activated_at);
+    } else if(myPayments.length>0){
+      /* Dernier paiement confirmé */
+      var lastConfirmed=myPayments.filter(function(p){return p.statut==="Confirme";});
+      if(lastConfirmed.length>0){
+        var parts=(lastConfirmed[lastConfirmed.length-1].date||"").split("/");
+        if(parts.length===3) dateActiv=new Date(parts[2],parts[1]-1,parts[0]);
+      }
+    }
+    if(dateActiv){
+      echeance=new Date(dateActiv.getTime()+duree*24*3600*1000);
+      joursRestants=Math.ceil((echeance.getTime()-Date.now())/(24*3600*1000));
+    }
+  }
+
+  /* ── Statut de paiement ── */
+  var statut=myEtab?(myEtab.paiement||"En attente"):"Non inscrit";
+  var isActif=statut.indexOf("Actif")!==-1;
+  var statutColor=isActif?"var(--green)":"var(--amber)";
+  var statutEmoji=isActif?"✅":"⏳";
+
+  /* ── Alerte échéance ── */
+  var alerteEcheance="";
+  if(joursRestants!==null){
+    if(joursRestants<0){
+      alerteEcheance='<div style="background:rgba(255,68,102,0.12);border:1px solid rgba(255,68,102,0.35);border-radius:12px;padding:0.9rem;margin-bottom:1rem;text-align:center;">'
+        +'<div style="font-size:1.2rem;margin-bottom:0.3rem;">⚠️</div>'
+        +'<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;color:var(--red);">Abonnement expiré</div>'
+        +'<div style="font-size:0.72rem;color:var(--muted);margin-top:0.3rem;">Votre abonnement a expiré il y a '+Math.abs(joursRestants)+' jour(s).</div>'
+        +'<div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;">Renouvelez pour maintenir votre visibilité.</div>'
+        +'</div>';
+    } else if(joursRestants<=7){
+      alerteEcheance='<div style="background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);border-radius:12px;padding:0.9rem;margin-bottom:1rem;text-align:center;">'
+        +'<div style="font-size:1.2rem;margin-bottom:0.3rem;">⏰</div>'
+        +'<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;color:var(--amber);">Expiration imminente</div>'
+        +'<div style="font-size:0.72rem;color:var(--muted);margin-top:0.3rem;">Il vous reste <strong style="color:var(--amber);">'+joursRestants+' jour(s)</strong> avant expiration.</div>'
+        +'</div>';
+    }
+  }
+
+  /* ── Rendu HTML ── */
+  var html='';
+
+  /* En-tête */
+  html+='<div style="background:rgba(255,45,155,0.07);border:1px solid rgba(255,45,155,0.2);border-radius:16px;padding:1.1rem;margin-bottom:1rem;">';
+  html+='<div style="display:flex;align-items:center;gap:0.7rem;margin-bottom:0.5rem;">';
+  html+='<div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:800;color:#fff;flex-shrink:0;">'+(pseudo[0]||"?").toUpperCase()+'</div>';
+  html+='<div>';
+  html+='<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;color:var(--text);">'+pseudo+'</div>';
+  html+='<div style="font-size:0.65rem;color:var(--muted);">'+email+'</div>';
+  html+='</div></div>';
+  if(myEtab){
+    html+='<div style="font-size:0.72rem;color:var(--muted);">🏛️ Établissement lié : <strong style="color:var(--cyan);">'+myEtab.nom+'</strong></div>';
+  } else {
+    html+='<div style="font-size:0.72rem;color:var(--amber);">⚠️ Aucun établissement lié à ce compte.</div>';
+  }
+  html+='</div>';
+
+  /* Alerte échéance si proche ou expirée */
+  html+=alerteEcheance;
+
+  if(myEtab){
+    /* Carte statut + formule */
+    html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:1rem;">';
+    /* Statut */
+    html+='<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.8rem;text-align:center;">';
+    html+='<div style="font-size:1.3rem;margin-bottom:0.2rem;">'+statutEmoji+'</div>';
+    html+='<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;color:'+statutColor+';">'+statut+'</div>';
+    html+='<div style="font-size:0.6rem;color:var(--muted);margin-top:0.2rem;">Statut</div>';
+    html+='</div>';
+    /* Formule */
+    html+='<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.8rem;text-align:center;">';
+    html+='<div style="font-size:1.3rem;margin-bottom:0.2rem;">📅</div>';
+    html+='<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;color:'+planColor+';">'+planLabel+'</div>';
+    html+='<div style="font-size:0.6rem;color:var(--muted);margin-top:0.2rem;">Formule</div>';
+    html+='</div>';
+    html+='</div>';
+
+    /* Échéance */
+    if(echeance){
+      var echeanceStr=echeance.toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"});
+      var joursColor=joursRestants<0?"var(--red)":joursRestants<=7?"var(--amber)":"var(--green)";
+      var joursLabel=joursRestants<0?"Expiré il y a "+Math.abs(joursRestants)+" j":joursRestants===0?"Expire aujourd'hui":joursRestants+" jour(s) restant(s)";
+      html+='<div style="background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.15);border-radius:12px;padding:0.9rem;margin-bottom:1rem;">';
+      html+='<div style="font-size:0.68rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.5rem;">⏱️ Échéance en cours</div>';
+      html+='<div style="display:flex;align-items:center;justify-content:space-between;">';
+      html+='<div>';
+      html+='<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.92rem;color:var(--text);">'+echeanceStr+'</div>';
+      html+='<div style="font-size:0.68rem;margin-top:0.2rem;color:'+joursColor+';font-weight:700;">'+joursLabel+'</div>';
+      html+='</div>';
+      html+='<div style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);border-radius:20px;padding:0.25rem 0.6rem;font-size:0.65rem;font-weight:700;color:var(--cyan);">'+planLabel+'</div>';
+      html+='</div></div>';
+    }
+
+    /* Bouton renouveler si expiré ou proche */
+    if(joursRestants===null||joursRestants<=14){
+      html+='<div style="margin-bottom:1rem;">';
+      html+='<a href="https://wa.me/24174450924?text=Bonjour%20AMBI241%2C%20je%20souhaite%20renouveler%20mon%20abonnement%20pour%20'+encodeURIComponent(myEtab.nom)+'." target="_blank" ';
+      html+='style="display:flex;align-items:center;justify-content:center;gap:0.5rem;width:100%;padding:0.8rem;border-radius:12px;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;text-decoration:none;box-shadow:0 4px 18px rgba(255,45,155,0.3);">';
+      html+='🔄 Renouveler mon abonnement</a>';
+      html+='</div>';
+    }
+
+    /* Historique des paiements */
+    html+='<div style="margin-bottom:0.5rem;">';
+    html+='<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;color:var(--text);margin-bottom:0.7rem;">📋 Historique des paiements</div>';
+    if(myPayments.length===0){
+      html+='<div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:0.8rem;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">Aucun paiement enregistré.</div>';
+    } else {
+      myPayments.slice().reverse().forEach(function(p){
+        var isConfirme=p.statut==="Confirme";
+        var sc=isConfirme?"color:var(--green);border-color:rgba(0,255,170,0.3);":"color:var(--amber);border-color:rgba(255,215,0,0.3);";
+        html+='<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:0.75rem;margin-bottom:0.45rem;display:flex;align-items:center;justify-content:space-between;">';
+        html+='<div>';
+        html+='<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;color:var(--text);">'+(p.montant||0).toLocaleString("fr-FR")+' XAF</div>';
+        html+='<div style="font-size:0.62rem;color:var(--muted);margin-top:0.15rem;">📅 '+(p.date||"—")+'  •  '+(p.mode||"—")+'</div>';
+        html+='</div>';
+        html+='<span style="font-size:0.68rem;font-weight:700;padding:0.2rem 0.5rem;border-radius:20px;border:1px solid;background:transparent;'+sc+'">'+(isConfirme?"✅ Confirmé":"⏳ En attente")+'</span>';
+        html+='</div>';
+      });
+    }
+    html+='</div>';
+
+    /* Contact admin */
+    html+='<div style="background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.12);border-radius:12px;padding:0.9rem;text-align:center;">';
+    html+='<div style="font-size:0.7rem;color:var(--muted);margin-bottom:0.5rem;">Une question sur votre abonnement ?</div>';
+    html+='<div style="display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap;">';
+    html+='<a href="https://wa.me/24174450924" target="_blank" class="cp-action">💬 WhatsApp</a>';
+    html+='<a href="mailto:ambi2412026@gmail.com" class="cp-action">✉️ Email</a>';
+    html+='</div></div>';
+
+  } else {
+    /* Pas d'établissement lié — rediriger vers inscription */
+    html+='<div style="text-align:center;padding:1.5rem;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);border-radius:14px;">';
+    html+='<div style="font-size:2rem;margin-bottom:0.6rem;">🏛️</div>';
+    html+='<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.92rem;color:var(--amber);margin-bottom:0.4rem;">Inscrivez votre établissement</div>';
+    html+='<div style="font-size:0.75rem;color:var(--muted);margin-bottom:1rem;line-height:1.6;">Aucun établissement n\'est lié à votre compte.<br>Contactez-nous pour procéder à l\'inscription.</div>';
+    html+='<a href="https://wa.me/24174450924?text=Bonjour%20AMBI241%2C%20je%20souhaite%20inscrire%20mon%20%C3%A9tablissement." target="_blank" ';
+    html+='style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.65rem 1.2rem;border-radius:12px;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;text-decoration:none;">';
+    html+='💬 Inscrire mon établissement</a>';
+    html+='</div>';
+  }
+
+  el.innerHTML=html;
+}
+window.renderUserPayDashboard=renderUserPayDashboard;
 
 function switchAdminTab(tab){
   var tabs=["paiements","visiteurs","statistiques","contacts","taxipro"];
@@ -15826,6 +16035,8 @@ function switchSection(name,btn){
   if(name === "publications" && window.markDiscBadge){ window.markDiscBadge(false); }
   // Discussions redirigées vers Social
   if(name === "social" && window.markDiscBadge){ window.markDiscBadge(false); }
+  // Actualiser le panneau paiements selon état de connexion
+  if(name === "paiements" && typeof updatePayVis === "function"){ setTimeout(updatePayVis, 80); }
   // Fermer la carte si on quitte l'onglet etablissements
   if(name!=="etablissements" && window.closeAmbiMap) window.closeAmbiMap();
   // Afficher le footer uniquement sur la page contacts
