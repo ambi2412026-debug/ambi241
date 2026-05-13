@@ -39593,6 +39593,227 @@ window.socSubmitNewPub = function() {
 
 console.log('[AMBI241] ✅ Module publication & live chargé v2');
 })();
+
+/* ═══════════════════════════════════════════════════════════════
+   CORRECTIF — CHARGER LES PUBLICATIONS FIREBASE dans socPubFeed
+   (onglet Posts dans COMPTES / sec-social)
+   Ce feed était vide car aucun listener Firebase n'alimentait
+   le div #socPubFeed. Ce module corrige ce bug.
+═══════════════════════════════════════════════════════════════ */
+(function(){
+  'use strict';
+
+  var _socFeedUnsub = null;
+  var _socFeedData  = [];
+  var _socFeedFilter = 'all';
+  var _socFeedInited = false;
+
+  /* ── Échapper le HTML ── */
+  function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  /* ── Formater la date ── */
+  function _fmtDate(ts){
+    if(!ts) return 'À l\'instant';
+    var d = ts.toDate ? ts.toDate() : new Date(ts);
+    var now = new Date();
+    var diff = Math.floor((now - d) / 1000);
+    if(diff < 60)  return 'À l\'instant';
+    if(diff < 3600) return Math.floor(diff/60) + ' min';
+    if(diff < 86400) return Math.floor(diff/3600) + ' h';
+    return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+  }
+
+  /* ── Construire une carte pour socPubFeed ── */
+  function _buildSocCard(p){
+    var pid   = _esc(p._id || p.id || '');
+    var pseudo = _esc(p.pseudo || p.auteur || p.displayName || 'Anonyme');
+    var letter = (p.pseudo || p.auteur || p.displayName || '?')[0].toUpperCase();
+    var text  = _esc(p.texte || p.text || p.titre || p.message || '');
+    var ts    = _fmtDate(p.createdAt);
+    var mood  = p.mood || '';
+    var vis   = {public:'🌐', amis:'👥', moi:'🔒'}[p.visibility] || '🌐';
+    var likes = parseInt(p.likes) || 0;
+    var comments = parseInt(p.comments) || 0;
+
+    // Photos
+    var photoHtml = '';
+    var photos = Array.isArray(p.photos) ? p.photos : (p.photoURLs ? p.photoURLs : []);
+    if(photos.length){
+      var cols = photos.length===1?'1fr':(photos.length===2?'1fr 1fr':'1fr 1fr 1fr');
+      photoHtml = '<div style="display:grid;grid-template-columns:'+cols+';gap:4px;margin:0.6rem 0;border-radius:12px;overflow:hidden;">';
+      photos.slice(0,5).forEach(function(url){
+        photoHtml += '<img src="'+_esc(url)+'" style="width:100%;height:140px;object-fit:cover;" loading="lazy" onclick="openPubPhotoLightbox(\''+_esc(url)+'\')">';
+      });
+      photoHtml += '</div>';
+    }
+
+    // Vidéo
+    var videoHtml = '';
+    if(p.video || p.videoURL){
+      videoHtml = '<div style="border-radius:12px;overflow:hidden;margin:0.6rem 0;border:1.5px solid rgba(0,229,255,0.2);">'
+        +'<video src="'+_esc(p.video||p.videoURL)+'" controls style="width:100%;max-height:240px;display:block;background:#000;" playsinline></video></div>';
+    }
+
+    // Établissement
+    var etabHtml = p.etab ? '<div style="display:inline-flex;align-items:center;gap:0.3rem;background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.18);border-radius:8px;padding:0.2rem 0.5rem;font-size:0.65rem;color:var(--cyan);margin:0.3rem 0;">📍 '+_esc(p.etab)+'</div>' : '';
+
+    // Mood
+    var moodHtml = mood ? '<span style="background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.22);border-radius:6px;font-size:0.62rem;padding:1px 6px;margin-left:0.3rem;">'+_esc(mood)+'</span>' : '';
+
+    return '<article class="socpub-card" data-pub-id="'+pid+'" data-type="'+_esc(p.type||'ambiance')+'">'
+      +'<div class="socpub-card-header">'
+      +'<div class="socpub-avatar" style="background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1rem;" id="_sfa_'+pid+'">'+letter+'</div>'
+      +'<div class="socpub-meta">'
+      +'<div class="socpub-author">'+pseudo+' <span class="socpub-badge verifie">✓</span>'+moodHtml+'</div>'
+      +'<div class="socpub-time">'+ts+' <span style="font-size:0.6rem;opacity:0.6;">'+vis+'</span></div>'
+      +'</div>'
+      +'<div class="socpub-more-btn" onclick="socPubMoreMenu(\''+pid+'\',this)">⋯</div>'
+      +'</div>'
+      +(text ? '<p class="socpub-text">'+text.replace(/@(\w+)/g,'<span style="color:var(--cyan);">@$1</span>')+'</p>' : '')
+      +photoHtml+videoHtml+etabHtml
+      +'<div class="socpub-action-bar">'
+      +'<button class="socpub-action-btn like" onclick="socPubToggleLike(\''+pid+'\',this)"><span class="socpub-action-icon">❤️</span> J\'aime <span class="socpub-action-count">'+likes+'</span></button>'
+      +'<button class="socpub-action-btn comment" onclick="socPubToggleComments(\''+pid+'\')"><span class="socpub-action-icon">💬</span> Commenter <span class="socpub-action-count">'+comments+'</span></button>'
+      +'<button class="socpub-action-btn share" onclick="socPubShare(\''+pid+'\')"><span class="socpub-action-icon">↪️</span> Partager</button>'
+      +'</div>'
+      +'</article>';
+  }
+
+  /* ── Rendre le feed ── */
+  function _renderSocFeed(){
+    var feed = document.getElementById('socPubFeed');
+    var empty = document.getElementById('socPubEmpty');
+    if(!feed) return;
+
+    var data = _socFeedData;
+    if(_socFeedFilter !== 'all'){
+      data = data.filter(function(p){ return (p.type||'ambiance') === _socFeedFilter; });
+    }
+
+    if(!data.length){
+      if(empty) empty.style.display = 'block';
+      // Supprimer cartes existantes
+      Array.from(feed.querySelectorAll('.socpub-card,.socpub-load-more')).forEach(function(el){ el.remove(); });
+      return;
+    }
+    if(empty) empty.style.display = 'none';
+
+    var html = data.map(function(p){ return _buildSocCard(p); }).join('');
+    // Injecter en préservant l'empty
+    Array.from(feed.querySelectorAll('.socpub-card,.socpub-load-more')).forEach(function(el){ el.remove(); });
+    if(empty) empty.insertAdjacentHTML('afterend', html);
+    else feed.insertAdjacentHTML('beforeend', html);
+
+    // Charger les avatars photo si disponibles
+    setTimeout(function(){
+      data.forEach(function(p){
+        if(!p.uid || !p._id) return;
+        if(typeof window.loadUserAvatar === 'function'){
+          window.loadUserAvatar(p.uid, function(url){
+            if(!url) return;
+            var el = document.getElementById('_sfa_' + p._id);
+            if(el){ el.innerHTML = '<img src="'+url+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">'; el.style.padding='0'; }
+          });
+        }
+      });
+    }, 300);
+  }
+
+  /* ── Démarrer le listener Firebase ── */
+  function _startSocFeed(){
+    if(_socFeedInited) return;
+    _socFeedInited = true;
+
+    if(!window.db || !window.fbCollection || !window.fbQuery || !window.fbOrderBy || !window.fbOnSnapshot){
+      // Firebase pas encore prêt — réessayer dans 1 s
+      setTimeout(function(){ _socFeedInited = false; _startSocFeed(); }, 1000);
+      return;
+    }
+
+    try {
+      if(_socFeedUnsub) _socFeedUnsub();
+      var q = window.fbQuery(
+        window.fbCollection(window.db, 'publications'),
+        window.fbOrderBy('createdAt', 'desc')
+      );
+      _socFeedUnsub = window.fbOnSnapshot(q, function(snap){
+        _socFeedData = [];
+        snap.forEach(function(d){ _socFeedData.push(Object.assign({ _id: d.id }, d.data())); });
+        _renderSocFeed();
+      }, function(err){
+        console.warn('[AMBI241] socPubFeed snapshot error:', err);
+        _renderSocFeed();
+      });
+      console.log('[AMBI241] ✅ socPubFeed — listener Firebase actif');
+    } catch(e) {
+      console.warn('[AMBI241] socPubFeed init error:', e);
+    }
+  }
+
+  /* ── Exposer le filtre ── */
+  var _origSocPubFilter = window.socPubFilter;
+  window.socPubFilter = function(type, btn){
+    if(typeof _origSocPubFilter === 'function') _origSocPubFilter(type, btn);
+    _socFeedFilter = type || 'all';
+    _renderSocFeed();
+  };
+
+  /* ── Patcher socSwitchTab pour déclencher au 1er affichage ── */
+  var _origSocSwitchFeed = window.socSwitchTab;
+  window.socSwitchTab = function(tab){
+    if(typeof _origSocSwitchFeed === 'function') _origSocSwitchFeed(tab);
+    if(tab === 'publications') _startSocFeed();
+  };
+
+  /* ── Patcher ambi_switchToPostsTab ── */
+  var _origAmbiSwitch = window.ambi_switchToPostsTab;
+  window.ambi_switchToPostsTab = function(){
+    if(typeof _origAmbiSwitch === 'function') _origAmbiSwitch();
+    _startSocFeed();
+  };
+
+  /* ── Après une nouvelle publication, rafraîchir le feed ── */
+  var _origSocSubmitFeed = window.socSubmitNewPub;
+  window.socSubmitNewPub = function(){
+    if(typeof _origSocSubmitFeed === 'function') _origSocSubmitFeed();
+    setTimeout(_renderSocFeed, 800);
+  };
+
+  /* ── Démarrage automatique : si le pane publications est déjà actif ou
+        quand l'utilisateur se connecte ── */
+  function _autoStart(){
+    var pane = document.getElementById('pane-publications');
+    if(pane && pane.classList.contains('active')) _startSocFeed();
+    // Démarrer aussi quand la section sociale est ouverte
+    var secSocial = document.getElementById('sec-social');
+    if(secSocial && !secSocial.classList.contains('section-hidden')) _startSocFeed();
+  }
+
+  // Lancer dès que le DOM est prêt
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){
+      setTimeout(_autoStart, 500);
+      setTimeout(_startSocFeed, 2000); // fallback : démarrer après 2 s quoi qu'il arrive
+    });
+  } else {
+    setTimeout(_autoStart, 500);
+    setTimeout(_startSocFeed, 2000);
+  }
+
+  // Patcher openSection / showSection si elles existent
+  ['openSection','showSection','_openSection'].forEach(function(fn){
+    var orig = window[fn];
+    if(typeof orig !== 'function') return;
+    window[fn] = function(sec){
+      orig.apply(this, arguments);
+      if(sec === 'social' || sec === 'comptes' || sec === 'sec-social'){
+        setTimeout(_startSocFeed, 200);
+      }
+    };
+  });
+
+  console.log('[AMBI241] ✅ Correctif socPubFeed Firebase chargé');
+})();
 </script>
 </body>
 </html>
