@@ -4693,15 +4693,20 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   position:fixed;inset:0;background:rgba(0,0,0,0.75);
   backdrop-filter:blur(8px);z-index:500;
   display:none;align-items:flex-end;justify-content:center;
+  /* ↓ évite que le sheet passe sous la bottom nav (62px) */
+  padding-bottom:62px;
 }
 .soc-modal-overlay.open{display:flex;}
 @keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
 .soc-modal-sheet{
-  width:100%;max-width:480px;max-height:90vh;overflow-y:auto;
+  width:100%;max-width:480px;
+  /* max-height tient compte du padding-bottom de l'overlay */
+  max-height:calc(90vh - 62px);
+  overflow-y:auto;
   background:var(--surface);
   border-radius:22px 22px 0 0;
   border-top:1px solid rgba(255,45,155,0.25);
-  padding-bottom:env(safe-area-inset-bottom,1rem);
+  padding-bottom:env(safe-area-inset-bottom,0.5rem);
   animation:slideUp 0.35s cubic-bezier(0.34,1.56,0.64,1);
 }
 .soc-modal-handle{
@@ -4723,6 +4728,74 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 }
 .soc-modal-close:active{opacity:0.6;}
 .soc-modal-body{padding:1rem;}
+
+/* ── DM Chat Modal ── */
+#modalDMChat .soc-modal-sheet{
+  display:flex;flex-direction:column;
+  height:72vh;max-height:72vh;
+  overflow:hidden;
+}
+.dm-peer-info{display:flex;align-items:center;gap:0.6rem;}
+.dm-peer-av{
+  width:34px;height:34px;border-radius:50%;
+  background:linear-gradient(135deg,var(--pink),var(--purple));
+  display:flex;align-items:center;justify-content:center;font-size:1.1rem;
+  flex-shrink:0;
+}
+.dm-peer-name{font-family:'Syne',sans-serif;font-size:0.95rem;font-weight:800;color:var(--pink);}
+.dm-peer-status{font-size:0.6rem;color:var(--green);}
+.dm-messages{
+  flex:1;overflow-y:auto;
+  padding:0.9rem 1rem;
+  display:flex;flex-direction:column;gap:0.55rem;
+  scroll-behavior:smooth;
+}
+.dm-bubble{
+  max-width:78%;padding:0.55rem 0.85rem;
+  border-radius:16px;font-size:0.82rem;line-height:1.5;
+  word-break:break-word;
+}
+.dm-bubble.dm-me{
+  background:linear-gradient(135deg,var(--pink),var(--purple));
+  color:#fff;align-self:flex-end;border-bottom-right-radius:4px;
+}
+.dm-bubble.dm-them{
+  background:var(--surface2);border:1px solid rgba(255,255,255,0.07);
+  color:var(--text);align-self:flex-start;border-bottom-left-radius:4px;
+}
+.dm-bubble-time{font-size:0.54rem;opacity:0.55;margin-top:0.25rem;text-align:right;}
+.dm-bubble.dm-them .dm-bubble-time{text-align:left;}
+.dm-empty{
+  flex:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  color:var(--muted);gap:0.4rem;
+}
+.dm-empty-icon{font-size:2rem;}
+.dm-empty-txt{font-size:0.72rem;}
+.dm-input-row{
+  display:flex;align-items:center;gap:0.5rem;
+  padding:0.6rem 1rem;
+  border-top:1px solid rgba(255,255,255,0.07);
+  background:var(--surface);flex-shrink:0;
+}
+.dm-text-input{
+  flex:1;background:var(--surface2);
+  border:1.5px solid rgba(255,45,155,0.2);border-radius:22px;
+  padding:0.55rem 1rem;color:var(--text);
+  font-family:'DM Sans',sans-serif;font-size:0.85rem;outline:none;
+  transition:border-color 0.2s;
+}
+.dm-text-input:focus{border-color:rgba(255,45,155,0.55);}
+.dm-text-input::placeholder{color:var(--muted);}
+.dm-send-btn{
+  width:38px;height:38px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,var(--pink),var(--purple));
+  border:none;color:#fff;font-size:1rem;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:transform 0.15s,opacity 0.15s;
+}
+.dm-send-btn:active{transform:scale(0.88);opacity:0.8;}
+.dm-send-btn:disabled{opacity:0.35;pointer-events:none;}
 
 /* ── Formulaire ── */
 .soc-form-field{margin-bottom:0.85rem;}
@@ -7837,14 +7910,43 @@ if (document.readyState === 'loading') {
 
 <!-- ─── Modal : Profil Membre ─── -->
 <div class="soc-modal-overlay" id="modalMemberProfile">
-  <div class="soc-modal-sheet">
+  <div class="soc-modal-sheet" style="display:flex;flex-direction:column;">
     <div class="soc-modal-handle"></div>
-    <div class="soc-modal-head">
+    <div class="soc-modal-head" style="flex-shrink:0;">
       <div class="soc-modal-title" id="mpTitle">Profil</div>
       <button class="soc-modal-close" onclick="closeModal('modalMemberProfile')">✕</button>
     </div>
-    <div class="soc-modal-body" id="mpBody">
+    <div class="soc-modal-body" id="mpBody" style="overflow-y:auto;flex:1;">
       <!-- Généré par JS -->
+    </div>
+  </div>
+</div>
+
+<!-- ─── Modal : DM Chat ─── -->
+<div class="soc-modal-overlay" id="modalDMChat">
+  <div class="soc-modal-sheet">
+    <div class="soc-modal-handle"></div>
+    <div class="soc-modal-head" style="flex-shrink:0;">
+      <div class="dm-peer-info">
+        <div class="dm-peer-av" id="dmPeerAv">👤</div>
+        <div>
+          <div class="dm-peer-name" id="dmPeerName">Chat</div>
+          <div class="dm-peer-status">● En ligne</div>
+        </div>
+      </div>
+      <button class="soc-modal-close" onclick="closeModal('modalDMChat')">✕</button>
+    </div>
+    <div class="dm-messages" id="dmMessages">
+      <div class="dm-empty" id="dmEmpty">
+        <div class="dm-empty-icon">💬</div>
+        <div class="dm-empty-txt">Commence la conversation !</div>
+      </div>
+    </div>
+    <div class="dm-input-row">
+      <input class="dm-text-input" id="dmInput" placeholder="Écrire un message…"
+             maxlength="500"
+             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();dmSend();}">
+      <button class="dm-send-btn" id="dmSendBtn" onclick="dmSend()" title="Envoyer">➤</button>
     </div>
   </div>
 </div>
@@ -35624,7 +35726,7 @@ function renderFriends(){
     if(f.tag) h += '<span class="friend-tag">'+esc(f.tag)+'</span>';
     h += '</div></div>';
     h += '<div class="friend-actions">';
-    h += '<button class="friend-act-btn msg" onclick="event.stopPropagation();socToast(\'💬 Chat avec '+esc(f.name)+'\')" title="Message">💬</button>';
+    h += '<button class="friend-act-btn msg" onclick="event.stopPropagation();openDM(\''+f.uid+'\')" title="Message">💬</button>';
     h += '<button class="friend-act-btn del" onclick="event.stopPropagation();confirmAction(\'Supprimer '+esc(f.name)+' de tes amis ?\',\'🗑️\',\'Supprimer\',function(){removeFriend(\''+f.uid+'\')})" title="Supprimer">🗑️</button>';
     h += '<button class="friend-act-btn blk" onclick="event.stopPropagation();confirmAction(\'Bloquer '+esc(f.name)+' ?\',\'🚫\',\'Bloquer\',function(){blockUser(\''+f.uid+'\')})" title="Bloquer">🚫</button>';
     h += '</div></div>';
@@ -35915,7 +36017,7 @@ window.openMemberProfile = function(uid){
   h += '<div class="member-stat"><div class="member-stat-val">3</div><div class="member-stat-label">Projets</div></div>';
   h += '</div></div>';
   h += '<div class="member-profile-actions">';
-  h += '<button class="soc-btn-primary" style="flex:2;" onclick="socToast(\'💬 Conversation ouverte avec '+esc(f.name)+'\')">💬 Message</button>';
+  h += '<button class="soc-btn-primary" style="flex:2;" onclick="openDM(\''+f.uid+'\');closeModal(\'modalMemberProfile\')">💬 Message</button>';
   h += '<button class="soc-btn-secondary" style="flex:1;margin:0;" onclick="confirmAction(\'Supprimer '+esc(f.name)+' de tes amis ?\',\'🗑️\',\'Supprimer\',function(){removeFriend(\''+f.uid+'\');closeModal(\'modalMemberProfile\')})">🗑️</button>';
   h += '<button class="soc-btn-secondary" style="flex:1;margin:0;" onclick="confirmAction(\'Bloquer '+esc(f.name)+' ?\',\'🚫\',\'Bloquer\',function(){blockUser(\''+f.uid+'\');closeModal(\'modalMemberProfile\')})">🚫</button>';
   h += '</div>';
@@ -36328,12 +36430,13 @@ window._requireAuth = _requireAuth;
 
 window.openModal = function(id){
   /* Modales sociales nécessitant une connexion */
-  var authRequired = ['modalAddFriend','modalCreateComm','modalCreateProj','modalMemberProfile'];
+  var authRequired = ['modalAddFriend','modalCreateComm','modalCreateProj','modalMemberProfile','modalDMChat'];
   var labels = {
     modalAddFriend:   'Ajouter un ami',
     modalCreateComm:  'Créer une communauté',
     modalCreateProj:  'Lancer un projet',
-    modalMemberProfile: 'Voir ce profil'
+    modalMemberProfile: 'Voir ce profil',
+    modalDMChat: 'Envoyer un message'
   };
   if(authRequired.indexOf(id) !== -1) {
     if(!_requireAuth(labels[id] || 'Cette fonctionnalité')) return;
@@ -36346,6 +36449,116 @@ window.closeModal = function(id){
   var el = document.getElementById(id);
   if(el) el.classList.remove('open');
 };
+
+/* ════════════ DM CHAT ════════════
+   Stockage en mémoire : _dmHistory[uid] = [{me, text, time}]
+   Firebase peut être branché plus tard en remplaçant _dmHistory
+   par une sous-collection Firestore users/{me}/dm/{peer}/messages.
+════════════════════════════════════ */
+var _dmHistory = {};   // clé = uid du destinataire
+var _dmCurrentUid = null;
+
+window.openDM = function(uid){
+  /* Trouver le profil ami correspondant */
+  var friend = _friends.find(function(x){ return x.uid === uid; });
+  if(!friend){
+    socToast('⚠️ Ami introuvable');
+    return;
+  }
+  _dmCurrentUid = uid;
+  if(!_dmHistory[uid]) _dmHistory[uid] = [];
+
+  /* Remplir l'en-tête */
+  var avEl = document.getElementById('dmPeerAv');
+  var nameEl = document.getElementById('dmPeerName');
+  if(avEl)   avEl.textContent  = friend.avatar || '👤';
+  if(nameEl) nameEl.textContent = friend.name  || 'Chat';
+
+  /* Vider le champ de saisie */
+  var inp = document.getElementById('dmInput');
+  if(inp) inp.value = '';
+
+  /* Rendre les messages */
+  dmRender();
+
+  /* Ajouter le modal à la liste auth si pas déjà présent (pour _requireAuth) */
+  openModal('modalDMChat');
+
+  /* Focus sur l'input après animation */
+  setTimeout(function(){
+    if(inp) inp.focus();
+  }, 380);
+};
+window.openDM = window.openDM; // expose globalement
+
+function dmRender(){
+  var box  = document.getElementById('dmMessages');
+  var empty = document.getElementById('dmEmpty');
+  if(!box) return;
+  var msgs = _dmCurrentUid ? (_dmHistory[_dmCurrentUid] || []) : [];
+
+  if(!msgs.length){
+    box.innerHTML = '<div class="dm-empty" id="dmEmpty"><div class="dm-empty-icon">💬</div><div class="dm-empty-txt">Commence la conversation !</div></div>';
+    return;
+  }
+
+  var html = '';
+  msgs.forEach(function(m){
+    var cls = m.me ? 'dm-me' : 'dm-them';
+    html += '<div class="dm-bubble '+cls+'">';
+    html += esc(m.text);
+    html += '<div class="dm-bubble-time">'+m.time+'</div>';
+    html += '</div>';
+  });
+  box.innerHTML = html;
+  /* Scroll vers le bas */
+  box.scrollTop = box.scrollHeight;
+}
+
+window.dmSend = function(){
+  var inp = document.getElementById('dmInput');
+  if(!inp || !_dmCurrentUid) return;
+  var txt = inp.value.trim();
+  if(!txt) return;
+
+  var now = new Date();
+  var hhmm = now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
+
+  /* Ajouter le message */
+  _dmHistory[_dmCurrentUid].push({ me:true, text:txt, time:hhmm });
+  inp.value = '';
+  dmRender();
+
+  /* ── Optionnel : écriture Firebase ──
+  if(window.db && window.fbAddDoc && window.fbCollection && meUID){
+    window.fbAddDoc(
+      window.fbCollection(window.db,'users',meUID,'dm',_dmCurrentUid,'messages'),
+      { text:txt, sentAt:Date.now(), from:meUID }
+    ).catch(function(e){ console.warn('[DM] write error',e); });
+  }
+  ── */
+
+  /* Réponse automatique de démo après 1 s */
+  var peer = _friends.find(function(x){ return x.uid === _dmCurrentUid; });
+  if(peer){
+    var replies = [
+      'Haha 😄', 'Trop cool !', 'On se voit ce soir ?',
+      'Yep, je suis là 👋', 'Ça marche pour moi !',
+      'C\'est quoi l\'ambiance au '+peer.etab+' là ?',
+      '🔥🔥', 'Je check ça et je te dis.',
+    ];
+    var reply = replies[Math.floor(Math.random()*replies.length)];
+    setTimeout(function(){
+      if(_dmCurrentUid === peer.uid){
+        var t2 = new Date();
+        var hhmm2 = t2.getHours().toString().padStart(2,'0')+':'+t2.getMinutes().toString().padStart(2,'0');
+        _dmHistory[peer.uid].push({ me:false, text:reply, time:hhmm2 });
+        dmRender();
+      }
+    }, 900 + Math.random()*600);
+  }
+};
+window.dmSend = window.dmSend;
 
 // Fermer modal au clic sur l'overlay
 document.querySelectorAll('.soc-modal-overlay').forEach(function(el){
