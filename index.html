@@ -907,7 +907,7 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 }
 .socpub-compose-prompt{flex:1;min-width:0;}
 .socpub-compose-text{font-size:0.8rem;color:var(--muted);}
-.socpub-compose-actions{display:flex;gap:0.3rem;flex-shrink:0;}
+.socpub-compose-actions{display:flex;gap:0.3rem;flex-shrink:0;position:relative;z-index:10;}
 .socpub-quick-btn{
   width:36px;height:36px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.15);
   background:rgba(255,255,255,0.05);cursor:pointer;font-size:1.05rem;
@@ -35831,9 +35831,9 @@ console.log('[AMBI241] ✅ Système Profils Publics chargé — openPublicProfil
   var css = `
     .ambi-scroll-nav {
       position: fixed;
-      right: 14px;
+      right: 6px;
       bottom: calc(var(--nav-h, 54px) + var(--player-h, 0px) + 34px); /* au-dessus de la tab bar + lecteur */
-      z-index: 500;
+      z-index: 200; /* abaissé : ne bloque plus les boutons 📷🎬🎉 de la compose-bar */
       display: flex;
       flex-direction: column;
       gap: 8px;
@@ -39536,7 +39536,7 @@ window.ambi_switchToPostsTab = function() {
       pane.classList.add('active');
       // Remettre affichage normal: barre compose + feed
       var bar = document.getElementById('ambiComposeBar');
-      if (bar) bar.style.display = '';
+      if (bar) { bar.style.display = ''; bar.style.borderColor = ''; bar.style.boxShadow = ''; }
       var filterRow = document.getElementById('socPubFilterRow');
       if (filterRow) filterRow.style.display = '';
       var pubFeed = document.getElementById('socPubFeed');
@@ -39546,7 +39546,7 @@ window.ambi_switchToPostsTab = function() {
     var ct = document.getElementById('ambiComposeText');
     if (ct) ct.textContent = '✍️ Partagez une ambiance, photo, annonce…';
     var bar2 = document.getElementById('ambiComposeBar');
-    if (bar2) { bar2.style.borderColor = ''; bar2.style.boxShadow = ''; }
+    if (bar2) { bar2.style.borderColor = ''; bar2.style.boxShadow = ''; bar2.style.display = ''; }
   } else {
     // Déjà en mode Posts, juste activer le tab
     if (typeof window.socSwitchTab === 'function') window.socSwitchTab('publications');
@@ -39583,6 +39583,15 @@ window.ambi_switchToLiveTab = function() {
     // Charger les posts live depuis Firebase (une seule fois ou refresh)
     ambi_loadLivePosts();
   }
+  // En mode live : remettre la barre compose visible avec style live
+  var barLive = document.getElementById('ambiComposeBar');
+  if (barLive) {
+    barLive.style.display = '';
+    barLive.style.borderColor = 'rgba(255,45,155,0.55)';
+    barLive.style.boxShadow = '0 0 0 3px rgba(255,45,155,0.12), 0 4px 18px rgba(255,45,155,0.14)';
+  }
+  var ctLive = document.getElementById('ambiComposeText');
+  if (ctLive) ctLive.textContent = '🔴 Partager votre ambiance en LIVE maintenant…';
   if (typeof window.showToast === 'function') window.showToast('🔴 Mode Live — publications récentes');
 };
 
@@ -39768,7 +39777,7 @@ window.socSwitchTab = function(tab) {
     var pubFeed = document.getElementById('socPubFeed');
     if (pubFeed) pubFeed.style.display = '';
     var bar = document.getElementById('ambiComposeBar');
-    if (bar) bar.style.display = '';
+    if (bar) { bar.style.display = ''; bar.style.borderColor = ''; bar.style.boxShadow = ''; }
     // Reset tab live
     var tabLive = document.getElementById('socTabLive');
     if (tabLive) { tabLive.classList.remove('active'); tabLive.classList.remove('soc-tab-live-active'); }
