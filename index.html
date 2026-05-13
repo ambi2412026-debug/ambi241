@@ -192,27 +192,58 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 
 /* ══════════════════════════════════════════════════════════════ */
 
-/* ══ NOTIFICATIONS SYSTEM ══ */
+/* ══ NOTIFICATIONS SYSTEM — AMBI241 PRO ══ */
 .notif-bell-wrap{position:relative;display:inline-flex;}
 .notif-bell-btn{background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.25);color:var(--pink);font-size:0.9rem;width:28px;height:28px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;position:relative;}
 .notif-bell-btn:active{transform:scale(0.92);}
-.notif-badge{position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:0.55rem;font-weight:800;width:16px;height:16px;border-radius:50%;display:none;align-items:center;justify-content:center;border:2px solid var(--bg);}
-.notif-badge.show{display:flex;}
-.notif-panel{display:none;position:fixed;top:66px;right:0.8rem;width:min(340px,96vw);background:var(--surface);border:1px solid rgba(255,45,155,0.3);border-radius:18px;box-shadow:0 8px 40px rgba(0,0,0,0.7);z-index:300;max-height:70vh;overflow:hidden;flex-direction:column;animation:popIn 0.25s cubic-bezier(0.34,1.56,0.64,1);}
-.notif-panel.open{display:flex;}
-.notif-panel-head{padding:0.9rem 1rem 0.7rem;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-.notif-panel-head h3{font-family:'Syne',sans-serif;font-size:0.9rem;font-weight:800;color:var(--pink);}
-.notif-clear-btn{font-size:0.68rem;color:var(--muted);background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;}
-.notif-list{overflow-y:auto;flex:1;padding:0.4rem 0;}
-.notif-item{padding:0.75rem 1rem;border-bottom:1px solid rgba(255,255,255,0.04);cursor:default;transition:background 0.15s;}
+/* Badge pulsant enrichi */
+.notif-badge{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;border-radius:99px;background:var(--red);color:#fff;font-size:0.55rem;font-weight:900;font-family:'Syne',sans-serif;display:none;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--bg);box-shadow:0 0 8px rgba(255,68,102,0.55);}
+.notif-badge.show{display:flex;animation:ambiNotifBadgePulse 1.4s ease-in-out infinite;}
+@keyframes ambiNotifBadgePulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+
+/* Panneau notifications plein écran */
+.notif-panel{display:none;position:fixed;top:0;left:0;right:0;z-index:1000;background:rgba(10,2,20,0.7);backdrop-filter:blur(6px);}
+.notif-panel.open{display:block;}
+.notif-panel-inner{position:absolute;top:0;left:0;right:0;max-height:88vh;background:linear-gradient(180deg,var(--surface2) 0%,var(--surface) 100%);border-bottom:1px solid rgba(255,45,155,0.15);border-radius:0 0 24px 24px;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(255,45,155,0.1);animation:ambiPanelSlideDown 0.3s cubic-bezier(.175,.885,.32,1.275);display:flex;flex-direction:column;}
+@keyframes ambiPanelSlideDown{from{opacity:0;transform:translateY(-16px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.notif-panel-head{padding:1rem 1rem 0.8rem;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:linear-gradient(135deg,rgba(255,45,155,0.08),rgba(204,68,255,0.05));}
+.notif-panel-head-left{display:flex;align-items:center;gap:0.75rem;}
+.notif-panel-app-icon{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--purple),var(--pink));display:flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 0 14px rgba(255,45,155,0.44);flex-shrink:0;position:relative;}
+.notif-panel-head h3{font-family:'Syne',sans-serif;font-size:0.95rem;font-weight:900;color:var(--text);}
+.notif-panel-head-sub{font-size:0.62rem;color:var(--muted);}
+.notif-panel-head-right{display:flex;align-items:center;gap:0.5rem;}
+.notif-clear-btn{font-size:0.63rem;color:var(--cyan);font-weight:700;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.34);border-radius:8px;padding:5px 10px;cursor:pointer;font-family:'Syne',sans-serif;}
+.notif-panel-close-btn{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:var(--muted);border-radius:8px;padding:5px 10px;font-size:0.7rem;cursor:pointer;}
+
+/* Filtres par type */
+.notif-filter-row{display:flex;gap:0.5rem;padding:0.6rem 0.8rem;border-bottom:1px solid rgba(255,255,255,0.05);overflow-x:auto;scrollbar-width:none;flex-shrink:0;}
+.notif-filter-row::-webkit-scrollbar{display:none;}
+.notif-filter-btn{flex-shrink:0;padding:0.25rem 0.75rem;border-radius:99px;font-size:0.65rem;font-weight:700;cursor:pointer;font-family:'Syne',sans-serif;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:var(--muted);transition:all 0.2s;white-space:nowrap;}
+.notif-filter-btn.active{background:rgba(255,45,155,0.12);border-color:rgba(255,45,155,0.5);color:var(--pink);}
+.notif-filter-btn:active{opacity:0.7;}
+
+.notif-list{overflow-y:auto;flex:1;padding:0.25rem 0;}
+
+/* Item enrichi */
+.notif-item{display:flex;align-items:center;gap:0.75rem;padding:0.8rem 1rem;border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:background 0.15s;border-left:3px solid transparent;}
 .notif-item:hover{background:rgba(255,255,255,0.03);}
-.notif-item.unread{background:rgba(255,45,155,0.05);}
-.notif-item .ni-top{display:flex;align-items:flex-start;gap:0.55rem;}
+.notif-item.unread{background:rgba(255,45,155,0.05);border-left-color:var(--pink);}
+.notif-item-avatar-wrap{position:relative;flex-shrink:0;}
+.notif-item-avatar{width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,var(--surface2),var(--surface));border:2px solid rgba(255,45,155,0.22);display:flex;align-items:center;justify-content:center;font-size:1.35rem;}
+.notif-item.unread .notif-item-avatar{box-shadow:0 0 10px rgba(255,45,155,0.22);}
+.notif-type-badge{position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:0.55rem;}
+.notif-msg-count-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;border-radius:99px;background:var(--red);color:#fff;font-size:0.52rem;font-weight:900;font-family:'Syne',sans-serif;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--bg);}
+.notif-item .ni-body{flex:1;min-width:0;}
+.notif-item .ni-top-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.15rem;}
+.notif-item .ni-title{font-size:0.78rem;font-weight:800;color:var(--text);font-family:'Syne',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.notif-item.unread .ni-title{color:var(--text);}
+.notif-item:not(.unread) .ni-title{color:var(--muted);}
+.notif-item .ni-time{font-size:0.6rem;color:var(--muted);flex-shrink:0;}
+.notif-item .ni-msg{font-size:0.68rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35;}
+.notif-type-pill{display:inline-block;margin-top:4px;font-size:0.52rem;font-weight:800;padding:0.12rem 0.45rem;border-radius:99px;text-transform:uppercase;letter-spacing:0.05em;font-family:'Syne',sans-serif;}
+.notif-unread-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
 .notif-item .ni-icon{font-size:1.1rem;flex-shrink:0;margin-top:0.05rem;}
-.notif-item .ni-body{flex:1;}
-.notif-item .ni-title{font-size:0.8rem;font-weight:700;color:var(--text);line-height:1.3;}
-.notif-item .ni-msg{font-size:0.73rem;color:var(--muted);margin-top:0.15rem;line-height:1.4;}
-.notif-item .ni-time{font-size:0.62rem;color:rgba(255,255,255,0.3);margin-top:0.2rem;}
 .notif-item .ni-channel{display:inline-block;font-size:0.6rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:4px;margin-top:0.25rem;}
 .ni-ch-push{background:rgba(0,229,255,0.12);color:var(--cyan);}
 .ni-ch-sms{background:rgba(0,255,170,0.12);color:var(--green);}
@@ -220,7 +251,7 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 .ni-ch-wa{background:rgba(37,211,102,0.15);color:#25d366;}
 .notif-empty{text-align:center;padding:2.5rem 1rem;color:var(--muted);font-size:0.8rem;}
 .notif-empty span{font-size:2rem;display:block;margin-bottom:0.5rem;}
-.notif-prefs-panel{padding:0.8rem 1rem;border-top:1px solid rgba(255,255,255,0.06);flex-shrink:0;}
+.notif-prefs-panel{padding:0.8rem 1rem;border-top:1px solid rgba(255,255,255,0.06);flex-shrink:0;max-height:220px;overflow-y:auto;}
 .notif-prefs-title{font-size:0.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.6rem;}
 .notif-pref-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.45rem;}
 .notif-pref-label{font-size:0.75rem;color:var(--text);}
@@ -231,9 +262,35 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 .notif-toggle-slider:before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:0.25s;}
 .notif-toggle input:checked+.notif-toggle-slider{background:var(--pink);}
 .notif-toggle input:checked+.notif-toggle-slider:before{transform:translateX(16px);}
-/* Toast notif spécifique (plus haut) */
-.notif-toast{position:fixed;top:72px;left:50%;transform:translateX(-50%) translateY(-20px);background:rgba(255,45,155,0.95);color:#fff;font-size:0.8rem;font-weight:700;padding:0.55rem 1.1rem;border-radius:30px;opacity:0;transition:all 0.3s;z-index:400;pointer-events:none;white-space:nowrap;box-shadow:0 4px 20px rgba(255,45,155,0.4);}
+
+/* ── Toast riche style AMBI241 ── */
+.notif-toast{position:fixed;top:68px;left:50%;transform:translateX(-50%) translateY(-24px);width:calc(100% - 32px);max-width:400px;background:linear-gradient(135deg,var(--surface2),var(--surface));border:1px solid rgba(255,45,155,0.3);border-radius:16px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 32px rgba(0,0,0,0.6),0 0 0 1px rgba(255,45,155,0.12);opacity:0;transition:all 0.35s cubic-bezier(.175,.885,.32,1.275);z-index:9999;pointer-events:none;backdrop-filter:blur(20px);}
 .notif-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.notif-toast-icon{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--purple),var(--pink));display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;box-shadow:0 0 12px rgba(255,45,155,0.44);}
+.notif-toast-body{flex:1;min-width:0;}
+.notif-toast-label{font-size:0.62rem;font-weight:800;color:var(--pink);font-family:'Syne',sans-serif;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:1px;}
+.notif-toast-title{font-size:0.75rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.notif-toast-msg{font-size:0.65rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* ── Overlay Appel Entrant ── */
+#ambiIncomingCall{display:none;position:fixed;inset:0;z-index:10000;background:rgba(10,2,20,0.93);backdrop-filter:blur(12px);flex-direction:column;align-items:center;justify-content:center;animation:fadeIn 0.3s ease;}
+#ambiIncomingCall.show{display:flex;}
+.ambicall-wave{position:absolute;border-radius:50%;border:2px solid var(--green);}
+.ambicall-avatar{width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:2.8rem;margin-bottom:16px;position:relative;box-shadow:0 0 0 4px var(--bg),0 0 0 6px rgba(0,255,170,0.44);z-index:1;}
+.ambicall-badge{position:absolute;bottom:0;right:0;width:26px;height:26px;border-radius:50%;background:var(--green);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:0.8rem;animation:ambiIconPulse 1s ease-in-out infinite;}
+.ambicall-label{font-size:0.7rem;color:var(--green);font-weight:800;font-family:'Syne',sans-serif;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:8px;z-index:1;}
+.ambicall-name{font-size:1.5rem;font-weight:800;color:var(--text);font-family:'Syne',sans-serif;margin-bottom:4px;z-index:1;}
+.ambicall-type{font-size:0.75rem;color:var(--muted);margin-bottom:48px;z-index:1;}
+.ambicall-btns{display:flex;gap:48px;z-index:1;}
+.ambicall-btn-wrap{display:flex;flex-direction:column;align-items:center;gap:8px;}
+.ambicall-btn{width:64px;height:64px;border-radius:50%;border:none;cursor:pointer;font-size:1.6rem;display:flex;align-items:center;justify-content:center;}
+.ambicall-btn-decline{background:linear-gradient(135deg,#ff2244,#cc1133);box-shadow:0 4px 20px rgba(255,68,102,0.55);}
+.ambicall-btn-accept{background:linear-gradient(135deg,#00dd88,var(--green));box-shadow:0 4px 20px rgba(0,255,170,0.55);animation:ambiIconPulse 1s ease-in-out infinite;}
+.ambicall-btn-label{font-size:0.65rem;font-weight:700;font-family:'Syne',sans-serif;}
+.ambicall-btn-label-decline{color:var(--muted);}
+.ambicall-btn-label-accept{color:var(--green);}
+@keyframes ambiIconPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+@keyframes ambiRingWave{0%{transform:scale(0.5);opacity:0.6}100%{transform:scale(1.8);opacity:0}}
 
 /* ══════════════════════════════════════════════════════
    ══ SYSTÈME DISPONIBILITÉS LIVE (GÉRANT PRO)        ══
@@ -6255,7 +6312,7 @@ if (document.readyState === 'loading') {
       <span class="wshb-dot"></span>🎵
     </button>
     <!-- Cloche notifications -->
-    <div class="notif-bell-wrap" id="notifBellWrap" style="display:none;">
+    <div class="notif-bell-wrap" id="notifBellWrap" style="display:inline-flex;">
       <button class="notif-bell-btn" id="notifBellBtn" onclick="toggleNotifPanel()" title="Notifications">&#128276;</button>
       <div class="notif-badge" id="notifBadge">0</div>
     </div>
@@ -6399,21 +6456,77 @@ if (document.readyState === 'loading') {
   </div>
 </div>
 
-<!-- ══ PANNEAU DE NOTIFICATIONS ══ -->
+<!-- ══ PANNEAU DE NOTIFICATIONS AMBI241 PRO ══ -->
 <div class="notif-panel" id="notifPanel">
-  <div class="notif-panel-head">
-    <h3>🔔 Notifications</h3>
-    <button class="notif-clear-btn" onclick="clearAllNotifs()">Tout effacer</button>
-  </div>
-  <div class="notif-list" id="notifList">
-    <div class="notif-empty"><span>🔕</span>Aucune notification</div>
-  </div>
-  <div class="notif-prefs-panel" id="notifPrefsPanel">
-    <div class="notif-prefs-title">⚙️ Préférences</div>
-    <div id="notifPrefsRows"></div>
+  <div class="notif-panel-inner">
+    <!-- Header enrichi -->
+    <div class="notif-panel-head">
+      <div class="notif-panel-head-left">
+        <div class="notif-panel-app-icon" id="notifPanelAppIcon">🎉
+          <div class="notif-badge show" id="notifPanelBadge" style="position:absolute;top:-5px;right:-5px;"></div>
+        </div>
+        <div>
+          <h3>Notifications</h3>
+          <div class="notif-panel-head-sub" id="notifPanelSub">—</div>
+        </div>
+      </div>
+      <div class="notif-panel-head-right">
+        <button class="notif-clear-btn" onclick="clearAllNotifs()">Tout lire</button>
+        <button class="notif-panel-close-btn" onclick="closeNotifPanel()">✕</button>
+      </div>
+    </div>
+    <!-- Filtres par type -->
+    <div class="notif-filter-row" id="notifFilterRow">
+      <button class="notif-filter-btn active" onclick="ambiFilterNotifs('all',this)">Tout</button>
+      <button class="notif-filter-btn" onclick="ambiFilterNotifs('message',this)">💬 Messages</button>
+      <button class="notif-filter-btn" onclick="ambiFilterNotifs('event',this)">🎉 Événements</button>
+      <button class="notif-filter-btn" onclick="ambiFilterNotifs('alert',this)">⚠️ Alertes</button>
+      <button class="notif-filter-btn" onclick="ambiFilterNotifs('info',this)">ℹ️ Infos</button>
+    </div>
+    <!-- Liste -->
+    <div class="notif-list" id="notifList">
+      <div class="notif-empty"><span>🔕</span>Aucune notification pour l'instant</div>
+    </div>
+    <!-- Préférences -->
+    <div class="notif-prefs-panel" id="notifPrefsPanel">
+      <div class="notif-prefs-title">⚙️ Préférences de notification</div>
+      <div id="notifPrefsRows"></div>
+    </div>
   </div>
 </div>
-<div class="notif-toast" id="notifToast"></div>
+
+<!-- ══ TOAST RICHE AMBI241 ══ -->
+<div class="notif-toast" id="notifToast">
+  <div class="notif-toast-icon" id="notifToastIcon">🎉</div>
+  <div class="notif-toast-body">
+    <div class="notif-toast-label" id="notifToastLabel">AMBI241</div>
+    <div class="notif-toast-title" id="notifToastTitle"></div>
+    <div class="notif-toast-msg" id="notifToastMsg"></div>
+  </div>
+</div>
+
+<!-- ══ OVERLAY APPEL ENTRANT AMBI241 ══ -->
+<div id="ambiIncomingCall">
+  <!-- Ondes de sonnerie (injectées par JS) -->
+  <div id="ambiCallWaves"></div>
+  <div class="ambicall-avatar" id="ambiCallAvatar">
+    📞
+    <div class="ambicall-badge">📞</div>
+  </div>
+  <div class="ambicall-label">Appel AMBI241 entrant</div>
+  <div class="ambicall-name" id="ambiCallName">—</div>
+  <div class="ambicall-type">Appel vocal</div>
+  <div class="ambicall-btns">
+    <div class="ambicall-btn-wrap">
+      <button class="ambicall-btn ambicall-btn-decline" onclick="ambiDeclineCall()">📵</button>
+      <span class="ambicall-btn-label ambicall-btn-label-decline">Refuser</span>
+    </div>
+    <div class="ambicall-btn-wrap">
+      <button class="ambicall-btn ambicall-btn-accept" onclick="ambiAcceptCall()">📞</button>
+      <span class="ambicall-btn-label ambicall-btn-label-accept">Accepter</span>
+    </div>
+  </div>
+</div>
 
 <!-- ══ BANNER INSTALL IOS ══ -->
 <div id="iosBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:rgba(13,0,20,0.97);border-top:1px solid rgba(204,68,255,0.4);padding:0.9rem 1rem;z-index:450;display:none;align-items:center;gap:0.7rem;box-shadow:0 -4px 24px rgba(204,68,255,0.2);">
@@ -11178,9 +11291,9 @@ function toggleAdmin(){
     var unlockBtn=document.getElementById("adminUnlockBtn");
     if(abtn){ abtn.style.display="none"; abtn.style.background=""; abtn.style.borderColor=""; abtn.style.color=""; }
     if(unlockBtn) unlockBtn.style.display="flex";
-    // Masquer la cloche et le bouton paramètres à la désactivation admin
+    // Cloche toujours visible — masquer uniquement les paramètres admin
     var bellWrap = document.getElementById("notifBellWrap");
-    if(bellWrap) bellWrap.style.display = "none";
+    if(bellWrap) bellWrap.style.display = "inline-flex";
     var navSettings = document.getElementById("navAdminSettings");
     if(navSettings) navSettings.style.display = "none";
     renderStats();renderAll();renderHome();updatePayVis();
@@ -12274,8 +12387,8 @@ function updateHeaderUser(pseudo){
     greeting.onclick = function(){ document.getElementById("userOverlay").classList.add("show"); };
     logoutBtn.classList.remove("show");
     if(loginBtn) loginBtn.style.display = "";
-    // Masquer la cloche si pas d'admin actif non plus
-    if(!window.isAdmin){
+    // La cloche reste toujours visible pour tous les visiteurs
+    if(false){
       var bellWrap = document.getElementById("notifBellWrap");
       if(bellWrap) bellWrap.style.display = "none";
     }
@@ -18397,7 +18510,7 @@ function pushNotif(opts){
   notifs.push(item);
   saveNotifs(notifs);
   renderNotifBadge();
-  if(!notifPanelOpen) showNotifToast(item.icon+" "+item.title);
+  if(!notifPanelOpen) showNotifToast(item.icon+" "+item.title, item);
 
   // ── Persistance Firebase pour les membres/établissements connectés ──
   // Cela permet aux notifs admin d'être visibles sur tous les appareils de l'utilisateur
@@ -18631,32 +18744,109 @@ function admClearAllNotifs(){
 }
 window.admClearAllNotifs = admClearAllNotifs;
 
-// ── Toast de notification ─────────────────────────────────────
+// ── Toast riche AMBI241 ───────────────────────────────────────
 var _notifToastTimer;
-function showNotifToast(msg){
+// notifMeta : mapping type → {icon,color,label}
+var _ambiNotifMeta = {
+  message:        { icon:"💬", color:"var(--cyan)",   label:"Message",      pillBg:"rgba(0,229,255,0.18)"   },
+  call_missed:    { icon:"📞", color:"var(--red)",    label:"Appel manqué", pillBg:"rgba(255,68,102,0.18)"  },
+  call_incoming:  { icon:"📳", color:"var(--green)",  label:"Appel entrant",pillBg:"rgba(0,255,170,0.15)"   },
+  friend_request: { icon:"👥", color:"var(--amber)",  label:"Demande",      pillBg:"rgba(255,215,0,0.15)"   },
+  event:          { icon:"🎉", color:"var(--pink)",   label:"Événement",    pillBg:"rgba(255,45,155,0.14)"  },
+  like:           { icon:"❤️", color:"var(--pink)",   label:"J'aime",       pillBg:"rgba(255,45,155,0.14)"  },
+  promo:          { icon:"🎁", color:"var(--amber)",  label:"Promo",        pillBg:"rgba(255,215,0,0.15)"   },
+  info:           { icon:"ℹ️", color:"var(--cyan)",   label:"Info",         pillBg:"rgba(0,229,255,0.12)"   },
+  alert:          { icon:"🚨", color:"var(--red)",    label:"Alerte",       pillBg:"rgba(255,68,102,0.18)"  },
+  update:         { icon:"✨", color:"var(--purple)",  label:"Mise à jour",  pillBg:"rgba(204,68,255,0.15)"  }
+};
+function _ambiGetMeta(notif){
+  // Déterminer le type depuis la clé ou le type explicite
+  var t = notif.type || notif.key || "info";
+  // Heuristiques sur la clé
+  if(t.indexOf("message")!==-1||t.indexOf("msg")!==-1) t="message";
+  else if(t.indexOf("call")!==-1) t="call_missed";
+  else if(t.indexOf("friend")!==-1||t.indexOf("ami")!==-1) t="friend_request";
+  else if(t.indexOf("event")!==-1||t.indexOf("soiree")!==-1||t.indexOf("promo")!==-1) t="event";
+  else if(t.indexOf("like")!==-1||t.indexOf("aime")!==-1) t="like";
+  else if(t.indexOf("urgent")!==-1||t.indexOf("fermeture")!==-1||t.indexOf("incident")!==-1||t.indexOf("securite")!==-1) t="alert";
+  else if(t.indexOf("update")!==-1||t.indexOf("nouveaute")!==-1) t="update";
+  return _ambiNotifMeta[t] || _ambiNotifMeta.info;
+}
+function showNotifToast(msg, notif){
   var t=document.getElementById("notifToast");
   if(!t)return;
-  t.textContent=msg; t.classList.add("show");
+  // Mode riche si un objet notif est passé
+  if(notif && document.getElementById("notifToastTitle")){
+    var meta = _ambiGetMeta(notif);
+    var iconEl=document.getElementById("notifToastIcon");
+    var labelEl=document.getElementById("notifToastLabel");
+    var titleEl=document.getElementById("notifToastTitle");
+    var msgEl=document.getElementById("notifToastMsg");
+    if(iconEl){ iconEl.textContent = notif.icon||meta.icon; iconEl.style.boxShadow="0 0 12px "+meta.color+"88"; }
+    if(labelEl){ labelEl.textContent = "AMBI241 · "+meta.label; labelEl.style.color=meta.color; }
+    if(titleEl) titleEl.textContent = notif.title||"";
+    if(msgEl)   msgEl.textContent   = notif.msg||"";
+    t.style.borderColor = meta.color+"44";
+  } else {
+    // Mode simple (fallback texte)
+    var titleEl2=document.getElementById("notifToastTitle");
+    var msgEl2=document.getElementById("notifToastMsg");
+    var labelEl2=document.getElementById("notifToastLabel");
+    if(titleEl2) titleEl2.textContent = msg||"";
+    if(msgEl2)   msgEl2.textContent   = "";
+    if(labelEl2) labelEl2.textContent = "AMBI241";
+  }
+  t.classList.add("show");
   clearTimeout(_notifToastTimer);
-  _notifToastTimer=setTimeout(function(){t.classList.remove("show");},3200);
+  _notifToastTimer=setTimeout(function(){t.classList.remove("show");},4500);
 }
 
-// ── Badge ────────────────────────────────────────────────────
+// ── Badge enrichi ────────────────────────────────────────────
 function renderNotifBadge(){
   var unread=loadNotifs().filter(function(n){return n.unread;}).length;
+  // Badge header
   var badge=document.getElementById("notifBadge");
-  if(!badge)return;
-  badge.textContent=unread>9?"9+":String(unread);
-  badge.classList.toggle("show",unread>0);
+  if(badge){
+    badge.textContent=unread>99?"99+":unread>9?"9+":String(unread);
+    badge.classList.toggle("show",unread>0);
+  }
+  // Badge dans le panel
+  var panelBadge=document.getElementById("notifPanelBadge");
+  if(panelBadge){
+    panelBadge.textContent=unread>99?"99+":unread>9?"9+":String(unread);
+    panelBadge.style.display=unread>0?"flex":"none";
+  }
+  // Sous-titre panel
+  var sub=document.getElementById("notifPanelSub");
+  if(sub) sub.textContent=unread>0?(unread+" non lue"+(unread>1?"s":"")):"Tout est lu";
 }
 
-// ── Rendu panneau (utilisateur voit SEULEMENT ses notifs) ─────
+// ── Filtre actif pour le panneau ─────────────────────────────
+var _ambiNotifFilter = "all";
+function ambiFilterNotifs(type, btn){
+  _ambiNotifFilter = type;
+  document.querySelectorAll(".notif-filter-btn").forEach(function(b){b.classList.remove("active");});
+  if(btn) btn.classList.add("active");
+  renderNotifList();
+}
+window.ambiFilterNotifs = ambiFilterNotifs;
+
+// ── Rendu enrichi panneau ─────────────────────────────────────
 function renderNotifList(){
-  var notifs=loadNotifs().slice().reverse();
+  var all=loadNotifs().slice().reverse();
+  // Appliquer filtre
+  var notifs = _ambiNotifFilter==="all" ? all : all.filter(function(n){
+    var m=_ambiGetMeta(n);
+    if(_ambiNotifFilter==="message") return (n.type||n.key||"").indexOf("message")!==-1;
+    if(_ambiNotifFilter==="event")   return ["event","promo","like"].indexOf(_ambiGetMeta(n).label.toLowerCase())!==-1||(n.key||"").indexOf("soiree")!==-1||(n.key||"").indexOf("event")!==-1;
+    if(_ambiNotifFilter==="alert")   return m.label==="Alerte"||(n.priority==="urgent")||(n.key||"").indexOf("urgent")!==-1;
+    if(_ambiNotifFilter==="info")    return ["Info","Mise à jour"].indexOf(m.label)!==-1;
+    return true;
+  });
   var list=document.getElementById("notifList");
   if(!list)return;
   if(!notifs.length){
-    list.innerHTML="<div class=\"notif-empty\"><span>🔕</span>Aucune notification pour l'instant</div>";
+    list.innerHTML="<div class=\"notif-empty\"><span>🔕</span>Aucune notification"+((_ambiNotifFilter!=="all")?" dans cette catégorie":"")+"</div>";
     renderNotifBadge(); return;
   }
   var channelLabel={push:"Push",sms:"SMS",email:"Email",wa:"WhatsApp"};
@@ -18664,28 +18854,68 @@ function renderNotifList(){
   var html="";
   notifs.forEach(function(n){
     var ago=timeAgo(n.ts);
-    html+="<div class=\"notif-item"+(n.unread?" unread":"")+"\">";
-    html+="<div class=\"ni-top\">";
-    html+="<div class=\"ni-icon\">"+n.icon+"</div>";
-    html+="<div class=\"ni-body\">";
-    html+="<div class=\"ni-title\">"+n.title+"</div>";
-    html+="<div class=\"ni-msg\">"+n.msg+"</div>";
-    html+="<div class=\"ni-time\">"+ago;
-    if(n.channel&&channelLabel[n.channel]){
-      html+=" &nbsp;<span class=\"ni-channel "+channelCls[n.channel]+"\">"+channelLabel[n.channel]+"</span>";
-    }
-    if(n.fromAdmin){
-      html+=" &nbsp;<span class=\"ni-channel\" style=\"background:rgba(255,215,0,0.12);color:var(--amber);\">Admin</span>";
+    var meta=_ambiGetMeta(n);
+    var typeColor=meta.color;
+    html+="<div class=\"notif-item"+(n.unread?" unread":"")+"\" style=\""+(n.unread?"border-left-color:"+typeColor:"")+"\""
+         +" onclick=\"ambiMarkRead('"+n.id+"',this)\">";
+    // Avatar + badge type
+    html+="<div class=\"notif-item-avatar-wrap\">";
+    html+="<div class=\"notif-item-avatar\" style=\""+(n.unread?"border-color:"+typeColor+"55;box-shadow:0 0 10px "+typeColor+"33":"")+"\">";
+    html+=n.icon||meta.icon;
+    html+="</div>";
+    // Badge type icône
+    html+="<div class=\"notif-type-badge\" style=\"background:"+typeColor+"\">"+meta.icon+"</div>";
+    // Badge count (messages non lus)
+    if(n.count&&n.count>0){
+      html+="<div class=\"notif-msg-count-badge\" style=\"background:"+typeColor+"\">"+n.count+"</div>";
     }
     html+="</div>";
-    html+="</div></div></div>";
+    // Corps
+    html+="<div class=\"ni-body\">";
+    html+="<div class=\"ni-top-row\">";
+    html+="<div class=\"ni-title\">"+_escHtml(n.title||"")+"</div>";
+    html+="<span class=\"ni-time\">"+ago+"</span>";
+    html+="</div>";
+    html+="<div class=\"ni-msg\">"+_escHtml(n.msg||"")+"</div>";
+    // Pill type + canal
+    html+="<span class=\"notif-type-pill\" style=\"background:"+meta.pillBg+";color:"+typeColor+";border:1px solid "+typeColor+"44\">"+meta.label+"</span>";
+    if(n.channel&&channelLabel[n.channel]){
+      html+=" <span class=\"ni-channel "+channelCls[n.channel]+"\">"+channelLabel[n.channel]+"</span>";
+    }
+    if(n.fromAdmin){
+      html+=" <span class=\"ni-channel\" style=\"background:rgba(255,215,0,0.12);color:var(--amber);\">Admin</span>";
+    }
+    html+="</div>";
+    // Point non-lu
+    if(n.unread){
+      html+="<div class=\"notif-unread-dot\" style=\"background:"+typeColor+";box-shadow:0 0 6px "+typeColor+"\"></div>";
+    }
+    html+="</div>";
   });
   list.innerHTML=html;
+  // Marquer comme lus dans le store
   var arr=loadNotifs();
   arr.forEach(function(n){n.unread=false;});
   saveNotifs(arr);
   renderNotifBadge();
 }
+
+function _escHtml(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function ambiMarkRead(id, el){
+  if(!id||!el) return;
+  el.classList.remove("unread");
+  el.style.borderLeftColor="transparent";
+  var dot=el.querySelector(".notif-unread-dot");
+  if(dot) dot.style.display="none";
+  var arr=loadNotifs();
+  arr.forEach(function(n){if(n.id===id)n.unread=false;});
+  saveNotifs(arr);
+  renderNotifBadge();
+}
+window.ambiMarkRead=ambiMarkRead;
 
 // ── Rendu préférences ─────────────────────────────────────────
 function renderNotifPrefs(){
@@ -18739,8 +18969,14 @@ function toggleNotifPanel(){
   notifPanelOpen=!notifPanelOpen;
   var panel=document.getElementById("notifPanel");
   panel.classList.toggle("open",notifPanelOpen);
-  if(notifPanelOpen){renderNotifList();renderNotifPrefs();}
+  if(notifPanelOpen){_ambiNotifFilter="all";renderNotifList();renderNotifPrefs();}
 }
+function closeNotifPanel(){
+  notifPanelOpen=false;
+  var panel=document.getElementById("notifPanel");
+  if(panel)panel.classList.remove("open");
+}
+window.closeNotifPanel=closeNotifPanel;
 document.addEventListener("click",function(e){
   var panel=document.getElementById("notifPanel");
   var bell=document.getElementById("notifBellBtn");
@@ -18753,6 +18989,55 @@ document.addEventListener("click",function(e){
 function clearAllNotifs(){
   saveNotifs([]); renderNotifBadge(); renderNotifList();
 }
+
+// ══════════════════════════════════════════════════════════════
+// ══  SYSTÈME APPEL ENTRANT AMBI241                           ══
+// ══════════════════════════════════════════════════════════════
+var _ambiCallWaveTimer=null;
+var _ambiCallWaveRing=0;
+
+function ambiShowIncomingCall(caller){
+  // caller = { avatar, name }
+  var overlay=document.getElementById("ambiIncomingCall");
+  if(!overlay)return;
+  var avatarEl=document.getElementById("ambiCallAvatar");
+  var nameEl=document.getElementById("ambiCallName");
+  var wavesEl=document.getElementById("ambiCallWaves");
+  if(avatarEl) avatarEl.childNodes[0].textContent=caller.avatar||"📞";
+  if(nameEl)   nameEl.textContent=caller.name||"Inconnu";
+  // Ondes de sonnerie
+  if(wavesEl){
+    wavesEl.innerHTML="";
+    for(var i=0;i<3;i++){
+      var w=document.createElement("div");
+      w.className="ambicall-wave";
+      var size=(80+i*60)+"px";
+      w.style.cssText="width:"+size+";height:"+size+";animation:ambiRingWave 1.8s ease-out "+( i*0.3)+"s infinite;";
+      wavesEl.appendChild(w);
+    }
+  }
+  overlay.classList.add("show");
+  window._ambiCurrentCaller=caller;
+}
+window.ambiShowIncomingCall=ambiShowIncomingCall;
+
+function ambiDeclineCall(){
+  var overlay=document.getElementById("ambiIncomingCall");
+  if(overlay) overlay.classList.remove("show");
+  window._ambiCurrentCaller=null;
+  pushNotif({targetRole:"all",key:"call_missed",icon:"📞",
+    title:"Appel manqué"+(window._ambiCurrentCaller?" — "+window._ambiCurrentCaller.name:""),
+    msg:"Vous avez manqué un appel vocal AMBI241.",channel:"push"});
+}
+window.ambiDeclineCall=ambiDeclineCall;
+
+function ambiAcceptCall(){
+  var overlay=document.getElementById("ambiIncomingCall");
+  if(overlay) overlay.classList.remove("show");
+  window._ambiCurrentCaller=null;
+  if(typeof showToast==="function") showToast("✅ Appel accepté — fonctionnalité vocale bientôt disponible");
+}
+window.ambiAcceptCall=ambiAcceptCall;
 
 function triggerWelcomeNotif(){
   var role=getUserRole();
