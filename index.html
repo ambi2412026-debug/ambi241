@@ -10293,17 +10293,41 @@ function getTraffic(){
 }
 trackVisit();
 
-// SOIREE PHOTOS
+// SOIREE PHOTOS — Firebase-first avec fallback localStorage
 function loadSoireePhotos(){
+  // Chargement synchrone depuis localStorage (cache rapide)
   var stored=lsGetJSON("ambi241_soiree", {});
   soireePhotos=stored;
+  // Mise à jour async depuis Firebase si dispo
+  if(window.db && window.fbGetDocs && window.fbCollection){
+    window.fbGetDocs(window.fbCollection(window.db, "soireePhotos")).then(function(snap){
+      var fbData = {};
+      snap.forEach(function(d){
+        var eid = d.id;
+        fbData[eid] = d.data().photos || [];
+      });
+      // Fusionner avec localStorage (Firebase a priorité)
+      soireePhotos = Object.assign({}, stored, fbData);
+      try{ lsSetJSON("ambi241_soiree", soireePhotos); }catch(e){}
+    }).catch(function(){
+      // Garder le localStorage
+    });
+  }
 }
-function saveSoireePhoto(eid,dataUrl){
-  var stored=lsGetJSON("ambi241_soiree", {});
-  if(!stored[eid])stored[eid]=[];
-  stored[eid].push({url:dataUrl,ts:Date.now()});
-  lsSetJSON("ambi241_soiree", stored);
-  soireePhotos=stored;
+function saveSoireePhoto(eid, dataUrl){
+  var eidStr = String(eid);
+  var stored = lsGetJSON("ambi241_soiree", {});
+  if(!stored[eidStr]) stored[eidStr]=[];
+  var newEntry = {url:dataUrl, ts:Date.now(), addedBy: window.currentUserUID||"inconnu"};
+  stored[eidStr].push(newEntry);
+  try{ lsSetJSON("ambi241_soiree", stored); }catch(e){}
+  soireePhotos = stored;
+  // Persister dans Firebase Firestore
+  if(window.db && window.fbSetDoc && window.fbDoc){
+    window.fbSetDoc(window.fbDoc(window.db, "soireePhotos", eidStr),
+      { photos: stored[eidStr], updatedAt: Date.now() }, { merge: true }
+    ).catch(function(){});
+  }
 }
 function getTimeLeft(ts){
   var left=SLOT_EXPIRE_MS-(Date.now()-ts);
@@ -10313,6 +10337,10 @@ function getTimeLeft(ts){
   return h+"h"+String(m).padStart(2,"0");
 }
 loadSoireePhotos();
+// ✅ Précharger les photos slot Firebase pour tous les établissements en cache
+if(typeof etablissements !== 'undefined' && etablissements.length){
+  etablissements.forEach(function(e){ if(e.id) loadSlotPhotosAsync(e.id); });
+}
 
 // ── FIREBASE — Lecture et mise à jour des établissements ──────
 
@@ -10956,6 +10984,14 @@ function loadData(){
     loadPaiementsFromFirebase();
     // S'abonner aux flux temps réel pour tous les établissements chargés
     if (typeof window._subscribeAllEtabs === "function") { window._subscribeAllEtabs(); }
+    // ✅ Précharger les photos slot Firebase pour tous les établissements (cache mémoire)
+    setTimeout(function(){
+      if(typeof loadSlotPhotosAsync === 'function' && etablissements && etablissements.length){
+        etablissements.forEach(function(e){
+          if(e.id) loadSlotPhotosAsync(e.id);
+        });
+      }
+    }, 1200);
   }).catch(function(err){
     console.error("Firebase loadData:",err);
     etablissements=getDefaults();
@@ -12163,33 +12199,61 @@ function registerUser(){
 
     window.fbCreateUser(window.auth,email,pwd).then(function(result){
       var uid = result.user.uid;
-      // Photo profil + pièce stockées en localStorage (Firebase Storage absent)
-      // En prod : uploader sur Storage, stocker l'URL
-      try {
-        if(_regPhotoB64)  localStorage.setItem('ambi241_photo_'+uid, _regPhotoB64);
-        if(_regIdB64)     localStorage.setItem('ambi241_idDoc_'+uid, JSON.stringify({ type: idType, data: _regIdB64, uploadedAt: new Date().toISOString(), verified: false }));
-      } catch(e){}
 
-      return window.fbSetDoc(window.fbDoc(window.db,"users",uid),{
-        pseudo:      pseudo,
-        email:       email,
-        tel:         tel,
-        prenom:      (document.getElementById("regPrenom")||{value:''}).value.trim(),
-        nom:         (document.getElementById("regNom")||{value:''}).value.trim(),
-        dob:         document.getElementById("regDob").value||"",
-        createdAt:   new Date().toISOString(),
-        memberType:  _regType,
-        wantsDriver: wantsDriver,
-        isGerant:    isGerant,
-        hasPhoto:    !!_regPhotoB64,
-        hasIdDoc:    !!_regIdB64,
-        idDocType:   _regIdB64 ? idType : null,
-        idVerified:  false,
-        etab:        etabData,
-        chauffeur:   chauffData
-      }).then(function(){
-        if(wantsDriver){ registerUserAsDriver(uid, email, pseudo, pwd); }
-        return Promise.resolve();
+      // ✅ Upload des photos vers Firebase Storage si disponible
+      function _uploadRegPhoto(b64, storagePath, fbField, idType){
+        return new Promise(function(resolve){
+          if(!b64){ resolve({}); return; }
+          // Fallback localStorage immédiat
+          try { localStorage.setItem('ambi241_photo_'+uid, b64); } catch(e){}
+          if(!window.fbStorage || !window.fbRef || !window.fbUploadBytes || !window.fbGetDownloadURL){
+            var out = {}; out[fbField] = b64; resolve(out); return;
+          }
+          // Convertir base64 en Blob
+          try {
+            var arr = b64.split(','), mime = arr[0].match(/:(.*?);/)[1], bstr = atob(arr[1]), n = bstr.length, u8 = new Uint8Array(n);
+            for(var i=0;i<n;i++) u8[i]=bstr.charCodeAt(i);
+            var blob = new Blob([u8], {type: mime});
+            var storRef = window.fbRef(window.fbStorage, storagePath);
+            window.fbUploadBytes(storRef, blob).then(function(){
+              return window.fbGetDownloadURL(storRef);
+            }).then(function(url){
+              // Stocker aussi en localStorage comme cache
+              try { localStorage.setItem('ambi241_photo_'+uid, url); } catch(e){}
+              var out = {}; out[fbField] = url; resolve(out);
+            }).catch(function(){
+              var out = {}; out[fbField] = b64; resolve(out);
+            });
+          } catch(e){ var out = {}; out[fbField] = b64; resolve(out); }
+        });
+      }
+
+      var photoPromise = _uploadRegPhoto(_regPhotoB64, 'users/'+uid+'/profile_'+Date.now()+'.jpg', 'photoURL');
+      var idPromise    = _regIdB64 ? _uploadRegPhoto(_regIdB64, 'users/'+uid+'/identity_'+Date.now()+'.jpg', 'photoIdentityURL') : Promise.resolve({});
+
+      return Promise.all([photoPromise, idPromise]).then(function(results){
+        var photoData = Object.assign({}, results[0], results[1]);
+        return window.fbSetDoc(window.fbDoc(window.db,"users",uid), Object.assign({
+          pseudo:      pseudo,
+          email:       email,
+          tel:         tel,
+          prenom:      (document.getElementById("regPrenom")||{value:''}).value.trim(),
+          nom:         (document.getElementById("regNom")||{value:''}).value.trim(),
+          dob:         document.getElementById("regDob").value||"",
+          createdAt:   new Date().toISOString(),
+          memberType:  _regType,
+          wantsDriver: wantsDriver,
+          isGerant:    isGerant,
+          hasPhoto:    !!_regPhotoB64,
+          hasIdDoc:    !!_regIdB64,
+          idDocType:   _regIdB64 ? idType : null,
+          idVerified:  false,
+          etab:        etabData,
+          chauffeur:   chauffData
+        }, photoData)).then(function(){
+          if(wantsDriver){ registerUserAsDriver(uid, email, pseudo, pwd); }
+          return Promise.resolve();
+        });
       });
     }).then(function(){
       var label = _regType==='gerant' ? 'Gérant Établissement' : (_regType==='chauffeur' ? 'Membre Chauffeur' : 'Simple Membre');
@@ -16430,18 +16494,23 @@ function onSlotPhotoSelected(inp){
   if(!canEditPhotos(etab)){showToast("Acces refuse");inp.value="";return;}
   var arr=loadSlotPhotos(eid);
   if(arr.length>=MAX_SLOT){showToast("Maximum "+MAX_SLOT+" photos atteint");inp.value="";return;}
-  showToast("Compression en cours...");
-  showUploadProgress(15, "Compression...");
-  compressImage(inp.files[0],function(dataUrl){
-    saveSlotPhoto(eid,dataUrl);
-    inp.value="";
-    hideUploadProgress(600);
-    renderAll();renderHome();
-    // Rafraîchir le modal gestionnaire de photos si ouvert
-    var modal=document.getElementById("photoManagerModal");
-    if(modal && modal.style.display==="flex") renderPhotoManager();
-    showToast("Photo ajoutée !");
-  });
+  showToast("Upload en cours... ⏳");
+  showUploadProgress(15, "Upload Firebase...");
+  // ✅ Passer le File directement à saveSlotPhoto (qui gère Storage + Firestore)
+  // Invalider le cache pour forcer le rechargement
+  var eidStr = String(eid);
+  delete _slotPhotoCache[eidStr];
+  saveSlotPhoto(eid, inp.files[0]);
+  inp.value="";
+  // Rafraîchir l'UI après un court délai (upload async)
+  setTimeout(function(){
+    // Recharger depuis Firebase pour avoir le docId
+    loadSlotPhotosAsync(eid, function(){
+      renderAll(); renderHome();
+      var modal=document.getElementById("photoManagerModal");
+      if(modal && modal.style.display==="flex") renderPhotoManager();
+    });
+  }, 1500);
 }
 
 function onPermPhotoSelected(inp){
@@ -16673,24 +16742,145 @@ function openPhotoUpload(eid){
   inp.click();
 }
 
-// ── PHOTOS SLOT CE SOIR (10h, max 5, localStorage, établissement+admin) ──
+// ── PHOTOS SLOT CE SOIR (permanent, max 5, Firebase-first + localStorage fallback) ──
+// Les photos sont maintenant stockées dans Firestore (collection slotPhotos/{eid}/photos)
+// et restent disponibles sur tous les appareils connectés au même compte.
 
-function saveSlotPhoto(eid,dataUrl){
-  var stored=lsGetJSON("ambi241_slot_photos", {});
-  var arr=(stored[eid]||[]);
-  if(arr.length>=MAX_SLOT){showToast("Maximum "+MAX_SLOT+" photos atteint");return;}
-  arr.push({url:dataUrl,ts:Date.now()});
-  stored[eid]=arr;
-  try{lsSetJSON("ambi241_slot_photos", stored);}
-  catch(e){showToast("Stockage plein, supprimez des photos");}
+var _slotPhotoCache = {}; // cache en mémoire {eid: [{url,ts,docId},...]}
+
+// Charger les photos slot depuis Firebase (avec cache mémoire + fallback localStorage)
+function loadSlotPhotosAsync(eid, callback){
+  var eidStr = String(eid);
+  if(_slotPhotoCache[eidStr] !== undefined){ if(callback) callback(_slotPhotoCache[eidStr]); return; }
+  if(!window.db || !window.fbGetDocs || !window.fbCollection || !window.fbQuery || !window.fbOrderBy){
+    // Fallback localStorage
+    var stored = lsGetJSON("ambi241_slot_photos", {});
+    _slotPhotoCache[eidStr] = (stored[eidStr]||[]);
+    if(callback) callback(_slotPhotoCache[eidStr]);
+    return;
+  }
+  window.fbGetDocs(
+    window.fbQuery(
+      window.fbCollection(window.db, "slotPhotos", eidStr, "photos"),
+      window.fbOrderBy("ts", "asc")
+    )
+  ).then(function(snap){
+    var arr = [];
+    snap.forEach(function(d){ arr.push(Object.assign({docId:d.id}, d.data())); });
+    _slotPhotoCache[eidStr] = arr;
+    // Sync localStorage aussi
+    var stored = lsGetJSON("ambi241_slot_photos", {});
+    stored[eidStr] = arr;
+    try{ lsSetJSON("ambi241_slot_photos", stored); }catch(e){}
+    if(callback) callback(arr);
+  }).catch(function(){
+    var stored = lsGetJSON("ambi241_slot_photos", {});
+    _slotPhotoCache[eidStr] = (stored[eidStr]||[]);
+    if(callback) callback(_slotPhotoCache[eidStr]);
+  });
 }
 
-function deleteSlotPhoto(eid,idx){
-  var stored=lsGetJSON("ambi241_slot_photos", {});
-  var arr=(stored[eid]||[]);
+// Version synchrone (utilise cache mémoire ou localStorage — pour compatibilité)
+function loadSlotPhotos(eid){
+  var eidStr = String(eid);
+  if(_slotPhotoCache[eidStr] !== undefined) return _slotPhotoCache[eidStr];
+  // Fallback localStorage synchrone
+  var stored = lsGetJSON("ambi241_slot_photos", {});
+  var arr = stored[eidStr] || [];
+  _slotPhotoCache[eidStr] = arr;
+  // Déclencher chargement async en arrière-plan pour mettre à jour le cache
+  loadSlotPhotosAsync(eid, function(photos){
+    _slotPhotoCache[eidStr] = photos;
+  });
+  return arr;
+}
+
+function saveSlotPhoto(eid, file_or_dataUrl){
+  var eidStr = String(eid);
+  var current = _slotPhotoCache[eidStr] || lsGetJSON("ambi241_slot_photos",{})[eidStr] || [];
+  if(current.length >= MAX_SLOT){ showToast("Maximum "+MAX_SLOT+" photos atteint"); return; }
+
+  function _persist(dataUrl){
+    var record = {url: dataUrl, ts: Date.now(), addedBy: window.currentUserUID||"inconnu"};
+
+    // 1. Firebase Storage si disponible
+    function _saveRecord(url){
+      var rec = {url:url, ts:record.ts, addedBy:record.addedBy};
+      if(window.db && window.fbAddDoc && window.fbCollection){
+        window.fbAddDoc(window.fbCollection(window.db,"slotPhotos",eidStr,"photos"), rec)
+          .then(function(ref){
+            rec.docId = ref.id;
+            if(!_slotPhotoCache[eidStr]) _slotPhotoCache[eidStr]=[];
+            _slotPhotoCache[eidStr].push(rec);
+            // Sync localStorage
+            var stored=lsGetJSON("ambi241_slot_photos",{});
+            stored[eidStr]=_slotPhotoCache[eidStr];
+            try{lsSetJSON("ambi241_slot_photos",stored);}catch(e){}
+            showToast("📸 Photo sauvegardée !");
+            if(typeof renderAll==="function") renderAll();
+            if(typeof renderHome==="function") renderHome();
+          }).catch(function(){
+            // Fallback localStorage uniquement
+            _saveLocalOnly(rec);
+          });
+      } else {
+        _saveLocalOnly(rec);
+      }
+    }
+
+    function _saveLocalOnly(rec){
+      if(!_slotPhotoCache[eidStr]) _slotPhotoCache[eidStr]=[];
+      _slotPhotoCache[eidStr].push(rec);
+      var stored=lsGetJSON("ambi241_slot_photos",{});
+      stored[eidStr]=_slotPhotoCache[eidStr];
+      try{lsSetJSON("ambi241_slot_photos",stored);}catch(e){showToast("Stockage plein, supprimez des photos");}
+      if(typeof renderAll==="function") renderAll();
+      if(typeof renderHome==="function") renderHome();
+    }
+
+    // Tenter Firebase Storage pour un vrai URL permanent
+    if(file_or_dataUrl instanceof File && window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL){
+      var path = "slotPhotos/"+eidStr+"/"+Date.now()+"_"+Math.random().toString(36).slice(2)+".jpg";
+      var storRef = window.fbRef(window.fbStorage, path);
+      showUploadProgress && showUploadProgress(20,"Photo soirée...");
+      window.fbUploadBytes(storRef, file_or_dataUrl)
+        .then(function(){ showUploadProgress && showUploadProgress(80,"Finalisation..."); return window.fbGetDownloadURL(storRef); })
+        .then(function(url){ hideUploadProgress && hideUploadProgress(400); _saveRecord(url); })
+        .catch(function(){ hideUploadProgress && hideUploadProgress(400); _saveRecord(dataUrl); });
+    } else {
+      _saveRecord(dataUrl);
+    }
+  }
+
+  // Accepte File ou dataUrl string
+  if(file_or_dataUrl instanceof File){
+    if(typeof compressImage==="function"){ compressImage(file_or_dataUrl, _persist); }
+    else {
+      var fr=new FileReader(); fr.onload=function(e){_persist(e.target.result);}; fr.readAsDataURL(file_or_dataUrl);
+    }
+  } else {
+    _persist(file_or_dataUrl);
+  }
+}
+
+function deleteSlotPhoto(eid, idx){
+  var eidStr = String(eid);
+  if(!_slotPhotoCache[eidStr]) _slotPhotoCache[eidStr] = lsGetJSON("ambi241_slot_photos",{})[eidStr]||[];
+  var arr = _slotPhotoCache[eidStr];
+  var photo = arr[idx];
+  // Supprimer de Firebase si possible
+  if(photo && photo.docId && window.db && window.fbDoc && window.fbDeleteDoc){
+    window.fbDeleteDoc(window.fbDoc(window.db,"slotPhotos",eidStr,"photos",photo.docId)).catch(function(){});
+    // Supprimer du Storage si URL Firebase
+    if(photo.url && photo.url.indexOf("firebasestorage")!==-1 && window.fbStorage && window.fbRef && window.fbDeleteObject){
+      try{ window.fbDeleteObject(window.fbRef(window.fbStorage, photo.url)); }catch(e){}
+    }
+  }
   arr.splice(idx,1);
-  stored[eid]=arr;
-  lsSetJSON("ambi241_slot_photos", stored);
+  _slotPhotoCache[eidStr] = arr;
+  var stored=lsGetJSON("ambi241_slot_photos",{});
+  stored[eidStr]=arr;
+  try{lsSetJSON("ambi241_slot_photos",stored);}catch(e){}
 }
 
 // Lightbox spéciale pour le slot avec navigation et suppression
@@ -16736,8 +16926,12 @@ function slotLbDelete(){
   var etab=etablissements.find(function(x){return x.id===_slotLbEid;})||{};
   if(!canEditPhotos(etab)){showToast("Acces refuse");return;}
   if(!confirm("Supprimer cette photo ?"))return;
-  deleteSlotPhoto(_slotLbEid,_slotLbIdx);
-  var photos=loadSlotPhotos(_slotLbEid);
+  var eidToDelete = _slotLbEid;
+  var idxToDelete = _slotLbIdx;
+  deleteSlotPhoto(eidToDelete, idxToDelete);
+  // Invalider le cache et recharger depuis Firebase
+  delete _slotPhotoCache[String(eidToDelete)];
+  var photos=loadSlotPhotos(eidToDelete);
   if(!photos.length){closeSlotLightbox();renderAll();renderHome();showToast("Photo supprimee");return;}
   _slotLbIdx=Math.max(0,_slotLbIdx-1);
   renderSlotLightbox();
@@ -18325,7 +18519,7 @@ var CONF_TEXT = "<div class='modal-title' style='margin-bottom:0.6rem'>&#128274;
   + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:0.8rem'><strong style='color:var(--text)'>Opérateur et Responsabilité</strong><br>AMBI241 est opérée par <strong style='color:var(--pink)'>KOZANGUE ESSONO PATRICK BERTIN</strong>, Président et fondateur de la PME informatique <strong style='color:var(--cyan)'>PC-INFORMATIQUE</strong>. Tout paiement et transaction financière doit être validé au nom officiel de l'opérateur.</p>"
   + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:0.8rem'><strong style='color:var(--text)'>Données collectées</strong><br>Lors de l'inscription, nous collectons : pseudo, prénom, nom, email, téléphone et date de naissance. Ces données sont stockées de manière sécurisée via Firebase (Google).</p>"
   + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:0.8rem'><strong style='color:var(--text)'>Utilisation des données</strong><br>Vos données sont utilisées uniquement pour la gestion de votre compte AMBI241 et ne sont jamais revendues à des tiers.</p>"
-  + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:0.8rem'><strong style='color:var(--text)'>Photos</strong><br>Les photos éphémères (10h) sont stockées localement sur votre appareil (localStorage). Les photos permanentes des établissements sont hébergées sur Firebase Storage.</p>"
+  + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:0.8rem'><strong style='color:var(--text)'>Photos</strong><br>Les photos de galerie (slot soirée) sont stockées sur Firebase Firestore/Storage et synchronisées sur tous vos appareils connectés. Un cache local (localStorage) est conservé pour un chargement rapide hors ligne. Les photos permanentes des établissements sont hébergées sur Firebase Storage.</p>"
   + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:0.8rem'><strong style='color:var(--text)'>Vos droits</strong><br>Vous pouvez demander la suppression de votre compte et de vos données à tout moment en nous contactant par email.</p>"
   + "<p style='font-size:0.82rem;color:var(--muted);line-height:1.7'><strong style='color:var(--text)'>Contact DPO</strong><br><a href='mailto:ambi2412026@gmail.com' style='color:var(--cyan)'>ambi2412026@gmail.com</a> ou <strong>KOZANGUE ESSONO PATRICK BERTIN</strong> - Président PC-INFORMATIQUE</p>";
 
@@ -20315,7 +20509,7 @@ function renderAdmModeration(){
   html+="<div style='font-family:Syne,sans-serif;font-weight:700;color:var(--purple);font-size:0.85rem;margin-bottom:0.7rem;'>🛡️ Outils de Modération</div>";
   html+="<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;'>";
   html+="<button onclick=\"if(confirm('Réinitialiser toutes les notifs utilisateurs ?')){try{Object.keys(localStorage).filter(function(k){return k.startsWith('ambi241_notifications_')}).forEach(function(k){lsDel(k)});showToast('Notifs réinitialisées !');}catch(e){}}\" class='adm-action-btn' style='background:rgba(255,68,102,0.08);border-color:rgba(255,68,102,0.3);color:var(--red);'>&#128465; Reset toutes les notifs</button>";
-  html+="<button onclick=\"if(confirm('Effacer le cache des photos éphémères ?')){lsDel('ambi241_slot_photos');lsDel('ambi241_soiree');showToast('Cache photos effacé !');}\" class='adm-action-btn' style='background:rgba(255,215,0,0.06);border-color:rgba(255,215,0,0.25);color:var(--amber);'>&#128247; Purge photos cache</button>";
+  html+="<button onclick=\"if(confirm('Effacer le cache local des photos ?')){lsDel('ambi241_slot_photos');lsDel('ambi241_soiree');Object.keys(_slotPhotoCache).forEach(function(k){delete _slotPhotoCache[k];});showToast('Cache photos effacé (Firebase conservé) !');}\" class='adm-action-btn' style='background:rgba(255,215,0,0.06);border-color:rgba(255,215,0,0.25);color:var(--amber);'>&#128247; Purge cache local photos</button>";
   html+="<button onclick=\"loadData();showToast('Synchronisation Firebase lancée...')\" class='adm-action-btn' style='background:rgba(0,229,255,0.06);border-color:rgba(0,229,255,0.25);color:var(--cyan);'>&#8635; Sync Firebase</button>";
   html+="<button onclick=\"var r=parseInt(prompt('Nouvelle affluence globale (0-100) ?','50'));if(!isNaN(r)){etablissements.forEach(function(e){updateField(e.id,{affluence:r});});showToast('Affluence mise à jour !');}\" class='adm-action-btn' style='background:rgba(0,255,170,0.06);border-color:rgba(0,255,170,0.25);color:var(--green);'>&#128202; Ajuster affluence</button>";
   html+="</div></div>";
@@ -27873,12 +28067,23 @@ function _showChauffeurBoard(driver) {
   var statsKey = 'ambi241_drvstats_' + (driver.uid||driver.email||'x');
   var stats = JSON.parse(localStorage.getItem(statsKey) || '{"courses":0,"gains":0,"km":0,"note":4.8,"history":[]}');
 
-  // ── Avatar ──
+  // ── Avatar — depuis Firebase en priorité, localStorage en cache ──
   var myUid = driver.uid || '';
-  var myPhotoB64 = '';
-  try { myPhotoB64 = localStorage.getItem('ambi241_photo_'+myUid) || ''; } catch(e){}
+  var myPhotoB64 = driver.photoURL || driver.photo || '';
+  if(!myPhotoB64){ try { myPhotoB64 = localStorage.getItem('ambi241_photo_'+myUid) || ''; } catch(e){} }
+  // Recharger depuis Firebase en arrière-plan
+  if(myUid && window.db && window.fbGetDoc && window.fbDoc && !myPhotoB64){
+    window.fbGetDoc(window.fbDoc(window.db,'users',myUid)).then(function(snap){
+      if(snap.exists && snap.exists() && snap.data().photoURL){
+        var url = snap.data().photoURL;
+        try{ localStorage.setItem('ambi241_photo_'+myUid, url); }catch(e){}
+        var av = document.getElementById('_chauffAvatar_'+myUid);
+        if(av) av.src = url;
+      }
+    }).catch(function(){});
+  }
   var avatarHtml = myPhotoB64
-    ? '<img src="'+myPhotoB64+'" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2.5px solid var(--amber);">'
+    ? '<img id="_chauffAvatar_'+myUid+'" src="'+myPhotoB64+'" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2.5px solid var(--amber);">'
     : '<div style="width:56px;height:56px;border-radius:50%;background:rgba(157,132,255,0.15);border:2px solid rgba(157,132,255,0.4);display:flex;align-items:center;justify-content:center;font-size:1.6rem;">🚗</div>';
 
   // ── Commandes en attente ──
@@ -28454,7 +28659,8 @@ function _showChauffeurAdminPanel() {
         var badgeColor = d.status==='approved' ? 'var(--green)' : d.status==='pending' ? 'var(--amber)' : 'var(--red)';
         var badgeLabel = d.status==='approved' ? '✅ Approuvé' : d.status==='pending' ? '⏳ En attente' : '❌ Révoqué';
         // Photo du chauffeur (admin peut voir)
-        var dPhoto = ''; try { dPhoto = localStorage.getItem('ambi241_photo_'+d.uid)||''; } catch(e){}
+        // ✅ Photo depuis Firebase (photoURL sur l'objet chauffeur) ou cache localStorage
+        var dPhoto = d.photoURL || d.photo || ''; if(!dPhoto){ try { dPhoto = localStorage.getItem('ambi241_photo_'+d.uid)||''; } catch(e){} }
         var dIdDoc = null; try { var raw2=localStorage.getItem('ambi241_idDoc_'+d.uid); if(raw2) dIdDoc=JSON.parse(raw2); } catch(e){}
         var avatarAdm = dPhoto
           ? '<img src="'+dPhoto+'" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid '+badgeColor+';flex-shrink:0;">'
@@ -35659,6 +35865,17 @@ function _socLoadFriendships(meUID, allUsers){
   // Stopper les anciens listeners avant d'en créer de nouveaux
   _socStopFriendListeners();
 
+  /* ── 0. Charger les utilisateurs bloqués depuis Firebase ── */
+  // ✅ FIX : blocages persistés dans Firebase, rechargés à chaque connexion
+  window.fbGetDocs && window.fbGetDocs(window.fbCollection(window.db,'users',meUID,'blocked')).then(function(snap){
+    _blocked = [];
+    snap.forEach(function(d){
+      var data = d.data();
+      _blocked.push({ uid:d.id, name:data.name||'Utilisateur', avatar:data.avatar||'👤', blockedAt: data.blockedAt ? new Date(data.blockedAt).toLocaleDateString('fr') : '—' });
+    });
+    renderBlocked();
+  }).catch(function(){});
+
   /* ── 1. Listener temps réel : sous-collection friends ── */
   var u1 = window.fbOnSnapshot(
     window.fbCollection(window.db,'users',meUID,'friends'),
@@ -35692,36 +35909,56 @@ function _socLoadFriendships(meUID, allUsers){
   _socFriendUnsubs.push(u1);
 
   /* ── 2. Listener temps réel : demandes REÇUES ── */
+  // ✅ FIX : reconstruire depuis Firebase au 1er chargement pour éviter réapparition
+  var _reqInFirstLoad = true;
   var u2 = window.fbOnSnapshot(
     window.fbCollection(window.db,'users',meUID,'friend_requests_in'),
     function(snap){
-      snap.docChanges && snap.docChanges().forEach(function(change){
-        var d = change.doc;
-        var data = d.data();
-        if(change.type === 'added'){
-          // Ne pas réafficher si l'ami est déjà accepté
+      if(_reqInFirstLoad){
+        _reqInFirstLoad = false;
+        var freshList = [];
+        snap.forEach(function(d){
+          var data = d.data();
           var alreadyFriend = _friends.find(function(f){ return f.uid===d.id; });
-          var alreadyReq    = _requestsIn.find(function(r){ return r.uid===d.id; });
-          if(!alreadyFriend && !alreadyReq){
-            _requestsIn.push({
+          if(!alreadyFriend){
+            freshList.push({
               uid: d.id,
               name: data.pseudo || data.name || data.email || d.id,
               avatar: data.avatarEmoji || '👤',
               etab: data.etab || 'Libreville',
-              msg: data.msg || 'Salut, ajoutons-nous !',
+              msg: data.msg || "Salut, ajoutons-nous !",
               mutualFriends: 0
             });
-            // Notification in-app discrète
-            if(typeof socToast === 'function'){
-              var senderName = data.pseudo || data.name || 'Quelqu\'un';
-              socToast('👋 '+senderName+' t\'a envoyé une demande d\'amitié !');
+          }
+        });
+        _requestsIn = freshList;
+      } else {
+        snap.docChanges && snap.docChanges().forEach(function(change){
+          var d = change.doc;
+          var data = d.data();
+          if(change.type === 'added'){
+            var alreadyFriend = _friends.find(function(f){ return f.uid===d.id; });
+            var alreadyReq    = _requestsIn.find(function(r){ return r.uid===d.id; });
+            if(!alreadyFriend && !alreadyReq){
+              _requestsIn.push({
+                uid: d.id,
+                name: data.pseudo || data.name || data.email || d.id,
+                avatar: data.avatarEmoji || '👤',
+                etab: data.etab || 'Libreville',
+                msg: data.msg || "Salut, ajoutons-nous !",
+                mutualFriends: 0
+              });
+              if(typeof socToast === 'function'){
+                var senderName = data.pseudo || data.name || "Quelqu'un";
+                socToast('👋 '+senderName+" t'a envoyé une demande d'amitié !");
+              }
             }
           }
-        }
-        if(change.type === 'removed'){
-          _requestsIn = _requestsIn.filter(function(r){ return r.uid !== d.id; });
-        }
-      });
+          if(change.type === 'removed'){
+            _requestsIn = _requestsIn.filter(function(r){ return r.uid !== d.id; });
+          }
+        });
+      }
       renderRequests();
       updateBadges();
     },
@@ -35730,30 +35967,48 @@ function _socLoadFriendships(meUID, allUsers){
   _socFriendUnsubs.push(u2);
 
   /* ── 3. Listener temps réel : demandes ENVOYÉES ── */
+  // ✅ FIX : même approche, reconstruire au premier chargement
+  var _reqOutFirstLoad = true;
   var u3 = window.fbOnSnapshot(
     window.fbCollection(window.db,'users',meUID,'friend_requests_out'),
     function(snap){
-      snap.docChanges && snap.docChanges().forEach(function(change){
-        var d = change.doc;
-        var data = d.data();
-        if(change.type === 'added'){
-          // Pas de doublon + pas déjà ami (la demande a été acceptée entre-temps)
+      if(_reqOutFirstLoad){
+        _reqOutFirstLoad = false;
+        var freshOut = [];
+        snap.forEach(function(d){
+          var data = d.data();
           var alreadyFriend = _friends.find(function(f){ return f.uid===d.id; });
-          var alreadyOut    = _requestsOut.find(function(r){ return r.uid===d.id; });
-          if(!alreadyFriend && !alreadyOut){
-            _requestsOut.push({
+          if(!alreadyFriend){
+            freshOut.push({
               uid: d.id,
               name: data.name || data.pseudo || d.id,
               avatar: data.avatar || '👤',
               sentAt: data.sentAt ? new Date(data.sentAt).toLocaleDateString('fr') : "À l'instant"
             });
           }
-        }
-        if(change.type === 'removed'){
-          // La demande a été acceptée ou annulée — retirer de la liste
-          _requestsOut = _requestsOut.filter(function(r){ return r.uid !== d.id; });
-        }
-      });
+        });
+        _requestsOut = freshOut;
+      } else {
+        snap.docChanges && snap.docChanges().forEach(function(change){
+          var d = change.doc;
+          var data = d.data();
+          if(change.type === 'added'){
+            var alreadyFriend = _friends.find(function(f){ return f.uid===d.id; });
+            var alreadyOut    = _requestsOut.find(function(r){ return r.uid===d.id; });
+            if(!alreadyFriend && !alreadyOut){
+              _requestsOut.push({
+                uid: d.id,
+                name: data.name || data.pseudo || d.id,
+                avatar: data.avatar || '👤',
+                sentAt: data.sentAt ? new Date(data.sentAt).toLocaleDateString('fr') : "À l'instant"
+              });
+            }
+          }
+          if(change.type === 'removed'){
+            _requestsOut = _requestsOut.filter(function(r){ return r.uid !== d.id; });
+          }
+        });
+      }
       renderRequests();
     },
     function(e){ console.warn('[AMBI241 Social] friend_requests_out listener error:', e); }
@@ -36021,7 +36276,12 @@ window.removeFriend = function(uid){
   renderFriends();
   updateBadges();
   socToast('👋 Ami supprimé');
-  // Firebase : fbDeleteDoc(doc(db,'friendships', currentUser.uid+'_'+uid))
+  // ✅ Firebase : supprimer la relation des deux côtés
+  var meUID = window.currentUserUID;
+  if(meUID && window.db && window.fbDoc && window.fbDeleteDoc){
+    window.fbDeleteDoc(window.fbDoc(window.db,'users',meUID,'friends',uid)).catch(function(){});
+    window.fbDeleteDoc(window.fbDoc(window.db,'users',uid,'friends',meUID)).catch(function(){});
+  }
 };
 
 window.blockUser = function(uid){
@@ -36029,35 +36289,76 @@ window.blockUser = function(uid){
   if(f){ _friends = _friends.filter(function(x){return x.uid!==uid;}); }
   var r = _requestsIn.find(function(x){return x.uid===uid;});
   if(r){ _requestsIn = _requestsIn.filter(function(x){return x.uid!==uid;}); }
-  _blocked.push({ uid:uid, name:(f||r||{name:'Utilisateur'}).name, avatar:(f||r||{avatar:'👤'}).avatar, blockedAt:new Date().toLocaleDateString('fr-FR') });
+  var blockedEntry = { uid:uid, name:(f||r||{name:'Utilisateur'}).name, avatar:(f||r||{avatar:'👤'}).avatar, blockedAt:new Date().toLocaleDateString('fr-FR') };
+  _blocked.push(blockedEntry);
   renderFriends();renderRequests();renderBlocked();
   updateBadges();
   socToast('🚫 Utilisateur bloqué');
-  // Firebase : setDoc(doc(db,'blocks',currentUser.uid+'_'+uid), {blockedAt:serverTimestamp()})
+  // ✅ Firebase : écrire le blocage + supprimer l'amitié et les demandes
+  var meUID = window.currentUserUID;
+  if(meUID && window.db && window.fbSetDoc && window.fbDoc && window.fbDeleteDoc){
+    window.fbSetDoc(window.fbDoc(window.db,'users',meUID,'blocked',uid),
+      { uid:uid, name:blockedEntry.name, blockedAt:new Date().toISOString() }).catch(function(){});
+    window.fbDeleteDoc(window.fbDoc(window.db,'users',meUID,'friends',uid)).catch(function(){});
+    window.fbDeleteDoc(window.fbDoc(window.db,'users',uid,'friends',meUID)).catch(function(){});
+    window.fbDeleteDoc(window.fbDoc(window.db,'users',meUID,'friend_requests_in',uid)).catch(function(){});
+    window.fbDeleteDoc(window.fbDoc(window.db,'users',uid,'friend_requests_out',meUID)).catch(function(){});
+  }
 };
 
 window.unblockUser = function(uid){
   _blocked = _blocked.filter(function(b){return b.uid!==uid;});
   renderBlocked();
   socToast('🔓 Utilisateur débloqué');
+  // ✅ Firebase : supprimer le blocage
+  var meUID = window.currentUserUID;
+  if(meUID && window.db && window.fbDoc && window.fbDeleteDoc){
+    window.fbDeleteDoc(window.fbDoc(window.db,'users',meUID,'blocked',uid)).catch(function(){});
+  }
 };
 
 window.acceptRequest = function(uid){
   var req = _requestsIn.find(function(r){return r.uid===uid;});
   if(!req) return;
   _requestsIn = _requestsIn.filter(function(r){return r.uid!==uid;});
-  _friends.push({ uid:req.uid, name:req.name, avatar:req.avatar, status:'online', etab:req.etab, mutualFriends:req.mutualFriends, tag:null });
+  _friends.push({ uid:req.uid, name:req.name, avatar:req.avatar, status:'online', etab:req.etab||'Membre', mutualFriends:req.mutualFriends||0, tag:null });
   renderRequests();renderFriends();
   updateBadges();
   socToast('✅ '+req.name+' est maintenant ton ami·e !');
-  // Firebase : batch write friendship docs + delete request
+  // ✅ Firebase : écrire l'amitié et supprimer les demandes (bidirectionnel)
+  var meUID = window.currentUserUID;
+  if(meUID && window.db && window.fbSetDoc && window.fbDoc && window.fbDeleteDoc){
+    var ts = new Date().toISOString();
+    // Créer la relation d'amitié des deux côtés
+    window.fbSetDoc(window.fbDoc(window.db,'users',meUID,'friends',uid),
+      { uid:uid, name:req.name, avatar:req.avatar, addedAt:ts }, {merge:true}).catch(function(){});
+    window.fbSetDoc(window.fbDoc(window.db,'users',uid,'friends',meUID),
+      { uid:meUID, name:window.currentUserPseudo||'', avatar:'👤', addedAt:ts }, {merge:true}).catch(function(){});
+    // Supprimer les demandes des deux côtés
+    window.fbDeleteDoc(window.fbDoc(window.db,'users',meUID,'friend_requests_in',uid)).catch(function(){});
+    window.fbDeleteDoc(window.fbDoc(window.db,'users',uid,'friend_requests_out',meUID)).catch(function(){});
+    // Notification à l'autre utilisateur
+    if(window.fbAddDoc && window.fbCollection){
+      window.fbAddDoc(window.fbCollection(window.db,'user_notifications'),{
+        toUID: uid, fromUID: meUID,
+        type: 'friend_accepted',
+        msg: (window.currentUserPseudo||'') + ' a accepté ta demande d\'amitié.',
+        read: false, createdAt: ts
+      }).catch(function(){});
+    }
+  }
 };
 
 window.declineRequest = function(uid){
   _requestsIn = _requestsIn.filter(function(r){return r.uid!==uid;});
   renderRequests();updateBadges();
   socToast('✕ Demande refusée');
-  // Firebase : fbDeleteDoc(doc(db,'friendRequests',uid+'_'+currentUser.uid))
+  // ✅ Firebase : supprimer la demande pour qu'elle ne réapparaisse pas
+  var meUID = window.currentUserUID;
+  if(meUID && window.db && window.fbDoc && window.fbDeleteDoc){
+    window.fbDeleteDoc(window.fbDoc(window.db,'users',meUID,'friend_requests_in',uid)).catch(function(){});
+    window.fbDeleteDoc(window.fbDoc(window.db,'users',uid,'friend_requests_out',meUID)).catch(function(){});
+  }
 };
 
 window.cancelRequest = function(uid){
