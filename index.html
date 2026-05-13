@@ -6606,13 +6606,13 @@ if (document.readyState === 'loading') {
       </div>
     </div>
     <div class="filter-row" id="typeChips">
-      <div class="fchip active" data-type="all">&#10024; Tous</div>
-      <div class="fchip" data-type="Hotel">&#127968; Hôtels & Motels</div>
-      <div class="fchip" data-type="Bar">&#127867; Bar</div>
-      <div class="fchip" data-type="Bar Terrasse">&#127970; Bar Terrasse</div>
-      <div class="fchip" data-type="Snack">&#127839; Snack</div>
-      <div class="fchip" data-type="Restaurant">&#127374; Restos & Pâtisseries</div>
-      <div class="fchip" data-type="Discotheque">&#127925; Disco</div>
+      <div class="fchip active" data-type="all" onclick="setTypeFilter('all',this)">&#10024; Tous</div>
+      <div class="fchip" data-type="Bar" onclick="setTypeFilter('Bar',this)">&#127867; Bar &amp; Lounge</div>
+      <div class="fchip" data-type="Bar Terrasse" onclick="setTypeFilter('Bar Terrasse',this)">&#127970; Bar Terrasse</div>
+      <div class="fchip" data-type="Discotheque" onclick="setTypeFilter('Discotheque',this)">&#127925; Disco &amp; Club</div>
+      <div class="fchip" data-type="Restaurant" onclick="setTypeFilter('Restaurant',this)">&#127374; Resto &amp; Café</div>
+      <div class="fchip" data-type="Snack" onclick="setTypeFilter('Snack',this)">&#127839; Snack</div>
+      <div class="fchip" data-type="Hotel" onclick="setTypeFilter('Hotel',this)">&#127968; Hôtels &amp; Motels</div>
     </div>
     <div class="filter-row">
       <div class="fchip schip-all active" data-status="all">Tous statuts</div>
@@ -10093,8 +10093,8 @@ function getNearbyCount(){if(_gpsState.lat===null||_gpsState.radius>=999)return 
 var CATEGORIES=[
   {key:"Bar",label:"Bar et Lounge",icon:"&#127867;",badge:"cb-bar"},
   {key:"Discotheque",label:"Discotheque et Club",icon:"&#127925;",badge:"cb-club"},
-  {key:"Restaurant",label:"Restaurant et Cafe",icon:"&#127374;",badge:"cb-resto"},
-  {key:"Bar Terrasse",label:"Bar Terrasse et Terrasse",icon:"&#127970;",badge:"cb-roof"},
+  {key:"Restaurant",label:"Restaurant, Café et Maquis",icon:"&#127374;",badge:"cb-resto"},
+  {key:"Bar Terrasse",label:"Bar Terrasse et Rooftop",icon:"&#127970;",badge:"cb-roof"},
   {key:"Snack",label:"Snack-Bar",icon:"&#127839;",badge:"cb-snack"},
   {key:"Hotel",label:"Hôtel / Motel",icon:"&#127968;",badge:"cb-hotel"}
 ];
@@ -10102,26 +10102,42 @@ var CATEGORIES=[
 function getCategory(type){
   if(!type)return "Bar";
   var t=type.toLowerCase().trim();
-  // 1. Correspondance exacte avec les clés de catégorie (priorité absolue)
-  if(t==="hotel")return "Hotel";
-  if(t==="discotheque")return "Discotheque";
-  if(t==="snack")return "Snack";
-  if(t==="bar terrasse"||t==="bar-terrasse")return "Bar Terrasse";
-  if(t==="restaurant")return "Restaurant";
-  if(t==="bar")return "Bar";
-  // 2. Hôtels & Résidences (détection large, en premier pour éviter faux positifs)
-  if(t.indexOf("h\u00f4tel")!==-1||t.indexOf("hotel")!==-1||t.indexOf("motel")!==-1||t.indexOf("r\u00e9sidence")!==-1||t.indexOf("residence")!==-1||t.indexOf("balnéaire")!==-1||t.indexOf("resort")!==-1||t.indexOf("lodge")!==-1||t.indexOf("suites")!==-1)return "Hotel";
-  // 3. Discothèques
-  if(t.indexOf("disco")!==-1||t.indexOf("nightclub")!==-1||t.indexOf("night club")!==-1||t.indexOf("club")!==-1)return "Discotheque";
-  // 4. Bar Terrasse (avant Snack et Bar pour éviter conflits)
-  if(t.indexOf("terrasse")!==-1||t.indexOf("bar terrasse")!==-1||t.indexOf("bar-terrasse")!==-1)return "Bar Terrasse";
-  // 5. Snack (avant Bar pour éviter que "snack-bar" parte dans Bar)
+
+  // ── 1. Correspondances exactes (priorité absolue) ──
+  var exact={
+    "hotel":"Hotel","hôtel":"Hotel","motel":"Hotel",
+    "discotheque":"Discotheque","discothèque":"Discotheque","nightclub":"Discotheque","night club":"Discotheque",
+    "snack":"Snack","snack-bar":"Snack",
+    "bar terrasse":"Bar Terrasse","bar-terrasse":"Bar Terrasse","rooftop":"Bar Terrasse","rooftop bar":"Bar Terrasse",
+    "restaurant":"Restaurant","café":"Restaurant","cafe":"Restaurant","brasserie":"Restaurant","pizzeria":"Restaurant",
+    "bar":"Bar","lounge":"Bar","bar lounge":"Bar","pub":"Bar","taverne":"Bar"
+  };
+  if(exact[t])return exact[t];
+
+  // ── 2. Hôtels & Résidences (avant tout : évite faux positifs avec "bar de l'hôtel") ──
+  if(/h[oô]tel\s*\d|\d\s*[eé]toile|palace hotel|h[oô]tel\s*(suites|resort|lodge|inn|plaza)/.test(t))return "Hotel";
+  if(t.indexOf("h\u00f4tel")!==-1||t.indexOf("hotel")!==-1||t.indexOf("motel")!==-1||t.indexOf("r\u00e9sidence")!==-1||t.indexOf("residence")!==-1||t.indexOf("resort")!==-1||t.indexOf("lodge")!==-1)return "Hotel";
+
+  // ── 3. Discothèques / Clubs ──
+  // "nightclub" ou "club" seul (mais pas "bar lounge club" → vérifier que "bar" N'est PAS le mot dominant)
+  if(t.indexOf("disco")!==-1||t.indexOf("nightclub")!==-1||t.indexOf("night club")!==-1)return "Discotheque";
+  // "club" seul, seulement si pas accompagné de "bar" ou "snack"
+  if(t.indexOf("club")!==-1&&t.indexOf("bar")===-1&&t.indexOf("snack")===-1)return "Discotheque";
+
+  // ── 4. Bar Terrasse / Rooftop (avant Bar et Snack) ──
+  if(t.indexOf("terrasse")!==-1||t.indexOf("rooftop")!==-1||t.indexOf("bar terrasse")!==-1||t.indexOf("bar-terrasse")!==-1)return "Bar Terrasse";
+
+  // ── 5. Snack (avant Bar pour éviter "snack-bar" → Bar) ──
   if(t.indexOf("snack")!==-1)return "Snack";
-  // 6. Restaurants & Cafés
-  if(t.indexOf("restaurant")!==-1||t.indexOf("resto")!==-1||t.indexOf("patisserie")!==-1||t.indexOf("pâtisserie")!==-1||t.indexOf("brasserie")!==-1||t.indexOf("café")!==-1||t.indexOf("cafe")!==-1)return "Restaurant";
-  // 7. Bars & Lounges
+
+  // ── 6. Restaurants & Cafés (avant Bar pour éviter "bar restaurant" → Bar) ──
+  // Si "restaurant" ou "resto" est présent ET "bar" aussi → Restaurant (lieu mixte classé resto)
+  if(t.indexOf("restaurant")!==-1||t.indexOf("resto")!==-1||t.indexOf("p\u00e2tisserie")!==-1||t.indexOf("patisserie")!==-1||t.indexOf("brasserie")!==-1||t.indexOf("pizzeria")!==-1||t.indexOf("bistro")!==-1||t.indexOf("caf\u00e9")!==-1||t.indexOf("cafe")!==-1||t.indexOf("maquis")!==-1)return "Restaurant";
+
+  // ── 7. Bars & Lounges ──
   if(t.indexOf("bar")!==-1||t.indexOf("lounge")!==-1||t.indexOf("pub")!==-1||t.indexOf("taverne")!==-1)return "Bar";
-  // 8. Fallback
+
+  // ── 8. Fallback ──
   return "Bar";
 }
 function getCatInfo(key){
@@ -10946,10 +10962,10 @@ function renderHomeImmediate(){
     var bondes  = d.filter(function(e){ return e.statut  && e.statut.indexOf("Bonde") !== -1;  }).length;
     var avg     = d.length > 0 ? (d.reduce(function(s,e){ return s + (e.note||0); }, 0) / d.length).toFixed(1) : "0.0";
     var chips   = [
-      {val: d.length,       lbl: "Lieux",  cls: "hss-pink",  action: "switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);currentType='all';currentStatus='all';document.querySelectorAll('[data-type]').forEach(function(c){c.classList.toggle('active',c.dataset.type==='all');});document.querySelectorAll('[data-status]').forEach(function(c){c.classList.toggle('active',c.dataset.status==='all');});renderAll();"},
-      {val: actifs,         lbl: "Actifs", cls: "hss-green", action: "switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);currentType='all';currentStatus='Anime';document.querySelectorAll('[data-type]').forEach(function(c){c.classList.toggle('active',c.dataset.type==='all');});document.querySelectorAll('[data-status]').forEach(function(c){c.classList.toggle('active',c.dataset.status==='Anime');});renderAll();"},
-      {val: bondes,         lbl: "Bondés", cls: "hss-red",   action: "switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);currentType='all';currentStatus='Bonde';document.querySelectorAll('[data-type]').forEach(function(c){c.classList.toggle('active',c.dataset.type==='all');});document.querySelectorAll('[data-status]').forEach(function(c){c.classList.toggle('active',c.dataset.status==='Bonde');});renderAll();"},
-      {val: avg + " ★",    lbl: "Note",   cls: "hss-cyan",  action: "switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);currentType='all';currentStatus='all';document.querySelectorAll('[data-type]').forEach(function(c){c.classList.toggle('active',c.dataset.type==='all');});document.querySelectorAll('[data-status]').forEach(function(c){c.classList.toggle('active',c.dataset.status==='all');});renderAll();"}
+      {val: d.length,       lbl: "Lieux",  cls: "hss-pink",  action: "switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);setTypeFilter('all',null);currentStatus='all';document.querySelectorAll('[data-status]').forEach(function(c){c.classList.toggle('active',c.dataset.status==='all');});renderAll();"},
+      {val: actifs,         lbl: "Actifs", cls: "hss-green", action: "switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);setTypeFilter('all',null);currentStatus='Anime';document.querySelectorAll('[data-status]').forEach(function(c){c.classList.toggle('active',c.dataset.status==='Anime');});renderAll();"},
+      {val: bondes,         lbl: "Bondés", cls: "hss-red",   action: "switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);setTypeFilter('all',null);currentStatus='Bonde';document.querySelectorAll('[data-status]').forEach(function(c){c.classList.toggle('active',c.dataset.status==='Bonde');});renderAll();"},
+      {val: avg + " ★",    lbl: "Note",   cls: "hss-cyan",  action: "switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);setTypeFilter('all',null);currentStatus='all';document.querySelectorAll('[data-status]').forEach(function(c){c.classList.toggle('active',c.dataset.status==='all');});renderAll();"}
     ];
     statsEl.innerHTML = chips.map(function(c){
       return '<div class="hss-chip '+c.cls+'" onclick="'+c.action+'" style="cursor:pointer;transition:transform 0.15s,opacity 0.15s;" onmousedown="this.style.transform=\'scale(0.93)\'" onmouseup="this.style.transform=\'\'" ontouchstart="this.style.transform=\'scale(0.93)\'" ontouchend="this.style.transform=\'\'"><div class="hss-val">'+c.val+'</div><div class="hss-lbl">'+c.lbl+'</div></div>';
@@ -11084,11 +11100,7 @@ window.goToQuartier = goToQuartier;
 function goToTypeFilter(type){
   switchSection('etablissements', document.querySelectorAll('.nav-item')[1]);
   setTimeout(function(){
-    currentType = type;
-    document.querySelectorAll('#typeChips .fchip').forEach(function(c){
-      c.classList.toggle('active', c.dataset.type === type);
-    });
-    renderAll();
+    setTypeFilter(type, null);
   }, 120);
 }
 
@@ -16156,10 +16168,26 @@ function goToEtab(id) {
 }
 window.goToEtab = goToEtab;
 
+// ── Filtre de type dédié (lieux uniquement) ──
+function setTypeFilter(type, el){
+  currentType = type;
+  // N'activer/désactiver que les chips du bloc #typeChips
+  document.querySelectorAll('#typeChips .fchip').forEach(function(c){
+    c.classList.remove('active');
+  });
+  if(el) el.classList.add('active');
+  else {
+    var chip = document.querySelector('#typeChips .fchip[data-type="'+type+'"]');
+    if(chip) chip.classList.add('active');
+  }
+  renderAll();
+}
+window.setTypeFilter = setTypeFilter;
+
 // EVENTS
 document.addEventListener("click",function(e){
-  var tchip=e.target.closest("[data-type]");
-  if(tchip){currentType=tchip.getAttribute("data-type");document.querySelectorAll("[data-type]").forEach(function(c){c.classList.remove("active");});tchip.classList.add("active");renderAll();return;}
+  // Filtre de type : géré par setTypeFilter() (onclick direct sur #typeChips)
+  // Filtre de statut
   var schip=e.target.closest("[data-status]");
   if(schip){currentStatus=schip.getAttribute("data-status");document.querySelectorAll("[data-status]").forEach(function(c){c.classList.remove("active");});schip.classList.add("active");renderAll();return;}
   var sortBtn=e.target.closest("[data-sort]");
