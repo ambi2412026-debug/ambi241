@@ -829,7 +829,7 @@ body.wsp-open.wsp-minimized{padding-bottom:88px;}
   cursor:pointer;margin-bottom:0.8rem;
   transition:border-color 0.2s,box-shadow 0.2s;
   box-shadow:0 2px 12px rgba(0,0,0,0.25);
-  width:100%;
+  width:100%;position:relative;z-index:3;
 }
 .socpub-compose-bar:hover,.socpub-compose-bar:active{
   border-color:rgba(255,45,155,0.45);
@@ -4339,7 +4339,7 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
    AMBI241 — MODULE SOCIAL : CSS Amis & Communautés
    ════════════════════════════════════════════════════════════════ */
 /* ── Conteneur section sociale ── */
-#sec-social{position:relative;z-index:1;width:100%;}
+#sec-social{position:relative;z-index:1;width:100%;isolation:isolate;}
 
 /* ── En-tête social ── */
 .soc-hero{
@@ -4398,7 +4398,7 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 }
 
 /* ── Panneaux de contenu ── */
-.soc-pane{display:none;padding:0.8rem 0;width:100%;}
+.soc-pane{display:none;padding:0.8rem 0;width:100%;position:relative;z-index:2;}
 .soc-pane.active{display:block;width:100%;}
 
 /* ── Carte d'ami ── */
@@ -35596,8 +35596,9 @@ window.socSwitchTab = function(tab){
   document.querySelectorAll('.soc-pane').forEach(function(el){el.classList.remove('active');});
   // Activer le bon onglet
   var tabs = document.querySelectorAll('.soc-tab');
-  var tabMap = {'amis':0,'demandes':1,'communautes':2,'projets':3,'bloques':4};
-  if(tabs[tabMap[tab]]) tabs[tabMap[tab]].classList.add('active');
+  /* publications est le 1er tab (index 0), puis amis(1), demandes(2)… */
+  var tabMap = {'publications':0,'amis':1,'demandes':2,'communautes':3,'projets':4,'bloques':5};
+  if(tabs[tabMap[tab]] !== undefined) tabs[tabMap[tab]].classList.add('active');
   var pane = document.getElementById('pane-'+tab);
   if(pane) pane.classList.add('active');
   // Scroll top
@@ -37052,26 +37053,13 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
    ══════════════════════════════════════════════════════════════════════ */
 (function(){
 
-  /* ── Patch socSwitchTab pour inclure "publications" ── */
+  /* ── Patch socSwitchTab — délègue à la version corrigée ── */
+  /* La fonction base gère maintenant 'publications' correctement via tabMap */
+  /* On garde juste l'init avatars quand on active publications */
   var _origSocSwitch = window.socSwitchTab;
   window.socSwitchTab = function(tab) {
-    // Gérer l'onglet publications
-    var allPanes = document.querySelectorAll('.soc-pane');
-    var allTabs  = document.querySelectorAll('.soc-tab');
-    if(tab === 'publications') {
-      allPanes.forEach(function(p){ p.classList.remove('active'); });
-      allTabs.forEach(function(t){ t.classList.remove('active'); });
-      var pane = document.getElementById('pane-publications');
-      if(pane) pane.classList.add('active');
-      // Activer le bon onglet (premier)
-      if(allTabs[0]) allTabs[0].classList.add('active');
-      _socPubInitAvatars();
-      return;
-    }
     if(typeof _origSocSwitch === 'function') _origSocSwitch(tab);
-    // S'assurer que le pane-publications est caché
-    var pubPane = document.getElementById('pane-publications');
-    if(pubPane) pubPane.classList.remove('active');
+    if(tab === 'publications') _socPubInitAvatars();
   };
 
   /* ── Init avatars dans le fil ── */
