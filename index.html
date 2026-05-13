@@ -35322,69 +35322,119 @@ function _socLoadMembresFirebase(){
   });
 }
 
-/* Charger les vraies relations amis depuis la collection 'friendships' */
+/* Charger les vraies relations amis depuis la collection 'friendships' — TEMPS RÉEL */
+var _socFriendUnsubs = []; // unsub functions pour les listeners friendship
+function _socStopFriendListeners(){
+  _socFriendUnsubs.forEach(function(u){ try{ u(); }catch(e){} });
+  _socFriendUnsubs = [];
+}
+
 function _socLoadFriendships(meUID, allUsers){
-  if(!window.db || !window.fbCollection || !window.fbGetDocs) return;
-  // Collection : friendships/{uid_a}_{uid_b} ou sous-collection users/{uid}/friends
-  // On tente d'abord la sous-collection friends
-  window.fbGetDocs(window.fbCollection(window.db,'users',meUID,'friends')).then(function(snap){
-    if(snap.empty){
-      // Pas de sous-collection — on laisse les suggestions
-      return;
-    }
-    var friendUIDs = [];
-    snap.forEach(function(d){ friendUIDs.push(d.id); });
-    var newFriends = allUsers.filter(function(u){ return friendUIDs.indexOf(u.uid) > -1; });
-    if(newFriends.length){
-      // Fusionner avec les _friends existants (sans doublons)
-      newFriends.forEach(function(u){
-        if(!_friends.find(function(f){ return f.uid===u.uid; })){
-          _friends.push(u);
+  if(!window.db || !window.fbCollection || !window.fbOnSnapshot) return;
+
+  // Stopper les anciens listeners avant d'en créer de nouveaux
+  _socStopFriendListeners();
+
+  /* ── 1. Listener temps réel : sous-collection friends ── */
+  var u1 = window.fbOnSnapshot(
+    window.fbCollection(window.db,'users',meUID,'friends'),
+    function(snap){
+      snap.forEach(function(d){
+        // Ignorer si déjà dans la liste
+        if(_friends.find(function(f){ return f.uid===d.id; })) return;
+        var data = d.data();
+        var pseudo = data.pseudo || data.name || data.email || d.id;
+        _friends.push({
+          uid: d.id,
+          name: pseudo,
+          avatar: data.avatarEmoji || data.avatar || '👤',
+          etab: data.etab || data.ville || 'Libreville',
+          status: 'online',
+          mutualFriends: 0,
+          tag: data.tag || null
+        });
+      });
+      // Gérer les suppressions (docChange type='removed')
+      snap.docChanges && snap.docChanges().forEach(function(change){
+        if(change.type === 'removed'){
+          _friends = _friends.filter(function(f){ return f.uid !== change.doc.id; });
         }
       });
       renderFriends();
       updateBadges();
-    }
-  }).catch(function(){});
+    },
+    function(e){ console.warn('[AMBI241 Social] friends listener error:', e); }
+  );
+  _socFriendUnsubs.push(u1);
 
-  // Charger les demandes reçues
-  window.fbGetDocs(window.fbCollection(window.db,'users',meUID,'friend_requests_in')).then(function(snap){
-    if(snap.empty) return;
-    snap.forEach(function(d){
-      var data = d.data();
-      var already = _requestsIn.find(function(r){ return r.uid===d.id; });
-      if(!already){
-        _requestsIn.push({
-          uid: d.id,
-          name: data.pseudo || data.name || data.email || d.id,
-          avatar: data.avatarEmoji || '👤',
-          etab: data.etab || 'Libreville',
-          msg: data.msg || 'Salut, ajoutons-nous !',
-          mutualFriends: 0
-        });
-      }
-    });
-    renderRequests();
-    updateBadges();
-  }).catch(function(){});
+  /* ── 2. Listener temps réel : demandes REÇUES ── */
+  var u2 = window.fbOnSnapshot(
+    window.fbCollection(window.db,'users',meUID,'friend_requests_in'),
+    function(snap){
+      snap.docChanges && snap.docChanges().forEach(function(change){
+        var d = change.doc;
+        var data = d.data();
+        if(change.type === 'added'){
+          // Ne pas réafficher si l'ami est déjà accepté
+          var alreadyFriend = _friends.find(function(f){ return f.uid===d.id; });
+          var alreadyReq    = _requestsIn.find(function(r){ return r.uid===d.id; });
+          if(!alreadyFriend && !alreadyReq){
+            _requestsIn.push({
+              uid: d.id,
+              name: data.pseudo || data.name || data.email || d.id,
+              avatar: data.avatarEmoji || '👤',
+              etab: data.etab || 'Libreville',
+              msg: data.msg || 'Salut, ajoutons-nous !',
+              mutualFriends: 0
+            });
+            // Notification in-app discrète
+            if(typeof socToast === 'function'){
+              var senderName = data.pseudo || data.name || 'Quelqu\'un';
+              socToast('👋 '+senderName+' t\'a envoyé une demande d\'amitié !');
+            }
+          }
+        }
+        if(change.type === 'removed'){
+          _requestsIn = _requestsIn.filter(function(r){ return r.uid !== d.id; });
+        }
+      });
+      renderRequests();
+      updateBadges();
+    },
+    function(e){ console.warn('[AMBI241 Social] friend_requests_in listener error:', e); }
+  );
+  _socFriendUnsubs.push(u2);
 
-  // Charger les demandes ENVOYÉES par cet utilisateur (sous-collection propre)
-  window.fbGetDocs(window.fbCollection(window.db,'users',meUID,'friend_requests_out')).then(function(snap){
-    if(snap.empty) return;
-    snap.forEach(function(d){
-      var data = d.data();
-      var already = _requestsOut.find(function(r){ return r.uid===d.id; });
-      if(!already){
-        _requestsOut.push({
-          uid: d.id,
-          name: data.name || data.pseudo || d.id,
-          avatar: data.avatar || '👤',
-          sentAt: data.sentAt ? new Date(data.sentAt).toLocaleDateString('fr') : "À l'instant"
-        });
-      }
-    });
-    renderRequests();
-  }).catch(function(){});
+  /* ── 3. Listener temps réel : demandes ENVOYÉES ── */
+  var u3 = window.fbOnSnapshot(
+    window.fbCollection(window.db,'users',meUID,'friend_requests_out'),
+    function(snap){
+      snap.docChanges && snap.docChanges().forEach(function(change){
+        var d = change.doc;
+        var data = d.data();
+        if(change.type === 'added'){
+          // Pas de doublon + pas déjà ami (la demande a été acceptée entre-temps)
+          var alreadyFriend = _friends.find(function(f){ return f.uid===d.id; });
+          var alreadyOut    = _requestsOut.find(function(r){ return r.uid===d.id; });
+          if(!alreadyFriend && !alreadyOut){
+            _requestsOut.push({
+              uid: d.id,
+              name: data.name || data.pseudo || d.id,
+              avatar: data.avatar || '👤',
+              sentAt: data.sentAt ? new Date(data.sentAt).toLocaleDateString('fr') : "À l'instant"
+            });
+          }
+        }
+        if(change.type === 'removed'){
+          // La demande a été acceptée ou annulée — retirer de la liste
+          _requestsOut = _requestsOut.filter(function(r){ return r.uid !== d.id; });
+        }
+      });
+      renderRequests();
+    },
+    function(e){ console.warn('[AMBI241 Social] friend_requests_out listener error:', e); }
+  );
+  _socFriendUnsubs.push(u3);
 }
 
 /* Génère un emoji avatar à partir des initiales */
@@ -35396,12 +35446,22 @@ function _socInitialsAvatar(initials){
 
 /* ── Hook : déclencher le chargement Firebase dès la connexion ── */
 (function(){
-  var _origOnAuth = window._onSocAuthReady;
-  // On s'accroche à onAuthStateChanged via un watcher sur currentUserUID
-  var _socAuthWatcher = setInterval(function(){
-    if(window.currentUserUID){
-      clearInterval(_socAuthWatcher);
+  var _prevUID = null;
+  // Watcher sur currentUserUID — détecte connexion ET déconnexion
+  setInterval(function(){
+    var uid = window.currentUserUID || null;
+    if(uid && uid !== _prevUID){
+      // Nouvelle connexion ou changement d'utilisateur
+      _prevUID = uid;
+      // Stopper les listeners de l'éventuel utilisateur précédent
+      if(typeof _socStopFriendListeners === 'function') _socStopFriendListeners();
+      if(typeof _dmInboxUnsub !== 'undefined' && typeof _dmInboxUnsub === 'function'){ _dmInboxUnsub(); _dmInboxUnsub = null; }
       setTimeout(_socLoadMembresFirebase, 800);
+    } else if(!uid && _prevUID){
+      // Déconnexion : stopper tous les listeners
+      _prevUID = null;
+      if(typeof _socStopFriendListeners === 'function') _socStopFriendListeners();
+      if(typeof _dmInboxUnsub !== 'undefined' && typeof _dmInboxUnsub === 'function'){ _dmInboxUnsub(); _dmInboxUnsub = null; }
     }
   }, 500);
   // Aussi au cas où l'utilisateur est déjà connecté au chargement
@@ -36290,6 +36350,91 @@ window.dmSend=window.dmSend;
     if(id==='modalDMChat'&&typeof _dmUnsub==='function'){ _dmUnsub(); _dmUnsub=null; }
     if(typeof _oc==='function') _oc(id);
   };
+})();
+
+/* ════════════════════════════════════════════════════════════
+   DM INBOX LISTENER — arrière-plan
+   Tourne dès la connexion (indépendamment du modal).
+   Écoute les conversations où l'utilisateur est participant
+   et affiche une notification in-app si un nouveau message arrive.
+════════════════════════════════════════════════════════════ */
+var _dmInboxUnsub = null;
+var _dmInboxLastSeen = {}; // convId → lastMsgAt (pour éviter faux positifs au 1er chargement)
+var _dmInboxReady   = false; // true après le 1er snapshot (baseline établie)
+
+function _dmStartInboxListener(meUID){
+  if(!window.db || !window.fbCollection || !window.fbOnSnapshot || !window.fbQuery || !window.fbWhere) return;
+  if(typeof _dmInboxUnsub === 'function'){ _dmInboxUnsub(); _dmInboxUnsub = null; }
+  _dmInboxReady = false;
+
+  var q = window.fbQuery(
+    window.fbCollection(window.db, 'dm_conversations'),
+    window.fbWhere('participants', 'array-contains', meUID)
+  );
+
+  _dmInboxUnsub = window.fbOnSnapshot(q, function(snap){
+    if(!_dmInboxReady){
+      // Premier snapshot : enregistrer l'état actuel comme baseline (pas de notif)
+      snap.forEach(function(d){
+        var data = d.data();
+        _dmInboxLastSeen[d.id] = data.updatedAt ? (typeof data.updatedAt.toMillis==='function' ? data.updatedAt.toMillis() : data.updatedAt) : 0;
+      });
+      _dmInboxReady = true;
+      return;
+    }
+
+    snap.docChanges && snap.docChanges().forEach(function(change){
+      if(change.type !== 'added' && change.type !== 'modified') return;
+      var d    = change.doc;
+      var data = d.data();
+      var convId = d.id;
+
+      // Pas de notif si c'est nous qui avons envoyé le dernier message
+      if(data.lastMsgFrom === meUID) return;
+
+      // Pas de notif si le modal est déjà ouvert sur cette conversation
+      if(_dmCurrentConvId === convId) return;
+
+      // Pas de notif si unread_meUID est 0 (déjà lu)
+      var unreadKey = 'unread_'+meUID;
+      if(!(data[unreadKey] > 0)) return;
+
+      // Vérifier que c'est plus récent que la dernière valeur vue
+      var newTs = data.updatedAt ? (typeof data.updatedAt.toMillis==='function' ? data.updatedAt.toMillis() : data.updatedAt) : 0;
+      var lastTs = _dmInboxLastSeen[convId] || 0;
+      if(newTs <= lastTs) return;
+      _dmInboxLastSeen[convId] = newTs;
+
+      // Identifier l'expéditeur
+      var senderName = data.lastMsgFrom
+        ? ((_friends||[]).find(function(f){ return f.uid===data.lastMsgFrom; })||{}).name || 'Quelqu\'un'
+        : 'Quelqu\'un';
+      var preview = data.lastMsg ? data.lastMsg.substring(0,60) : '...';
+
+      // Notification in-app
+      if(typeof socToast === 'function'){
+        socToast('💬 '+senderName+' : '+preview);
+      }
+
+      // Incrémenter le badge DM sur l'interface si présent
+      var dmBadge = document.getElementById('dmInboxBadge');
+      if(dmBadge){
+        var cur = parseInt(dmBadge.textContent||'0', 10) || 0;
+        dmBadge.textContent = cur + 1;
+        dmBadge.style.display = 'inline-flex';
+      }
+    });
+  }, function(e){ console.warn('[DM Inbox] listener error:', e); });
+}
+
+/* Démarrer l'inbox listener dès que l'utilisateur est connecté */
+(function(){
+  var _inboxWatcher = setInterval(function(){
+    if(window.currentUserUID && window.fbWhere){
+      clearInterval(_inboxWatcher);
+      setTimeout(function(){ _dmStartInboxListener(window.currentUserUID); }, 1200);
+    }
+  }, 600);
 })();
 
 // Fermer modal au clic sur l'overlay
