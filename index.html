@@ -26826,8 +26826,7 @@ function toggleDriverService(chk) {
     showTaxiNotification('🟢 Vous êtes maintenant en service !');
     // Persister statut online dans taxiContacts + localStorage
     _persistDriverOnlineStatus(true);
-    // Auto-simulate a request after 4s
-    setTimeout(() => { if(tdbOnDuty && !tdbMissionActive) tdbSimulateRequest(); }, 4000);
+    // Les vraies demandes arrivent via Firebase (pas de simulation automatique)
   } else {
     dot.classList.remove('tdb-dot-active');
     label.textContent = 'Hors service';
@@ -26882,6 +26881,8 @@ function tdbRefreshKPIs() {
 }
 
 function tdbSimulateRequest() {
+  // ⚠️ FONCTION TEST ADMIN UNIQUEMENT — Ne pas appeler automatiquement en production
+  // Les vraies demandes arrivent via Firebase (collection 'taxi_requests')
   // Si hors service, activer automatiquement
   if(!tdbOnDuty) {
     const chk = document.getElementById('tdbToggleService');
@@ -26913,8 +26914,7 @@ function tdbSimulateRequest() {
     if(tdbReqSec <= 0) {
       clearInterval(tdbReqCountdownInterval);
       if(card) card.style.display = 'none';
-      showTaxiNotification('⏰ Demande expirée — nouvelle demande dans 10s');
-      setTimeout(() => { if(tdbOnDuty && !tdbMissionActive) tdbSimulateRequest(); }, 10000);
+      showTaxiNotification('⏰ Demande expirée — en attente de la prochaine demande');
     }
   }, 1000);
   showTaxiNotification('🔔 Nouvelle demande reçue !');
@@ -26942,8 +26942,7 @@ function tdbAcceptRequest() {
 function tdbDeclineRequest() {
   clearInterval(tdbReqCountdownInterval);
   document.getElementById('tdbRequestCard').style.display = 'none';
-  showTaxiNotification('❌ Demande refusée');
-  setTimeout(() => { if(tdbOnDuty && !tdbMissionActive) tdbSimulateRequest(); }, 6000);
+  showTaxiNotification('❌ Demande refusée — en attente de la prochaine demande réelle');
 }
 
 function tdbStartMission() {
@@ -26982,7 +26981,6 @@ function tdbEndMission() {
   div.innerHTML = `<div class="tdb-hist-icon tdb-done-icon">✓</div><div class="tdb-hist-info"><div class="tdb-hist-route">${r.from||'?'} → ${r.to||'?'}</div><div class="tdb-hist-time">Aujourd'hui, ${timeStr}</div></div><div class="tdb-hist-price">${r.price||'—'}</div><div class="tdb-hist-stars">⭐⭐⭐⭐⭐</div>`;
   hist.prepend(div);
   showTaxiNotification('🎉 Course terminée ! +' + (r.price||'0'));
-  setTimeout(() => { if(tdbOnDuty) tdbSimulateRequest(); }, 5000);
 }
 
 function tdbReportIssue() {
@@ -36204,25 +36202,7 @@ window.dmSend = function(){
   }
   ── */
 
-  /* Réponse automatique de démo après 1 s */
-  var peer = _friends.find(function(x){ return x.uid === _dmCurrentUid; });
-  if(peer){
-    var replies = [
-      'Haha 😄', 'Trop cool !', 'On se voit ce soir ?',
-      'Yep, je suis là 👋', 'Ça marche pour moi !',
-      'C\'est quoi l\'ambiance au '+peer.etab+' là ?',
-      '🔥🔥', 'Je check ça et je te dis.',
-    ];
-    var reply = replies[Math.floor(Math.random()*replies.length)];
-    setTimeout(function(){
-      if(_dmCurrentUid === peer.uid){
-        var t2 = new Date();
-        var hhmm2 = t2.getHours().toString().padStart(2,'0')+':'+t2.getMinutes().toString().padStart(2,'0');
-        _dmHistory[peer.uid].push({ me:false, text:reply, time:hhmm2 });
-        dmRender();
-      }
-    }, 900 + Math.random()*600);
-  }
+  /* Les réponses viennent des vrais membres via Firebase (pas de bot) */
 };
 window.dmSend = window.dmSend;
 
