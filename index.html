@@ -885,17 +885,26 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 /* ── Barre de composition rapide ── */
 .socpub-compose-bar{
   display:flex;align-items:center;gap:0.6rem;
-  background:var(--surface);border:1px solid var(--border);
+  background:var(--surface);border:1.5px solid rgba(255,45,155,0.22);
   border-radius:18px;padding:0.75rem 1rem;
   cursor:pointer;margin-bottom:0.8rem;
-  transition:border-color 0.2s,box-shadow 0.2s;
-  box-shadow:0 2px 12px rgba(0,0,0,0.25);
+  transition:border-color 0.2s,box-shadow 0.2s,transform 0.15s;
+  box-shadow:0 2px 18px rgba(255,45,155,0.1),0 1px 4px rgba(0,0,0,0.3);
   width:100%;position:relative;z-index:3;
+  outline:none;
 }
-.socpub-compose-bar:hover,.socpub-compose-bar:active{
-  border-color:rgba(255,45,155,0.45);
-  box-shadow:0 0 0 3px rgba(255,45,155,0.08);
+.socpub-compose-bar::before{
+  content:'';position:absolute;inset:-1px;border-radius:18px;
+  background:linear-gradient(135deg,rgba(255,45,155,0.3),rgba(204,68,255,0.15),rgba(0,229,255,0.1));
+  z-index:-1;opacity:0;transition:opacity 0.25s;pointer-events:none;
 }
+.socpub-compose-bar:hover,.socpub-compose-bar:focus{
+  border-color:rgba(255,45,155,0.55);
+  box-shadow:0 0 0 3px rgba(255,45,155,0.12),0 4px 20px rgba(255,45,155,0.15);
+  transform:translateY(-1px);
+}
+.socpub-compose-bar:hover::before,.socpub-compose-bar:focus::before{opacity:1;}
+.socpub-compose-bar:active{transform:scale(0.985);}
 .socpub-compose-avatar{
   width:36px;height:36px;border-radius:50%;flex-shrink:0;
   background:linear-gradient(135deg,var(--pink),var(--purple));
@@ -906,15 +915,20 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 .socpub-compose-text{font-size:0.8rem;color:var(--muted);}
 .socpub-compose-actions{display:flex;gap:0.3rem;flex-shrink:0;}
 .socpub-quick-btn{
-  width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,0.12);
-  background:rgba(255,255,255,0.04);cursor:pointer;font-size:1rem;
+  width:36px;height:36px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.15);
+  background:rgba(255,255,255,0.06);cursor:pointer;font-size:1.05rem;
   display:flex;align-items:center;justify-content:center;
-  transition:all 0.15s;
+  transition:all 0.18s;box-shadow:0 2px 8px rgba(0,0,0,0.2);
+  -webkit-tap-highlight-color:transparent;
 }
+.socpub-quick-btn:hover{transform:scale(1.1);box-shadow:0 3px 12px rgba(0,0,0,0.25);}
 .socpub-quick-btn:active{transform:scale(0.88);}
-.socpub-quick-btn.img{border-color:rgba(255,45,155,0.3);}
-.socpub-quick-btn.vid{border-color:rgba(0,229,255,0.3);}
-.socpub-quick-btn.ev{border-color:rgba(255,215,0,0.3);}
+.socpub-quick-btn.img{border-color:rgba(255,45,155,0.45);background:rgba(255,45,155,0.08);}
+.socpub-quick-btn.img:hover{border-color:rgba(255,45,155,0.7);background:rgba(255,45,155,0.14);box-shadow:0 0 12px rgba(255,45,155,0.2);}
+.socpub-quick-btn.vid{border-color:rgba(0,229,255,0.45);background:rgba(0,229,255,0.06);}
+.socpub-quick-btn.vid:hover{border-color:rgba(0,229,255,0.7);background:rgba(0,229,255,0.12);box-shadow:0 0 12px rgba(0,229,255,0.18);}
+.socpub-quick-btn.ev{border-color:rgba(255,215,0,0.45);background:rgba(255,215,0,0.06);}
+.socpub-quick-btn.ev:hover{border-color:rgba(255,215,0,0.7);background:rgba(255,215,0,0.12);box-shadow:0 0 12px rgba(255,215,0,0.18);}
 
 /* ── Filtre catégories ── */
 .socpub-filter-row{
@@ -7413,7 +7427,13 @@ if (document.readyState === 'loading') {
   <!-- Onglets principaux -->
   <div class="soc-tabs">
     <div class="soc-tab active" onclick="socSwitchTab('publications')" id="socTabPublications">
-      📰 Posts <span class="soc-tab-badge" id="tabBadgePubs" style="background:rgba(255,45,155,0.2);color:var(--pink);border:none;">Live</span>
+      📰 Posts
+    </div>
+    <div class="soc-tab" onclick="socSwitchTabLive()" id="socTabLive">
+      <span style="display:inline-flex;align-items:center;gap:0.25rem;">
+        <span id="socLiveDot" style="width:7px;height:7px;border-radius:50%;background:var(--pink);display:inline-block;animation:pulse 1.2s infinite;"></span>
+        Live
+      </span>
     </div>
     <div class="soc-tab" onclick="socSwitchTab('amis')">
       👤 Amis <span class="soc-tab-badge" id="tabBadgeFriends">3</span>
@@ -7429,16 +7449,70 @@ if (document.readyState === 'loading') {
   <!-- ═══════════ PANE : PUBLICATIONS SOCIAL ═══════════ -->
   <div class="soc-pane active" id="pane-publications">
 
-    <!-- ── Barre de création rapide ── -->
-    <div class="socpub-compose-bar" onclick="socOpenPublishModal()">
+    <!-- ── Barre de création rapide (AMÉLIORÉE) ── -->
+    <div class="socpub-compose-bar" id="socComposeBar" onclick="socOpenPublishModal()" role="button" tabindex="0" aria-label="Créer une publication">
       <div class="socpub-compose-avatar" id="socPubComposeAvatar">?</div>
       <div class="socpub-compose-prompt">
-        <span class="socpub-compose-text">✍️ Partagez une ambiance, photo, annonce…</span>
+        <span class="socpub-compose-text" id="socComposeText">✍️ Partagez une ambiance, photo, annonce…</span>
+        <div style="display:flex;gap:0.4rem;margin-top:0.3rem;flex-wrap:wrap;">
+          <span style="font-size:0.6rem;color:rgba(255,45,155,0.7);font-weight:700;background:rgba(255,45,155,0.08);border:1px solid rgba(255,45,155,0.2);border-radius:20px;padding:0.1rem 0.45rem;">🔥 Ambiance</span>
+          <span style="font-size:0.6rem;color:rgba(0,229,255,0.7);font-weight:700;background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.18);border-radius:20px;padding:0.1rem 0.45rem;">📷 Photo</span>
+          <span style="font-size:0.6rem;color:rgba(255,215,0,0.7);font-weight:700;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.18);border-radius:20px;padding:0.1rem 0.45rem;">🎉 Événement</span>
+        </div>
       </div>
       <div class="socpub-compose-actions">
-        <button class="socpub-quick-btn img" onclick="socOpenPublishModal('photo');event.stopPropagation()">📷</button>
-        <button class="socpub-quick-btn vid" onclick="socOpenPublishModal('video');event.stopPropagation()">🎬</button>
-        <button class="socpub-quick-btn ev" onclick="socOpenPublishModal('event');event.stopPropagation()">🎉</button>
+        <button class="socpub-quick-btn img" title="Publier une photo" onclick="socOpenPublishModal('photo');event.stopPropagation()" aria-label="Publier une photo">📷</button>
+        <button class="socpub-quick-btn vid" title="Publier une vidéo" onclick="socOpenPublishModal('video');event.stopPropagation()" aria-label="Publier une vidéo">🎬</button>
+        <button class="socpub-quick-btn ev" title="Créer un événement" onclick="socOpenPublishModal('event');event.stopPropagation()" aria-label="Créer un événement">🎉</button>
+      </div>
+    </div>
+    <!-- ── Pane Live (caché par défaut) ── -->
+    <div id="pane-live-feed" style="display:none;">
+      <div style="text-align:center;padding:1.5rem 1rem 0.8rem;">
+        <div style="display:inline-flex;align-items:center;gap:0.5rem;background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);border-radius:30px;padding:0.45rem 1rem;margin-bottom:0.8rem;">
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--pink);animation:pulse 1s infinite;flex-shrink:0;"></span>
+          <span style="font-family:'Syne',sans-serif;font-size:0.78rem;font-weight:800;color:var(--pink);">LIVE EN CE MOMENT</span>
+        </div>
+        <p style="font-size:0.72rem;color:var(--muted);line-height:1.5;">Les membres actifs partagent l'ambiance en direct depuis les lieux.</p>
+      </div>
+      <div id="liveFeedContainer" style="display:flex;flex-direction:column;gap:0.6rem;padding:0 0 0.5rem;">
+        <!-- Posts live chargés dynamiquement -->
+        <div class="live-post-demo" style="background:var(--surface);border:1px solid rgba(255,45,155,0.25);border-radius:16px;padding:0.85rem 1rem;position:relative;overflow:hidden;">
+          <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--pink),var(--purple));"></div>
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+            <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#ff2d9b,#cc44ff);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.85rem;color:#fff;flex-shrink:0;">M</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.78rem;font-weight:700;color:var(--text);">Mme Carole <span style="display:inline-flex;align-items:center;gap:0.2rem;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.3);border-radius:6px;font-size:0.55rem;font-weight:800;padding:0.05rem 0.4rem;margin-left:0.3rem;color:var(--pink);">● LIVE</span></div>
+              <div style="font-size:0.6rem;color:var(--muted);">Il y a 3 min · 📍 Le Phare, Libreville</div>
+            </div>
+          </div>
+          <p style="font-size:0.8rem;color:var(--text);line-height:1.5;margin-bottom:0.5rem;">🔥 Ambiance de folie au Phare ce soir ! DJ incroyable, venez ! @ambiance241</p>
+          <div style="display:flex;gap:0.5rem;">
+            <button onclick="socPubToggleLike('live_demo1',this);event.stopPropagation()" class="socpub-action-btn like" style="flex:1;justify-content:center;">❤️ J'aime <span id="likeCount_live_demo1">12</span></button>
+            <button onclick="if(typeof showToast==='function')showToast('💬 Commentaires live')" class="socpub-action-btn comment" style="flex:1;justify-content:center;">💬 Répondre</button>
+          </div>
+        </div>
+        <div class="live-post-demo" style="background:var(--surface);border:1px solid rgba(0,229,255,0.2);border-radius:16px;padding:0.85rem 1rem;position:relative;overflow:hidden;">
+          <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--cyan),var(--green));"></div>
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+            <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#00e5ff,#00ffaa);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.85rem;color:#000;flex-shrink:0;">K</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.78rem;font-weight:700;color:var(--text);">Kevin_241 <span style="display:inline-flex;align-items:center;gap:0.2rem;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);border-radius:6px;font-size:0.55rem;font-weight:800;padding:0.05rem 0.4rem;margin-left:0.3rem;color:var(--cyan);">● LIVE</span></div>
+              <div style="font-size:0.6rem;color:var(--muted);">Il y a 8 min · 📍 Bar L'Eden</div>
+            </div>
+          </div>
+          <p style="font-size:0.8rem;color:var(--text);line-height:1.5;margin-bottom:0.5rem;">🎵 Musique live orchestre, tables disponibles, venez nombreux 🥂</p>
+          <div style="display:flex;gap:0.5rem;">
+            <button onclick="socPubToggleLike('live_demo2',this);event.stopPropagation()" class="socpub-action-btn like" style="flex:1;justify-content:center;">❤️ J'aime <span id="likeCount_live_demo2">7</span></button>
+            <button onclick="if(typeof showToast==='function')showToast('💬 Commentaires live')" class="socpub-action-btn comment" style="flex:1;justify-content:center;">💬 Répondre</button>
+          </div>
+        </div>
+      </div>
+      <div style="text-align:center;padding:0.6rem 0 0.2rem;">
+        <button onclick="socOpenPublishModal('ambiance')" style="background:linear-gradient(135deg,var(--pink),var(--purple));border:none;border-radius:30px;color:#fff;font-family:'Syne',sans-serif;font-size:0.78rem;font-weight:800;padding:0.65rem 1.5rem;cursor:pointer;box-shadow:0 4px 16px rgba(255,45,155,0.3);display:inline-flex;align-items:center;gap:0.4rem;">
+          <span style="width:7px;height:7px;border-radius:50%;background:#fff;animation:pulse 1s infinite;"></span>
+          Partager mon live maintenant
+        </button>
       </div>
     </div>
 
@@ -39406,6 +39480,137 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
   window.igm2StartImport=igm2StartImport;
 
   console.log('[AMBI241] ✅ Import Maps (dashboard réel) — chargé');
+})();
+</script>
+
+<!-- ══════════════════════════════════════════════════
+     AMÉLIORATIONS BARRE PUBLICATION & TAB LIVE
+     ══════════════════════════════════════════════════ -->
+<script>
+(function(){
+  'use strict';
+
+  /* ══ TAB LIVE — bascule entre Posts normaux et publications Live ══ */
+  var _liveModeActive = false;
+
+  window.socSwitchTabLive = function() {
+    var tabLive = document.getElementById('socTabLive');
+    var tabPosts = document.getElementById('socTabPublications');
+    var panePublications = document.getElementById('pane-publications');
+    var paneLive = document.getElementById('pane-live-feed');
+    var composeBar = document.getElementById('socComposeBar');
+    var dot = document.getElementById('socLiveDot');
+
+    if (!_liveModeActive) {
+      // Activer mode Live
+      _liveModeActive = true;
+      // Désactiver tous les tabs
+      document.querySelectorAll('.soc-tab').forEach(function(t){ t.classList.remove('active'); });
+      document.querySelectorAll('.soc-pane').forEach(function(p){ p.classList.remove('active'); });
+      // Activer tab Live
+      if (tabLive) {
+        tabLive.classList.add('active');
+        tabLive.style.color = 'var(--pink)';
+        tabLive.style.borderBottomColor = 'var(--pink)';
+      }
+      // Masquer feed normal, afficher feed live
+      if (panePublications) panePublications.classList.remove('active');
+      if (paneLive) {
+        paneLive.style.display = 'block';
+        paneLive.style.animation = 'fadeUp 0.25s ease';
+      }
+      // Pulse plus intense sur le dot
+      if (dot) {
+        dot.style.background = '#fff';
+        dot.style.boxShadow = '0 0 0 3px rgba(255,45,155,0.6)';
+      }
+      // Adapter le texte de la barre
+      var composeText = document.getElementById('socComposeText');
+      if (composeText) composeText.textContent = '● Partager votre ambiance en LIVE maintenant…';
+      if (composeBar) {
+        composeBar.style.borderColor = 'rgba(255,45,155,0.6)';
+        composeBar.style.boxShadow = '0 0 0 3px rgba(255,45,155,0.15), 0 4px 20px rgba(255,45,155,0.2)';
+      }
+      if (typeof window.showToast === 'function') window.showToast('🔴 Mode Live activé — Partagez en temps réel !');
+    } else {
+      // Retour mode Posts normal
+      _liveModeActive = false;
+      document.querySelectorAll('.soc-tab').forEach(function(t){ t.classList.remove('active'); t.style.color=''; t.style.borderBottomColor=''; });
+      if (tabPosts) tabPosts.classList.add('active');
+      if (paneLive) paneLive.style.display = 'none';
+      if (panePublications) panePublications.classList.add('active');
+      if (dot) { dot.style.background = 'var(--pink)'; dot.style.boxShadow = ''; }
+      var composeText2 = document.getElementById('socComposeText');
+      if (composeText2) composeText2.textContent = '✍️ Partagez une ambiance, photo, annonce…';
+      if (composeBar) { composeBar.style.borderColor = ''; composeBar.style.boxShadow = ''; }
+    }
+  };
+
+  /* ══ Initialisation : afficher le pseudo dans la barre de composition ══ */
+  function initComposebar() {
+    var pseudo = window.currentUserPseudo || window.currentUserEmail || null;
+    var letter = pseudo ? (pseudo[0] || '?').toUpperCase() : '?';
+    var avatar = document.getElementById('socPubComposeAvatar');
+    if (avatar) avatar.textContent = letter;
+    var composeText = document.getElementById('socComposeText');
+    if (composeText && pseudo) {
+      composeText.textContent = pseudo.split(' ')[0] + ', partagez une ambiance…';
+    }
+  }
+
+  /* ══ Accès rapide au clavier (Enter/Space sur la barre) ══ */
+  document.addEventListener('DOMContentLoaded', function() {
+    var bar = document.getElementById('socComposeBar');
+    if (bar) {
+      bar.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (typeof window.socOpenPublishModal === 'function') window.socOpenPublishModal();
+        }
+      });
+    }
+    // Init pseudo
+    initComposebar();
+
+    // Ré-init quand l'utilisateur se connecte
+    var _initInterval = setInterval(function() {
+      if (window.currentUserPseudo || window.currentUserEmail) {
+        initComposebar();
+        clearInterval(_initInterval);
+      }
+    }, 800);
+  });
+
+  /* ══ Observer la connexion utilisateur pour mettre à jour la barre ══ */
+  var _origOnAuthChange = window.onAuthStateChanged;
+  // Hook sur currentUserPseudo
+  var _pseudoProxy = window.currentUserPseudo;
+  Object.defineProperty(window, 'currentUserPseudo', {
+    get: function() { return _pseudoProxy; },
+    set: function(v) {
+      _pseudoProxy = v;
+      if (v) initComposebar();
+    },
+    configurable: true
+  });
+
+  /* ══ Animation fadeUp si non définie ══ */
+  if (!document.getElementById('_pubEnhanceStyle')) {
+    var st = document.createElement('style');
+    st.id = '_pubEnhanceStyle';
+    st.textContent = [
+      '@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}',
+      '#socTabLive.active{color:var(--pink)!important;border-bottom-color:var(--pink)!important;}',
+      '#socTabLive{transition:color 0.2s,border-bottom-color 0.2s;}',
+      '.socpub-compose-bar:focus-visible{outline:2px solid var(--pink);outline-offset:2px;}',
+      /* Pulse rouge sur la barre en mode live */
+      '.socpub-compose-bar.live-mode{border-color:rgba(255,45,155,0.65)!important;animation:liveBarPulse 2s ease-in-out infinite;}',
+      '@keyframes liveBarPulse{0%,100%{box-shadow:0 0 0 2px rgba(255,45,155,0.15),0 4px 18px rgba(255,45,155,0.15)}50%{box-shadow:0 0 0 5px rgba(255,45,155,0.22),0 4px 22px rgba(255,45,155,0.25)}}'
+    ].join('');
+    document.head.appendChild(st);
+  }
+
+  console.log('[AMBI241] ✅ Publication bar & Live tab enhancements loaded');
 })();
 </script>
 </body>
