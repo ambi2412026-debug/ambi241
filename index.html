@@ -38069,17 +38069,33 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
   /* ── Toggle likes ── */
   window.socPubToggleLike = function(pubId, btn) {
-    var countEl = document.getElementById('likeCount_' + pubId);
-    if(!btn || !countEl) return;
+    if(!btn) return;
+    // Vérifier la connexion
+    if(!window.currentUserUID){
+      if(typeof window.showToast==='function') window.showToast('🔒 Connectez-vous pour liker !');
+      return;
+    }
     var active = btn.classList.toggle('active');
-    var n = parseInt(countEl.textContent) || 0;
-    countEl.textContent = active ? n + 1 : Math.max(0, n - 1);
+    // Mettre à jour le compteur (cherche likeCount_ dans les deux feeds)
+    var countEl = document.getElementById('likeCount_' + pubId)
+                || btn.querySelector('.socpub-action-count');
+    if(countEl){
+      var n = parseInt(countEl.textContent) || 0;
+      countEl.textContent = active ? n + 1 : Math.max(0, n - 1);
+    }
+    // Couleur live
+    btn.style.color = active ? 'var(--pink)' : '';
     // Mini animation
-    btn.style.transform = 'scale(1.18)';
+    btn.style.transform = 'scale(1.22)';
     setTimeout(function(){ btn.style.transform = ''; }, 180);
-    // Afficher emoji picker
-    var picker = document.getElementById('emojipicker_' + pubId);
-    if(picker) picker.style.display = active ? 'flex' : 'none';
+    // Sync Firebase (non bloquant)
+    if(window.db && window.fbDoc && window.fbUpdateDoc){
+      try {
+        var newN = countEl ? (parseInt(countEl.textContent)||0) : 0;
+        window.fbUpdateDoc(window.fbDoc(window.db,'publications',pubId),{likes:newN}).catch(function(){});
+      } catch(e){}
+    }
+    if(typeof window.showToast==='function') window.showToast(active ? '❤️ J'aime !' : '💔 Retrait du like');
   };
 
   /* ── Réaction emoji ── */
@@ -38096,11 +38112,51 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     var isOpen = section.style.display !== 'none';
     section.style.display = isOpen ? 'none' : 'block';
     if(!isOpen) {
+      // Mettre à jour l'avatar de l'utilisateur connecté
+      var myLetter = ((window.currentUserPseudo||window.currentUserEmail||'?')[0]||'?').toUpperCase();
+      var avEl = document.getElementById('cmtAvatar_'+pubId);
+      if(avEl) avEl.textContent = myLetter;
+      // Charger les commentaires depuis Firebase si pas encore chargés
+      var list = document.getElementById('commentsList_'+pubId);
+      if(list && !list.dataset.loaded){
+        list.dataset.loaded = '1';
+        _socLoadComments(pubId, list);
+      }
       var inp = document.getElementById('commentInput_' + pubId);
-      if(inp) setTimeout(function(){ inp.focus(); }, 100);
-      _socPubInitAvatars();
+      if(inp) setTimeout(function(){ inp.focus(); }, 120);
     }
   };
+
+  /* ── Charger les commentaires depuis Firebase ── */
+  function _socLoadComments(pubId, listEl){
+    if(!window.db || !window.fbCollection || !window.fbQuery || !window.fbOrderBy || !window.fbGetDocs) return;
+    try {
+      var q = window.fbQuery(
+        window.fbCollection(window.db,'publications',pubId,'comments'),
+        window.fbOrderBy('createdAt','asc')
+      );
+      window.fbGetDocs(q).then(function(snap){
+        if(!snap || snap.empty) return;
+        var html = '';
+        snap.forEach(function(d){
+          var c = d.data();
+          var cl = (c.pseudo||c.auteur||'?')[0].toUpperCase();
+          var ct = c.createdAt && c.createdAt.toDate ? c.createdAt.toDate().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : 'À l'instant';
+          html += '<div class="socpub-comment">'
+            +'<div class="socpub-comment-avatar">'+cl+'</div>'
+            +'<div class="socpub-comment-body">'
+            +'<div class="socpub-comment-author">'+_esc(c.pseudo||c.auteur||'Membre')+' <span class="socpub-comment-time">· '+ct+'</span></div>'
+            +'<div class="socpub-comment-text">'+_esc(c.texte||c.text||c.message||'')+'</div>'
+            +'<div class="socpub-comment-actions"><button onclick="socCommentLike(this)">👍 <span>0</span></button></div>'
+            +'</div></div>';
+        });
+        if(html) listEl.innerHTML = html;
+        // Mettre à jour le compteur
+        var cc = document.getElementById('cmtCount_'+pubId);
+        if(cc) cc.textContent = snap.size;
+      }).catch(function(){});
+    } catch(e){}
+  }
 
   /* ── Soumettre un commentaire ── */
   window.socSubmitComment = function(pubId) {
@@ -38142,6 +38198,9 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       + '<div class="socpub-comment-actions"><button onclick="socCommentLike(this)">👍 <span>0</span></button><button onclick="socOpenReply(\''+pubId+'\',\'new\',this)">↩ Répondre</button></div>'
       + '</div></div>';
     list.insertAdjacentHTML('beforeend', html);
+    // Mettre à jour le compteur de commentaires
+    var cc = document.getElementById('cmtCount_'+pubId);
+    if(cc) cc.textContent = (parseInt(cc.textContent)||0) + 1;
     if(typeof window.showToast === 'function') window.showToast('💬 Commentaire publié !');
   };
 
@@ -38162,10 +38221,18 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
   /* ── Partager ── */
   window.socPubShare = function(pubId) {
-    if(navigator.share) {
-      navigator.share({ title: 'AMBI241', text: 'Regardez ça sur AMBI241 !', url: window.location.href });
+    var url = window.location.href.split('#')[0] + '#pub-' + pubId;
+    var card = document.querySelector('[data-pub-id="'+pubId+'"]');
+    var authorEl = card ? card.querySelector('.socpub-author') : null;
+    var author = authorEl ? authorEl.textContent.trim().replace('✓','').trim() : 'AMBI241';
+    var textEl = card ? card.querySelector('.socpub-text') : null;
+    var text = textEl ? textEl.textContent.trim().slice(0,80) : 'Ambiance à Libreville';
+    if(navigator.share){
+      navigator.share({ title: 'AMBI241 — '+author, text: text, url: url })
+        .catch(function(){});
     } else {
-      if(typeof window.showToast === 'function') window.showToast('📋 Lien copié !');
+      try { navigator.clipboard.writeText(url); } catch(e){}
+      if(typeof window.showToast === 'function') window.showToast('📋 Lien copié dans le presse-papier !');
     }
   };
 
@@ -39625,24 +39692,24 @@ console.log('[AMBI241] ✅ Module publication & live chargé v2');
 
   /* ── Construire une carte pour socPubFeed ── */
   function _buildSocCard(p){
-    var pid   = _esc(p._id || p.id || '');
+    var pid    = _esc(p._id || p.id || '');
     var pseudo = _esc(p.pseudo || p.auteur || p.displayName || 'Anonyme');
     var letter = (p.pseudo || p.auteur || p.displayName || '?')[0].toUpperCase();
-    var text  = _esc(p.texte || p.text || p.titre || p.message || '');
-    var ts    = _fmtDate(p.createdAt);
-    var mood  = p.mood || '';
-    var vis   = {public:'🌐', amis:'👥', moi:'🔒'}[p.visibility] || '🌐';
-    var likes = parseInt(p.likes) || 0;
-    var comments = parseInt(p.comments) || 0;
+    var text   = _esc(p.texte || p.text || p.titre || p.message || '');
+    var ts     = _fmtDate(p.createdAt);
+    var mood   = p.mood || '';
+    var vis    = {public:'🌐', amis:'👥', moi:'🔒'}[p.visibility] || '🌐';
+    var likes  = parseInt(p.likes) || 0;
+    var cmtCnt = parseInt(p.comments) || 0;
 
     // Photos
     var photoHtml = '';
-    var photos = Array.isArray(p.photos) ? p.photos : (p.photoURLs ? p.photoURLs : []);
+    var photos = Array.isArray(p.photos) ? p.photos : (Array.isArray(p.photoURLs) ? p.photoURLs : []);
     if(photos.length){
       var cols = photos.length===1?'1fr':(photos.length===2?'1fr 1fr':'1fr 1fr 1fr');
       photoHtml = '<div style="display:grid;grid-template-columns:'+cols+';gap:4px;margin:0.6rem 0;border-radius:12px;overflow:hidden;">';
       photos.slice(0,5).forEach(function(url){
-        photoHtml += '<img src="'+_esc(url)+'" style="width:100%;height:140px;object-fit:cover;" loading="lazy" onclick="openPubPhotoLightbox(\''+_esc(url)+'\')">';
+        photoHtml += '<img src="'+_esc(url)+'" style="width:100%;height:140px;object-fit:cover;cursor:pointer;" loading="lazy" onclick="if(window.openPubPhotoLightbox)openPubPhotoLightbox(\''+_esc(url)+'\');else window.open(\''+_esc(url)+'\',\'_blank\')">';
       });
       photoHtml += '</div>';
     }
@@ -39655,14 +39722,28 @@ console.log('[AMBI241] ✅ Module publication & live chargé v2');
     }
 
     // Établissement
-    var etabHtml = p.etab ? '<div style="display:inline-flex;align-items:center;gap:0.3rem;background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.18);border-radius:8px;padding:0.2rem 0.5rem;font-size:0.65rem;color:var(--cyan);margin:0.3rem 0;">📍 '+_esc(p.etab)+'</div>' : '';
+    var etabHtml = p.etab ? '<div style="display:inline-flex;align-items:center;gap:0.3rem;background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.18);border-radius:8px;padding:0.2rem 0.5rem;font-size:0.65rem;color:var(--cyan);margin:0.3rem 0 0.5rem;">📍 '+_esc(p.etab)+'</div>' : '';
 
     // Mood
     var moodHtml = mood ? '<span style="background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.22);border-radius:6px;font-size:0.62rem;padding:1px 6px;margin-left:0.3rem;">'+_esc(mood)+'</span>' : '';
 
+    // Section commentaires (masquée par défaut, révélée au clic)
+    var myLetter = ((window.currentUserPseudo||window.currentUserEmail||'?')[0]||'?').toUpperCase();
+    var cmtSection = '<div id="comments_'+pid+'" class="socpub-comments-section" style="display:none;">'
+      +'<div id="commentsList_'+pid+'" class="socpub-comments-list"></div>'
+      +'<div class="socpub-comment-compose">'
+      +'<div class="socpub-comment-compose-avatar" id="cmtAvatar_'+pid+'">'+myLetter+'</div>'
+      +'<div class="socpub-comment-compose-input-wrap">'
+      +'<input class="socpub-comment-input" id="commentInput_'+pid+'"'
+      +' placeholder="Écrire un commentaire…"'
+      +' onkeydown="if(event.key===\'Enter\'){event.preventDefault();socSubmitComment(\''+pid+'\');}">'
+      +'</div>'
+      +'<button class="socpub-comment-submit" onclick="socSubmitComment(\''+pid+'\')">➤</button>'
+      +'</div></div>';
+
     return '<article class="socpub-card" data-pub-id="'+pid+'" data-type="'+_esc(p.type||'ambiance')+'">'
       +'<div class="socpub-card-header">'
-      +'<div class="socpub-avatar" style="background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1rem;" id="_sfa_'+pid+'">'+letter+'</div>'
+      +'<div class="socpub-avatar" id="_sfa_'+pid+'" style="background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1rem;color:#fff;">'+letter+'</div>'
       +'<div class="socpub-meta">'
       +'<div class="socpub-author">'+pseudo+' <span class="socpub-badge verifie">✓</span>'+moodHtml+'</div>'
       +'<div class="socpub-time">'+ts+' <span style="font-size:0.6rem;opacity:0.6;">'+vis+'</span></div>'
@@ -39672,10 +39753,17 @@ console.log('[AMBI241] ✅ Module publication & live chargé v2');
       +(text ? '<p class="socpub-text">'+text.replace(/@(\w+)/g,'<span style="color:var(--cyan);">@$1</span>')+'</p>' : '')
       +photoHtml+videoHtml+etabHtml
       +'<div class="socpub-action-bar">'
-      +'<button class="socpub-action-btn like" onclick="socPubToggleLike(\''+pid+'\',this)"><span class="socpub-action-icon">❤️</span> J\'aime <span class="socpub-action-count">'+likes+'</span></button>'
-      +'<button class="socpub-action-btn comment" onclick="socPubToggleComments(\''+pid+'\')"><span class="socpub-action-icon">💬</span> Commenter <span class="socpub-action-count">'+comments+'</span></button>'
+      +'<button class="socpub-action-btn like" onclick="socPubToggleLike(\''+pid+'\',this)">'
+        +'<span class="socpub-action-icon">❤️</span> J\'aime '
+        +'<span id="likeCount_'+pid+'" class="socpub-action-count">'+likes+'</span>'
+      +'</button>'
+      +'<button class="socpub-action-btn comment" onclick="socPubToggleComments(\''+pid+'\')">'
+        +'<span class="socpub-action-icon">💬</span> Commenter '
+        +'<span id="cmtCount_'+pid+'" class="socpub-action-count">'+cmtCnt+'</span>'
+      +'</button>'
       +'<button class="socpub-action-btn share" onclick="socPubShare(\''+pid+'\')"><span class="socpub-action-icon">↪️</span> Partager</button>'
       +'</div>'
+      +cmtSection
       +'</article>';
   }
 
