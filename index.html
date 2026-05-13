@@ -15,10 +15,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 <style>
-:root{--bg:#1a0a28;--surface:#230d35;--surface2:#2c1040;--border:rgba(255,45,155,0.15);--text:#fff0f8;--muted:#b088c0;--pink:#ff2d9b;--cyan:#00e5ff;--amber:#ffd700;--green:#00ffaa;--red:#ff4466;--purple:#cc44ff;--taxi-gold:#ffd700;--taxi-dark:#1a0a28;}
+:root{
+  --player-h: 0px;   /* mis à jour dynamiquement par JS quand le lecteur est visible */
+  --nav-h: 54px;     /* hauteur bottom-nav */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --bg:#1a0a28;--surface:#230d35;--surface2:#2c1040;--border:rgba(255,45,155,0.15);--text:#fff0f8;--muted:#b088c0;--pink:#ff2d9b;--cyan:#00e5ff;--amber:#ffd700;--green:#00ffaa;--red:#ff4466;--purple:#cc44ff;--taxi-gold:#ffd700;--taxi-dark:#1a0a28;}
 html{overflow-x:hidden;max-width:100vw;scrollbar-gutter:stable;overflow-y:scroll;}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;padding-bottom:62px;padding-top:116px;max-width:100%;width:100%;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;padding-bottom:calc(var(--nav-h) + var(--player-h));padding-top:116px;max-width:100%;width:100%;}
 body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(255,45,155,0.12) 0%,transparent 50%),radial-gradient(ellipse at 90% 30%,rgba(0,229,255,0.10) 0%,transparent 50%),radial-gradient(ellipse at 50% 90%,rgba(204,68,255,0.08) 0%,transparent 50%);pointer-events:none;z-index:0;will-change:transform;}
 /* Optimisation GPU pour les éléments animés */
 .live-dot,.heb-dot,.dispo-updated-dot,.cef-live,.hero-eyebrow-dot{will-change:opacity,transform;}
@@ -555,8 +559,8 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 #sec-profil .gallery-item img:not([src]){display:none;}
 
 /* Ajustement body quand lecteur visible */
-body.wsp-open{padding-bottom:140px;}
-body.wsp-open.wsp-minimized{padding-bottom:88px;}
+/* body.wsp-open géré dynamiquement via --player-h */
+/* body.wsp-open.wsp-minimized géré dynamiquement via --player-h */
 
 /* ── Modal Admin chanson ── */
 #weekSongAdminModal{
@@ -1114,7 +1118,7 @@ body.wsp-open.wsp-minimized{padding-bottom:88px;}
 .socpub-modal-sheet{
   background:var(--surface);border:1px solid rgba(255,45,155,0.3);
   border-radius:24px 24px 0 0;width:100%;max-width:560px;
-  max-height:94vh;overflow-y:auto;padding:1.5rem 1.2rem 2.5rem;
+  max-height:calc(94vh - var(--player-h));overflow-y:auto;padding:1.5rem 1.2rem 2.5rem;
   animation:slideUpSheet 0.35s cubic-bezier(0.34,1.2,0.64,1);
 }
 .socpub-modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;}
@@ -2693,12 +2697,12 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 .footer-links a:hover{color:var(--cyan);}
 
 /* TOAST */
-.toast{position:fixed;bottom:72px;left:50%;transform:translateX(-50%) translateY(20px);background:linear-gradient(135deg,var(--pink),var(--cyan));color:#000;font-weight:800;font-size:0.82rem;padding:0.6rem 1.4rem;border-radius:100px;opacity:0;transition:all 0.3s;pointer-events:none;z-index:300;white-space:nowrap;box-shadow:0 4px 20px rgba(255,45,155,0.4);}
+.toast{position:fixed;bottom:calc(var(--nav-h) + var(--player-h) + 18px);left:50%;transform:translateX(-50%) translateY(20px);background:linear-gradient(135deg,var(--pink),var(--cyan));color:#000;font-weight:800;font-size:0.82rem;padding:0.6rem 1.4rem;border-radius:100px;opacity:0;transition:all 0.3s;pointer-events:none;z-index:300;white-space:nowrap;box-shadow:0 4px 20px rgba(255,45,155,0.4);}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
 /* ── BARRE DE PROGRESSION UPLOAD GLOBALE ── */
 #uploadProgressBar{
-  position:fixed;bottom:54px;left:0;right:0;z-index:400;
+  position:fixed;bottom:calc(var(--nav-h) + var(--player-h));left:0;right:0;z-index:400;
   padding:0 0;
   pointer-events:none;
   opacity:0;
@@ -4635,7 +4639,7 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 
 /* ── BOUTON FLOTTANT CRÉER ── */
 .soc-fab{
-  position:fixed;bottom:74px;right:1rem;
+  position:fixed;bottom:calc(var(--nav-h) + var(--player-h) + 20px);right:1rem;
   width:48px;height:48px;border-radius:50%;
   background:linear-gradient(135deg,var(--pink),var(--purple));
   border:none;color:#fff;font-size:1.4rem;
@@ -4646,7 +4650,7 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 }
 .soc-fab:active{transform:scale(0.88);}
 .soc-fab-menu{
-  position:fixed;bottom:130px;right:0.7rem;
+  position:fixed;bottom:calc(var(--nav-h) + var(--player-h) + 76px);right:0.7rem;
   display:flex;flex-direction:column;gap:0.5rem;
   z-index:149;
   /* Toujours flex — masqué par opacity/transform pour animation instantanée */
@@ -4693,8 +4697,8 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   position:fixed;inset:0;background:rgba(0,0,0,0.75);
   backdrop-filter:blur(8px);z-index:500;
   display:none;align-items:flex-end;justify-content:center;
-  /* ↓ évite que le sheet passe sous la bottom nav (62px) */
-  padding-bottom:62px;
+  /* nav bar + lecteur si actif */
+  padding-bottom:calc(var(--nav-h) + var(--player-h));
 }
 .soc-modal-overlay.open{display:flex;}
 @keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -4730,6 +4734,10 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 .soc-modal-body{padding:1rem;}
 
 /* ── DM Chat Modal ── */
+/* padding-bottom : nav bar + lecteur, via variable globale --player-h */
+#modalDMChat{
+  padding-bottom: calc(var(--nav-h) + var(--player-h)) !important;
+}
 #modalDMChat .soc-modal-sheet{
   display:flex;flex-direction:column;
   height:72vh;max-height:72vh;
@@ -4775,8 +4783,10 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 .dm-input-row{
   display:flex;align-items:center;gap:0.5rem;
   padding:0.6rem 1rem;
+  padding-bottom:max(0.6rem, env(safe-area-inset-bottom, 0.6rem));
   border-top:1px solid rgba(255,255,255,0.07);
   background:var(--surface);flex-shrink:0;
+  position:sticky;bottom:0;z-index:2;
 }
 .dm-text-input{
   flex:1;background:var(--surface2);
@@ -25562,7 +25572,7 @@ document.addEventListener('keydown',function(e){
      ═══════════════════════════════════════════════════════════════════ -->
 
 <!-- MODAL PRINCIPALE COMMANDE TAXI PRO -->
-<div id="taxiProCommandModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:900;display:none;align-items:flex-end;justify-content:center;animation:fadeIn 0.3s;">
+<div id="taxiProCommandModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:900;display:none;align-items:flex-end;justify-content:center;animation:fadeIn 0.3s;padding-bottom:calc(var(--nav-h) + var(--player-h));">
   <div class="taxi-modal" style="position:relative;width:100%;max-width:480px;max-height:90vh;border-radius:20px 20px 0 0;display:block;overflow-y:auto;">
     <div class="taxi-modal-handle"></div>
     
@@ -26243,7 +26253,7 @@ function uploadDriverPhoto(idx, input) {
 
 function showTaxiNotification(msg) {
   const toast = document.createElement('div');
-  toast.style.cssText = 'position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:var(--taxi-gold);color:var(--taxi-dark);padding:12px 20px;border-radius:20px;font-weight:700;z-index:9999;animation:slideUp 0.3s ease;box-shadow:0 4px 16px rgba(157,132,255,0.3);';
+  toast.style.cssText = 'position:fixed;bottom:calc(var(--nav-h, 54px) + var(--player-h, 0px) + 46px);left:50%;transform:translateX(-50%);background:var(--taxi-gold);color:var(--taxi-dark);padding:12px 20px;border-radius:20px;font-weight:700;z-index:9999;animation:slideUp 0.3s ease;box-shadow:0 4px 16px rgba(157,132,255,0.3);';
   toast.textContent = msg;
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
@@ -31106,7 +31116,7 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
     }
     _active = true;
     var player = document.getElementById('weekSongPlayer');
-    if (player) { player.classList.add('show'); document.body.classList.add('wsp-open'); }
+    if (player) { player.classList.add('show'); document.body.classList.add('wsp-open'); if(window._syncPlayerH) window._syncPlayerH(); }
 
     /* ★ CORRECTIF PRINCIPAL : si l'audio n'est pas encore initialisé
        (ex. Firebase sync pas encore terminée, ou premier clic après reload),
@@ -31171,7 +31181,8 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
     var player = document.getElementById('weekSongPlayer');
     if (player) { player.classList.remove('show'); player.classList.remove('minimized'); }
     document.body.classList.remove('wsp-open');
-    document.body.classList.remove('wsp-minimized');
+    document.body.classList.remove('wsp-minimized'); if(window._syncPlayerH) window._syncPlayerH();
+    if(window._syncPlayerH) window._syncPlayerH();
     _setPlaying(false);
   };
 
@@ -31188,7 +31199,7 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
       if (topTitle) topTitle.textContent = 'Chanson de la semaine';
     } else {
       player.classList.add('minimized');
-      document.body.classList.add('wsp-minimized');
+      document.body.classList.add('wsp-minimized'); if(window._syncPlayerH) window._syncPlayerH();
       var titre = document.getElementById('wspTitle');
       var label = (titre && titre.textContent) ? titre.textContent : 'Chanson de la semaine';
       if (btn) { btn.innerHTML = '&#x25a1;'; btn.title = 'Agrandir'; }
@@ -34007,7 +34018,7 @@ function pShowToast(msg) {
   if(!t){
     t = document.createElement('div');
     t.id = 'p-toast-el';
-    t.style.cssText = 'position:fixed;bottom:5.5rem;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(0,255,170,.9);color:#000;font-size:.82rem;font-weight:800;padding:.55rem 1.2rem;border-radius:30px;opacity:0;transition:all .3s;pointer-events:none;z-index:600;white-space:nowrap;';
+    t.style.cssText = 'position:fixed;bottom:calc(var(--nav-h, 54px) + var(--player-h, 0px) + 18px);left:50%;transform:translateX(-50%) translateY(20px);background:rgba(0,255,170,.9);color:#000;font-size:.82rem;font-weight:800;padding:.55rem 1.2rem;border-radius:30px;opacity:0;transition:all .3s;pointer-events:none;z-index:600;white-space:nowrap;';
     document.body.appendChild(t);
   }
   t.textContent = msg;
@@ -35055,7 +35066,7 @@ console.log('[AMBI241] ✅ Système Profils Publics chargé — openPublicProfil
     .ambi-scroll-nav {
       position: fixed;
       right: 14px;
-      bottom: 88px; /* au-dessus de la tab bar (62px) */
+      bottom: calc(var(--nav-h, 54px) + var(--player-h, 0px) + 34px); /* au-dessus de la tab bar + lecteur */
       z-index: 500;
       display: flex;
       flex-direction: column;
@@ -36246,6 +36257,52 @@ var _dmUnsub         = null;
 
 function _dmConvId(a, b){ return a < b ? a+'_'+b : b+'_'+a; }
 
+/* ══════════════════════════════════════════════════════════════
+   PLAYER HEIGHT SYNC — système global unique
+   Met à jour --player-h sur :root dès que #weekSongPlayer
+   apparaît, disparaît ou change de taille.
+   Tous les éléments fixed bottom utilisent cette variable.
+══════════════════════════════════════════════════════════════ */
+(function(){
+  function _syncPlayerH(){
+    var player = document.getElementById('weekSongPlayer');
+    var h = (player && (player.classList.contains('show') || player.style.display === 'flex'))
+              ? player.offsetHeight
+              : 0;
+    document.documentElement.style.setProperty('--player-h', h + 'px');
+  }
+
+  function _attachPlayerObserver(){
+    var player = document.getElementById('weekSongPlayer');
+    if(!player) return;
+    if(player._ambiObserved) return;
+    player._ambiObserved = true;
+
+    // Observer class/style changes (show / hide / minimize)
+    if(typeof MutationObserver !== 'undefined'){
+      var mo = new MutationObserver(_syncPlayerH);
+      mo.observe(player, { attributes: true, attributeFilter: ['class','style'] });
+    }
+
+    // Observer resize (lecture complète vs miniature)
+    if(typeof ResizeObserver !== 'undefined'){
+      var ro = new ResizeObserver(_syncPlayerH);
+      ro.observe(player);
+    }
+
+    _syncPlayerH(); // état initial
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', _attachPlayerObserver);
+  } else {
+    setTimeout(_attachPlayerObserver, 300);
+  }
+
+  // Exposer pour que weekSongOpen/Close puissent forcer la sync immédiatement
+  window._syncPlayerH = _syncPlayerH;
+})();
+
 window.openDM = function(uid){
   if(!window.currentUserUID){
     if(typeof socToast==='function') socToast('🔒 Connectez-vous pour envoyer un message');
@@ -36270,6 +36327,7 @@ window.openDM = function(uid){
   var box=document.getElementById('dmMessages');
   if(box) box.innerHTML='<div class="dm-empty"><div class="dm-empty-icon">⏳</div><div class="dm-empty-txt">Chargement…</div></div>';
 
+  if(window._syncPlayerH) window._syncPlayerH();
   openModal('modalDMChat');
   _dmMarkRead(_dmCurrentConvId, window.currentUserUID);
 
