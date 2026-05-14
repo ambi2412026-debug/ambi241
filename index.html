@@ -8974,8 +8974,12 @@ function _subscribeAllEtabs() {
   var actifs = etablissements.filter(function(e){
     return e.paiement === "Confirme" || e.paiement === "Actif" || estPaiementConfirme(e);
   });
-  // Fallback : si aucun actif, prendre les 30 premiers
-  if(actifs.length === 0) actifs = etablissements.slice(0, 30);
+  /* Bug2-FIX: Cap à 15 max — chaque _subscribeEtab ouvre 3 onSnapshot Firestore
+   * (presences + votes + ratings). 30+ etabs = 90+ WebSocket listeners simultanés
+   * sur mobile → saturation mémoire → crash navigateur ("Aïe aïe aïe"). */
+  var MAX_SUBS = 15;
+  if(actifs.length === 0) actifs = etablissements.slice(0, Math.min(MAX_SUBS, etablissements.length));
+  actifs = actifs.slice(0, MAX_SUBS);
   actifs.forEach(function(e) { _subscribeEtab(e.id); });
 }
 
@@ -9359,13 +9363,15 @@ function _gphotoEnqueue(e) {
   if (!already) _gphotoFetchQueue.push({ e: e });
 }
 
-/* ── Lancer le fetch pour tous les établissements ────────────────────── */
+/* ── autoFetchAllGooglePhotos DÉSACTIVÉE ────────────────────────────────
+ * Ancienne fonction qui enqueues TOUS les établissements en une fois
+ * → des centaines de requêtes Google simultanées → crash navigateur mobile.
+ * Les photos sont maintenant chargées à la demande (lazy) via _gphotoEnqueue()
+ * appelé lors du rendu de chaque carte individuelle. */
 function autoFetchAllGooglePhotos() {
-  if (!etablissements || !etablissements.length) return;
-  etablissements.forEach(function(e){ _gphotoEnqueue(e); });
-  if (_gphotoFetchQueue.length > 0) _gphotoProcessQueue();
+  /* NO-OP intentionnel — ne pas réactiver sans throttling */
+  return;
 }
-
 window.autoFetchAllGooglePhotos = autoFetchAllGooglePhotos;
 window._gphotoEnqueue = _gphotoEnqueue;
 window.generateFallbackPhoto = generateFallbackPhoto;
@@ -11259,11 +11265,12 @@ function loadData(){
     setTimeout(loadAllPhotoProfiles, 1500);
     loadPaiementsFromFirebase();
     if (typeof window._subscribeAllEtabs === "function") { window._subscribeAllEtabs(); }
-    // Précharger photos slot uniquement pour les actifs
+    // Précharger photos slot — limité aux 10 premiers actifs pour éviter le flood Firebase
     setTimeout(function(){
       if(typeof loadSlotPhotosAsync === 'function' && etablissements && etablissements.length){
         var actifs = etablissements.filter(function(e){ return estPaiementConfirme(e); });
-        actifs.forEach(function(e){ if(e.id) loadSlotPhotosAsync(e.id); });
+        /* Bug2-FIX: max 10 chargements simultanés — sinon 50+ requêtes Firebase en même temps */
+        actifs.slice(0, 10).forEach(function(e){ if(e.id) loadSlotPhotosAsync(e.id); });
       }
     }, 2000);
   }).catch(function(err){
@@ -19954,16 +19961,30 @@ window.openAdminAddModal=openAdminAddModal;
 window.loadData=loadData;
 
 // ── Vue d'ensemble ─────────────────────────────────────────────
+/* Compteur de tentatives pour briser la boucle infinie si Firebase ne répond pas */
+if(typeof window._admOverviewRetries === 'undefined') window._admOverviewRetries = 0;
 function renderAdmOverview(){
   var d=etablissements;
   /* Si les données ne sont pas encore chargées, afficher un loader et réessayer */
   if(!d || d.length === 0){
     var overviewElCheck = document.getElementById("adminOverviewContent");
+    window._admOverviewRetries++;
+    if(window._admOverviewRetries > 8){
+      /* Abandon après ~12 secondes — évite la boucle infinie */
+      if(overviewElCheck){
+        overviewElCheck.innerHTML = "<div style='text-align:center;padding:2.5rem 1rem;'>"
+          +"<div style='font-size:2rem;margin-bottom:0.5rem;'>⚠️</div>"
+          +"<div style='color:var(--red);font-size:0.85rem;margin-bottom:1rem;font-weight:700;'>Impossible de charger les données Firebase.</div>"
+          +"<button onclick='window._admOverviewRetries=0;if(typeof loadData===\"function\")loadData();setTimeout(renderAdmOverview,1500);' style='padding:0.5rem 1.2rem;border-radius:10px;border:1px solid rgba(255,68,102,0.35);background:rgba(255,68,102,0.08);color:var(--red);font-family:DM Sans,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;'>↻ Réessayer</button>"
+          +"</div>";
+      }
+      return; /* Pas de nouveau setTimeout — fin de la boucle */
+    }
     if(overviewElCheck && overviewElCheck.innerHTML.indexOf('kpi') === -1){
       overviewElCheck.innerHTML = "<div style='text-align:center;padding:2.5rem 1rem;'>"
         +"<div style='font-size:2rem;margin-bottom:0.5rem;'>⏳</div>"
         +"<div style='color:var(--muted);font-size:0.85rem;margin-bottom:1rem;'>Connexion à Firebase en cours…</div>"
-        +"<button onclick='if(typeof loadData===\"function\")loadData();setTimeout(renderAdmOverview,1200);' style='padding:0.5rem 1.2rem;border-radius:10px;border:1px solid rgba(0,229,255,0.35);background:rgba(0,229,255,0.08);color:var(--cyan);font-family:DM Sans,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;'>↻ Actualiser</button>"
+        +"<button onclick='window._admOverviewRetries=0;if(typeof loadData===\"function\")loadData();setTimeout(renderAdmOverview,1200);' style='padding:0.5rem 1.2rem;border-radius:10px;border:1px solid rgba(0,229,255,0.35);background:rgba(0,229,255,0.08);color:var(--cyan);font-family:DM Sans,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;'>↻ Actualiser</button>"
         +"</div>";
     }
     setTimeout(function(){
@@ -19971,6 +19992,7 @@ function renderAdmOverview(){
     }, 1500);
     return;
   }
+  window._admOverviewRetries = 0; /* Données chargées — reset compteur pour la prochaine ouverture */
   var actifs=d.filter(function(e){return e.paiement&&e.paiement.indexOf("Actif")!==-1;}).length;
   var bondes=d.filter(function(e){return e.statut&&e.statut.indexOf("Bonde")!==-1;}).length;
   var animes=d.filter(function(e){return e.statut&&e.statut.indexOf("Anime")!==-1;}).length;
