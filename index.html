@@ -11273,7 +11273,7 @@ function loadData(){
     rebuildPaiements();
     // Appliquer le statut dynamique basé sur l'affluence réelle
     etablissements.forEach(function(e){ applyDynamicStatus(e); });
-    setSyncing(false);renderStats();renderAll();renderHome();renderPayments();updateSyncTime();if(typeof i18n!=="undefined")i18n.applyTranslations();
+    setSyncing(false);if(typeof invalidateScoreCache==='function')invalidateScoreCache();renderStats();renderAll();renderHome();renderPayments();updateSyncTime();if(typeof i18n!=="undefined")i18n.applyTranslations();
     /* ── Rafraîchir la vue d'ensemble admin si elle est ouverte ── */
     if(isAdmin && (_currentAdmTab==='overview'||window._currentAdmTab==='overview') && typeof renderAdmOverview==='function'){ renderAdmOverview(); }
     // Lancer le fetch automatique des photos Google Places pour tous les établissements sans photo
@@ -15686,10 +15686,23 @@ window.submitRating     = submitRating;
 
 
 
-// RENDER ALL — avec debounce pour éviter les appels multiples consécutifs
+// RENDER ALL — avec debounce optimisé
 var _renderAllTimer = null;
 var _renderAllPending = false;
 var _renderAllOrig = renderAllImmediate;
+
+/* ── Cache de scores (invalidé uniquement lors de changements de données) ── */
+var _scoreCache = {};
+var _scoreCacheVersion = 0;
+
+function _getCachedScore(e){
+  var key = e.id + '_' + _scoreCacheVersion;
+  if(!_scoreCache[key]) _scoreCache[key] = computeRankScore(e);
+  return _scoreCache[key];
+}
+
+function invalidateScoreCache(){ _scoreCacheVersion++; _scoreCache = {}; _rankCache = null; }
+window.invalidateScoreCache = invalidateScoreCache;
 
 /* ── Restaurer les photos sauvegardées localement au chargement ── */
 function restorePhotosPersistence(){
@@ -15727,7 +15740,7 @@ function restorePhotosPersistence(){
 
 function renderAll(){
   if(_renderAllTimer) clearTimeout(_renderAllTimer);
-  _renderAllTimer = setTimeout(renderAllImmediate, 16); // 1 frame ~16ms
+  _renderAllTimer = setTimeout(renderAllImmediate, 80); // debounce 80ms — évite les appels multiples
 }
 
 function renderAllImmediate(){
@@ -15800,25 +15813,33 @@ function renderAllImmediate(){
 
   var html=gpsBannerHtml;
   if(currentView==="compact"){
-    // Vue compacte : tri par score
+    // Vue compacte : tri par score (avec cache)
     if(!isAdmin){
       data = data.slice().sort(function(a,b){
-        return computeRankScore(b).score - computeRankScore(a).score;
+        return _getCachedScore(b).score - _getCachedScore(a).score;
       });
     }
     html+="<div class=\"compact-list\">";
     data.forEach(function(e,i){ html+=buildCompactRow(e,i+1); });
     html+="</div>";
   } else if(currentView==="liste"){
-    // Tri par score dans la vue liste (visiteurs)
+    // Tri par score dans la vue liste (visiteurs, avec cache)
     if(!isAdmin){
       data = data.slice().sort(function(a,b){
-        return computeRankScore(b).score - computeRankScore(a).score;
+        return _getCachedScore(b).score - _getCachedScore(a).score;
       });
     }
+    var PAGE = 20;
+    var shown = data.slice(0, PAGE);
+    var rest  = data.length - PAGE;
     html+="<div class=\"cards-list\">";
-    data.forEach(function(e,i){html+=buildCard(e,i*0.02,false,i+1);}); // délai réduit 0.04→0.02
+    shown.forEach(function(e,i){html+=buildCard(e,i*0.02,false,i+1);});
     html+="</div>";
+    if(rest > 0){
+      html += '<div style="text-align:center;padding:1rem 0;">'
+        +'<button onclick="renderAllPaged('+PAGE+','+data.length+')" style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;padding:0.55rem 1.4rem;border-radius:100px;cursor:pointer;">Voir '+rest+' lieux de plus ↓</button>'
+        +'</div>';
+    }
   } else {
     var groups={};
     data.forEach(function(e){var c=getCategory(e.type);if(!groups[c])groups[c]=[];groups[c].push(e);});
@@ -15829,7 +15850,7 @@ function renderAllImmediate(){
       if(groups[cat.key]&&groups[cat.key].length>0){
         // ── Tri par score à l'intérieur de chaque catégorie ──
         var groupSorted = groups[cat.key].slice().sort(function(a,b){
-          return computeRankScore(b).score - computeRankScore(a).score;
+          return _getCachedScore(b).score - _getCachedScore(a).score;
         });
         catHtml+="<div class=\"cat-section\">";
         catHtml+="<div class=\"cat-header\"><span class=\"cat-icon\">"+cat.icon+"</span><span class=\"cat-name\">"+cat.label+"</span><span class=\"cat-count\">"+groupSorted.length+" lieu"+(groupSorted.length>1?"x":"")+"</span></div>";
@@ -15867,7 +15888,34 @@ function renderAllImmediate(){
   if(window._ambiMapReady && window._renderMapMarkers) window._renderMapMarkers(data);
 }
 
-// PAYMENTS
+// ── Charger plus d'établissements (pagination liste) ──
+window.renderAllPaged = function(from, total){
+  var data = filterData();
+  if(!isAdmin){
+    data = data.slice().sort(function(a,b){
+      return _getCachedScore(b).score - _getCachedScore(a).score;
+    });
+  }
+  var PAGE = 20;
+  var nextFrom = from + PAGE;
+  var chunk = data.slice(from, nextFrom);
+  var list = document.querySelector('#mainList .cards-list');
+  if(!list) return;
+  var frag = '';
+  chunk.forEach(function(e,i){ frag += buildCard(e,(from+i)*0.02,false,from+i+1); });
+  // Remplacer le bouton "Voir plus"
+  var btn = document.querySelector('#mainList [onclick^="renderAllPaged"]');
+  if(btn){
+    var wrap = btn.parentNode;
+    list.insertAdjacentHTML('beforeend', frag);
+    if(nextFrom < total){
+      wrap.querySelector('button').setAttribute('onclick','renderAllPaged('+nextFrom+','+total+')');
+      wrap.querySelector('button').textContent = 'Voir '+(total-nextFrom)+' lieux de plus ↓';
+    } else {
+      wrap.remove();
+    }
+  }
+};
 function toggleConfirme(index){
   if(!isAdmin)return;
   var p=paiements[index];
