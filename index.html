@@ -8746,6 +8746,9 @@ onAuthStateChanged(auth, function(user) {
       if(typeof renderAll === "function") { renderAll(); renderHome(); }
       // ── Synchroniser les notifications Firebase pour cet utilisateur ──
       if(typeof _syncUserNotifsFromFirebase === "function") _syncUserNotifsFromFirebase();
+      // ── Initialiser le cache des likes de l'utilisateur ──
+      if(typeof _initLikedCache === 'function') setTimeout(_initLikedCache, 600);
+      if(typeof window.__onAuthPubHook === 'function') window.__onAuthPubHook(user.uid);
       // ── Mettre à jour le label nav Connexion → Profil ──
       if(typeof updateNavLabels === "function") updateNavLabels();
       // ── Pré-remplir sec-profil avec les vraies données utilisateur ──
@@ -24256,8 +24259,9 @@ window.doAssignEtab = doAssignEtab;
       +photosHtml
       +videoHtml
       +'<div class="pub-footer">'
-      +'<button class="pub-action-btn" onclick="likePub(\''+p._id+'\',this)">&#10084;&#65039; <span>'+likes+'</span></button>'
-      +'<button class="pub-action-btn" onclick="togglePubComments(\''+p._id+'\',this)">&#128172; <span>'+comments+'</span></button>'
+      +'<button class="pub-action-btn pub-like-btn'+((_likedPubs&&_likedPubs[p._id])?' liked':'')+' " onclick="likePub(\''+p._id+'\',this)">&#10084;&#65039; <span>'+likes+'</span></button>'
+      +'<button class="pub-action-btn pub-comment-btn" onclick="togglePubComments(\''+p._id+'\',this)">&#128172; <span>'+comments+'</span></button>'
+      +'<button class="pub-action-btn" onclick="sharePub(\''+p._id+'\')" style="margin-left:auto;">&#8629;&#65039; Partager</button>'
       +(p.etab ? '<span class="pub-etab-tag" style="cursor:pointer;" onclick="searchEtabFromPub(\''+escHtml(p.etab)+'\')" title="Voir cet établissement">&#128205; '+escHtml(p.etab)+'</span>' : "")
       +'</div>'
       +commentsSection
@@ -24545,12 +24549,11 @@ window.doAssignEtab = doAssignEtab;
         // Incrémenter le compteur
         var cardEl = document.querySelector('[data-pubid="'+pubId+'"]');
         if(cardEl){
-          var cmtSpan = cardEl.querySelector('.pub-action-btn:nth-child(2) span');
+          var cmtSpan = cardEl.querySelector('.pub-comment-btn span') || cardEl.querySelector('.pub-action-btn:nth-child(2) span');
           if(cmtSpan) cmtSpan.textContent = (parseInt(cmtSpan.textContent)||0) + 1;
         }
-        window.fbUpdateDoc(window.fbDoc(window.db, "publications", pubId), {
-          comments: ((_pubData.find(function(p){return p._id===pubId;})||{}).comments||0) + 1
-        }).catch(function(){});
+        var incVal = window.fbFieldIncrement ? window.fbFieldIncrement(1) : (((_pubData.find(function(p){return p._id===pubId;})||{}).comments||0)+1);
+        window.fbUpdateDoc(window.fbDoc(window.db,'publications',pubId),{comments:incVal}).catch(function(){});
         loadPubComments(pubId);
       })
       .catch(function(e){
@@ -24570,12 +24573,11 @@ window.doAssignEtab = doAssignEtab;
         // Décrémenter le compteur
         var cardEl = document.querySelector('[data-pubid="'+pubId+'"]');
         if(cardEl){
-          var cmtSpan = cardEl.querySelector('.pub-action-btn:nth-child(2) span');
+          var cmtSpan = cardEl.querySelector('.pub-comment-btn span') || cardEl.querySelector('.pub-action-btn:nth-child(2) span');
           if(cmtSpan){ var v = Math.max(0,(parseInt(cmtSpan.textContent)||0)-1); cmtSpan.textContent = v; }
         }
-        window.fbUpdateDoc(window.fbDoc(window.db, "publications", pubId), {
-          comments: Math.max(0, ((_pubData.find(function(p){return p._id===pubId;})||{}).comments||1) - 1)
-        }).catch(function(){});
+        var decVal = window.fbFieldIncrement ? window.fbFieldIncrement(-1) : Math.max(0,((_pubData.find(function(p){return p._id===pubId;})||{}).comments||1)-1);
+        window.fbUpdateDoc(window.fbDoc(window.db,'publications',pubId),{comments:decVal}).catch(function(){});
       })
       .catch(function(e){ showToast("Erreur : "+e.message); });
   };
@@ -25057,16 +25059,102 @@ window.doAssignEtab = doAssignEtab;
     }
   };
 
+  /* ═══════════════════════════════════════════════════════════════
+     LIKES — avec suivi par utilisateur (likedBy) dans Firebase
+     ═══════════════════════════════════════════════════════════════ */
+  var _likedPubs = {};   /* cache local { pubId: true/false } */
+
+  /* Initialiser le cache des likes de l'utilisateur connecté */
+  function _initLikedCache(){
+    if(!window.currentUserUID || !window.db) return;
+    /* Lire tous les likes de l'utilisateur depuis Firestore */
+    window.fbGetDocs(
+      window.fbQuery(
+        window.fbCollection(window.db,'userLikes'),
+        window.fbWhere('uid','==',window.currentUserUID)
+      )
+    ).then(function(snap){
+      snap.forEach(function(d){ _likedPubs[d.data().pubId] = true; });
+      /* Mettre à jour l'affichage des boutons déjà rendus */
+      Object.keys(_likedPubs).forEach(function(pid){
+        var btn = document.querySelector('[data-pubid="'+pid+'"] .pub-like-btn');
+        if(btn) btn.classList.add('liked');
+      });
+    }).catch(function(){});
+  }
+  /* Déclencher après connexion */
+  var _origOnAuthPub = window.__onAuthPubHook;
+  window.__onAuthPubHook = function(uid){
+    if(typeof _origOnAuthPub==='function') _origOnAuthPub(uid);
+    _initLikedCache();
+  };
+
   window.likePub = function(id, btn){
-    if(!window.currentUserUID){ showToast("Connectez-vous pour liker !"); return; }
-    if(!id || !window.db) return;
-    var spanEl = btn ? btn.querySelector("span") : null;
+    if(!window.currentUserUID){
+      if(typeof showToast==='function') showToast('🔒 Connectez-vous pour liker !');
+      return;
+    }
+    if(!id || !window.db || !window.fbDoc || !window.fbUpdateDoc) return;
+
+    var isLiked = !!_likedPubs[id];
+    var spanEl  = btn ? btn.querySelector('span') : null;
     var current = spanEl ? (parseInt(spanEl.textContent)||0) : 0;
-    var newVal = current + 1;
+    var newVal  = isLiked ? Math.max(0, current-1) : current+1;
+
+    /* Mise à jour optimiste UI */
+    _likedPubs[id] = !isLiked;
     if(spanEl) spanEl.textContent = newVal;
-    btn.classList.add("liked");
-    window.fbUpdateDoc(window.fbDoc(window.db, "publications", id), { likes: newVal })
-      .catch(function(){ if(spanEl) spanEl.textContent = current; btn.classList.remove("liked"); });
+    if(btn){
+      btn.classList.toggle('liked', !isLiked);
+      btn.style.transform='scale(1.25)';
+      setTimeout(function(){ btn.style.transform=''; },200);
+    }
+    if(typeof showToast==='function') showToast(isLiked ? '💔 Like retiré' : '❤️ J'aime !');
+
+    /* Firebase : compteur + collection userLikes */
+    var pubRef  = window.fbDoc(window.db,'publications',id);
+    var likeRef = window.fbDoc(window.db,'userLikes',window.currentUserUID+'_'+id);
+    var p1 = window.fbUpdateDoc(pubRef,{ likes: newVal });
+    var p2;
+    if(!isLiked){
+      p2 = window.fbSetDoc
+        ? window.fbSetDoc(likeRef,{ uid:window.currentUserUID, pubId:id, createdAt:window.fbServerTimestamp()})
+        : Promise.resolve();
+    } else {
+      p2 = window.fbDeleteDoc ? window.fbDeleteDoc(likeRef) : Promise.resolve();
+    }
+    Promise.all([p1,p2]).catch(function(){
+      /* Rollback */
+      _likedPubs[id] = isLiked;
+      if(spanEl) spanEl.textContent = current;
+      if(btn) btn.classList.toggle('liked', isLiked);
+      if(typeof showToast==='function') showToast('⚠️ Erreur réseau — réessayez');
+    });
+  };
+
+  /* ── Partager une publication ── */
+  window.sharePub = function(id){
+    var url  = window.location.origin + window.location.pathname + '?pub=' + id;
+    var card = document.querySelector('[data-pubid="'+id+'"]');
+    var textEl = card ? card.querySelector('.pub-text') : null;
+    var text   = textEl ? textEl.textContent.trim().slice(0,100) : 'Découvrez cette publication sur AMBI241';
+    var authorEl = card ? card.querySelector('.pub-author') : null;
+    var author   = authorEl ? authorEl.textContent.replace(/Admin|Établ\.|Membre/g,'').trim() : 'AMBI241';
+    if(navigator.share){
+      navigator.share({ title:'AMBI241 — '+author, text:text, url:url })
+        .then(function(){
+          /* Log partage Firebase */
+          if(window.db && window.fbDoc && window.fbUpdateDoc){
+            window.fbUpdateDoc(window.fbDoc(window.db,'publications',id),{shares:(window.fbFieldIncrement ? window.fbFieldIncrement(1) : 1)}).catch(function(){});
+          }
+        })
+        .catch(function(){});
+    } else {
+      try{ navigator.clipboard.writeText(url); }catch(e){}
+      if(typeof showToast==='function') showToast('📋 Lien copié dans le presse-papier !');
+    }
+  };
+
   };
 
   // ══════════════════════════════════════════════════════════════
