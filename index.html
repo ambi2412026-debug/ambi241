@@ -31,9 +31,10 @@
 html{overflow-x:hidden;max-width:100vw;scrollbar-gutter:stable;overflow-y:scroll;}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;padding-bottom:calc(var(--nav-h) + var(--player-h));padding-top:116px;max-width:100%;width:100%;}
-body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(255,45,155,0.12) 0%,transparent 50%),radial-gradient(ellipse at 90% 30%,rgba(0,229,255,0.10) 0%,transparent 50%),radial-gradient(ellipse at 50% 90%,rgba(204,68,255,0.08) 0%,transparent 50%);pointer-events:none;z-index:0;will-change:transform;}
+body::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(255,45,155,0.08) 0%,transparent 60%);pointer-events:none;z-index:0;will-change:auto;}
 /* Optimisation GPU pour les éléments animés */
-.live-dot,.heb-dot,.dispo-updated-dot,.cef-live,.hero-eyebrow-dot{will-change:opacity,transform;}
+/* ✅ OPTIMISATION: will-change restreint aux éléments réellement animés */
+.live-dot,.cef-live{will-change:opacity;}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
 
 /* ═══════════════════════════════════════════════════════════════ */
@@ -13641,20 +13642,24 @@ window.confirmAddDispoItem = function() {
 
 // ── Auto-initialisation : charger les dispos de tous les étabs ──
 (function initAllDispos() {
+  var _retries = 0;
+  var _MAX = 20; // max 20 essais = 10 secondes
   function _tryInit() {
     if (!window.etablissements || !window.etablissements.length) {
-      setTimeout(_tryInit, 600);
+      if(++_retries < _MAX) setTimeout(_tryInit, 500);
       return;
     }
-    // Charger les dispos de tous les étabs en arrière-plan
-    window.etablissements.forEach(function(e) {
-      loadDispoState(e.id, function() {
-        refreshDispoPublicOnCard(e.id);
+    // ✅ OPTIMISATION: charger les dispos via requestIdleCallback (non-bloquant)
+    var doLoad = function(){
+      window.etablissements.forEach(function(e) {
+        loadDispoState(e.id, function() { refreshDispoPublicOnCard(e.id); });
+        subscribeDispoLive(e.id);
       });
-      subscribeDispoLive(e.id);
-    });
+    };
+    if(window.requestIdleCallback) requestIdleCallback(doLoad, {timeout:3000});
+    else setTimeout(doLoad, 200);
   }
-  _tryInit();
+  setTimeout(_tryInit, 300); // délai initial pour laisser le rendu s'établir
 })();
 
 window.dispoAdjust = window.dispoAdjust;
@@ -22012,16 +22017,19 @@ function initAdminDefaultPhotosPreviews(){
 
 // ── Afficher le bouton Admin dans la nav quand mode admin actif ─
 var _admNavShown=false;
-var _admNavCheck=setInterval(function(){
+function _syncAdminNavBtn(){
   var nb=document.getElementById("adminNavBtn");
   if(!nb)return;
   if(isAdmin&&!_admNavShown){
     nb.style.display="flex"; _admNavShown=true;
   } else if(!isAdmin&&_admNavShown){
     nb.style.display="none"; _admNavShown=false;
-    closeAdminDashboard();
+    if(typeof closeAdminDashboard==='function') closeAdminDashboard();
   }
-},1000);
+}
+// ✅ OPTIMISATION: appelé à la connexion/déconnexion (suppression du setInterval 1s)
+window._syncAdminNavBtn = _syncAdminNavBtn;
+setTimeout(_syncAdminNavBtn, 800);
 
 // ─────────────────────────────────────────────────────────────
 
@@ -40946,20 +40954,28 @@ function _escPro(s){
    INIT — charger les likes dès que l'utilisateur se connecte
 ═══════════════════════════════════════════════════════════ */
 (function(){
-  /* Observer currentUserUID via polling */
-  var _uid0 = window.currentUserUID;
-  var _watchUid = setInterval(function(){
-    var uid = window.currentUserUID;
-    if(uid && uid !== _uid0){
-      _uid0 = uid;
-      _loadUserLikes(uid);
+  /* ✅ OPTIMISATION: event-driven via onAuthStateChanged (0 CPU au repos) */
+  function _tryAuth(){
+    if(window.fbOnAuthStateChanged && window.auth){
+      window.fbOnAuthStateChanged(window.auth, function(user){
+        if(user && !_likesLoaded) _loadUserLikes(user.uid);
+      });
+    } else {
+      // Firebase pas encore prêt : réessayer une seule fois après 600ms
+      setTimeout(function(){
+        if(window.fbOnAuthStateChanged && window.auth){
+          window.fbOnAuthStateChanged(window.auth, function(user){
+            if(user && !_likesLoaded) _loadUserLikes(user.uid);
+          });
+        } else if(window.currentUserUID){
+          _loadUserLikes(window.currentUserUID);
+        }
+      }, 600);
     }
-    if(uid && !_likesLoaded){
-      _loadUserLikes(uid);
-    }
-  }, 800);
-  /* Charger immédiatement si déjà connecté */
+  }
+  // Charger immédiatement si déjà connecté (sync)
   if(window.currentUserUID) _loadUserLikes(window.currentUserUID);
+  else _tryAuth();
 })();
 
 console.log('[AMBI241] ✅ Module PRO — Likes·Commentaires·Partage Firebase chargé');
