@@ -7486,7 +7486,7 @@ if (document.readyState === 'loading') {
                 <div class="igm-cat-count" id="igm-cnt-Discotheque">—</div>
               </div>
             </div>
-            <button class="igm-btn igm-btn-primary" onclick="igmStartSearch()">🔍 Lancer la recherche Google Maps</button>
+            <button class="igm-btn igm-btn-primary" onclick="igmStartSearch()">🔍 Lancer la recherche OpenStreetMap</button>
           </div>
         </div>
 
@@ -7494,7 +7494,7 @@ if (document.readyState === 'loading') {
         <div class="igm-section" id="igm-sec2">
           <div class="igm-panel">
             <div class="igm-panel-title">⏳ Recherche en cours...</div>
-            <div class="igm-panel-sub" id="igmSearchStatus">Connexion à Google Maps Places API...</div>
+            <div class="igm-panel-sub" id="igmSearchStatus">Connexion à OpenStreetMap / Overpass API...</div>
             <div class="igm-progress-wrap">
               <div class="igm-progress-bar"><div class="igm-progress-fill" id="igmProgressFill"></div></div>
               <div class="igm-progress-label"><span id="igmProgressLabel">0%</span><span id="igmProgressDetail"></span></div>
@@ -39160,18 +39160,31 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
      ══════════════════════════════════════════════════════════════ -->
 <script>
 (function(){
-  var GMAPS_KEY = "AIzaSyCx3hD28Lb9EtUrawHbTnM-6vmXdgO1ABw";
+  // ══ MOTEUR OSM — Nominatim + Overpass (100% gratuit, sans clé API) ══
   var _igmResults = [];
   var _igmSelectedIds = new Set();
   var _igmSelectedCats = new Set(['Hotel','Bar','Bar Terrasse','Snack','Restaurant','Discotheque']);
 
+  // Mapping catégorie → tags Overpass OSM + mots-clés Nominatim
   var IGM_CAT_CONFIG = {
-    "Hotel":        {label:"Hôtels & Motels",  icon:"🏨", queries:["hotel Libreville Gabon","motel Libreville Gabon","lodge Libreville Gabon","résidence hôtelière Libreville"]},
-    "Bar":          {label:"Bars",             icon:"🍺", queries:["bar Libreville Gabon","pub Libreville Gabon","lounge bar Libreville"]},
-    "Bar Terrasse": {label:"Bar Terrasses",    icon:"🍹", queries:["bar terrasse Libreville Gabon","rooftop bar Libreville"]},
-    "Snack":        {label:"Snacks",           icon:"🍟", queries:["snack Libreville Gabon","fast food Libreville Gabon","maquis Libreville"]},
-    "Restaurant":   {label:"Restos & Pâtiss.",icon:"🍽️", queries:["restaurant Libreville Gabon","patisserie Libreville Gabon","café restaurant Libreville"]},
-    "Discotheque":  {label:"Clubs",            icon:"🎵", queries:["nightclub Libreville Gabon","discothèque Libreville Gabon","boite de nuit Libreville"]}
+    "Hotel":        {label:"Hôtels & Motels",  icon:"🏨",
+      overpassTags: [["tourism","hotel"],["tourism","motel"],["tourism","guest_house"],["tourism","hostel"]],
+      queries:["hotel Libreville","motel Libreville","lodge Libreville","résidence Libreville"]},
+    "Bar":          {label:"Bars",             icon:"🍺",
+      overpassTags: [["amenity","bar"],["amenity","pub"],["amenity","lounge"]],
+      queries:["bar Libreville","pub Libreville","lounge Libreville"]},
+    "Bar Terrasse": {label:"Bar Terrasses",    icon:"🍹",
+      overpassTags: [["amenity","bar"],["amenity","pub"]],
+      queries:["bar terrasse Libreville","rooftop bar Libreville"]},
+    "Snack":        {label:"Snacks",           icon:"🍟",
+      overpassTags: [["amenity","fast_food"],["amenity","snack_bar"],["amenity","food_court"]],
+      queries:["snack Libreville","fast food Libreville","maquis Libreville"]},
+    "Restaurant":   {label:"Restos & Pâtiss.",icon:"🍽️",
+      overpassTags: [["amenity","restaurant"],["amenity","cafe"],["shop","bakery"]],
+      queries:["restaurant Libreville","patisserie Libreville","café Libreville"]},
+    "Discotheque":  {label:"Clubs",            icon:"🎵",
+      overpassTags: [["amenity","nightclub"],["amenity","music_venue"]],
+      queries:["nightclub Libreville","discothèque Libreville","boite de nuit Libreville"]}
   };
 
   var IGM_QUARTIERS = ["Centre-ville","Akanda","Glass","Libreville","Louis","Owendo","Nombakélé","Batterie IV","PK5","PK8","PK12","Angondjé","Nzeng-Ayong","La Sablière"];
@@ -39260,89 +39273,93 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     if(stat && label) stat.textContent = label;
   }
 
-  /* ── Chargement SDK Google Maps ── */
   /* ══════════════════════════════════════════════════════════
-     MOTEUR DE RECHERCHE — double stratégie :
-     1) API REST Places (Text Search) via fetch — pas de restriction domaine
-     2) Fallback SDK JS si l'API REST échoue (CORS ou quota)
+     MOTEUR OSM — double stratégie sans clé API :
+     1) Overpass API — données structurées OSM (tags amenity/tourism)
+     2) Nominatim    — recherche textuelle en fallback
      ══════════════════════════════════════════════════════════ */
 
-  /* ── Recherche via REST API Places — proxy CORS gratuit en fallback ── */
-  var IGM_PROXIES = [
-    '',
-    'https://api.allorigins.win/raw?url=',
-    'https://corsproxy.io/?'
-  ];
-  var _igmProxyIdx = 0;
+  // Libreville bounding box : sud,ouest,nord,est
+  var IGM_BBOX = '0.25,9.35,0.55,9.60';
+  var IGM_CENTER = {lat: 0.4162, lng: 9.4673};
 
-  function igmSearchREST(query) {
-    var target = 'https://maps.googleapis.com/maps/api/place/textsearch/json'
-      + '?query=' + encodeURIComponent(query)
-      + '&location=0.4162,9.4673'
-      + '&radius=25000'
-      + '&language=fr'
-      + '&key=' + GMAPS_KEY;
-    function tryProxy(idx) {
-      var url = IGM_PROXIES[idx]
-        ? IGM_PROXIES[idx] + encodeURIComponent(target)
-        : target;
-      return fetch(url)
-        .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-        .then(function(data){
-          if(data.status==='OK'||data.status==='ZERO_RESULTS'){ _igmProxyIdx=idx; return data.results||[]; }
-          throw new Error('API: '+data.status+(data.error_message?' — '+data.error_message:''));
-        })
-        .catch(function(e){ if(idx+1<IGM_PROXIES.length) return tryProxy(idx+1); throw e; });
-    }
-    return tryProxy(_igmProxyIdx);
-  }
+  /* ── Recherche Overpass (tags OSM) ── */
+  function igmSearchOverpass(tagPairs) {
+    // Construire la requête Overpass QL
+    var nodeQueries = tagPairs.map(function(pair){
+      return 'node["' + pair[0] + '"="' + pair[1] + '"](' + IGM_BBOX + ');';
+    }).join('\n');
+    var wayQueries = tagPairs.map(function(pair){
+      return 'way["' + pair[0] + '"="' + pair[1] + '"](' + IGM_BBOX + ');';
+    }).join('\n');
+    var query = '[out:json][timeout:25];\n(\n' + nodeQueries + '\n' + wayQueries + '\n);\nout center;';
 
-  /* ── Charger le SDK Google Maps JS ── */
-  function igmLoadSDK() {
-    return new Promise(function(resolve, reject){
-      if(window.google && window.google.maps && window.google.maps.places){ resolve(); return; }
-      var s = document.createElement('script');
-      s.src = 'https://maps.googleapis.com/maps/api/js?key=' + GMAPS_KEY + '&libraries=places&language=fr&callback=_igmSDKReady';
-      window._igmSDKReady = function(){ resolve(); };
-      s.onerror = function(){ reject(new Error('Impossible de charger Google Maps SDK')); };
-      document.head.appendChild(s);
-    });
-  }
+    var OVERPASS_ENDPOINTS = [
+      'https://overpass-api.de/api/interpreter',
+      'https://overpass.kumi.systems/api/interpreter'
+    ];
 
-  /* ── Recherche via SDK JS (fallback) ── */
-  function igmSearchSDK(q, service) {
-    return new Promise(function(resolve){
-      var req = { query: q, location: new google.maps.LatLng(0.4162, 9.4673), radius: 25000, language: 'fr' };
-      service.textSearch(req, function(results, status, pagination){
-        var all = results || [];
-        if(status === google.maps.places.PlacesServiceStatus.OK && pagination && pagination.hasNextPage){
-          setTimeout(function(){
-            pagination.nextPage();
-            service.textSearch(req, function(r2){ resolve(all.concat(r2||[])); });
-          }, 1200);
-        } else {
-          resolve(all);
-        }
+    function tryEndpoint(idx) {
+      return fetch(OVERPASS_ENDPOINTS[idx], {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'data=' + encodeURIComponent(query)
+      })
+      .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .then(function(data){
+        return (data.elements || []).map(function(el){
+          var tags = el.tags || {};
+          var lat = el.lat || (el.center && el.center.lat) || 0;
+          var lng = el.lon || (el.center && el.center.lon) || 0;
+          var addr = [tags['addr:street'], tags['addr:city'] || 'Libreville'].filter(Boolean).join(', ');
+          return {
+            place_id: 'osm_' + el.type + '_' + el.id,
+            name: tags.name || tags['name:fr'] || null,
+            formatted_address: addr || 'Libreville, Gabon',
+            rating: 0,
+            user_ratings_total: 0,
+            geometry: { location: { lat: lat, lng: lng } }
+          };
+        }).filter(function(p){ return p.name; }); // ignorer sans nom
+      })
+      .catch(function(e){
+        if(idx + 1 < OVERPASS_ENDPOINTS.length) return tryEndpoint(idx + 1);
+        throw e;
       });
-    });
+    }
+    return tryEndpoint(0);
   }
 
-  /* ── Normaliser un résultat REST → format commun ── */
+  /* ── Recherche Nominatim (texte libre) ── */
+  function igmSearchNominatim(query) {
+    var url = 'https://nominatim.openstreetmap.org/search'
+      + '?q=' + encodeURIComponent(query + ' Gabon')
+      + '&format=json'
+      + '&limit=20'
+      + '&addressdetails=1'
+      + '&bounded=1'
+      + '&viewbox=9.35,0.55,9.60,0.25'
+      + '&accept-language=fr';
+    return fetch(url, { headers: { 'Accept': 'application/json', 'User-Agent': 'AMBI241-App/1.0' } })
+      .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .then(function(data){
+        return (data || []).map(function(el){
+          var addr = el.display_name || 'Libreville, Gabon';
+          return {
+            place_id: 'nom_' + el.osm_type + '_' + el.osm_id,
+            name: el.namedetails && el.namedetails.name ? el.namedetails.name : el.display_name.split(',')[0],
+            formatted_address: addr,
+            rating: 0,
+            user_ratings_total: 0,
+            geometry: { location: { lat: parseFloat(el.lat), lng: parseFloat(el.lon) } }
+          };
+        });
+      });
+  }
+
+  /* ── Normaliser un résultat OSM → format commun (déjà normalisé ci-dessus) ── */
   function igmNormalizeREST(p) {
-    return {
-      place_id: p.place_id,
-      name: p.name,
-      formatted_address: p.formatted_address || '',
-      vicinity: p.vicinity || '',
-      rating: p.rating || 0,
-      user_ratings_total: p.user_ratings_total || 0,
-      geometry: p.geometry ? {
-        location: {
-          lat: function(){ return p.geometry.location.lat; },
-          lng: function(){ return p.geometry.location.lng; }
-        }
-      } : null
-    };
+    return p; // déjà normalisé dans igmSearchOverpass / igmSearchNominatim
   }
 
   /* ── Helpers ── */
@@ -39398,7 +39415,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
   }
 
   /* ══════════════════════════════════════════════════════════
-     LANCER LA RECHERCHE — essaie REST d'abord, SDK en fallback
+     LANCER LA RECHERCHE — Overpass d'abord, Nominatim en fallback
      ══════════════════════════════════════════════════════════ */
   async function igmStartSearch() {
     if(_igmSelectedCats.size === 0){
@@ -39413,87 +39430,44 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     var totalQ = cats.reduce(function(s,c){ return s + IGM_CAT_CONFIG[c].queries.length; }, 0);
     var done   = 0;
 
-    /* ── Déterminer la stratégie : REST ou SDK ── */
-    var useREST = true;
-    var sdkService = null;
-
-    igmLog('🔍 Démarrage de la recherche (' + totalQ + ' requêtes)...');
-    igmLog('📡 Tentative via Places REST API...');
-
-    // Test rapide REST avec une requête minimaliste
-    try {
-      var testRes = await igmSearchREST('bar Libreville Gabon');
-      igmLog('✅ REST API disponible — ' + testRes.length + ' résultats test', 'ok');
-    } catch(e) {
-      useREST = false;
-      igmLog('⚠️ REST API indisponible (' + e.message + ') → basculement sur SDK JS', 'warn');
-      try {
-        igmLog('⏳ Chargement du SDK Google Maps...');
-        await igmLoadSDK();
-        igmLog('✅ SDK Google Maps chargé', 'ok');
-        var mapDiv = document.createElement('div');
-        mapDiv.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
-        document.body.appendChild(mapDiv);
-        var gmap = new google.maps.Map(mapDiv, {center:{lat:0.4162,lng:9.4673}, zoom:12});
-        sdkService = new google.maps.places.PlacesService(gmap);
-      } catch(e2) {
-        igmLog('❌ SDK également indisponible : ' + e2.message, 'err');
-        igmLog('💡 Vérifiez que la clé API est autorisée pour ce domaine dans Google Cloud Console.', 'warn');
-        if(typeof showToast==='function') showToast('❌ Google Maps inaccessible — vérifiez la clé API');
-        return;
-      }
-    }
-
-    // Si REST a réussi le test, vider les résultats test (on ne les garde pas)
-    if(useREST) {
-      // on a juste testé, on ne garde pas ces résultats
-    }
+    igmLog('🗺️ Recherche via OpenStreetMap (gratuit, sans clé API)...');
+    igmLog('📡 Démarrage — ' + totalQ + ' requêtes en cours...');
 
     try {
       for(var ci=0; ci<cats.length; ci++){
         var catKey = cats[ci];
         var cfg    = IGM_CAT_CONFIG[catKey];
-        igmLog('📂 Catégorie : ' + cfg.label + ' (' + cfg.queries.length + ' requêtes)');
+        igmLog('📂 Catégorie : ' + cfg.label);
 
+        // ── 1. Overpass : tags OSM structurés ──
+        try {
+          igmLog('  → Overpass tags OSM (' + cfg.overpassTags.length + ' tags)...');
+          var overpassRes = await igmSearchOverpass(cfg.overpassTags);
+          var newOv = igmProcessResults(overpassRes, catKey, seen, true);
+          igmLog('  ✓ Overpass : ' + overpassRes.length + ' trouvés (' + newOv + ' nouveaux)', 'ok');
+        } catch(e) {
+          igmLog('  ⚠️ Overpass indisponible : ' + e.message + ' → Nominatim...', 'warn');
+        }
+
+        // ── 2. Nominatim : recherche textuelle ──
         for(var qi=0; qi<cfg.queries.length; qi++){
           var q = cfg.queries[qi];
           done++;
-          igmSetProgress((done/totalQ)*100, 'Recherche "' + q + '"...', done+'/'+totalQ+' requêtes');
-          igmLog('  → "' + q + '"');
+          igmSetProgress((done/totalQ)*100, 'Nominatim : "' + q + '"', done+'/'+totalQ+' requêtes');
+          igmLog('  → Nominatim "' + q + '"');
 
           try {
-            var rawResults;
-            if(useREST){
-              rawResults = await igmSearchREST(q);
-            } else {
-              var sdkRaw = await igmSearchSDK(q, sdkService);
-              // normaliser SDK vers format commun
-              rawResults = sdkRaw.map(function(p){
-                return {
-                  place_id: p.place_id, name: p.name,
-                  formatted_address: p.formatted_address||p.vicinity||'',
-                  vicinity: p.vicinity||'', rating: p.rating||0,
-                  user_ratings_total: p.user_ratings_total||0,
-                  geometry: p.geometry ? {location:{
-                    lat: p.geometry.location.lat(),
-                    lng: p.geometry.location.lng()
-                  }} : null
-                };
-              });
-              useREST = false; // garder SDK si ça marche
-            }
-
-            var newFound = igmProcessResults(rawResults, catKey, seen, useREST);
-            igmLog('  ✓ ' + rawResults.length + ' résultats (' + newFound + ' nouveaux)', 'ok');
+            var nomRes = await igmSearchNominatim(q);
+            var newNom = igmProcessResults(nomRes, catKey, seen, true);
+            igmLog('  ✓ ' + nomRes.length + ' résultats (' + newNom + ' nouveaux)', 'ok');
             var cntEl = document.getElementById('igm-cnt-' + catKey);
             if(cntEl) cntEl.textContent = _igmResults.filter(function(r){ return r.catKey===catKey && !r.isExisting; }).length + ' nv';
-
           } catch(e) {
-            igmLog('  ⚠️ Erreur requête "' + q + '" : ' + e.message, 'warn');
+            igmLog('  ⚠️ Erreur "' + q + '" : ' + e.message, 'warn');
           }
 
-          // Pause anti-quota réduite
-          await new Promise(function(r){ setTimeout(r, useREST ? 150 : 250); });
+          // Respecter la politique Nominatim : 1 requête/seconde max
+          await new Promise(function(r){ setTimeout(r, 1100); });
         }
       }
 
@@ -39504,8 +39478,8 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       igmLog('⚠️ Déjà présents : ' + _igmResults.filter(function(r){ return r.isExisting; }).length, 'warn');
 
       if(_igmResults.length === 0){
-        igmLog('💡 Aucun résultat — vérifiez la clé API Google Maps (Places API activée ?)', 'warn');
-        if(typeof showToast==='function') showToast('⚠️ Aucun établissement trouvé — vérifiez la clé API');
+        igmLog('💡 Aucun résultat — les données OSM sur Libreville peuvent être incomplètes. Vous pouvez ajouter des établissements manuellement.', 'warn');
+        if(typeof showToast==='function') showToast('⚠️ Aucun établissement OSM trouvé pour ces catégories');
         igmSetStep(1);
         return;
       }
@@ -39671,17 +39645,29 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 <!-- ══ IMPORT GOOGLE MAPS — Dashboard admin réel (admtab-importgmaps) ══ -->
 <script>
 (function(){
-  var GMAPS_KEY2 = "AIzaSyCx3hD28Lb9EtUrawHbTnM-6vmXdgO1ABw";
+  // ══ MOTEUR OSM igm2 ══
   var _r2 = [], _sel2 = new Set();
   var _cats2 = new Set(['Hotel','Bar','Bar Terrasse','Snack','Restaurant','Discotheque']);
 
   var CFG2 = {
-    "Hotel":        {label:"Hôtels & Motels",  icon:"🏨", queries:["hotel Libreville Gabon","motel Libreville Gabon","résidence hôtelière Libreville"]},
-    "Bar":          {label:"Bars",             icon:"🍺", queries:["bar Libreville Gabon","pub Libreville Gabon","lounge bar Libreville"]},
-    "Bar Terrasse": {label:"Bar Terrasses",    icon:"🍹", queries:["bar terrasse Libreville Gabon","rooftop bar Libreville"]},
-    "Snack":        {label:"Snacks",           icon:"🍟", queries:["snack Libreville Gabon","fast food Libreville Gabon","maquis Libreville"]},
-    "Restaurant":   {label:"Restos & Pâtiss.",icon:"🍽️", queries:["restaurant Libreville Gabon","patisserie Libreville Gabon"]},
-    "Discotheque":  {label:"Clubs",            icon:"🎵", queries:["nightclub Libreville Gabon","discothèque Libreville Gabon"]}
+    "Hotel":        {label:"Hôtels & Motels",  icon:"🏨",
+      overpassTags:[["tourism","hotel"],["tourism","motel"],["tourism","guest_house"]],
+      queries:["hotel Libreville","motel Libreville","résidence Libreville"]},
+    "Bar":          {label:"Bars",             icon:"🍺",
+      overpassTags:[["amenity","bar"],["amenity","pub"]],
+      queries:["bar Libreville","pub Libreville","lounge Libreville"]},
+    "Bar Terrasse": {label:"Bar Terrasses",    icon:"🍹",
+      overpassTags:[["amenity","bar"],["amenity","pub"]],
+      queries:["bar terrasse Libreville","rooftop Libreville"]},
+    "Snack":        {label:"Snacks",           icon:"🍟",
+      overpassTags:[["amenity","fast_food"],["amenity","snack_bar"]],
+      queries:["snack Libreville","fast food Libreville","maquis Libreville"]},
+    "Restaurant":   {label:"Restos & Pâtiss.",icon:"🍽️",
+      overpassTags:[["amenity","restaurant"],["amenity","cafe"],["shop","bakery"]],
+      queries:["restaurant Libreville","patisserie Libreville"]},
+    "Discotheque":  {label:"Clubs",            icon:"🎵",
+      overpassTags:[["amenity","nightclub"],["amenity","music_venue"]],
+      queries:["nightclub Libreville","discothèque Libreville"]}
   };
   var QTRS2 = ["Centre-ville","Akanda","Glass","Louis","Owendo","Nombakélé","Batterie IV","PK5","PK8","PK12","Angondjé","Nzeng-Ayong","La Sablière"];
 
@@ -39764,39 +39750,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
   function igm2ProgStop(){clearInterval(_igm2ProgTimer);_igm2ProgTimer=null;}
 
-  function igm2LoadSDK(){
-    return new Promise(function(res,rej){
-      if(window.google&&window.google.maps&&window.google.maps.places){res();return;}
-      var s=document.createElement('script');
-      s.src='https://maps.googleapis.com/maps/api/js?key='+GMAPS_KEY2+'&libraries=places&language=fr';
-      s.onload=res; s.onerror=function(){rej(new Error('Impossible de charger Google Maps SDK'));};
-      document.head.appendChild(s);
-    });
-  }
-
-  /* ── Recherche une requête + récupère la page suivante si dispo (délai réduit à 300ms) ── */
-  function igm2Search(q,svc){
-    return new Promise(function(res){
-      svc.textSearch({query:q,location:new google.maps.LatLng(0.4162,9.4673),radius:25000,language:'fr'},function(results,status,pag){
-        var all=results||[];
-        if(status===google.maps.places.PlacesServiceStatus.OK&&pag&&pag.hasNextPage){
-          setTimeout(function(){
-            pag.nextPage();
-            svc.textSearch({query:q,location:new google.maps.LatLng(0.4162,9.4673),radius:25000,language:'fr'},function(r2,s2,pag2){
-              all=all.concat(r2||[]);
-              /* Optionnel : 3e page si disponible */
-              if(s2===google.maps.places.PlacesServiceStatus.OK&&pag2&&pag2.hasNextPage){
-                setTimeout(function(){
-                  pag2.nextPage();
-                  svc.textSearch({query:q,location:new google.maps.LatLng(0.4162,9.4673),radius:25000,language:'fr'},function(r3){res(all.concat(r3||[]));});
-                },300);
-              } else res(all);
-            });
-          },300); /* 300ms au lieu de 1200ms */
-        } else res(all);
-      });
-    });
-  }
+  /* igm2LoadSDK / igm2Search / igm2RunBatch — supprimés (remplacés par OSM) */
 
   function igm2IsEx(p){
     if(!window._igm2Ex) return false;
@@ -39811,175 +39765,107 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
   function igm2Esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  /* ── Traite un lot de requêtes en parallèle (max CONCURRENCY à la fois) ── */
-  var IGM2_CONCURRENCY = 5; /* 5 requêtes simultanées — optimisé mobile */
+  /* ── Recherche Overpass OSM (igm2) ── */
+  var IGM2_BBOX = '0.25,9.35,0.55,9.60';
 
-  async function igm2RunBatch(tasks, svc, seen, onProgress){
-    var results = [];
-    for(var i=0; i<tasks.length; i+=IGM2_CONCURRENCY){
-      var batch = tasks.slice(i, i+IGM2_CONCURRENCY);
-      var batchResults = await Promise.allSettled(
-        batch.map(function(t){ return igm2Search(t.q, svc).then(function(r){ return {r:r, cat:t.cat}; }); })
-      );
-      for(var bi=0; bi<batchResults.length; bi++){
-        var br = batchResults[bi];
-        if(br.status==='fulfilled'){
-          var res=br.value.r, cat=br.value.cat;
-          var nf=0;
-          for(var ri=0;ri<res.length;ri++){
-            var p=res[ri]; if(seen.has(p.place_id)) continue; seen.add(p.place_id);
-            var ex=igm2IsEx(p);
-            _r2.push({place_id:p.place_id,nom:p.name,adresse:p.formatted_address||p.vicinity||'',quartier:igm2Qrt(p.formatted_address||p.vicinity||''),note:p.rating||0,avis:p.user_ratings_total||0,lat:(p.geometry&&p.geometry.location)?p.geometry.location.lat():0,lng:(p.geometry&&p.geometry.location)?p.geometry.location.lng():0,catKey:cat,type:cat,isExisting:ex,selected:!ex});
-            if(!ex) nf++;
-          }
-          igm2Log('  ✓ '+batch[bi].q+' → '+res.length+' résultats ('+nf+' nv)','ok');
-          var ce=document.getElementById('igm2-cnt-'+cat); if(ce) ce.textContent=_r2.filter(function(r){return r.catKey===cat&&!r.isExisting;}).length+' nv';
-        } else {
-          igm2Log('  ⚠️ '+batch[bi].q+': '+(batchResults[bi].reason&&batchResults[bi].reason.message||'erreur'),'warn');
-        }
-        if(onProgress) onProgress();
-      }
-      /* Petit délai entre lots pour éviter le rate-limit Google (50ms suffit) */
-      if(i+IGM2_CONCURRENCY < tasks.length) await new Promise(function(r){setTimeout(r,50);});
-    }
-    return results;
-  }
-
-  /* ── Recherche REST Places API (Text Search) — pas de restriction CORS côté serveur ── */
-  /* ── Proxies CORS gratuits — essayés dans l'ordre ── */
-  var IGM2_PROXIES = [
-    '',
-    'https://api.allorigins.win/raw?url=',
-    'https://corsproxy.io/?'
-  ];
-  var _igm2ProxyIdx = 0;
-
-  function igm2SearchREST(q){
-    var target = 'https://maps.googleapis.com/maps/api/place/textsearch/json'
-      +'?query='+encodeURIComponent(q)
-      +'&location=0.4162,9.4673&radius=25000&language=fr'
-      +'&key='+GMAPS_KEY2;
-    function tryP(idx){
-      var url = IGM2_PROXIES[idx] ? IGM2_PROXIES[idx]+encodeURIComponent(target) : target;
-      return fetch(url)
-        .then(function(r){if(!r.ok) throw new Error('HTTP '+r.status); return r.json();})
-        .then(function(d){
-          if(d.status==='OK'||d.status==='ZERO_RESULTS'){ _igm2ProxyIdx=idx; return d.results||[]; }
-          throw new Error('API:'+d.status+(d.error_message?' — '+d.error_message:''));
+  function igm2SearchOverpass(tagPairs){
+    var nodeQ = tagPairs.map(function(p){return 'node["'+p[0]+'"="'+p[1]+'"](' + IGM2_BBOX + ');';}).join('\n');
+    var wayQ  = tagPairs.map(function(p){return 'way["'+p[0]+'"="'+p[1]+'"](' + IGM2_BBOX + ');';}).join('\n');
+    var query = '[out:json][timeout:25];\n(\n'+nodeQ+'\n'+wayQ+'\n);\nout center;';
+    var ENDPOINTS = ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+    function tryE(idx){
+      return fetch(ENDPOINTS[idx],{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(query)})
+        .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+        .then(function(data){
+          return (data.elements||[]).map(function(el){
+            var tags=el.tags||{};
+            var lat=el.lat||(el.center&&el.center.lat)||0;
+            var lng=el.lon||(el.center&&el.center.lon)||0;
+            var addr=[tags['addr:street'],tags['addr:city']||'Libreville'].filter(Boolean).join(', ');
+            return {place_id:'osm2_'+el.type+'_'+el.id,name:tags.name||tags['name:fr']||null,
+              formatted_address:addr||'Libreville, Gabon',rating:0,user_ratings_total:0,
+              geometry:{location:{lat:lat,lng:lng}}};
+          }).filter(function(p){return p.name;});
         })
-        .catch(function(e){ if(idx+1<IGM2_PROXIES.length) return tryP(idx+1); throw e; });
+        .catch(function(e){if(idx+1<ENDPOINTS.length)return tryE(idx+1);throw e;});
     }
-    return tryP(_igm2ProxyIdx);
+    return tryE(0);
   }
 
-  /* ── Traite un lot en parallèle (REST ou SDK) ── */
-  async function igm2RunBatchREST(tasks, seen, onProgress){
-    for(var i=0;i<tasks.length;i+=IGM2_CONCURRENCY){
-      var batch=tasks.slice(i,i+IGM2_CONCURRENCY);
-      var bRes=await Promise.allSettled(batch.map(function(t){return igm2SearchREST(t.q).then(function(r){return{r:r,cat:t.cat,q:t.q};});}));
-      for(var bi=0;bi<bRes.length;bi++){
-        var br=bRes[bi];
-        if(br.status==='fulfilled'){
-          var res=br.value.r,cat=br.value.cat,nf=0;
-          for(var ri=0;ri<res.length;ri++){
-            var p=res[ri];if(!p.place_id||seen.has(p.place_id))continue;seen.add(p.place_id);
-            var ex=igm2IsEx(p),lat=0,lng=0;
-            if(p.geometry&&p.geometry.location){lat=p.geometry.location.lat;lng=p.geometry.location.lng;}
-            _r2.push({place_id:p.place_id,nom:p.name,adresse:p.formatted_address||p.vicinity||'',quartier:igm2Qrt(p.formatted_address||p.vicinity||''),note:p.rating||0,avis:p.user_ratings_total||0,lat:lat,lng:lng,catKey:cat,type:cat,isExisting:ex,selected:!ex});
-            if(!ex)nf++;
-          }
-          igm2Log('  ✓ '+br.value.q+' → '+res.length+' résultats ('+nf+' nv)','ok');
-          var ce=document.getElementById('igm2-cnt-'+cat);if(ce)ce.textContent=_r2.filter(function(r){return r.catKey===cat&&!r.isExisting;}).length+' nv';
-        } else {
-          igm2Log('  ⚠️ '+batch[bi].q+': '+(bRes[bi].reason&&bRes[bi].reason.message||'erreur'),'warn');
-        }
-        if(onProgress)onProgress();
-      }
-      if(i+IGM2_CONCURRENCY<tasks.length) await new Promise(function(r){setTimeout(r,200);});
-    }
+  function igm2SearchNominatim(query){
+    var url='https://nominatim.openstreetmap.org/search'
+      +'?q='+encodeURIComponent(query+' Gabon')
+      +'&format=json&limit=20&addressdetails=1&bounded=1'
+      +'&viewbox=9.35,0.55,9.60,0.25&accept-language=fr';
+    return fetch(url,{headers:{'Accept':'application/json','User-Agent':'AMBI241-App/1.0'}})
+      .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+      .then(function(data){
+        return (data||[]).map(function(el){
+          return {place_id:'nom2_'+el.osm_type+'_'+el.osm_id,
+            name:el.display_name.split(',')[0],
+            formatted_address:el.display_name||'Libreville, Gabon',
+            rating:0,user_ratings_total:0,
+            geometry:{location:{lat:parseFloat(el.lat),lng:parseFloat(el.lon)}}};
+        });
+      });
   }
 
   async function igm2StartSearch(){
     if(!_cats2.size){if(typeof showToast==='function')showToast('⚠️ Sélectionne au moins une catégorie');return;}
     igm2Step(2); _r2=[]; var seen=new Set();
-    var cats=Array.from(_cats2), allTasks=[];
-    for(var ci=0;ci<cats.length;ci++){
-      var cat=cats[ci],cfg=CFG2[cat];
-      igm2Log('🔍 '+cfg.label+' ('+cfg.queries.length+' requêtes)...');
-      for(var qi=0;qi<cfg.queries.length;qi++) allTasks.push({q:cfg.queries[qi],cat:cat});
-    }
-    var total=allTasks.length, done=0;
-    igm2Prog(0,'Recherche via Places API...','0/'+total+' requêtes');
+    var cats=Array.from(_cats2);
+    var allQueries=[]; for(var ci=0;ci<cats.length;ci++){var c=cats[ci];CFG2[c].queries.forEach(function(q){allQueries.push({q:q,cat:c});});}
+    var total=allQueries.length, done=0;
+    igm2Log('🗺️ Recherche OpenStreetMap (sans clé API)...');
+    igm2Prog(0,'Recherche OSM / Overpass...','0/'+total+' requêtes');
 
-    /* ── Essai 1 : REST API (rapide, pas de SDK à charger) ── */
-    var restOk=false;
-    try{
-      igm2Log('📡 Test Places REST API...');
-      var testR=await igm2SearchREST('bar Libreville Gabon');
-      restOk=true;
-      igm2Log('✅ REST API OK ('+testR.length+' résultats test)','ok');
-    }catch(e){
-      igm2Log('⚠️ REST indisponible ('+e.message+') → SDK JS...','warn');
-    }
-
-    if(restOk){
-      /* REST fonctionnel — parcourir toutes les requêtes */
+    // 1 — Overpass par catégorie
+    for(var ci2=0;ci2<cats.length;ci2++){
+      var catKey=cats[ci2], cfg=CFG2[catKey];
+      if(!cfg.overpassTags) continue;
       try{
-        await igm2RunBatchREST(allTasks, seen, function(){
-          done++;
-          igm2Prog(Math.round((done/total)*100),'Recherche en cours...',done+'/'+total+' requêtes');
-        });
-        igm2Prog(100,'Terminé !',total+'/'+total+' requêtes');
-        igm2Log('🎉 '+_r2.length+' établissements trouvés','ok');
-        igm2Log('✅ Nouveaux : '+_r2.filter(function(r){return !r.isExisting;}).length,'ok');
-        igm2Log('⚠️ Déjà présents : '+_r2.filter(function(r){return r.isExisting;}).length,'warn');
-        setTimeout(igm2ShowResults,400);
-        return;
-      }catch(e){
-        igm2Log('❌ Erreur REST : '+e.message+' → bascule SDK','err');
-      }
+        igm2Log('  → Overpass tags : '+cfg.label);
+        var ovRes=await igm2SearchOverpass(cfg.overpassTags);
+        var nf=0;
+        for(var ri=0;ri<ovRes.length;ri++){
+          var p=ovRes[ri];if(!p.place_id||seen.has(p.place_id))continue;seen.add(p.place_id);
+          var ex=igm2IsEx(p);
+          _r2.push({place_id:p.place_id,nom:p.name,adresse:p.formatted_address,quartier:igm2Qrt(p.formatted_address),note:0,avis:0,
+            lat:p.geometry.location.lat,lng:p.geometry.location.lng,catKey:catKey,type:catKey,isExisting:ex,selected:!ex});
+          if(!ex)nf++;
+        }
+        igm2Log('  ✓ Overpass '+cfg.label+' : '+ovRes.length+' ('+nf+' nv)','ok');
+      }catch(e){igm2Log('  ⚠️ Overpass erreur : '+e.message,'warn');}
     }
 
-    /* ── Essai 2 : SDK JS Google Maps (fallback) ── */
-    try{
-      igm2Log('Chargement SDK Google Maps...');
-      igm2ProgAnimate(0,12);
-      await Promise.race([
-        igm2LoadSDK(),
-        new Promise(function(_,rej){setTimeout(function(){rej(new Error('Timeout SDK Google Maps (30s) — vérifiez votre connexion'));},30000);})
-      ]);
-      igm2ProgStop();
-      igm2Prog(0,'Initialisation...','');
-      igm2Log('SDK chargé ✓','ok');
-      var div=document.createElement('div');
-      div.style.cssText='position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
-      document.body.appendChild(div);
-      var gm=new google.maps.Map(div,{center:{lat:0.4162,lng:9.4673},zoom:12});
-      var svc=new google.maps.places.PlacesService(gm);
+    // 2 — Nominatim par requête texte
+    for(var ti=0;ti<allQueries.length;ti++){
+      var task=allQueries[ti]; done++;
+      igm2Prog(Math.round((done/total)*100),'Nominatim "'+task.q+'"',done+'/'+total+' requêtes');
+      igm2Log('  → Nominatim "'+task.q+'"');
+      try{
+        var nomRes=await igm2SearchNominatim(task.q);
+        var nf2=0;
+        for(var ri2=0;ri2<nomRes.length;ri2++){
+          var p2=nomRes[ri2];if(!p2.place_id||seen.has(p2.place_id))continue;seen.add(p2.place_id);
+          var ex2=igm2IsEx(p2);
+          _r2.push({place_id:p2.place_id,nom:p2.name,adresse:p2.formatted_address,quartier:igm2Qrt(p2.formatted_address),note:0,avis:0,
+            lat:p2.geometry.location.lat,lng:p2.geometry.location.lng,catKey:task.cat,type:task.cat,isExisting:ex2,selected:!ex2});
+          if(!ex2)nf2++;
+        }
+        igm2Log('  ✓ '+nomRes.length+' résultats ('+nf2+' nv)','ok');
+        var ce=document.getElementById('igm2-cnt-'+task.cat);if(ce)ce.textContent=_r2.filter(function(r){return r.catKey===task.cat&&!r.isExisting;}).length+' nv';
+      }catch(e){igm2Log('  ⚠️ '+task.q+': '+e.message,'warn');}
+      // Respecter la politique Nominatim (1 req/s)
+      await new Promise(function(r){setTimeout(r,1100);});
+    }
 
-      /* Aplatir toutes les requêtes de toutes les catégories sélectionnées */
-      var cats=Array.from(_cats2);
-      var allTasks=[];
-      for(var ci=0;ci<cats.length;ci++){
-        var cat=cats[ci], cfg=CFG2[cat];
-        igm2Log('🔍 '+cfg.label+' ('+cfg.queries.length+' requêtes)...');
-        for(var qi=0;qi<cfg.queries.length;qi++) allTasks.push({q:cfg.queries[qi],cat:cat});
-      }
-
-      var total=allTasks.length, done=0;
-      igm2Prog(0,'Recherche parallèle ('+IGM2_CONCURRENCY+'x)...',done+'/'+total+' requêtes');
-
-      await igm2RunBatch(allTasks, svc, seen, function(){
-        done++;
-        igm2Prog(Math.round((done/total)*100),'Recherche en cours...',done+'/'+total+' requêtes');
-      });
-
-      igm2Prog(100,'Terminé !',total+'/'+total+' requêtes');
-      igm2Log('🎉 '+_r2.length+' établissements trouvés','ok');
-      igm2Log('✅ Nouveaux : '+_r2.filter(function(r){return !r.isExisting;}).length,'ok');
-      igm2Log('⚠️ Déjà présents : '+_r2.filter(function(r){return r.isExisting;}).length,'warn');
-      setTimeout(igm2ShowResults,400);
-    }catch(e){igm2Log('❌ '+e.message,'err');if(typeof showToast==='function')showToast('❌ '+e.message);}
+    igm2Prog(100,'Terminé !',total+'/'+total+' requêtes');
+    igm2Log('🎉 '+_r2.length+' établissements trouvés','ok');
+    igm2Log('✅ Nouveaux : '+_r2.filter(function(r){return !r.isExisting;}).length,'ok');
+    igm2Log('⚠️ Déjà présents : '+_r2.filter(function(r){return r.isExisting;}).length,'warn');
+    if(_r2.length===0){igm2Log('💡 Aucun résultat OSM. Les données Libreville peuvent être incomplètes.','warn');igm2Step(1);return;}
+    setTimeout(igm2ShowResults,400);
   }
   window.igm2StartSearch=igm2StartSearch;
 
