@@ -8768,14 +8768,15 @@ onAuthStateChanged(auth, function(user) {
     // ── Réafficher les formules d'abonnement après déconnexion ──
     if(typeof updatePayVis === "function") setTimeout(updatePayVis, 200);
   }
-  // Déclenche le rendu si l'app est déjà initialisée
-  if (typeof renderAll === "function") { renderAll(); renderHome(); }
+  // Déclenche le rendu si l'app est déjà initialisée (sans recharger les données)
+  // loadData() fait déjà renderAll() — inutile de le rappeler ici
+  // if (typeof renderAll === "function") { renderAll(); renderHome(); }
 });
 
 // ── Enregistrement de session de connexion ──────────────────────
 function _logUserSession(uid, email, pseudo){
   if(!uid || !window.db) return;
-  // Géolocalisation si disponible
+  // Pas de géolocalisation au login — trop lent (timeout 5s)
   var sessionData = {
     uid: uid,
     email: email || "",
@@ -8788,24 +8789,10 @@ function _logUserSession(uid, email, pseudo){
     screenRes: screen.width + "x" + screen.height,
     timezone: Intl && Intl.DateTimeFormat ? Intl.DateTimeFormat().resolvedOptions().timeZone : "",
     online: navigator.onLine,
-    sessionId: uid + "_" + Date.now()
+    sessionId: uid + "_" + Date.now(),
+    geoStatus: "skipped"
   };
-  // Tenter la géolocalisation
-  if(navigator.geolocation){
-    navigator.geolocation.getCurrentPosition(function(pos){
-      sessionData.lat = pos.coords.latitude;
-      sessionData.lng = pos.coords.longitude;
-      sessionData.accuracy = pos.coords.accuracy;
-      sessionData.geoStatus = "granted";
-      _writeSessionLog(sessionData);
-    }, function(){
-      sessionData.geoStatus = "denied";
-      _writeSessionLog(sessionData);
-    }, { timeout: 5000 });
-  } else {
-    sessionData.geoStatus = "unavailable";
-    _writeSessionLog(sessionData);
-  }
+  _writeSessionLog(sessionData);
 }
 function _writeSessionLog(data){
   if(!window.db || !window.fbAddDoc || !window.fbCollection) return;
@@ -8981,10 +8968,15 @@ function _updateRankScoreLive() {
   });
 }
 
-// ── S'abonner à tous les étabs connus ────────────────────────
+// ── S'abonner UNIQUEMENT aux étabs actifs (payés) pour limiter les listeners ────────────────────
 function _subscribeAllEtabs() {
   if (typeof etablissements === "undefined") return;
-  etablissements.forEach(function(e) { _subscribeEtab(e.id); });
+  var actifs = etablissements.filter(function(e){
+    return e.paiement === "Confirme" || e.paiement === "Actif" || estPaiementConfirme(e);
+  });
+  // Fallback : si aucun actif, prendre les 30 premiers
+  if(actifs.length === 0) actifs = etablissements.slice(0, 30);
+  actifs.forEach(function(e) { _subscribeEtab(e.id); });
 }
 
 // Appeler dès que Firebase est prêt + après chaque loadData
@@ -11248,60 +11240,40 @@ function loadData(){
   window.fbGetDocs(q).then(function(snapshot){
     var firebaseData=[];
     snapshot.forEach(function(d){firebaseData.push(Object.assign({_docId:d.id},d.data()));});
-    // ── FUSION : Firebase est la source de vérité, defaults = fallback ──
-    var defaults=getDefaults();
-    if(firebaseData.length>0){
-      // Indexer Firebase par id numérique uniquement (évite les doublons par nom)
-      var fbById={};
-      firebaseData.forEach(function(f){ if(f.id) fbById[f.id]=f; });
-      etablissements=defaults.map(function(d){
-        var fb=fbById[d.id];
-        return fb ? Object.assign({},d,fb) : d;
-      });
-      // Ajouter uniquement les docs Firebase dont l'id n'est PAS dans les defaults
-      var defaultIds=defaults.map(function(d){return d.id;});
-      firebaseData.forEach(function(f){
-        if(defaultIds.indexOf(f.id)===-1){
-          var alreadyIn=etablissements.find(function(e){return e._docId&&e._docId===f._docId;});
-          if(!alreadyIn) etablissements.push(f);
-        }
-      });
+
+    if(firebaseData.length > 0){
+      // ── Firebase est la source de vérité unique ──
+      // Les defaults servent UNIQUEMENT si Firebase est vide (première utilisation)
+      etablissements = firebaseData;
     } else {
-      etablissements=defaults;
+      // Firebase vide → fallback données locales
+      etablissements = getDefaults();
     }
+
     document.getElementById("errorBanner").innerHTML="";
     rebuildPaiements();
-    // Appliquer le statut dynamique basé sur l'affluence réelle
     etablissements.forEach(function(e){ applyDynamicStatus(e); });
     setSyncing(false);if(typeof invalidateScoreCache==='function')invalidateScoreCache();renderStats();renderAll();renderHome();renderPayments();updateSyncTime();if(typeof i18n!=="undefined")i18n.applyTranslations();
-    /* ── Rafraîchir la vue d'ensemble admin si elle est ouverte ── */
     if(isAdmin && (_currentAdmTab==='overview'||window._currentAdmTab==='overview') && typeof renderAdmOverview==='function'){ renderAdmOverview(); }
-    // Lancer le fetch automatique des photos Google Places pour tous les établissements sans photo
-    setTimeout(autoFetchAllGooglePhotos, 400);
-    // Charger les photos de profil approuvées depuis Firebase
-    setTimeout(loadAllPhotoProfiles, 800);
+    // Photos en arrière-plan (délai pour ne pas bloquer le rendu)
+    setTimeout(loadAllPhotoProfiles, 1500);
     loadPaiementsFromFirebase();
-    // S'abonner aux flux temps réel pour tous les établissements chargés
     if (typeof window._subscribeAllEtabs === "function") { window._subscribeAllEtabs(); }
-    // ✅ Précharger les photos slot Firebase pour tous les établissements (cache mémoire)
+    // Précharger photos slot uniquement pour les actifs
     setTimeout(function(){
       if(typeof loadSlotPhotosAsync === 'function' && etablissements && etablissements.length){
-        etablissements.forEach(function(e){
-          if(e.id) loadSlotPhotosAsync(e.id);
-        });
+        var actifs = etablissements.filter(function(e){ return estPaiementConfirme(e); });
+        actifs.forEach(function(e){ if(e.id) loadSlotPhotosAsync(e.id); });
       }
-    }, 1200);
+    }, 2000);
   }).catch(function(err){
     console.error("Firebase loadData:",err);
     etablissements=getDefaults();
     var eb=document.getElementById("errorBanner");
     if(eb) eb.innerHTML="";
     rebuildPaiements();
-    // Appliquer le statut dynamique même en mode fallback
     etablissements.forEach(function(e){ applyDynamicStatus(e); });
     setSyncing(false);renderStats();renderAll();renderHome();renderPayments();updateSyncTime();if(typeof i18n!=="undefined")i18n.applyTranslations();
-    // Fetch photos Google Places même en mode fallback
-    setTimeout(autoFetchAllGooglePhotos, 600);
   });
 }
 
@@ -18919,13 +18891,21 @@ function _startApp(){
     renderStats(); renderAll(); renderHome(); updateSyncTime();
   }
 }
-// Pré-charger immédiatement les données locales pour affichage instantané
-// (Firebase mettra à jour automatiquement dès la connexion)
-etablissements = getDefaults();
+// ── Démarrage : afficher un skeleton léger au lieu des 65 hardcodés ──
+// Firebase chargera les vraies données en <2s — pas besoin de pré-remplir
+etablissements = [];
 rebuildPaiements();
-loadSuperAdmin();  // charger email superadmin depuis localStorage
-renderStats(); renderAll(); renderHome(); renderPayments();
-// Démarrer la météo dès le lancement (sans attendre Firebase)
+loadSuperAdmin();
+// Afficher un indicateur de chargement plutôt que les faux 65 lieux
+(function(){
+  var ml = document.getElementById("mainList");
+  if(ml) ml.innerHTML = '<div style="text-align:center;padding:3rem 1rem;color:var(--muted);">'
+    +'<div style="font-size:2rem;margin-bottom:0.8rem;">⏳</div>'
+    +'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;color:var(--cyan);">Chargement des lieux...</div>'
+    +'<div style="font-size:0.72rem;margin-top:0.4rem;">Connexion à Firebase en cours</div>'
+    +'</div>';
+})();
+renderStats(); renderHome(); renderPayments();
 setTimeout(initMeteo, 500);
 
 _startApp();
