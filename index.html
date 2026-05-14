@@ -12223,21 +12223,10 @@ function _renderMyAvatar(uid, initiale){
         _refreshQuickbarAvatar(url, initiale);
       };
       img.onerror = function(){
-        // URL temporairement inaccessible → afficher initiales en fallback
-        // Ne PAS vider le cache ni supprimer l'URL de Firestore : l'image reste permanente
-        // Elle réapparaîtra au prochain chargement si l'URL redevient valide
+        // URL invalide ou expirée → fallback initiales + vider le cache
+        _userAvatarCache[uid] = null;
         wrap.innerHTML = '<div class="user-avatar-initiale">'+safeInit+'</div>';
         _refreshQuickbarAvatar(null, initiale);
-        // Réessayer après 3 secondes (ex: réseau lent ou token Firebase)
-        setTimeout(function(){
-          var retryImg = new Image();
-          retryImg.onload = function(){
-            _userAvatarCache[uid] = url;
-            wrap.innerHTML = '<img src="'+url+'" style="width:74px;height:74px;border-radius:50%;object-fit:cover;display:block;">';
-            _refreshQuickbarAvatar(url, initiale);
-          };
-          retryImg.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '_t=' + Date.now();
-        }, 3000);
       };
       img.src = url;
     } else {
@@ -16432,7 +16421,7 @@ function _syncProfilSection(){
     /* Nettoyer les images cassées déjà dans le DOM */
     document.querySelectorAll('#sec-profil .gallery-item img').forEach(function(img){
       if(!img.complete || img.naturalWidth === 0) {
-        img.onerror = function(){ this.style.display='none'; var gi=this.closest('.gallery-item'); if(gi){ gi.style.background='rgba(255,255,255,0.04)'; } };
+        img.onerror = function(){ this.closest('.gallery-item') && this.closest('.gallery-item').remove(); };
         if(img.src && img.src !== window.location.href) {
           var s = img.src; img.src = ''; img.src = s;
         }
@@ -40239,105 +40228,6 @@ console.log('[AMBI241] ✅ Module publication & live chargé v2');
   });
 
   console.log('[AMBI241] ✅ Correctif socPubFeed Firebase chargé');
-})();
-</script>
-
-<script>
-/* ═══════════════════════════════════════════════════════════════════════
-   CORRECTIF GLOBAL : Images et Photos Permanentes — AMBI241
-   Les images ne disparaissent que si l'utilisateur propriétaire ou
-   l'Admin les modifie/supprime explicitement. Aucune disparition
-   automatique liée aux erreurs réseau, tokens expirés ou cache vide.
-   ═══════════════════════════════════════════════════════════════════════ */
-(function(){
-  'use strict';
-
-  /* ── 1. Observer global : toute <img> qui échoue est réessayée ─────── */
-  var _imgRetryMap = {};   // url → nb tentatives
-  var _MAX_RETRIES = 5;
-  var _RETRY_DELAYS = [2000, 5000, 10000, 20000, 30000]; // ms
-
-  function _retryImage(img) {
-    var src = img.getAttribute('data-original-src') || img.src;
-    if (!src || src.indexOf('data:') === 0) return; // base64 → pas de retry
-    img.setAttribute('data-original-src', src);
-    var count = _imgRetryMap[src] || 0;
-    if (count >= _MAX_RETRIES) return;
-    _imgRetryMap[src] = count + 1;
-    var delay = _RETRY_DELAYS[count] || 30000;
-    setTimeout(function(){
-      var newSrc = src + (src.indexOf('?') >= 0 ? '&' : '?') + '_r=' + Date.now();
-      img.src = newSrc;
-    }, delay);
-  }
-
-  /* Intercepter onerror sur toutes les images du document */
-  document.addEventListener('error', function(e){
-    var el = e.target;
-    if (el.tagName !== 'IMG') return;
-    // Ne pas masquer ni supprimer → juste réessayer silencieusement
-    _retryImage(el);
-  }, true);
-
-  /* ── 2. Protection : empêcher toute suppression silencieuse d'avatarUrl ── */
-  /* Patch de window.fbUpdateDoc pour bloquer la mise à null/vide des photos */
-  var _origFbUpdateDoc = null;
-  var _patchAttempts = 0;
-  function _patchFbUpdateDoc() {
-    if (window.fbUpdateDoc && window.fbUpdateDoc !== _patchedFbUpdateDoc) {
-      _origFbUpdateDoc = window.fbUpdateDoc;
-      window.fbUpdateDoc = _patchedFbUpdateDoc;
-      console.log('[AMBI241] ✅ Protection photos permanentes active');
-    } else if (_patchAttempts < 20) {
-      _patchAttempts++;
-      setTimeout(_patchFbUpdateDoc, 500);
-    }
-  }
-
-  function _patchedFbUpdateDoc(docRef, data) {
-    if (data && typeof data === 'object') {
-      // Bloquer la mise à vide/null des champs photos critiques
-      var photoFields = ['avatarUrl','photoURL','photo_interieur','photo_exterieur',
-                         '_photo_profile_approved','coverUrl','bannerUrl'];
-      var blocked = false;
-      photoFields.forEach(function(field){
-        if (field in data && (data[field] === '' || data[field] === null)) {
-          // Autoriser uniquement si c'est une suppression explicite via l'UI admin
-          if (!data._explicitPhotoDelete) {
-            console.warn('[AMBI241] Photo permanente — suppression bloquée pour:', field);
-            delete data[field];
-            blocked = true;
-          }
-        }
-      });
-      if (blocked && Object.keys(data).length === 0) {
-        return Promise.resolve(); // rien à mettre à jour
-      }
-    }
-    return _origFbUpdateDoc.apply(this, arguments);
-  }
-
-  /* ── 3. Réessayer automatiquement les avatars utilisateurs toutes les 30s ── */
-  function _refreshBrokenAvatars() {
-    document.querySelectorAll('img[data-original-src]').forEach(function(img){
-      if (img.naturalWidth === 0 && img.complete) {
-        var src = img.getAttribute('data-original-src');
-        if (src && src.indexOf('data:') !== 0) {
-          img.src = src + (src.indexOf('?') >= 0 ? '&' : '?') + '_ra=' + Date.now();
-        }
-      }
-    });
-  }
-  setInterval(_refreshBrokenAvatars, 30000);
-
-  /* ── 4. Démarrer le patch après chargement Firebase ─────────────────── */
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function(){ setTimeout(_patchFbUpdateDoc, 1000); });
-  } else {
-    setTimeout(_patchFbUpdateDoc, 1000);
-  }
-
-  console.log('[AMBI241] ✅ Système photos permanentes chargé');
 })();
 </script>
 </body>
