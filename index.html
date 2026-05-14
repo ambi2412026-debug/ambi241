@@ -1041,12 +1041,71 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
   min-height:44px;
 }
 .socpub-action-btn:last-child{border-right:none;}
-.socpub-action-btn:active{background:rgba(255,255,255,0.05);}
-.socpub-action-btn.like:active,.socpub-action-btn.like.active{color:var(--pink);}
-.socpub-action-btn.comment:active{color:var(--cyan);}
-.socpub-action-btn.share:active{color:var(--green);}
-.socpub-action-icon{font-size:1.15rem;}
-.socpub-action-count{font-size:0.72rem;opacity:0.88;}
+.socpub-action-btn:hover{background:rgba(255,255,255,0.04);}
+.socpub-action-btn:active{background:rgba(255,255,255,0.08);transform:scale(0.96);}
+/* ── J'aime — état actif persistant ── */
+.socpub-action-btn.like.active{color:var(--pink);background:rgba(255,45,155,0.08);}
+.socpub-action-btn.like.active .socpub-action-icon{filter:drop-shadow(0 0 4px rgba(255,45,155,0.6));}
+.socpub-action-btn.like:hover{color:var(--pink);}
+/* ── Commenter ── */
+.socpub-action-btn.comment.active{color:var(--cyan);background:rgba(0,229,255,0.07);}
+.socpub-action-btn.comment:hover{color:var(--cyan);}
+/* ── Partager ── */
+.socpub-action-btn.share:hover{color:var(--green);}
+.socpub-icon-spin{animation:btnPop 0.25s cubic-bezier(.36,.07,.19,.97) both;}
+@keyframes btnPop{0%{transform:scale(1)}40%{transform:scale(1.35)}70%{transform:scale(0.9)}100%{transform:scale(1)}}
+.socpub-action-icon{font-size:1.15rem;display:inline-block;transition:transform 0.15s;}
+.socpub-action-count{
+  font-size:0.72rem;opacity:0.88;
+  min-width:14px;text-align:center;
+  transition:transform 0.18s,color 0.18s;
+}
+.socpub-action-count.bump{transform:scale(1.4);color:var(--pink);}
+
+/* ═══════════════════════════════
+   SHARE PANEL (bottom sheet)
+═══════════════════════════════ */
+#ambiSharePanel{
+  position:fixed;bottom:0;left:0;right:0;z-index:9999;
+  background:var(--surface);border-top:1px solid rgba(255,45,155,0.22);
+  border-radius:22px 22px 0 0;padding:0 1rem 2rem;
+  transform:translateY(100%);transition:transform 0.32s cubic-bezier(.22,.61,.36,1);
+  box-shadow:0 -8px 40px rgba(0,0,0,0.5);
+  max-width:480px;margin:0 auto;
+}
+#ambiSharePanel.open{transform:translateY(0);}
+.ambi-share-handle{width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,0.15);margin:0.7rem auto 1rem;}
+.ambi-share-title{font-family:'Syne',sans-serif;font-size:0.85rem;font-weight:800;text-align:center;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:1.1rem;}
+.ambi-share-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0.6rem;margin-bottom:1.2rem;}
+.ambi-share-item{display:flex;flex-direction:column;align-items:center;gap:0.35rem;cursor:pointer;padding:0.6rem 0.3rem;border-radius:14px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.03);transition:all 0.15s;user-select:none;}
+.ambi-share-item:active{transform:scale(0.94);background:rgba(255,255,255,0.07);}
+.ambi-share-icon{font-size:1.65rem;line-height:1;}
+.ambi-share-label{font-size:0.6rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;}
+.ambi-share-copy-row{display:flex;align-items:center;gap:0.5rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.5rem 0.7rem;cursor:pointer;}
+.ambi-share-copy-url{flex:1;font-size:0.7rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ambi-share-copy-btn{flex-shrink:0;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;border:none;border-radius:8px;padding:0.35rem 0.75rem;font-size:0.7rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:opacity 0.15s;}
+.ambi-share-copy-btn:active{opacity:0.75;}
+#ambiShareOverlay{position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.5);display:none;}
+#ambiShareOverlay.open{display:block;}
+
+/* ═══════════════════════════════
+   MORE MENU contextuel
+═══════════════════════════════ */
+#ambiMoreMenu{
+  position:fixed;z-index:9999;
+  background:var(--surface2);border:1px solid rgba(255,45,155,0.18);
+  border-radius:14px;padding:0.4rem;
+  box-shadow:0 8px 32px rgba(0,0,0,0.55);
+  min-width:180px;
+  transform:scale(0.9) translateY(-6px);opacity:0;
+  transition:transform 0.18s ease,opacity 0.18s ease;
+  pointer-events:none;
+}
+#ambiMoreMenu.open{transform:scale(1) translateY(0);opacity:1;pointer-events:auto;}
+.ambi-more-item{display:flex;align-items:center;gap:0.55rem;padding:0.55rem 0.7rem;border-radius:9px;cursor:pointer;font-size:0.8rem;font-weight:600;color:var(--text);transition:background 0.12s;white-space:nowrap;font-family:'DM Sans',sans-serif;}
+.ambi-more-item:hover{background:rgba(255,255,255,0.06);}
+.ambi-more-item.danger{color:var(--red);}
+.ambi-more-item.danger:hover{background:rgba(255,68,102,0.1);}
 
 /* ── Emoji Picker rapide ── */
 .socpub-emoji-picker{
@@ -38271,35 +38330,37 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     });
   };
 
-  /* ── Toggle likes ── */
+  /* ── Toggle likes (Firebase likedBy par user) ── */
   window.socPubToggleLike = function(pubId, btn) {
     if(!btn) return;
-    // Vérifier la connexion
     if(!window.currentUserUID){
       if(typeof window.showToast==='function') window.showToast('🔒 Connectez-vous pour liker !');
+      var ov = document.getElementById('userOverlay');
+      if(ov){ ov.classList.add('show'); if(typeof window.switchUserTab==='function') window.switchUserTab('connexion'); }
       return;
     }
-    var active = btn.classList.toggle('active');
-    // Mettre à jour le compteur (cherche likeCount_ dans les deux feeds)
-    var countEl = document.getElementById('likeCount_' + pubId)
-                || btn.querySelector('.socpub-action-count');
+    var uid  = window.currentUserUID;
+    var liked = btn.classList.toggle('active');
+    var countEl = document.getElementById('likeCount_' + pubId) || btn.querySelector('.socpub-action-count');
     if(countEl){
-      var n = parseInt(countEl.textContent) || 0;
-      countEl.textContent = active ? n + 1 : Math.max(0, n - 1);
+      var n = Math.max(0, parseInt(countEl.textContent)||0);
+      countEl.textContent = liked ? n + 1 : Math.max(0, n - 1);
+      countEl.classList.add('bump');
+      setTimeout(function(){ countEl.classList.remove('bump'); }, 300);
     }
-    // Couleur live
-    btn.style.color = active ? 'var(--pink)' : '';
-    // Mini animation
-    btn.style.transform = 'scale(1.22)';
-    setTimeout(function(){ btn.style.transform = ''; }, 180);
-    // Sync Firebase (non bloquant)
-    if(window.db && window.fbDoc && window.fbUpdateDoc){
-      try {
-        var newN = countEl ? (parseInt(countEl.textContent)||0) : 0;
-        window.fbUpdateDoc(window.fbDoc(window.db,'publications',pubId),{likes:newN}).catch(function(){});
-      } catch(e){}
+    var icon = btn.querySelector('.socpub-action-icon');
+    if(icon){ icon.classList.add('socpub-icon-spin'); setTimeout(function(){ icon.classList.remove('socpub-icon-spin'); },300); }
+    if(typeof window.showToast==='function') window.showToast(liked ? '❤️ J'aime !' : '💔 Like retiré');
+    if(window.db && window.fbDoc){
+      try{
+        var ref = window.fbDoc(window.db,'publications',pubId);
+        var curN = parseInt(countEl&&countEl.textContent)||0;
+        var upd = liked
+          ? (window.fbArrayUnion ? { likedBy: window.fbArrayUnion(uid), likes: curN } : { likes: curN })
+          : (window.fbArrayRemove ? { likedBy: window.fbArrayRemove(uid), likes: curN } : { likes: curN });
+        if(window.fbUpdateDoc) window.fbUpdateDoc(ref, upd).catch(function(){});
+      }catch(e){}
     }
-    if(typeof window.showToast==='function') window.showToast(active ? '❤️ J'aime !' : '💔 Retrait du like');
   };
 
   /* ── Réaction emoji ── */
@@ -38428,35 +38489,160 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     var url = window.location.href.split('#')[0] + '#pub-' + pubId;
     var card = document.querySelector('[data-pub-id="'+pubId+'"]');
     var authorEl = card ? card.querySelector('.socpub-author') : null;
-    var author = authorEl ? authorEl.textContent.trim().replace('✓','').trim() : 'AMBI241';
+    var author = authorEl ? authorEl.textContent.trim().replace('\u2713','').trim() : 'AMBI241';
     var textEl = card ? card.querySelector('.socpub-text') : null;
-    var text = textEl ? textEl.textContent.trim().slice(0,80) : 'Ambiance à Libreville';
-    if(navigator.share){
-      navigator.share({ title: 'AMBI241 — '+author, text: text, url: url })
-        .catch(function(){});
-    } else {
-      try { navigator.clipboard.writeText(url); } catch(e){}
-      if(typeof window.showToast === 'function') window.showToast('📋 Lien copié dans le presse-papier !');
+    var shareText = textEl ? textEl.textContent.trim().slice(0,100) : 'Ambiance \u00e0 Libreville';
+
+    // Construire ou afficher le panel de partage
+    var panel = document.getElementById('ambiSharePanel');
+    if(!panel) {
+      // Cr\u00e9er l'overlay + le panel
+      var ov = document.createElement('div'); ov.id='ambiShareOverlay';
+      ov.onclick = function(){ window._ambiCloseShare(); };
+      document.body.appendChild(ov);
+
+      panel = document.createElement('div'); panel.id='ambiSharePanel';
+      panel.innerHTML = '<div class="ambi-share-handle"></div>'
+        + '<div class="ambi-share-title">Partager cette publication</div>'
+        + '<div class="ambi-share-grid" id="ambiShareGrid"></div>'
+        + '<div class="ambi-share-copy-row" id="ambiShareCopyRow">'
+        + '<span class="ambi-share-copy-url" id="ambiShareUrl"></span>'
+        + '<button class="ambi-share-copy-btn" onclick="window._ambiCopyUrl()">Copier</button>'
+        + '</div>';
+      document.body.appendChild(panel);
     }
+
+    // Stocker le contexte courant
+    window._ambiShareUrl  = url;
+    window._ambiShareText = shareText;
+    window._ambiShareAuthor = author;
+
+    // Remplir l'URL affich\u00e9e
+    var urlEl = document.getElementById('ambiShareUrl');
+    if(urlEl) urlEl.textContent = url;
+
+    // Construire la grille d'options
+    var grid = document.getElementById('ambiShareGrid');
+    if(grid){
+      var opts = [
+        { icon: '\uD83D\uDCF1', label: 'WhatsApp', fn: function(){ window.open('https://wa.me/?text='+encodeURIComponent(shareText+' '+url),'_blank'); window._ambiCloseShare(); } },
+        { icon: '\uD83D\uDCAC', label: 'SMS',       fn: function(){ window.open('sms:?body='+encodeURIComponent(shareText+' '+url)); window._ambiCloseShare(); } },
+        { icon: '\uD83D\uDCCB', label: 'Copier',    fn: function(){ window._ambiCopyUrl(); } },
+        { icon: '\uD83D\uDD17', label: 'Navigateur',fn: function(){ if(navigator.share){ navigator.share({title:'AMBI241 \u2014 '+author,text:shareText,url:url}).catch(function(){}); } window._ambiCloseShare(); } },
+        { icon: '\u2709\uFE0F', label: 'Email',     fn: function(){ window.open('mailto:?subject=AMBI241&body='+encodeURIComponent(shareText+'\n'+url)); window._ambiCloseShare(); } },
+        { icon: '\uD83D\uDCF0', label: 'Facebook',  fn: function(){ window.open('https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(url),'_blank'); window._ambiCloseShare(); } },
+        { icon: '\uD83D\uDC26', label: 'Twitter/X', fn: function(){ window.open('https://twitter.com/intent/tweet?text='+encodeURIComponent(shareText)+'&url='+encodeURIComponent(url),'_blank'); window._ambiCloseShare(); } },
+        { icon: '\uD83D\uDCF7', label: 'Instagram', fn: function(){ window._ambiCopyUrl(); if(typeof window.showToast==='function') window.showToast('\uD83D\uDCCB Lien copi\u00e9 \u2014 collez-le dans Instagram !'); window._ambiCloseShare(); } },
+      ];
+      grid.innerHTML = opts.map(function(o, i){
+        return '<div class="ambi-share-item" id="ambiShr_'+i+'" style="animation:fadeUp 0.18s ease '+(i*0.04)+'s both;">'
+          + '<span class="ambi-share-icon">'+o.icon+'</span>'
+          + '<span class="ambi-share-label">'+o.label+'</span>'
+          + '</div>';
+      }).join('');
+      opts.forEach(function(o, i){
+        var el = document.getElementById('ambiShr_'+i);
+        if(el) el.onclick = o.fn;
+      });
+    }
+
+    // Ouvrir
+    var ov2 = document.getElementById('ambiShareOverlay');
+    if(ov2) ov2.classList.add('open');
+    setTimeout(function(){ panel.classList.add('open'); }, 10);
   };
 
-  /* ── RSVP Événement ── */
+  window._ambiCloseShare = function(){
+    var panel = document.getElementById('ambiSharePanel');
+    var ov    = document.getElementById('ambiShareOverlay');
+    if(panel) panel.classList.remove('open');
+    if(ov)    ov.classList.remove('open');
+  };
+
+  window._ambiCopyUrl = function(){
+    var url = window._ambiShareUrl || window.location.href;
+    try { navigator.clipboard.writeText(url); } catch(e){}
+    if(typeof window.showToast==='function') window.showToast('\uD83D\uDCCB Lien copi\u00e9 !');
+    window._ambiCloseShare();
+  };
+
+  /* ── RSVP \u00c9v\u00e9nement ── */
   window.socEventRsvp = function(pubId, type, btn) {
     var siblings = btn.parentNode.querySelectorAll('.socpub-event-cta');
     siblings.forEach(function(s){ if(s.dataset && s.classList) s.classList.remove('active'); });
     btn.classList.add('active');
     var countSpan = btn.querySelector('span');
-    if(countSpan) {
-      var n = parseInt(countSpan.textContent) || 0;
-      countSpan.textContent = n + 1;
-    }
-    var msg = type === 'interesse' ? '⭐ Vous êtes intéressé(e) !' : '✅ Participation confirmée !';
+    if(countSpan) { var n = parseInt(countSpan.textContent) || 0; countSpan.textContent = n + 1; }
+    var msg = type === 'interesse' ? '\u2B50 Vous \u00eates int\u00e9ress\u00e9(e) !' : '\u2705 Participation confirm\u00e9e !';
     if(typeof window.showToast === 'function') window.showToast(msg);
   };
 
   /* ── Menu contextuel ── */
-  window.socPubMoreMenu = function(pubId, btn) {
-    if(typeof window.showToast === 'function') window.showToast('📋 Options : Signaler · Copier le lien · Partager');
+  window.socPubMoreMenu = function(pubId, btnEl) {
+    // Supprimer un menu existant
+    var existing = document.getElementById('ambiMoreMenu');
+    if(existing && existing.classList.contains('open')){
+      existing.classList.remove('open');
+      setTimeout(function(){ if(existing.parentNode) existing.parentNode.removeChild(existing); },200);
+      return;
+    }
+    if(existing && existing.parentNode) existing.parentNode.removeChild(existing);
+
+    var isOwner = window.currentUserUID && btnEl.closest
+      && btnEl.closest('[data-uid]')
+      && btnEl.closest('[data-uid]').dataset.uid === window.currentUserUID;
+
+    var items = [
+      { icon:'\uD83D\uDD17', label:'Copier le lien', fn: function(){ var u=window.location.href.split('#')[0]+'#pub-'+pubId; try{navigator.clipboard.writeText(u);}catch(e){} if(typeof window.showToast==='function') window.showToast('\uD83D\uDCCB Lien copi\u00e9 !'); close(); } },
+      { icon:'\uD83D\uDCE4', label:'Partager',        fn: function(){ close(); setTimeout(function(){ window.socPubShare(pubId); },100); } },
+      { icon:'\uD83D\uDD14', label:'Activer notifs',  fn: function(){ if(typeof window.showToast==='function') window.showToast('\uD83D\uDD14 Notifications activ\u00e9es pour cette publication'); close(); } },
+      { icon:'\uD83D\uDCAC', label:'Commenter',        fn: function(){ close(); if(typeof window.socPubToggleComments==='function') window.socPubToggleComments(pubId); } },
+    ];
+    if(isOwner){
+      items.push({ icon:'\uD83D\uDDD1\uFE0F', label:'Supprimer', danger:true, fn: function(){
+        if(!confirm('Supprimer cette publication ?')) return;
+        close();
+        if(window.db && window.fbDoc){
+          try{ window.fbDeleteDoc(window.fbDoc(window.db,'publications',pubId)).then(function(){ if(typeof window.showToast==='function') window.showToast('\uD83D\uDDD1\uFE0F Publication supprim\u00e9e'); }).catch(function(){}); }catch(e){}
+        }
+      } });
+    } else {
+      items.push({ icon:'\uD83D\uDEA9', label:'Signaler', danger:true, fn: function(){
+        if(typeof window.showToast==='function') window.showToast('\uD83D\uDEA9 Signalement envoy\u00e9. Merci !');
+        close();
+      } });
+    }
+
+    var menu = document.createElement('div');
+    menu.id = 'ambiMoreMenu';
+    menu.innerHTML = items.map(function(it,i){
+      return '<div class="ambi-more-item'+(it.danger?' danger':'')+'" id="ambiMI_'+i+'">'
+        + it.icon+' '+it.label+'</div>';
+    }).join('');
+    document.body.appendChild(menu);
+
+    items.forEach(function(it,i){
+      var el = document.getElementById('ambiMI_'+i);
+      if(el) el.onclick = it.fn;
+    });
+
+    // Positionner le menu sous le bouton
+    var rect = btnEl.getBoundingClientRect();
+    var mw = 188;
+    var left = Math.min(rect.left, window.innerWidth - mw - 8);
+    var top  = rect.bottom + 6 + window.scrollY;
+    menu.style.top  = top  + 'px';
+    menu.style.left = left + 'px';
+
+    // Fermer si on clique ailleurs
+    function close(){
+      menu.classList.remove('open');
+      setTimeout(function(){ if(menu.parentNode) menu.parentNode.removeChild(menu); },200);
+      document.removeEventListener('click', outsideClick);
+    }
+    function outsideClick(e){ if(!menu.contains(e.target) && e.target !== btnEl) close(); }
+
+    setTimeout(function(){ menu.classList.add('open'); document.addEventListener('click', outsideClick); }, 10);
   };
 
   /* ── Load more ── */
@@ -40028,6 +40214,7 @@ console.log('[AMBI241] ✅ Module publication & live chargé v2');
     var vis    = {public:'🌐', amis:'👥', moi:'🔒'}[p.visibility] || '🌐';
     var likes  = parseInt(p.likes) || 0;
     var cmtCnt = parseInt(p.comments) || 0;
+    var likedByMe = Array.isArray(p.likedBy) && window.currentUserUID && p.likedBy.indexOf(window.currentUserUID) !== -1;
 
     // Photos
     var photoHtml = '';
@@ -40080,7 +40267,7 @@ console.log('[AMBI241] ✅ Module publication & live chargé v2');
       +(text ? '<p class="socpub-text">'+text.replace(/@(\w+)/g,'<span style="color:var(--cyan);">@$1</span>')+'</p>' : '')
       +photoHtml+videoHtml+etabHtml
       +'<div class="socpub-action-bar">'
-      +'<button class="socpub-action-btn like" onclick="socPubToggleLike(\''+pid+'\',this)">'
+      +'<button class="socpub-action-btn like'+(likedByMe?' active':'')'+'" onclick="socPubToggleLike(\''+pid+'\',this)">'
         +'<span class="socpub-action-icon">❤️</span> J\'aime '
         +'<span id="likeCount_'+pid+'" class="socpub-action-count">'+likes+'</span>'
       +'</button>'
