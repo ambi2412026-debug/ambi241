@@ -31,10 +31,9 @@
 html{overflow-x:hidden;max-width:100vw;scrollbar-gutter:stable;overflow-y:scroll;}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;padding-bottom:calc(var(--nav-h) + var(--player-h));padding-top:116px;max-width:100%;width:100%;}
-body::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(255,45,155,0.08) 0%,transparent 60%);pointer-events:none;z-index:0;will-change:auto;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(255,45,155,0.12) 0%,transparent 50%),radial-gradient(ellipse at 90% 30%,rgba(0,229,255,0.10) 0%,transparent 50%),radial-gradient(ellipse at 50% 90%,rgba(204,68,255,0.08) 0%,transparent 50%);pointer-events:none;z-index:0;will-change:transform;}
 /* Optimisation GPU pour les éléments animés */
-/* ✅ OPTIMISATION: will-change restreint aux éléments réellement animés */
-.live-dot,.cef-live{will-change:opacity;}
+.live-dot,.heb-dot,.dispo-updated-dot,.cef-live,.hero-eyebrow-dot{will-change:opacity,transform;}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
 
 /* ═══════════════════════════════════════════════════════════════ */
@@ -13642,24 +13641,20 @@ window.confirmAddDispoItem = function() {
 
 // ── Auto-initialisation : charger les dispos de tous les étabs ──
 (function initAllDispos() {
-  var _retries = 0;
-  var _MAX = 20; // max 20 essais = 10 secondes
   function _tryInit() {
     if (!window.etablissements || !window.etablissements.length) {
-      if(++_retries < _MAX) setTimeout(_tryInit, 500);
+      setTimeout(_tryInit, 600);
       return;
     }
-    // ✅ OPTIMISATION: charger les dispos via requestIdleCallback (non-bloquant)
-    var doLoad = function(){
-      window.etablissements.forEach(function(e) {
-        loadDispoState(e.id, function() { refreshDispoPublicOnCard(e.id); });
-        subscribeDispoLive(e.id);
+    // Charger les dispos de tous les étabs en arrière-plan
+    window.etablissements.forEach(function(e) {
+      loadDispoState(e.id, function() {
+        refreshDispoPublicOnCard(e.id);
       });
-    };
-    if(window.requestIdleCallback) requestIdleCallback(doLoad, {timeout:3000});
-    else setTimeout(doLoad, 200);
+      subscribeDispoLive(e.id);
+    });
   }
-  setTimeout(_tryInit, 300); // délai initial pour laisser le rendu s'établir
+  _tryInit();
 })();
 
 window.dispoAdjust = window.dispoAdjust;
@@ -16655,6 +16650,9 @@ window._syncProfilSection = _syncProfilSection;
 
     /* Vue — Avis (vider les fictifs) */
     _clearFictifAvis('pv-chauffeur-avis-list');
+
+    /* ✅ RESTAURATION PHOTOS — charger avatar + cover depuis Firestore/localStorage */
+    _restoreProfilePhotos('chauffeur', uid);
   }
 
   /* ══ ÉTABLISSEMENT ══ */
@@ -16750,6 +16748,80 @@ window._syncProfilSection = _syncProfilSection;
     _setAttr('pmodal-membre-prenom','value', parts[0]||pseudo);
     _setAttr('pmodal-membre-nom','value', parts.slice(1).join(' ')||'');
     _setAttr('pmodal-membre-pseudo','value', '@'+pseudo.toLowerCase().replace(/\s+/g,'_'));
+
+    /* ✅ RESTAURATION PHOTOS */
+    _restoreProfilePhotos('membre', uid);
+  }
+
+  /* ══ RESTAURATION PHOTOS au chargement du profil ══ */
+  function _restoreProfilePhotos(role, uid){
+    if(!uid) return;
+
+    // 1. Essayer d'abord le localStorage (instantané, offline)
+    var lsAvatar = '';
+    var lsCover  = '';
+    try { lsAvatar = localStorage.getItem('ambi241_avatar_'+uid) || ''; } catch(e){}
+    try { lsCover  = localStorage.getItem('ambi241_cover_'+role+'_'+uid) || ''; } catch(e){}
+
+    function _applyAvatar(src){
+      if(!src) return;
+      var avEl  = document.getElementById('pav-'+role);
+      var avMod = document.getElementById('pmodal-av-'+role);
+      [avEl, avMod].forEach(function(av){
+        if(!av) return;
+        var imgEl = av.querySelector('img') || document.createElement('img');
+        imgEl.src = src;
+        imgEl.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;';
+        if(!imgEl.parentElement) av.prepend(imgEl);
+        // Masquer le texte d'initiales
+        Array.from(av.childNodes).forEach(function(n){ if(n.nodeType===3) n.textContent=''; });
+      });
+      // Mettre en cache mémoire
+      if(typeof _userAvatarCache!=='undefined') _userAvatarCache[uid] = src;
+    }
+
+    function _applyCover(src){
+      if(!src) return;
+      var cover = document.getElementById('pcov-'+role);
+      if(!cover) return;
+      var img = cover.querySelector('img');
+      if(!img){ img = document.createElement('img'); cover.prepend(img); var fd=cover.querySelector('div:not(.cover-overlay)'); if(fd) fd.style.display='none'; }
+      img.src = src;
+      img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;';
+    }
+
+    // Appliquer immédiatement depuis localStorage
+    if(lsAvatar) _applyAvatar(lsAvatar);
+    if(lsCover)  _applyCover(lsCover);
+
+    // 2. Vérifier/mettre à jour depuis Firestore (source de vérité)
+    if(window.db && window.fbDoc && window.fbGetDoc){
+      window.fbGetDoc(window.fbDoc(window.db,'users',uid)).then(function(snap){
+        if(!snap.exists || !snap.exists()) return;
+        var d = snap.data();
+        // Avatar
+        if(d.avatarUrl){
+          _applyAvatar(d.avatarUrl);
+          // Mettre à jour le cache localStorage si différent
+          if(d.avatarUrl !== lsAvatar){
+            try { localStorage.setItem('ambi241_avatar_'+uid, d.avatarUrl); } catch(e){}
+          }
+        }
+        // Cover
+        var coverField = 'coverUrl_'+role;
+        if(d[coverField]){
+          _applyCover(d[coverField]);
+          if(d[coverField] !== lsCover){
+            try { localStorage.setItem('ambi241_cover_'+role+'_'+uid, d[coverField]); } catch(e){}
+          }
+        }
+        // Mettre à jour l'avatar header et quickbar
+        if(d.avatarUrl && typeof _refreshQuickbarAvatar==='function'){
+          var pseudo = window.currentUserPseudo||'?';
+          _refreshQuickbarAvatar(d.avatarUrl, (pseudo||'?')[0].toUpperCase());
+        }
+      }).catch(function(){});
+    }
   }
 
   /* ══ Effacer les avis fictifs ══ */
@@ -22017,19 +22089,16 @@ function initAdminDefaultPhotosPreviews(){
 
 // ── Afficher le bouton Admin dans la nav quand mode admin actif ─
 var _admNavShown=false;
-function _syncAdminNavBtn(){
+var _admNavCheck=setInterval(function(){
   var nb=document.getElementById("adminNavBtn");
   if(!nb)return;
   if(isAdmin&&!_admNavShown){
     nb.style.display="flex"; _admNavShown=true;
   } else if(!isAdmin&&_admNavShown){
     nb.style.display="none"; _admNavShown=false;
-    if(typeof closeAdminDashboard==='function') closeAdminDashboard();
+    closeAdminDashboard();
   }
-}
-// ✅ OPTIMISATION: appelé à la connexion/déconnexion (suppression du setInterval 1s)
-window._syncAdminNavBtn = _syncAdminNavBtn;
-setTimeout(_syncAdminNavBtn, 800);
+},1000);
 
 // ─────────────────────────────────────────────────────────────
 
@@ -34969,44 +35038,118 @@ function pToggleDispo(input) {
   pShowToast(isOn ? '🟢 Vous êtes maintenant disponible' : '⚫ Vous êtes hors ligne');
 }
 
-/* Upload avatar */
+/* Upload avatar — sauvegarde Firestore + localStorage */
 function pHandleAvatarUpload(input) {
   var file = input.files[0];
   if(!file) return;
+
+  var activeView = document.querySelector('#sec-profil .profil-view.active');
+  if(!activeView) return;
+  var role = activeView.id.replace('pv-','');
+  var uid = window.currentUserUID;
+
+  // Compression canvas (max 240px, jpeg 0.82)
   var reader = new FileReader();
   reader.onload = function(e) {
-    var src = e.target.result;
-    var activeView = document.querySelector('#sec-profil .profil-view.active');
-    if(!activeView) return;
-    var role = activeView.id.replace('pv-','');
-    [document.getElementById('pav-'+role), document.getElementById('pmodal-av-'+role)].forEach(function(av){
-      if(!av) return;
-      var img = av.querySelector('img') || document.createElement('img');
-      img.src = src;
-      if(!img.parentElement) av.prepend(img);
-      Array.from(av.childNodes).forEach(function(n){ if(n.nodeType===3) n.textContent=''; });
-    });
-    pShowToast('✅ Photo de profil mise à jour');
+    var img0 = new Image();
+    img0.onload = function(){
+      var MAX = 240;
+      var w = img0.width, h = img0.height;
+      var ratio = Math.min(MAX/w, MAX/h, 1);
+      var canvas = document.createElement('canvas');
+      canvas.width  = Math.round(w*ratio);
+      canvas.height = Math.round(h*ratio);
+      canvas.getContext('2d').drawImage(img0, 0, 0, canvas.width, canvas.height);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+
+      // 1. Mettre à jour le DOM immédiatement
+      [document.getElementById('pav-'+role), document.getElementById('pmodal-av-'+role)].forEach(function(av){
+        if(!av) return;
+        var imgEl = av.querySelector('img') || document.createElement('img');
+        imgEl.src = dataUrl;
+        imgEl.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;';
+        if(!imgEl.parentElement) av.prepend(imgEl);
+        Array.from(av.childNodes).forEach(function(n){ if(n.nodeType===3) n.textContent=''; });
+      });
+      // Mettre à jour aussi l'avatar header
+      if(typeof _renderMyAvatar==='function' && uid){
+        var pseudo = window.currentUserPseudo||'?';
+        var init = (pseudo||'?')[0].toUpperCase();
+        var wrap = document.getElementById('myAvatarWrap');
+        if(wrap) wrap.innerHTML = '<img src="'+dataUrl+'" style="width:74px;height:74px;border-radius:50%;object-fit:cover;display:block;">';
+        if(typeof _refreshQuickbarAvatar==='function') _refreshQuickbarAvatar(dataUrl, init);
+      }
+      // Mettre en cache mémoire
+      if(uid && typeof _userAvatarCache!=='undefined') _userAvatarCache[uid] = dataUrl;
+
+      // 2. Sauvegarder en localStorage (persistance immédiate offline)
+      if(uid){
+        try { localStorage.setItem('ambi241_avatar_'+uid, dataUrl); } catch(er){}
+      }
+
+      // 3. Sauvegarder dans Firestore (persistance cloud)
+      if(uid && window.db && window.fbDoc && window.fbUpdateDoc){
+        window.fbUpdateDoc(window.fbDoc(window.db,'users',uid), { avatarUrl: dataUrl })
+          .then(function(){ pShowToast('✅ Photo de profil sauvegardée !'); })
+          .catch(function(){ pShowToast('✅ Photo enregistrée localement'); });
+      } else {
+        pShowToast('✅ Photo de profil mise à jour');
+      }
+    };
+    img0.onerror = function(){ pShowToast('❌ Image invalide'); };
+    img0.src = e.target.result;
   };
   reader.readAsDataURL(file);
 }
 
-/* Upload cover */
+/* Upload cover — sauvegarde Firestore + localStorage */
 function pHandleCoverUpload(input) {
   var file = input.files[0];
   if(!file) return;
+  var uid = window.currentUserUID;
+
   var reader = new FileReader();
   reader.onload = function(e) {
-    var activeView = document.querySelector('#sec-profil .profil-view.active');
-    if(!activeView) return;
-    var role = activeView.id.replace('pv-','');
-    var cover = document.getElementById('pcov-'+role);
-    if(!cover) return;
-    var img = cover.querySelector('img');
-    if(!img){ img = document.createElement('img'); cover.prepend(img); var fd=cover.querySelector('div:not(.cover-overlay)'); if(fd) fd.style.display='none'; }
-    img.src = e.target.result;
-    img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;';
-    pShowToast('✅ Photo de couverture mise à jour');
+    var img0 = new Image();
+    img0.onload = function(){
+      // Compression cover (max 800px largeur, jpeg 0.80)
+      var MAX_W = 800;
+      var w = img0.width, h = img0.height;
+      var ratio = Math.min(MAX_W/w, 1);
+      var canvas = document.createElement('canvas');
+      canvas.width  = Math.round(w*ratio);
+      canvas.height = Math.round(h*ratio);
+      canvas.getContext('2d').drawImage(img0, 0, 0, canvas.width, canvas.height);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.80);
+
+      // 1. Mettre à jour le DOM immédiatement
+      var activeView = document.querySelector('#sec-profil .profil-view.active');
+      if(!activeView) return;
+      var role = activeView.id.replace('pv-','');
+      var cover = document.getElementById('pcov-'+role);
+      if(!cover) return;
+      var img = cover.querySelector('img');
+      if(!img){ img = document.createElement('img'); cover.prepend(img); var fd=cover.querySelector('div:not(.cover-overlay)'); if(fd) fd.style.display='none'; }
+      img.src = dataUrl;
+      img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;';
+
+      // 2. Sauvegarder en localStorage (persistance immédiate offline)
+      if(uid){
+        try { localStorage.setItem('ambi241_cover_'+role+'_'+uid, dataUrl); } catch(er){}
+      }
+
+      // 3. Sauvegarder dans Firestore (persistance cloud)
+      if(uid && window.db && window.fbDoc && window.fbUpdateDoc){
+        var field = {}; field['coverUrl_'+role] = dataUrl;
+        window.fbUpdateDoc(window.fbDoc(window.db,'users',uid), field)
+          .then(function(){ pShowToast('✅ Photo de couverture sauvegardée !'); })
+          .catch(function(){ pShowToast('✅ Couverture enregistrée localement'); });
+      } else {
+        pShowToast('✅ Photo de couverture mise à jour');
+      }
+    };
+    img0.onerror = function(){ pShowToast('❌ Image invalide'); };
+    img0.src = e.target.result;
   };
   reader.readAsDataURL(file);
 }
@@ -40954,28 +41097,20 @@ function _escPro(s){
    INIT — charger les likes dès que l'utilisateur se connecte
 ═══════════════════════════════════════════════════════════ */
 (function(){
-  /* ✅ OPTIMISATION: event-driven via onAuthStateChanged (0 CPU au repos) */
-  function _tryAuth(){
-    if(window.fbOnAuthStateChanged && window.auth){
-      window.fbOnAuthStateChanged(window.auth, function(user){
-        if(user && !_likesLoaded) _loadUserLikes(user.uid);
-      });
-    } else {
-      // Firebase pas encore prêt : réessayer une seule fois après 600ms
-      setTimeout(function(){
-        if(window.fbOnAuthStateChanged && window.auth){
-          window.fbOnAuthStateChanged(window.auth, function(user){
-            if(user && !_likesLoaded) _loadUserLikes(user.uid);
-          });
-        } else if(window.currentUserUID){
-          _loadUserLikes(window.currentUserUID);
-        }
-      }, 600);
+  /* Observer currentUserUID via polling */
+  var _uid0 = window.currentUserUID;
+  var _watchUid = setInterval(function(){
+    var uid = window.currentUserUID;
+    if(uid && uid !== _uid0){
+      _uid0 = uid;
+      _loadUserLikes(uid);
     }
-  }
-  // Charger immédiatement si déjà connecté (sync)
+    if(uid && !_likesLoaded){
+      _loadUserLikes(uid);
+    }
+  }, 800);
+  /* Charger immédiatement si déjà connecté */
   if(window.currentUserUID) _loadUserLikes(window.currentUserUID);
-  else _tryAuth();
 })();
 
 console.log('[AMBI241] ✅ Module PRO — Likes·Commentaires·Partage Firebase chargé');
