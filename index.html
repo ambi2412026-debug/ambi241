@@ -5634,9 +5634,10 @@ const i18n = {
     if (heroSub) heroSub.textContent = d.hero_sub;
 
     /* Hero buttons */
+    const heroExploreBtn = document.getElementById('heroExploreBtn');
+    if (heroExploreBtn) heroExploreBtn.innerHTML = d.hero_explore;
     const heroBtns = document.querySelectorAll('.hero-actions .hero-btn');
-    if (heroBtns[0]) heroBtns[0].innerHTML = d.hero_explore;
-    if (heroBtns[1]) heroBtns[1].innerHTML = d.hero_nearby;
+    if (heroBtns[0]) heroBtns[0].innerHTML = d.hero_nearby;
 
     /* Top ce soir label */
     const topLabel = document.querySelector('#sec-accueil > div[style*="Top ce soir"], #sec-accueil > div[style*="top_ce_soir"]');
@@ -7090,9 +7091,12 @@ if (document.readyState === 'loading') {
         </div>
 
         <!-- CTAs -->
-        <div class="hero-actions">
-          <button class="hero-btn hero-btn-secondary" onclick="quickNearby()" style="border:1px solid rgba(0,229,255,0.3);color:var(--cyan);background:rgba(0,229,255,0.07);">&#128205; Près de moi</button>
-          <button class="hero-btn hero-btn-install" id="installPwaBtn" onclick="installPWA()" style="display:none;background:linear-gradient(135deg,rgba(204,68,255,0.18),rgba(255,45,155,0.12));border:1px solid rgba(204,68,255,0.45);color:var(--purple);font-weight:800;">&#128640; Installer</button>
+        <div class="hero-actions" style="flex-direction:column;gap:0.6rem;">
+          <button id="heroExploreBtn" onclick="explorerLieux()" style="width:100%;padding:0.75rem 1.2rem;border-radius:14px;background:transparent;border:1.5px solid rgba(0,229,255,0.45);color:var(--cyan);font-family:'Syne',sans-serif;font-size:0.88rem;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.4rem;letter-spacing:0.02em;transition:all 0.22s;">&#128269; Explorer les lieux</button>
+          <div style="display:flex;gap:0.5rem;">
+            <button class="hero-btn hero-btn-secondary" onclick="quickNearby()" style="border:1px solid rgba(0,229,255,0.3);color:var(--cyan);background:rgba(0,229,255,0.07);">&#128205; Près de moi</button>
+            <button class="hero-btn hero-btn-install" id="installPwaBtn" onclick="installPWA()" style="display:none;background:linear-gradient(135deg,rgba(204,68,255,0.18),rgba(255,45,155,0.12));border:1px solid rgba(204,68,255,0.45);color:var(--purple);font-weight:800;">&#128640; Installer</button>
+          </div>
         </div>
       </div>
     </div>
@@ -16564,6 +16568,16 @@ function closeNearbyMode() {
   renderAll();
 }
 
+// ── Explorer les lieux depuis l'accueil ─────────────────────
+function explorerLieux() {
+  // D'abord basculer sur la section établissements
+  switchSection('etablissements', document.querySelectorAll('.nav-item')[1]);
+  // Puis ouvrir le modal de géolocalisation après la transition
+  setTimeout(function(){
+    openGeoMethodSheet();
+  }, 150);
+}
+
 // ── Quick nearby depuis l'accueil ────────────────────────────
 function quickNearby() {
   switchSection("etablissements", document.querySelectorAll(".nav-item")[1]);
@@ -16865,6 +16879,7 @@ function updateGpsDetailModal() {
 window.toggleNearbyMode    = toggleNearbyMode;
 window.closeNearbyMode     = closeNearbyMode;
 window.quickNearby         = quickNearby;
+window.explorerLieux       = explorerLieux;
 window.openGeoMethodSheet  = openGeoMethodSheet;
 window.closeGeoMethodSheet = closeGeoMethodSheet;
 window.selectGeoMethod     = selectGeoMethod;
