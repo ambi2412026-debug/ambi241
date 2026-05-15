@@ -8824,8 +8824,10 @@ window._uploadUserPhoto = function(type, preselectedFile) {
         updateData.identityVerified = false;
         updateData.identitySubmittedAt = new Date().toISOString();
       }
-      var p = (userDocRef && window.fbUpdateDoc)
-        ? window.fbUpdateDoc(userDocRef, updateData)
+      /* ✅ FIX : setDoc + merge:true crée le document s'il n'existe pas
+         et le met à jour s'il existe déjà — plus d'erreur "No document to update" */
+      var p = (userDocRef && window.fbSetDoc)
+        ? window.fbSetDoc(userDocRef, updateData, { merge: true })
         : Promise.resolve();
       p.then(function() {
         if (typeof hideUploadProgress === 'function') hideUploadProgress(700);
@@ -12752,8 +12754,10 @@ function _processAvatarFile(file){
       canvas.height = Math.round(h * ratio);
       canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
       var dataUrl = canvas.toDataURL("image/jpeg", 0.82);
-      // Sauvegarder directement en base64 dans Firestore (même méthode que admin)
-      window.fbUpdateDoc(window.fbDoc(window.db,"users",uid),{ avatarUrl: dataUrl })
+      // ✅ FIX : setDoc + merge:true crée le doc s'il n'existe pas
+      var _saveAvatarFn = window.fbSetDoc || window.fbUpdateDoc;
+      var _saveAvatarOpts = window.fbSetDoc ? [{ merge: true }] : [];
+      _saveAvatarFn.apply(null, [window.fbDoc(window.db,"users",uid),{ avatarUrl: dataUrl }].concat(_saveAvatarOpts))
         .then(function(){
           _userAvatarCache[uid] = dataUrl;
           var pseudo = window.currentUserPseudo||window.currentUserEmail||"?";
@@ -18665,9 +18669,13 @@ function _onGalerieAvatarSelected(inp){
   inp.value = "";
 
   function _saveAvatarUrl(url){
-    // Mettre à jour Firestore
-    if(window.db && window.fbUpdateDoc && window.fbDoc){
-      window.fbUpdateDoc(window.fbDoc(window.db, "users", uid), { avatarUrl: url })
+    // ✅ FIX : setDoc + merge:true évite l'erreur "No document to update"
+    if(window.db && window.fbDoc && (window.fbSetDoc || window.fbUpdateDoc)){
+      var _saveFn = window.fbSetDoc || window.fbUpdateDoc;
+      var _saveArgs = window.fbSetDoc
+        ? [window.fbDoc(window.db,"users",uid),{avatarUrl:url},{merge:true}]
+        : [window.fbDoc(window.db,"users",uid),{avatarUrl:url}];
+      _saveFn.apply(null, _saveArgs)
         .then(function(){
           _userAvatarCache[uid] = url;
           showToast("✅ Photo de profil mise à jour !");
@@ -31519,10 +31527,12 @@ function uploadTaxiProDoc(docType) {
       // Marquer visuellement le doc comme uploadé
       var docEl = document.querySelector('.taxi-pro-doc-item[onclick*="\''+docType+'\'"]');
       if(docEl){ docEl.classList.add('uploaded'); }
-      // Sauvegarder dans Firestore si possible
-      if(window.db && window.fbDoc && window.fbUpdateDoc){
+      // ✅ FIX merge:true — crée le doc s'il n'existe pas
+      if(window.db && window.fbDoc && (window.fbSetDoc || window.fbUpdateDoc)){
         var upd={}; upd['doc_'+docType]=url; upd['doc_'+docType+'_ts']=new Date().toISOString();
-        window.fbUpdateDoc(window.fbDoc(window.db,'users',uid),upd).catch(function(){});
+        var _docFn = window.fbSetDoc || window.fbUpdateDoc;
+        var _docArgs = window.fbSetDoc ? [window.fbDoc(window.db,'users',uid),upd,{merge:true}] : [window.fbDoc(window.db,'users',uid),upd];
+        _docFn.apply(null,_docArgs).catch(function(){});
       }
       try{ localStorage.setItem('ambi241_doc_'+docType+'_'+uid, url); }catch(e){}
       if(typeof hideUploadProgress==='function') hideUploadProgress(700);
@@ -35723,9 +35733,11 @@ function pHandleAvatarUpload(input) {
         try { localStorage.setItem('ambi241_avatar_'+uid, dataUrl); } catch(er){}
       }
 
-      // 3. Sauvegarder dans Firestore (persistance cloud)
-      if(uid && window.db && window.fbDoc && window.fbUpdateDoc){
-        window.fbUpdateDoc(window.fbDoc(window.db,'users',uid), { avatarUrl: dataUrl })
+      // 3. Sauvegarder dans Firestore (persistance cloud) ✅ FIX merge:true
+      if(uid && window.db && window.fbDoc && (window.fbSetDoc || window.fbUpdateDoc)){
+        var _sf = window.fbSetDoc || window.fbUpdateDoc;
+        var _sa = window.fbSetDoc ? [window.fbDoc(window.db,'users',uid),{avatarUrl:dataUrl},{merge:true}] : [window.fbDoc(window.db,'users',uid),{avatarUrl:dataUrl}];
+        _sf.apply(null,_sa)
           .then(function(){ pShowToast('✅ Photo de profil sauvegardée !'); })
           .catch(function(){ pShowToast('✅ Photo enregistrée localement'); });
       } else {
@@ -35774,10 +35786,12 @@ function pHandleCoverUpload(input) {
         try { localStorage.setItem('ambi241_cover_'+role+'_'+uid, dataUrl); } catch(er){}
       }
 
-      // 3. Sauvegarder dans Firestore (persistance cloud)
-      if(uid && window.db && window.fbDoc && window.fbUpdateDoc){
+      // 3. Sauvegarder dans Firestore ✅ FIX merge:true
+      if(uid && window.db && window.fbDoc && (window.fbSetDoc || window.fbUpdateDoc)){
         var field = {}; field['coverUrl_'+role] = dataUrl;
-        window.fbUpdateDoc(window.fbDoc(window.db,'users',uid), field)
+        var _cvFn = window.fbSetDoc || window.fbUpdateDoc;
+        var _cvArgs = window.fbSetDoc ? [window.fbDoc(window.db,'users',uid),field,{merge:true}] : [window.fbDoc(window.db,'users',uid),field];
+        _cvFn.apply(null,_cvArgs)
           .then(function(){ pShowToast('✅ Photo de couverture sauvegardée !'); })
           .catch(function(){ pShowToast('✅ Couverture enregistrée localement'); });
       } else {
