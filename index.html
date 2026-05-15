@@ -23,9 +23,9 @@
 <link rel="dns-prefetch" href="https://firestore.googleapis.com">
 <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com">
 <!-- PERF: Cormorant Garamond supprimé (6 variantes inutiles), Syne réduit à 700+800 -->
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap"
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Playfair+Display:wght@600;700;800&display=swap"
       rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"></noscript>
+<noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""></noscript>
 <style>
@@ -1872,104 +1872,196 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 }
 
 /* ══ RUBRIQUE TYPES D'ÉTABLISSEMENTS ══ */
+/* ═══════════════════════════════════════════════
+   ANIMATIONS LUXE CARTES
+   ═══════════════════════════════════════════════ */
+@keyframes tileShimmer{
+  0%{transform:translateX(-120%) skewX(-15deg);}
+  100%{transform:translateX(220%) skewX(-15deg);}
+}
+@keyframes borderGlow{
+  0%,100%{opacity:0.6;}
+  50%{opacity:1;}
+}
+@keyframes tileEntree{
+  from{opacity:0;transform:translateY(18px) scale(0.96);}
+  to{opacity:1;transform:translateY(0) scale(1);}
+}
+
 .home-types-section{
   margin: 0.8rem 0 1.4rem;
-  padding: 0 1rem;
+  padding: 0 0.75rem;
   animation: fadeUp 0.6s 0.15s ease both;
 }
 .home-section-label{
-  font-size:0.6rem;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;
-  color:var(--muted);margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;
+  font-family:'Playfair Display',Georgia,serif;
+  font-size:0.65rem;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:0.85rem;display:flex;align-items:center;gap:0.6rem;
 }
 .home-section-label::after{content:'';flex:1;height:1px;background:rgba(255,255,255,0.06);}
 
 .types-grid{
   display:grid;
   grid-template-columns:repeat(2,1fr);
-  gap:0.55rem;
+  gap:0.65rem;
 }
+
+/* ── BASE CARTE ── */
 .type-tile{
   position:relative;
-  border-radius:16px;
-  padding:1rem 0.65rem 0.85rem;
+  border-radius:20px;
+  padding:1.3rem 0.8rem 1.1rem;
   text-align:center;
   cursor:pointer;
-  transition:all 0.22s;
+  transition:transform 0.25s cubic-bezier(.34,1.3,.64,1), box-shadow 0.25s ease;
   overflow:hidden;
   user-select:none;
   -webkit-tap-highlight-color:transparent;
-  box-shadow:0 2px 10px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.18);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  min-height:140px;
+  animation:tileEntree 0.5s ease both;
+  border:2px solid transparent;
 }
+/* Entrée en cascade */
+.type-tile:nth-child(1){animation-delay:0.05s;}
+.type-tile:nth-child(2){animation-delay:0.12s;}
+.type-tile:nth-child(3){animation-delay:0.19s;}
+.type-tile:nth-child(4){animation-delay:0.26s;}
+.type-tile:nth-child(5){animation-delay:0.33s;}
+.type-tile:nth-child(6){animation-delay:0.40s;}
+
+/* Reflet haut de carte */
 .type-tile::before{
-  content:'';position:absolute;inset:0;
-  background:linear-gradient(160deg,rgba(255,255,255,0.18) 0%,transparent 60%);
+  content:'';position:absolute;top:0;left:0;right:0;height:50%;
+  background:linear-gradient(180deg,rgba(255,255,255,0.30) 0%,transparent 100%);
   pointer-events:none;z-index:1;border-radius:inherit;
 }
+/* Sweep shimmer animé */
 .type-tile::after{
-  content:'';position:absolute;inset:0;opacity:0;transition:opacity 0.22s;
-  background:rgba(255,255,255,0.08);border-radius:inherit;
+  content:'';
+  position:absolute;top:0;left:0;width:45%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.28),transparent);
+  animation:tileShimmer 3.5s ease-in-out infinite;
+  pointer-events:none;z-index:3;
 }
-.type-tile:active{transform:scale(0.95);}
-.type-tile:hover::after{opacity:1;}
-.type-tile:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.22);}
+.type-tile:nth-child(2)::after{animation-delay:0.6s;}
+.type-tile:nth-child(3)::after{animation-delay:1.2s;}
+.type-tile:nth-child(4)::after{animation-delay:1.8s;}
+.type-tile:nth-child(5)::after{animation-delay:2.4s;}
+.type-tile:nth-child(6)::after{animation-delay:0.3s;}
 
-/* ── BAR : rose poudré luxe ── */
-.type-tile-bar{
-  background:linear-gradient(145deg,#ffe0ef,#ffc8e0);
-  border:1.5px solid rgba(255,105,150,0.35);
-}
-.type-tile-bar:hover{border-color:rgba(255,75,130,0.55);box-shadow:0 6px 22px rgba(255,100,150,0.28);}
+.type-tile:active{transform:scale(0.93);}
+.type-tile:hover{transform:translateY(-4px) scale(1.02);}
 
-/* ── DISCO : violet parme doux ── */
-.type-tile-disco{
-  background:linear-gradient(145deg,#ecdeff,#dbc4ff);
-  border:1.5px solid rgba(160,90,220,0.32);
-}
-.type-tile-disco:hover{border-color:rgba(140,60,200,0.5);box-shadow:0 6px 22px rgba(160,80,220,0.25);}
-
-/* ── RESTO : champagne doré ── */
-.type-tile-resto{
-  background:linear-gradient(145deg,#fff7d6,#ffe89a);
-  border:1.5px solid rgba(200,160,20,0.32);
-}
-.type-tile-resto:hover{border-color:rgba(180,140,0,0.5);box-shadow:0 6px 22px rgba(200,160,20,0.25);}
-
-/* ── BAR TERRASSE : bleu azur pâle ── */
-.type-tile-bar-terrasse{
-  background:linear-gradient(145deg,#d6f4ff,#b3e8ff);
-  border:1.5px solid rgba(0,170,210,0.32);
-}
-.type-tile-bar-terrasse:hover{border-color:rgba(0,150,195,0.5);box-shadow:0 6px 22px rgba(0,180,220,0.25);}
-
-/* ── SNACK : menthe fraîche ── */
-.type-tile-snack{
-  background:linear-gradient(145deg,#d6fff0,#aaffd8);
-  border:1.5px solid rgba(0,170,100,0.28);
-}
-.type-tile-snack:hover{border-color:rgba(0,150,90,0.48);box-shadow:0 6px 22px rgba(0,180,110,0.22);}
-
-/* ── HÔTEL : ivoire doré luxe ── */
+/* ══ HÔTELS — or profond ══ */
 .type-tile-hotel{
-  background:linear-gradient(145deg,#fff3e0,#ffe0b0);
-  border:1.5px solid rgba(200,130,0,0.32);
+  background:linear-gradient(145deg,#ff9a00 0%,#ffcc44 50%,#ffe066 100%);
+  border-color:rgba(255,200,50,0.60);
+  box-shadow:0 6px 22px rgba(255,160,0,0.40), inset 0 1px 0 rgba(255,255,255,0.35);
 }
-.type-tile-hotel:hover{border-color:rgba(180,110,0,0.5);box-shadow:0 6px 22px rgba(200,140,0,0.25);}
+.type-tile-hotel:hover{box-shadow:0 12px 32px rgba(255,160,0,0.55);}
 
-.tt-icon{font-size:1.9rem;margin-bottom:0.35rem;line-height:1;position:relative;z-index:2;}
-.tt-name{font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;color:#2a0040;text-transform:uppercase;letter-spacing:0.04em;position:relative;z-index:2;text-shadow:none;line-height:1.25;}
-.tt-count{
-  display:inline-block;margin-top:0.28rem;
-  font-size:0.6rem;font-weight:700;
-  padding:0.1rem 0.38rem;border-radius:100px;
-  position:relative;z-index:2;
-  transition:all 0.2s;
+/* ══ BARS — rose fuchsia ══ */
+.type-tile-bar{
+  background:linear-gradient(145deg,#ff416c 0%,#ff6fa3 50%,#ffaac8 100%);
+  border-color:rgba(255,65,108,0.55);
+  box-shadow:0 6px 22px rgba(255,65,108,0.38), inset 0 1px 0 rgba(255,255,255,0.35);
 }
-.tt-count-bar{background:rgba(200,20,80,0.14);color:#c0145a;border:1px solid rgba(200,20,80,0.3);}
-.tt-count-disco{background:rgba(120,40,180,0.14);color:#7828b4;border:1px solid rgba(120,40,180,0.3);}
-.tt-count-resto{background:rgba(160,110,0,0.15);color:#8a6000;border:1px solid rgba(160,110,0,0.3);}
-.tt-count-bar-terrasse{background:rgba(0,130,170,0.14);color:#0082aa;border:1px solid rgba(0,130,170,0.3);}
-.tt-count-snack{background:rgba(0,130,80,0.14);color:#007a50;border:1px solid rgba(0,130,80,0.3);}
-.tt-count-hotel{background:rgba(160,90,0,0.14);color:#a05a00;border:1px solid rgba(160,90,0,0.3);}
+.type-tile-bar:hover{box-shadow:0 12px 32px rgba(255,65,108,0.55);}
+
+/* ══ BAR TERRASSE — bleu saphir électrique ══ */
+.type-tile-bar-terrasse{
+  background:linear-gradient(145deg,#0052d4 0%,#4388f5 50%,#74b0ff 100%);
+  border-color:rgba(0,82,212,0.55);
+  box-shadow:0 6px 22px rgba(0,82,212,0.38), inset 0 1px 0 rgba(255,255,255,0.30);
+}
+.type-tile-bar-terrasse:hover{box-shadow:0 12px 32px rgba(0,82,212,0.55);}
+
+/* ══ SNACKS — vert émeraude ══ */
+.type-tile-snack{
+  background:linear-gradient(145deg,#00b09b 0%,#38d878 50%,#80ffb0 100%);
+  border-color:rgba(0,176,155,0.55);
+  box-shadow:0 6px 22px rgba(0,176,155,0.38), inset 0 1px 0 rgba(255,255,255,0.30);
+}
+.type-tile-snack:hover{box-shadow:0 12px 32px rgba(0,176,155,0.55);}
+
+/* ══ RESTOS — ambre chaud ══ */
+.type-tile-resto{
+  background:linear-gradient(145deg,#f7971e 0%,#ffd200 50%,#ffe566 100%);
+  border-color:rgba(247,151,30,0.60);
+  box-shadow:0 6px 22px rgba(247,151,30,0.40), inset 0 1px 0 rgba(255,255,255,0.35);
+}
+.type-tile-resto:hover{box-shadow:0 12px 32px rgba(247,151,30,0.55);}
+
+/* ══ CLUBS — violet néon ══ */
+.type-tile-disco{
+  background:linear-gradient(145deg,#7b2ff7 0%,#b060ff 50%,#d49cff 100%);
+  border-color:rgba(123,47,247,0.55);
+  box-shadow:0 6px 22px rgba(123,47,247,0.38), inset 0 1px 0 rgba(255,255,255,0.28);
+}
+.type-tile-disco:hover{box-shadow:0 12px 32px rgba(123,47,247,0.55);}
+
+/* ── ICÔNE ── */
+.tt-icon{
+  font-size:1.8rem;
+  margin-bottom:0.45rem;
+  line-height:1;
+  position:relative;
+  z-index:2;
+  filter:drop-shadow(0 2px 6px rgba(0,0,0,0.22));
+}
+
+/* ── NOM ── */
+.tt-name{
+  font-family:'Playfair Display',Georgia,serif;
+  font-weight:700;
+  font-size:1.0rem;
+  color:#fff;
+  text-transform:capitalize;
+  letter-spacing:0.01em;
+  position:relative;
+  z-index:2;
+  text-shadow:0 1px 6px rgba(0,0,0,0.30);
+  line-height:1.3;
+  width:100%;
+  text-align:center;
+  word-break:break-word;
+  hyphens:auto;
+}
+
+/* ── BADGE COMPTEUR ── */
+.tt-count{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin-top:0.42rem;
+  font-family:'DM Sans',sans-serif;
+  font-size:0.68rem;
+  font-weight:700;
+  padding:0.14rem 0.65rem;
+  border-radius:100px;
+  position:relative;
+  z-index:2;
+  transition:all 0.2s;
+  letter-spacing:0.02em;
+  background:rgba(0,0,0,0.18);
+  border:1px solid rgba(255,255,255,0.35);
+  color:#fff;
+  box-shadow:0 2px 8px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.25);
+  backdrop-filter:blur(4px);
+}
+/* Toutes les cartes : même style blanc unifié sur fond coloré */
+.tt-count-bar,.tt-count-disco,.tt-count-resto,
+.tt-count-bar-terrasse,.tt-count-snack,.tt-count-hotel{
+  background:rgba(0,0,0,0.18);
+  color:#fff;
+  border:1px solid rgba(255,255,255,0.38);
+  font-size:0.68rem;
+  box-shadow:0 2px 8px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.25);
+}
 
 /* ══ TOP 3 LIEUX ══ */
 .home-top6-section{
