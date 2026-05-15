@@ -1945,19 +1945,8 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   background:linear-gradient(180deg,rgba(255,255,255,0.30) 0%,transparent 100%);
   pointer-events:none;z-index:1;border-radius:inherit;
 }
-/* Sweep shimmer animé */
-.type-tile::after{
-  content:'';
-  position:absolute;top:0;left:0;width:45%;height:100%;
-  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.28),transparent);
-  animation:tileShimmer 3.5s ease-in-out infinite;
-  pointer-events:none;z-index:3;
-}
-.type-tile:nth-child(2)::after{animation-delay:0.6s;}
-.type-tile:nth-child(3)::after{animation-delay:1.2s;}
-.type-tile:nth-child(4)::after{animation-delay:1.8s;}
-.type-tile:nth-child(5)::after{animation-delay:2.4s;}
-.type-tile:nth-child(6)::after{animation-delay:0.3s;}
+/* Sweep shimmer désactivé — trop lourd GPU sur mobile */
+.type-tile::after{display:none;}
 
 .type-tile:active{transform:scale(0.93);}
 .type-tile:hover{transform:translateY(-4px) scale(1.02);}
@@ -11707,11 +11696,11 @@ function loadData(){
         return true;
       });
       etablissements = firebaseData;
-      if(typeof _renderHomeSig !== 'undefined') _renderHomeSig = null; // invalider cache renderHome
+      _renderHomeSig = ''; // invalider cache renderHome
     } else {
       // Firebase vide → fallback données locales
       etablissements = getDefaults();
-      if(typeof _renderHomeSig !== 'undefined') _renderHomeSig = null;
+      _renderHomeSig = ''; // invalider cache renderHome
     }
 
     document.getElementById("errorBanner").innerHTML="";
@@ -11797,17 +11786,22 @@ function updateSyncTime(){
 // RENDER HOME — avec debounce
 var _renderHomeTimer = null;
 var _renderHomeOrig = null;
-var _renderHomeSig  = null; // signature des données pour éviter les rebuilds inutiles
+var _renderHomeSig  = ''; // '' = jamais rendu — null invalide le cache
 function renderHome(){
   if(_renderHomeTimer) clearTimeout(_renderHomeTimer);
   _renderHomeTimer = setTimeout(renderHomeImmediate, 16);
 }
 function renderHomeImmediate(){
   var d = etablissements;
-  /* Signature rapide : longueur + somme des ids + somme des statuts — évite rebuild si rien n'a changé */
-  var _sig = d.length + '|' + d.reduce(function(s,e){ return s + (e.id||0) + (e.statut||'').length + (e.affluence||0); }, 0);
-  if(_sig === _renderHomeSig) return; // rien n'a changé → skip
-  _renderHomeSig = _sig;
+  /* Signature : on skip uniquement si données non-vides ET identiques au dernier rendu */
+  if(d.length > 0){
+    var _sig = d.length + '|' + d.reduce(function(s,e){ return s + (e.id||0) + (e.statut||'').length + (e.affluence||0); }, 0);
+    if(_sig === _renderHomeSig) return;
+    _renderHomeSig = _sig;
+  } else {
+    /* Données vides : toujours rendre (skeleton visible) et ne pas mémoriser */
+    _renderHomeSig = '';
+  }
 
   /* ── OPTION 2 : Bandeau événement accueil ── */
   var bannerEl = document.getElementById("homeEventBanner");
