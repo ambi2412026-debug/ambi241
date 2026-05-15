@@ -7399,7 +7399,7 @@ if (document.readyState === 'loading') {
         <div class="gps-accuracy-bar"><div class="gps-accuracy-fill" id="gpsAccuracyFill" style="width:0%"></div></div>
       </div>
     </div>
-    <div class="search-wrap" style="position:relative;display:flex;align-items:center;"><span>&#128269;</span><input type="text" id="searchInput" placeholder="Rechercher nom, type, quartier..." oninput="renderAll();document.getElementById('searchClearBtn').style.display=this.value?'flex':'none'"><button id="searchClearBtn" onclick="document.getElementById('searchInput').value='';renderAll();this.style.display='none';document.getElementById('searchInput').focus()" style="display:none;position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;color:var(--muted);width:20px;height:20px;border-radius:50%;font-size:0.75rem;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.15s;" title="Effacer">&#10005;</button></div>
+    <div class="search-wrap" style="position:relative;display:flex;align-items:center;"><span>&#128269;</span><input type="text" id="searchInput" placeholder="Rechercher nom, type, quartier..." oninput="onSearchInput()"><button id="searchClearBtn" onclick="document.getElementById('searchInput').value='';renderAll();this.style.display='none';document.getElementById('searchInput').focus()" style="display:none;position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;color:var(--muted);width:20px;height:20px;border-radius:50%;font-size:0.75rem;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.15s;" title="Effacer">&#10005;</button></div>
     <!-- Bandeau "Mon établissement" — visible uniquement pour les membres propriétaires -->
     <div id="myEtabBanner" style="display:none;background:linear-gradient(90deg,rgba(255,45,155,0.13),rgba(0,229,255,0.07));border:1.5px solid rgba(255,45,155,0.35);border-radius:14px;padding:0.7rem 0.9rem;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.55rem;">
       <span style="font-size:1.1rem;">📌</span>
@@ -10906,59 +10906,101 @@ function filterByRadius(data){if(!_gpsState.active||_gpsState.lat===null)return 
 function sortGpsData(data){if(!_gpsState.active)return data;var s=_gpsState.sort;return data.slice().sort(function(a,b){if(s==="distance"){var da=a._distKm!==null?a._distKm:9999;var db=b._distKm!==null?b._distKm:9999;return da-db;}if(s==="affluence")return(b.affluence||0)-(a.affluence||0);if(s==="note")return(b.note||0)-(a.note||0);return 0;});}
 function getNearbyCount(){if(_gpsState.lat===null||_gpsState.radius>=999)return etablissements.length;return etablissements.filter(function(e){return e._distKm!==null&&e._distKm<=_gpsState.radius;}).length;}
 var CATEGORIES=[
-  {key:"Bar",label:"Bar et Lounge",icon:"&#127867;",badge:"cb-bar"},
-  {key:"Discotheque",label:"Discotheque et Club",icon:"&#127925;",badge:"cb-club"},
-  {key:"Restaurant",label:"Restaurant, Café et Maquis",icon:"&#127374;",badge:"cb-resto"},
-  {key:"Bar Terrasse",label:"Bar Terrasse et Rooftop",icon:"&#127970;",badge:"cb-roof"},
-  {key:"Snack",label:"Snack-Bar",icon:"&#127839;",badge:"cb-snack"},
-  {key:"Hotel",label:"Hôtel / Motel",icon:"&#127968;",badge:"cb-hotel"}
+  {key:"Bar",         label:"Bar et Lounge",           icon:"&#127867;", badge:"cb-bar"},
+  {key:"Discotheque", label:"Discothèque et Club",      icon:"&#127925;", badge:"cb-club"},
+  {key:"Restaurant",  label:"Restaurant, Café et Maquis",icon:"&#127374;",badge:"cb-resto"},
+  {key:"Bar Terrasse",label:"Bar Terrasse et Rooftop",  icon:"&#127970;", badge:"cb-roof"},
+  {key:"Snack",       label:"Snack-Bar",                icon:"&#127839;", badge:"cb-snack"},
+  {key:"Hotel",       label:"Hôtel / Motel",            icon:"&#127968;", badge:"cb-hotel"}
 ];
 
+/* ══════════════════════════════════════════════════════════════════
+   getCategory v2 — classification stricte par score de mots-clés
+   Évite les faux positifs : "Bar de l'Hôtel" → Hotel, pas Bar
+   Cache mémoire pour éviter les recalculs répétés
+══════════════════════════════════════════════════════════════════ */
+var _getCategoryCache = {};
 function getCategory(type){
-  if(!type)return "Bar";
-  var t=type.toLowerCase().trim();
+  if(!type) return "Bar";
+  var raw = type.trim();
+  if(_getCategoryCache[raw]) return _getCategoryCache[raw];
+  var t = raw.toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"") // retire accents pour comparaison
+    .replace(/[-_]/g," ");                            // normalise tirets
 
-  // ── 1. Correspondances exactes (priorité absolue) ──
-  var exact={
-    "hotel":"Hotel","hôtel":"Hotel","motel":"Hotel",
-    "discotheque":"Discotheque","discothèque":"Discotheque","nightclub":"Discotheque","night club":"Discotheque",
-    "snack":"Snack","snack-bar":"Snack",
-    "bar terrasse":"Bar Terrasse","bar-terrasse":"Bar Terrasse","rooftop":"Bar Terrasse","rooftop bar":"Bar Terrasse",
-    "restaurant":"Restaurant","café":"Restaurant","cafe":"Restaurant","brasserie":"Restaurant","pizzeria":"Restaurant",
-    "bar":"Bar","lounge":"Bar","bar lounge":"Bar","pub":"Bar","taverne":"Bar"
+  // ── 1. Correspondances EXACTES (priorité absolue) ──
+  var EXACT = {
+    "hotel":"Hotel","motel":"Hotel","residence":"Hotel","resort":"Hotel","lodge":"Hotel",
+    "palace":"Hotel","auberge":"Hotel","inn":"Hotel","hostel":"Hotel","apart hotel":"Hotel",
+    "discotheque":"Discotheque","boite de nuit":"Discotheque","nightclub":"Discotheque",
+    "night club":"Discotheque","club de nuit":"Discotheque","dancing":"Discotheque",
+    "snack":"Snack","snack bar":"Snack","fast food":"Snack","sandwicherie":"Snack",
+    "bar terrasse":"Bar Terrasse","terrasse bar":"Bar Terrasse","rooftop":"Bar Terrasse",
+    "rooftop bar":"Bar Terrasse","bar rooftop":"Bar Terrasse","sky bar":"Bar Terrasse",
+    "restaurant":"Restaurant","cafe":"Restaurant","brasserie":"Restaurant",
+    "pizzeria":"Restaurant","bistro":"Restaurant","bistrot":"Restaurant",
+    "maquis":"Restaurant","patisserie":"Restaurant","creperie":"Restaurant",
+    "bar":"Bar","lounge":"Bar","bar lounge":"Bar","pub":"Bar","taverne":"Bar",
+    "cocktail bar":"Bar","wine bar":"Bar","sports bar":"Bar"
   };
-  if(exact[t])return exact[t];
+  if(EXACT[t]){ _getCategoryCache[raw]=EXACT[t]; return EXACT[t]; }
 
-  // ── 2. Hôtels & Résidences (avant tout : évite faux positifs avec "bar de l'hôtel") ──
-  if(/h[oô]tel\s*\d|\d\s*[eé]toile|palace hotel|h[oô]tel\s*(suites|resort|lodge|inn|plaza)/.test(t))return "Hotel";
-  if(t.indexOf("h\u00f4tel")!==-1||t.indexOf("hotel")!==-1||t.indexOf("motel")!==-1||t.indexOf("r\u00e9sidence")!==-1||t.indexOf("residence")!==-1||t.indexOf("resort")!==-1||t.indexOf("lodge")!==-1)return "Hotel";
+  // ── 2. Système de SCORE — chaque catégorie accumule des points ──
+  // Le gagnant l'emporte. Évite "Bar restaurant de l'hôtel" → mauvaise catégorie.
+  var scores = { Hotel:0, Discotheque:0, "Bar Terrasse":0, Restaurant:0, Snack:0, Bar:0 };
+  var words  = t.split(/\s+/);
 
-  // ── 3. Discothèques / Clubs ──
-  // "nightclub" ou "club" seul (mais pas "bar lounge club" → vérifier que "bar" N'est PAS le mot dominant)
-  if(t.indexOf("disco")!==-1||t.indexOf("nightclub")!==-1||t.indexOf("night club")!==-1)return "Discotheque";
-  // "club" seul, seulement si pas accompagné de "bar" ou "snack"
-  if(t.indexOf("club")!==-1&&t.indexOf("bar")===-1&&t.indexOf("snack")===-1)return "Discotheque";
+  var KW = {
+    Hotel:        ["hotel","motel","residence","resort","lodge","palace","auberge","inn","hostel","chambre","suite","penthouse","apart","aparthotel","logement","hebergement"],
+    Discotheque:  ["disco","nightclub","night","dancing","boite","club","dj","rave","party","clubbing"],
+    "Bar Terrasse":["terrasse","rooftop","sky","panoramic","vue","balcon","outdoor","garden","jardin","patio","plein air"],
+    Restaurant:   ["restaurant","resto","maquis","brasserie","pizzeria","bistro","bistrot","creperie","patisserie","gastronomique","cuisine","bouffe","food","grill","bbq","brochette","seafood","poisson","viande"],
+    Snack:        ["snack","sandwich","burger","hotdog","tacos","fast","kebab","friterie","sandwicherie"],
+    Bar:          ["bar","lounge","pub","taverne","cocktail","biere","wine","whisky","shots","happy hour","afterwork"]
+  };
 
-  // ── 4. Bar Terrasse / Rooftop (avant Bar et Snack) ──
-  if(t.indexOf("terrasse")!==-1||t.indexOf("rooftop")!==-1||t.indexOf("bar terrasse")!==-1||t.indexOf("bar-terrasse")!==-1)return "Bar Terrasse";
+  // Score par mot exact
+  words.forEach(function(w){
+    Object.keys(KW).forEach(function(cat){
+      if(KW[cat].indexOf(w)!==-1) scores[cat]+=10;
+    });
+  });
 
-  // ── 5. Snack (avant Bar pour éviter "snack-bar" → Bar) ──
-  if(t.indexOf("snack")!==-1)return "Snack";
+  // Score par sous-chaîne (moins fort)
+  Object.keys(KW).forEach(function(cat){
+    KW[cat].forEach(function(kw){
+      if(kw.length > 3 && t.indexOf(kw)!==-1 && words.indexOf(kw)===-1) scores[cat]+=5;
+    });
+  });
 
-  // ── 6. Restaurants & Cafés (avant Bar pour éviter "bar restaurant" → Bar) ──
-  // Si "restaurant" ou "resto" est présent ET "bar" aussi → Restaurant (lieu mixte classé resto)
-  if(t.indexOf("restaurant")!==-1||t.indexOf("resto")!==-1||t.indexOf("p\u00e2tisserie")!==-1||t.indexOf("patisserie")!==-1||t.indexOf("brasserie")!==-1||t.indexOf("pizzeria")!==-1||t.indexOf("bistro")!==-1||t.indexOf("caf\u00e9")!==-1||t.indexOf("cafe")!==-1||t.indexOf("maquis")!==-1)return "Restaurant";
+  // ── 3. Règles de priorité en cas d'égalité ou de conflit ──
+  // "bar de l'hôtel X" → Hotel gagne si Hotel >= Bar
+  if(scores.Hotel >= scores.Bar && scores.Hotel > 0){ _getCategoryCache[raw]="Hotel"; return "Hotel"; }
+  // "bar restaurant" → Restaurant gagne sur Bar
+  if(scores.Restaurant > 0 && scores.Bar > 0 && scores.Restaurant >= scores.Bar){ _getCategoryCache[raw]="Restaurant"; return "Restaurant"; }
+  // "snack-bar" → Snack gagne sur Bar
+  if(scores.Snack > 0 && scores.Bar > 0){ _getCategoryCache[raw]="Snack"; return "Snack"; }
+  // "club" seul sans "bar" → Disco
+  if(scores.Discotheque > 0 && scores.Bar === 0){ _getCategoryCache[raw]="Discotheque"; return "Discotheque"; }
 
-  // ── 7. Bars & Lounges ──
-  if(t.indexOf("bar")!==-1||t.indexOf("lounge")!==-1||t.indexOf("pub")!==-1||t.indexOf("taverne")!==-1)return "Bar";
+  // ── 4. Gagnant par score maximum ──
+  var best = "Bar", bestScore = 0;
+  var ORDER = ["Hotel","Discotheque","Bar Terrasse","Restaurant","Snack","Bar"];
+  ORDER.forEach(function(cat){
+    if(scores[cat] > bestScore){ bestScore=scores[cat]; best=cat; }
+  });
 
-  // ── 8. Fallback ──
-  return "Bar";
+  _getCategoryCache[raw] = best;
+  return best;
 }
+
 function getCatInfo(key){
   for(var i=0;i<CATEGORIES.length;i++){if(CATEGORIES[i].key===key)return CATEGORIES[i];}
   return CATEGORIES[0];
 }
+
+/* Vider le cache si nécessaire (ex: après import massif) */
+function _invalidateCategoryCache(){ _getCategoryCache={}; }
 
 // CLOCK
 function updateClock(){
@@ -13580,50 +13622,91 @@ function estPaiementConfirme(etab){
   return true;
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   filterData v2 — recherche multi-champs avec score de pertinence
+   + debounce intégré pour éviter les renders inutiles
+══════════════════════════════════════════════════════════════════ */
+var _filterDebounceTimer = null;
+var _lastFilterQ = null;
+
 function filterData(){
-  var q=document.getElementById("searchInput").value.toLowerCase();
-  var data=etablissements.filter(function(e){
-    var ms=!q||e.nom.toLowerCase().indexOf(q)!==-1||(e.quartier&&e.quartier.toLowerCase().indexOf(q)!==-1)||(e.type&&e.type.toLowerCase().indexOf(q)!==-1);
-    var mt=currentType==="all"||(getCategory(e.type)===currentType);
-    var mv=currentStatus==="all"||(e.statut&&e.statut.indexOf(currentStatus)!==-1);
-    // Admin voit tout (actifs + archivés) pour pouvoir les trier
-    if(isAdmin) return ms&&mt;
-    return ms&&mt&&mv;
+  var raw = document.getElementById("searchInput");
+  var q   = raw ? raw.value.toLowerCase().trim() : "";
+
+  var data = etablissements.filter(function(e){
+
+    // ── Filtre TYPE : comparaison stricte via getCategory ──
+    var mt = currentType === "all" || (getCategory(e.type) === currentType);
+    if(!mt) return false;
+
+    // ── Filtre STATUT ──
+    var mv = currentStatus === "all" || (e.statut && e.statut.indexOf(currentStatus) !== -1);
+    if(!isAdmin && !mv) return false;
+
+    // ── Filtre RECHERCHE texte ──
+    if(q){
+      var nom      = (e.nom      || "").toLowerCase();
+      var quartier = (e.quartier || "").toLowerCase();
+      var desc     = (e.description || "").toLowerCase();
+      // On ne cherche PAS dans e.type brut pour éviter les faux positifs :
+      // "Bar de l'Hôtel Résidence" ne doit pas matcher la recherche "hotel" dans le filtre Bar
+      // On cherche uniquement dans nom, quartier, description
+      var matchNom      = nom.indexOf(q) !== -1;
+      var matchQuartier = quartier.indexOf(q) !== -1;
+      var matchDesc     = desc.indexOf(q) !== -1;
+      // Exception : si la query correspond exactement à une catégorie connue,
+      // on filtre par catégorie (ex: taper "hotel" → filtre Hotel)
+      var qCat = getCategory(q);
+      var matchCat = (q.length >= 3) && (qCat !== "Bar" || q === "bar") && (getCategory(e.type) === qCat);
+      if(!matchNom && !matchQuartier && !matchDesc && !matchCat) return false;
+    }
+
+    return true;
   });
-  // ── GPS : filtrer par rayon si mode actif ──
+
+  // ── GPS : filtrer + trier par distance ──
   if(typeof _gpsState !== "undefined" && _gpsState.active && _gpsState.lat !== null){
     data = filterByRadius(data);
     data = sortGpsData(data);
-    // Même en mode GPS : l'établissement du membre toujours en 1er
     data = _pinMyEtabFirst(data);
     return data;
   }
+
+  // ── Tri ──
   data.sort(function(a,b){
-    if(currentSort==="affluence"){
-      // Utiliser l'affluence réelle (live) si disponible
-      var aLive = window._livePresences && window._liveVotes ? (function(){
-        var lp = window._livePresences[String(a.id)]||{count:0};
-        var lv = window._liveVotes[String(a.id)]||{pos:0,neg:0};
+    if(currentSort === "affluence"){
+      var aLive = (function(){
+        var lp = (window._livePresences && window._livePresences[String(a.id)]) || {count:0};
+        var lv = (window._liveVotes    && window._liveVotes[String(a.id)])     || {pos:0,neg:0};
         return Math.max(0,Math.min(100,(a.affluence||0)+Math.min(lp.count*3,30)+(lv.pos*2)-(lv.neg*3)));
-      })() : (a.affluence||0);
-      var bLive = window._livePresences && window._liveVotes ? (function(){
-        var lp = window._livePresences[String(b.id)]||{count:0};
-        var lv = window._liveVotes[String(b.id)]||{pos:0,neg:0};
+      })();
+      var bLive = (function(){
+        var lp = (window._livePresences && window._livePresences[String(b.id)]) || {count:0};
+        var lv = (window._liveVotes    && window._liveVotes[String(b.id)])     || {pos:0,neg:0};
         return Math.max(0,Math.min(100,(b.affluence||0)+Math.min(lp.count*3,30)+(lv.pos*2)-(lv.neg*3)));
-      })() : (b.affluence||0);
+      })();
       return bLive - aLive;
     }
-    if(currentSort==="note"){
+    if(currentSort === "note"){
       var aN = (window._liveRatings && window._liveRatings[String(a.id)] && window._liveRatings[String(a.id)].avis > 0) ? window._liveRatings[String(a.id)].note : (a.note||0);
       var bN = (window._liveRatings && window._liveRatings[String(b.id)] && window._liveRatings[String(b.id)].avis > 0) ? window._liveRatings[String(b.id)].note : (b.note||0);
       return bN - aN;
     }
-    if(currentSort==="quartier")return(a.quartier||"").localeCompare(b.quartier||"");
+    if(currentSort === "quartier") return (a.quartier||"").localeCompare(b.quartier||"");
     return 0;
   });
-  // ── Épingler l'établissement du membre propriétaire en tête ──
+
   data = _pinMyEtabFirst(data);
   return data;
+}
+
+/* Déclenche renderAll avec debounce (200ms) depuis l'input recherche */
+function onSearchInput(){
+  var btn = document.getElementById("searchClearBtn");
+  var val = (document.getElementById("searchInput")||{}).value||"";
+  if(btn) btn.style.display = val ? "flex" : "none";
+  clearTimeout(_filterDebounceTimer);
+  _filterDebounceTimer = setTimeout(function(){ renderAll(); }, 200);
 }
 
 // Épingle l'établissement du membre connecté en tête de liste (pour modération facile)
@@ -16087,7 +16170,7 @@ function _getCachedScore(e){
   return _scoreCache[key];
 }
 
-function invalidateScoreCache(){ _scoreCacheVersion++; _scoreCache = {}; _rankCache = null; }
+function invalidateScoreCache(){ _scoreCacheVersion++; _scoreCache = {}; _rankCache = null; _invalidateCategoryCache(); }
 window.invalidateScoreCache = invalidateScoreCache;
 
 /* ── Restaurer les photos sauvegardées localement au chargement ── */
