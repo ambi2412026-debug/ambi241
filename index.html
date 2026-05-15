@@ -12,14 +12,20 @@
 <title>AMBI241 - Ambiance Libreville en Direct</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
+<!-- PERF: preload police principale -->
+<link rel="preload" as="font" crossorigin
+  href="https://fonts.gstatic.com/s/dmsans/v15/rP2Hp2ywxg089UriCZa4ET-DNl0.woff2"
+  type="font/woff2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://maps.googleapis.com" crossorigin>
 <link rel="dns-prefetch" href="https://firestore.googleapis.com">
 <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&display=swap" rel="stylesheet"></noscript>
+<!-- PERF: Cormorant Garamond supprimé (6 variantes inutiles), Syne réduit à 700+800 -->
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap"
+      rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""></noscript>
 <style>
@@ -31,7 +37,7 @@
 html{overflow-x:hidden;max-width:100vw;scrollbar-gutter:stable;overflow-y:scroll;}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;padding-bottom:calc(var(--nav-h) + var(--player-h));padding-top:116px;max-width:100%;width:100%;}
-body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(255,45,155,0.12) 0%,transparent 50%),radial-gradient(ellipse at 90% 30%,rgba(0,229,255,0.10) 0%,transparent 50%),radial-gradient(ellipse at 50% 90%,rgba(204,68,255,0.08) 0%,transparent 50%);pointer-events:none;z-index:0;will-change:transform;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(255,45,155,0.12) 0%,transparent 50%),radial-gradient(ellipse at 90% 30%,rgba(0,229,255,0.10) 0%,transparent 50%),radial-gradient(ellipse at 50% 90%,rgba(204,68,255,0.08) 0%,transparent 50%);pointer-events:none;z-index:0;/* PERF: will-change supprimé — fond statique, pas d'animation */}
 /* Optimisation GPU pour les éléments animés */
 .live-dot,.heb-dot,.dispo-updated-dot,.cef-live,.hero-eyebrow-dot{will-change:opacity,transform;}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
@@ -41294,6 +41300,50 @@ function _escPro(s){
 })();
 
 console.log('[AMBI241] ✅ Module PRO — Likes·Commentaires·Partage Firebase chargé');
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════
+     PATCH PERFORMANCE AMBI241
+     ═══════════════════════════════════════════════════ -->
+<style>
+/* Rendu différé des onglets cachés */
+.pane:not(.active),.tab-pane:not(.active),[role="tabpanel"]:not([aria-hidden="false"]){content-visibility:auto;contain-intrinsic-size:0 600px;}
+/* Skeleton Top du moment */
+.tdm-skeleton{display:flex;gap:.75rem;overflow-x:auto;padding:.5rem 1rem;scrollbar-width:none;}
+.tdm-skeleton::-webkit-scrollbar{display:none;}
+.tdm-skel-card{flex-shrink:0;width:140px;height:120px;border-radius:14px;background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:200% 100%;animation:skeletonShimmer 1.4s infinite;}
+@keyframes skeletonShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+</style>
+<script>
+(function(){
+  'use strict';
+  document.addEventListener('DOMContentLoaded',function(){
+    document.querySelectorAll('*').forEach(function(el){
+      if(el.children.length===0&&el.textContent.trim()==='⌛ Chargement...'&&!el._ambiPatched){
+        el._ambiPatched=true;
+        var parent=el.parentElement;if(!parent)return;
+        var skel=document.createElement('div');
+        skel.className='tdm-skeleton';
+        skel.innerHTML='<div class="tdm-skel-card"></div><div class="tdm-skel-card"></div><div class="tdm-skel-card"></div>';
+        var skelId='_skel_'+Math.random().toString(36).slice(2);skel.id=skelId;
+        el.style.display='none';parent.insertBefore(skel,el);
+        setTimeout(function(){
+          var s=document.getElementById(skelId);
+          if(s){s.style.transition='opacity .4s';s.style.opacity='0';setTimeout(function(){if(s.parentElement)s.remove();},400);}
+          if(el.style.display==='none'){el.style.display='';el.textContent='— Aucun résultat pour l\'instant';}
+        },5000);
+      }
+    });
+    document.querySelectorAll('img:not([loading])').forEach(function(img,i){if(i>2){img.setAttribute('loading','lazy');img.setAttribute('decoding','async');}});
+  });
+  var _orig=window.setInterval,_n=0;
+  window.setInterval=function(fn,delay){
+    if(delay===800&&_n<3){_n++;var tid;tid=_orig.call(window,function(){fn();if(window.currentUserUID){clearInterval(tid);window.setInterval=_orig;}},2000);return tid;}
+    return _orig.apply(window,arguments);
+  };
+  setTimeout(function(){document.querySelectorAll('.live-dot,.heb-dot,.dispo-updated-dot,.cef-live,.hero-eyebrow-dot').forEach(function(d){d.style.willChange='auto';});},10000);
+  console.log('[AMBI241] Patch performance OK');
 })();
 </script>
 </body>
