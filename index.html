@@ -9278,10 +9278,10 @@ onAuthStateChanged(auth, function(user) {
       // ── Mettre à jour le label nav Connexion → Profil ──
       if(typeof updateNavLabels === "function") updateNavLabels();
       // ── Pré-remplir sec-profil avec les vraies données utilisateur ──
-      if(typeof _syncProfilSection === "function") setTimeout(_syncProfilSection, 400);
+      if(typeof _syncProfilSection === "function") setTimeout(_syncProfilSection, 200); // PERF
       // ── Actualiser le panneau paiements ──
-      if(typeof updatePayVis === "function") setTimeout(updatePayVis, 500);
-    }, 2000);
+      if(typeof updatePayVis === "function") setTimeout(updatePayVis, 300); // PERF
+    }, 400); // PERF: réduit de 2000→400ms
   } else {
     window.currentUserEmail  = "";
     window.currentUserUID    = null;
@@ -9343,10 +9343,10 @@ function _writeSessionLog(data){
 // Signal que Firebase est prêt — loadData() sera appelé par le script principal
 window.__firebaseReady = true;
 if (window.__appReady) { loadData(); initMeteo(); }
-// Charger la config admin (superadmin + admins secondaires) dès que Firebase est prêt
+// Charger la config admin dès que Firebase est prêt
 setTimeout(function(){
   if(typeof loadAdminConfig === "function") loadAdminConfig();
-}, 400);
+}, 200); // PERF: réduit de 400→200ms
 
 // Initialiser le bouton géoloc recherche dès que le DOM est prêt
 setTimeout(function(){
@@ -9515,10 +9515,10 @@ function _subscribeAllEtabs() {
 // Appeler dès que Firebase est prêt + après chaque loadData
 window._subscribeAllEtabs = _subscribeAllEtabs;
 
-// Abonnement immédiat (les établissements locaux sont déjà chargés)
+// Abonnement différé — après loadData pour ne pas bloquer le chargement initial
 setTimeout(function() {
   _subscribeAllEtabs();
-}, 800);
+}, 2000); // PERF: décalé à 2s pour laisser loadData se terminer d'abord
 
 </script>
 
@@ -10711,10 +10711,12 @@ function isSuperAdminUser(){
 // Charge la config super-admin et la liste des admins depuis Firebase
 function loadAdminConfig(){
   if(!window.db || typeof window.fbGetDoc !== "function"){
-    // Firebase pas encore initialise : reessayer dans 300ms
-    setTimeout(function(){ loadAdminConfig(); }, 300);
+    // Firebase pas encore initialise : reessayer avec backoff (max 10 tentatives)
+    if(!loadAdminConfig._attempts) loadAdminConfig._attempts = 0;
+    if(++loadAdminConfig._attempts < 10) setTimeout(function(){ loadAdminConfig(); }, 500);
     return;
   }
+  loadAdminConfig._attempts = 0;
   // S'assurer que currentUserEmail est synchronisé avec window.currentUserEmail
   if(!currentUserEmail && window.currentUserEmail) currentUserEmail = window.currentUserEmail;
 
@@ -16484,7 +16486,8 @@ function renderAllImmediate(){
   /* ── Restaurer les photos persistantes au chaque rendu ── */
   restorePhotosPersistence();
   _rankCache = null; // invalider le cache rankings
-  loadSoireePhotos();
+  // PERF: loadSoireePhotos est appelé uniquement depuis loadData (pas à chaque render)
+  // loadSoireePhotos(); // supprimé du renderAllImmediate — trop fréquent
 
   // ── Bandeau "Mon établissement" (membres propriétaires uniquement) ──
   var myBanner = document.getElementById("myEtabBanner");
@@ -17703,7 +17706,7 @@ function updateNavLabels(){
 window.updateNavLabels = updateNavLabels;
 
 /* Appel initial au chargement (utilisateur potentiellement déjà connecté via session) */
-(function(){ setTimeout(updateNavLabels, 800); })();
+(function(){ setTimeout(updateNavLabels, 100); })(); // PERF: délai réduit
 
 // ── Navigation vers un établissement spécifique ─────────────────
 function goToEtab(id) {
@@ -19757,8 +19760,8 @@ function _startApp(){
   _startAppAttempts++;
   if(typeof window.fbGetDocs==="function" && typeof window.fbCollection==="function" && window.db){
     loadData();
-  } else if(_startAppAttempts < 40){
-    setTimeout(_startApp, 250);
+  } else if(_startAppAttempts < 25){ // PERF: max 25 tentatives au lieu de 40
+    setTimeout(_startApp, 200); // PERF: 200ms au lieu de 250ms
   } else {
     // Firebase jamais prêt → afficher les données locales immédiatement
     // Les données locales sont déjà chargées (pré-population au démarrage)
@@ -19783,7 +19786,7 @@ loadSuperAdmin();
     +'</div>';
 })();
 renderStats(); renderHome(); renderPayments();
-setTimeout(initMeteo, 500);
+setTimeout(initMeteo, 1500); // PERF: météo non critique au démarrage
 
 _startApp();
 updatePayVis();
@@ -34996,7 +34999,7 @@ function _checkGlobalBanner(){
 }
 
 // Vérifier la bannière au chargement et toutes les 2 minutes
-setTimeout(_checkGlobalBanner, 3000);
+setTimeout(_checkGlobalBanner, 5000); // PERF: bannière non critique
 setInterval(_checkGlobalBanner, 120000);
 
 console.log('✅ AMBI241 Admin Control v2.0 chargé');
@@ -42424,7 +42427,7 @@ console.log('[AMBI241] ✅ Module PRO — Likes·Commentaires·Partage Firebase 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', _init);
   } else {
-    setTimeout(_init, 300);
+    setTimeout(_init, 500); // PERF: délai augmenté
   }
 
 })();
