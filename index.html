@@ -1310,7 +1310,7 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 .asm-new-post-cta:active{background:rgba(255,45,155,0.12);}
 
 /* HEADER */
-header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0.96);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,45,155,0.2);padding:0;width:100%;max-width:100vw;box-sizing:border-box;overflow:visible;display:flex;flex-direction:column;}
+header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0.97);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,45,155,0.2);padding:0;width:100%;max-width:100vw;box-sizing:border-box;overflow:visible;display:flex;flex-direction:column;}
 .header-top{display:flex;align-items:center;justify-content:space-between;padding:0 0.5rem;height:56px;width:100%;}
 .header-guide-bar{display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.28rem 0.5rem;border-top:1px solid rgba(0,229,255,0.12);background:rgba(0,229,255,0.04);flex-wrap:wrap;}
 .header-guide-bar .guide-btn{flex:1;min-width:0;max-width:240px;justify-content:center;font-size:0.78rem;padding:0.3rem 0.8rem;border-radius:10px;text-align:center;}
@@ -1918,10 +1918,11 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   padding:1.3rem 0.8rem 1.1rem;
   text-align:center;
   cursor:pointer;
-  transition:transform 0.25s cubic-bezier(.34,1.3,.64,1), box-shadow 0.25s ease;
+  transition:transform 0.15s ease, box-shadow 0.15s ease;
   overflow:hidden;
   user-select:none;
   -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
   display:flex;
   flex-direction:column;
   align-items:center;
@@ -2333,7 +2334,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .search-wrap input::placeholder{color:var(--muted);}
 .filter-row{display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.5rem;}
 .filter-row::-webkit-scrollbar{display:none;}
-.fchip{flex-shrink:0;padding:0.22rem 0.6rem;border-radius:100px;font-size:0.65rem;font-weight:700;border:1px solid rgba(255,45,155,0.2);background:rgba(255,45,155,0.06);color:var(--muted);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;white-space:nowrap;}
+.fchip{flex-shrink:0;padding:0.22rem 0.6rem;border-radius:100px;font-size:0.65rem;font-weight:700;border:1px solid rgba(255,45,155,0.2);background:rgba(255,45,155,0.06);color:var(--muted);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.1s;white-space:nowrap;touch-action:manipulation;}
 .fchip.active{background:var(--pink);border-color:var(--pink);color:#000;box-shadow:0 0 8px rgba(255,45,155,0.3);}
 .sort-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.8rem;}
 .sort-label{font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;}
@@ -3125,10 +3126,10 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   flex-shrink:0;
 }
 /* BOTTOM NAV */
-.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:50;background:rgba(13,0,20,0.97);backdrop-filter:blur(20px);border-top:1px solid rgba(255,45,155,0.15);display:flex;height:54px;padding:0 0.25rem;width:100%;box-sizing:border-box;overflow:hidden;}
-.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.1rem;cursor:pointer;color:var(--muted);font-size:0.52rem;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;padding:0.3rem;transition:color 0.2s,transform 0.15s;border:none;background:none;font-family:'DM Sans',sans-serif;-webkit-tap-highlight-color:transparent;user-select:none;}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:50;background:rgba(13,0,20,0.98);backdrop-filter:blur(12px);border-top:1px solid rgba(255,45,155,0.15);display:flex;height:54px;padding:0 0.25rem;width:100%;box-sizing:border-box;overflow:hidden;}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.1rem;cursor:pointer;color:var(--muted);font-size:0.52rem;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;padding:0.3rem;transition:color 0.1s,transform 0.1s;border:none;background:none;font-family:'DM Sans',sans-serif;-webkit-tap-highlight-color:transparent;user-select:none;touch-action:manipulation;}
 .nav-item:active{transform:scale(0.88);opacity:0.75;}
-.nav-item .nav-icon{font-size:1.1rem;transition:transform 0.2s;}
+.nav-item .nav-icon{font-size:1.1rem;transition:transform 0.1s;}
 .nav-item.active .nav-icon{transform:scale(1.18);}
 .nav-item.active{color:var(--pink);}
 .section-hidden{display:none;}
@@ -11706,9 +11707,11 @@ function loadData(){
         return true;
       });
       etablissements = firebaseData;
+      if(typeof _renderHomeSig !== 'undefined') _renderHomeSig = null; // invalider cache renderHome
     } else {
       // Firebase vide → fallback données locales
       etablissements = getDefaults();
+      if(typeof _renderHomeSig !== 'undefined') _renderHomeSig = null;
     }
 
     document.getElementById("errorBanner").innerHTML="";
@@ -11794,12 +11797,17 @@ function updateSyncTime(){
 // RENDER HOME — avec debounce
 var _renderHomeTimer = null;
 var _renderHomeOrig = null;
+var _renderHomeSig  = null; // signature des données pour éviter les rebuilds inutiles
 function renderHome(){
   if(_renderHomeTimer) clearTimeout(_renderHomeTimer);
   _renderHomeTimer = setTimeout(renderHomeImmediate, 16);
 }
 function renderHomeImmediate(){
   var d = etablissements;
+  /* Signature rapide : longueur + somme des ids + somme des statuts — évite rebuild si rien n'a changé */
+  var _sig = d.length + '|' + d.reduce(function(s,e){ return s + (e.id||0) + (e.statut||'').length + (e.affluence||0); }, 0);
+  if(_sig === _renderHomeSig) return; // rien n'a changé → skip
+  _renderHomeSig = _sig;
 
   /* ── OPTION 2 : Bandeau événement accueil ── */
   var bannerEl = document.getElementById("homeEventBanner");
@@ -11867,10 +11875,14 @@ function renderHomeImmediate(){
     ];
     typesEl.innerHTML = typesDef.map(function(t){
       var count = d.filter(function(e){ return getCategory(e.type) === t.key; }).length;
+      // Si données pas encore chargées → skeleton animé au lieu de "0"
+      var countHtml = (d.length === 0)
+        ? '<span style="display:inline-block;width:28px;height:14px;border-radius:7px;background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.14) 50%,rgba(255,255,255,.06) 75%);background-size:200% 100%;animation:skeletonShimmer 1.2s infinite;vertical-align:middle;"></span>'
+        : count;
       return '<div class="type-tile type-tile-'+t.cls+'" onclick="goToTypeFilter(\''+t.key+'\')" title="Voir les '+t.name+'">'
         + '<div class="tt-icon">'+t.icon+'</div>'
         + '<div class="tt-name">'+t.name+'</div>'
-        + '<div class="tt-count '+t.countCls+'">'+count+'</div>'
+        + '<div class="tt-count '+t.countCls+'">'+countHtml+'</div>'
         + '</div>';
     }).join("");
   }
@@ -16217,7 +16229,7 @@ function restorePhotosPersistence(){
 
 function renderAll(){
   if(_renderAllTimer) clearTimeout(_renderAllTimer);
-  _renderAllTimer = setTimeout(renderAllImmediate, 80); // debounce 80ms — évite les appels multiples
+  _renderAllTimer = setTimeout(renderAllImmediate, 30); // debounce 30ms — réactif sans flood
 }
 
 function renderAllImmediate(){
@@ -17074,29 +17086,38 @@ function renderPayments(){
 // NAV
 var SECS=["accueil","etablissements","paiements","contacts","profil","social"];
 function goHome(){switchSection("accueil",document.querySelector(".nav-item"));}
+/* Caches DOM stables — évite querySelectorAll/getElementById à chaque tap */
+var _navItemsCache = null;
+var _secElsCache   = {};
+var _footerElCache = null;
+var _socFabCache   = null;
+var _socFabMenuCache = null;
+
 function switchSection(name,btn){
-  /* FIX#2b — Mise à jour active immédiate, DOM section via rAF pour fluidité */
-  if(btn){document.querySelectorAll(".nav-item").forEach(function(b){b.classList.remove("active");});btn.classList.add("active");}
-  requestAnimationFrame(function(){
-    SECS.forEach(function(s){document.getElementById("sec-"+s).classList.toggle("section-hidden",s!==name);});
-  });
-  // Effacer le badge Discussions quand on arrive sur la section
-  if(name === "publications" && window.markDiscBadge){ window.markDiscBadge(false); }
-  // Discussions redirigées vers Social
-  if(name === "social" && window.markDiscBadge){ window.markDiscBadge(false); }
-  // Actualiser le panneau paiements selon état de connexion
-  if(name === "paiements" && typeof updatePayVis === "function"){ setTimeout(updatePayVis, 80); }
-  // Fermer la carte si on quitte l'onglet etablissements
-  if(name!=="etablissements" && window.closeAmbiMap) window.closeAmbiMap();
-  // Afficher le footer uniquement sur la page contacts
-  var footerEl = document.querySelector("footer");
-  if(footerEl){ footerEl.style.display = (name === "contacts") ? "block" : "none"; }
-  // Afficher le FAB + uniquement dans la section Social
-  var fab = document.getElementById('socFab');
-  var fabMenu = document.getElementById('socFabMenu');
-  if(fab){
-    fab.style.display = (name === 'social') ? 'flex' : 'none';
-    if(name !== 'social' && fabMenu){ fabMenu.classList.remove('open'); }
+  /* 1. Nav active — synchrone, visible instantanément */
+  if(!_navItemsCache) _navItemsCache = document.querySelectorAll(".nav-item");
+  if(btn){
+    for(var _i=0;_i<_navItemsCache.length;_i++) _navItemsCache[_i].classList.remove("active");
+    btn.classList.add("active");
+  }
+  /* 2. Sections — synchrone, sans rAF (le rAF ajoutait ~16ms pour rien) */
+  for(var _j=0;_j<SECS.length;_j++){
+    var _s=SECS[_j];
+    if(!_secElsCache[_s]) _secElsCache[_s]=document.getElementById("sec-"+_s);
+    if(_secElsCache[_s]) _secElsCache[_s].classList.toggle("section-hidden",_s!==name);
+  }
+  /* 3. Effets secondaires */
+  if(name==="publications"&&window.markDiscBadge) window.markDiscBadge(false);
+  if(name==="social"&&window.markDiscBadge) window.markDiscBadge(false);
+  if(name==="paiements"&&typeof updatePayVis==="function") setTimeout(updatePayVis,60);
+  if(name!=="etablissements"&&window.closeAmbiMap) window.closeAmbiMap();
+  if(!_footerElCache) _footerElCache=document.querySelector("footer");
+  if(_footerElCache) _footerElCache.style.display=(name==="contacts")?"block":"none";
+  if(!_socFabCache) _socFabCache=document.getElementById('socFab');
+  if(!_socFabMenuCache) _socFabMenuCache=document.getElementById('socFabMenu');
+  if(_socFabCache){
+    _socFabCache.style.display=(name==='social')?'flex':'none';
+    if(name!=='social'&&_socFabMenuCache) _socFabMenuCache.classList.remove('open');
   }
   window.scrollTo(0,0);
 }
@@ -19691,31 +19712,38 @@ function closeSupportRequestModal(){
 window.closeSupportRequestModal = closeSupportRequestModal;
 
 // ─────────────────────────────────────────────────────────────
-// ── Démarre l'app (attend Firebase si pas encore prêt) ───────
+// ── Démarre l'app (event-driven dès que Firebase est prêt) ───
 window.__appReady = true;
 
-var _startAppAttempts = 0;
+var _startAppCalled = false;
 function _startApp(){
-  _startAppAttempts++;
+  if(_startAppCalled) return;
   if(typeof window.fbGetDocs==="function" && typeof window.fbCollection==="function" && window.db){
+    _startAppCalled = true;
     loadData();
-  } else if(_startAppAttempts < 40){
-    setTimeout(_startApp, 250);
   } else {
-    // Firebase jamais prêt → afficher les données locales immédiatement
-    // Les données locales sont déjà chargées (pré-population au démarrage)
-    // On s'assure juste que l'affichage est à jour
-    var eb = document.getElementById("errorBanner");
-    if(eb) eb.innerHTML = "";
-    renderStats(); renderAll(); renderHome(); updateSyncTime();
+    // Firebase pas encore prêt → écouter le signal __firebaseReady via polling court
+    // (le module Firebase signale window.__firebaseReady = true juste avant l'appel)
+    var _attempts = 0;
+    var _poll = setInterval(function(){
+      _attempts++;
+      if(typeof window.fbGetDocs==="function" && typeof window.fbCollection==="function" && window.db){
+        clearInterval(_poll);
+        if(!_startAppCalled){ _startAppCalled=true; loadData(); }
+      } else if(_attempts >= 60){ // 6s max — fallback affichage local
+        clearInterval(_poll);
+        var eb = document.getElementById("errorBanner");
+        if(eb) eb.innerHTML = "";
+        renderStats(); renderAll(); renderHome(); updateSyncTime();
+      }
+    }, 100); // polling 100ms au lieu de 250ms → détection ~2.5× plus rapide
   }
 }
-// ── Démarrage : afficher un skeleton léger au lieu des 65 hardcodés ──
-// Firebase chargera les vraies données en <2s — pas besoin de pré-remplir
+// ── Démarrage : skeleton immédiat + lancement Firebase ──
 etablissements = [];
 rebuildPaiements();
 loadSuperAdmin();
-// Afficher un indicateur de chargement plutôt que les faux 65 lieux
+// Skeleton dans la liste principale
 (function(){
   var ml = document.getElementById("mainList");
   if(ml) ml.innerHTML = '<div style="text-align:center;padding:3rem 1rem;color:var(--muted);">'
@@ -19723,6 +19751,12 @@ loadSuperAdmin();
     +'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;color:var(--cyan);">Chargement des lieux...</div>'
     +'<div style="font-size:0.72rem;margin-top:0.4rem;">Connexion à Firebase en cours</div>'
     +'</div>';
+  // Skeleton animé sur les compteurs de la grille d'accueil (au lieu de "0")
+  document.querySelectorAll('.tt-count').forEach(function(el){
+    el.setAttribute('data-loading','1');
+    el.style.cssText='display:inline-block;width:28px;height:14px;border-radius:7px;background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.14) 50%,rgba(255,255,255,.06) 75%);background-size:200% 100%;animation:skeletonShimmer 1.2s infinite;vertical-align:middle;';
+    el.textContent='';
+  });
 })();
 renderStats(); renderHome(); renderPayments();
 setTimeout(initMeteo, 500);
