@@ -7504,7 +7504,10 @@ if (document.readyState === 'loading') {
         <div class="gps-accuracy-bar"><div class="gps-accuracy-fill" id="gpsAccuracyFill" style="width:0%"></div></div>
       </div>
     </div>
-    <div class="search-wrap" style="position:relative;display:flex;align-items:center;"><span>&#128269;</span><input type="text" id="searchInput" placeholder="Rechercher nom, type, quartier..." oninput="renderAll();document.getElementById('searchClearBtn').style.display=this.value?'flex':'none'"><button id="searchClearBtn" onclick="document.getElementById('searchInput').value='';renderAll();this.style.display='none';document.getElementById('searchInput').focus()" style="display:none;position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;color:var(--muted);width:20px;height:20px;border-radius:50%;font-size:0.75rem;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.15s;" title="Effacer">&#10005;</button></div>
+    <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.8rem;">
+      <div class="search-wrap" style="position:relative;display:flex;align-items:center;flex:1;margin-bottom:0;"><span>&#128269;</span><input type="text" id="searchInput" placeholder="Rechercher nom, type, quartier..." oninput="renderAll();document.getElementById('searchClearBtn').style.display=this.value?'flex':'none'"><button id="searchClearBtn" onclick="document.getElementById('searchInput').value='';renderAll();this.style.display='none';document.getElementById('searchInput').focus()" style="display:none;position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;color:var(--muted);width:20px;height:20px;border-radius:50%;font-size:0.75rem;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.15s;" title="Effacer">&#10005;</button></div>
+      <button id="_searchGeoBtn" onclick="openSearchGeoModal()" title="Activer la géolocalisation pour trier les résultats" style="width:38px;height:38px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:var(--muted);font-size:1.05rem;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all 0.2s;">🌐</button>
+    </div>
     <!-- Bandeau "Mon établissement" — visible uniquement pour les membres propriétaires -->
     <div id="myEtabBanner" style="display:none;background:linear-gradient(90deg,rgba(255,45,155,0.13),rgba(0,229,255,0.07));border:1.5px solid rgba(255,45,155,0.35);border-radius:14px;padding:0.7rem 0.9rem;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.55rem;">
       <span style="font-size:1.1rem;">📌</span>
@@ -9332,6 +9335,11 @@ setTimeout(function(){
   if(typeof loadAdminConfig === "function") loadAdminConfig();
 }, 400);
 
+// Initialiser le bouton géoloc recherche dès que le DOM est prêt
+setTimeout(function(){
+  if(typeof _updateSearchGeoBtn === "function") _updateSearchGeoBtn();
+}, 600);
+
 // ══════════════════════════════════════════════════════════════
 // ══  MOTEUR DONNÉES RÉELLES FIRESTORE — TEMPS RÉEL          ══
 // ══  Présences · Votes · Notes · Avis · Classement Live     ══
@@ -10980,6 +10988,205 @@ var _gpsState = {
   timestamp: null, watchId: null, watching: false,
   radius: 1, sort: "distance", loading: false, error: null, permissionDenied: false
 };
+
+/* ═══════════════════════════════════════════════════════════════
+   GÉOLOC RECHERCHE — Tri des résultats de recherche par proximité
+   ═══════════════════════════════════════════════════════════════ */
+var _searchGeo = {
+  active: false, lat: null, lng: null,
+  label: '', method: null, proximityKm: 3, loading: false
+};
+
+(function _loadSearchGeo() {
+  try {
+    var s = localStorage.getItem('ambi_searchGeo');
+    if (s) {
+      var p = JSON.parse(s);
+      if (p && p.lat && p.lng) {
+        _searchGeo.active = !!p.active;
+        _searchGeo.lat = p.lat; _searchGeo.lng = p.lng;
+        _searchGeo.label = p.label || 'GPS';
+        _searchGeo.method = p.method || 'gps';
+        _searchGeo.proximityKm = p.proximityKm || 3;
+      }
+    }
+  } catch(e) {}
+})();
+
+function _saveSearchGeo() {
+  try { localStorage.setItem('ambi_searchGeo', JSON.stringify(_searchGeo)); } catch(e) {}
+}
+
+function _searchGeoDist(e) {
+  if (!_searchGeo.lat || !_searchGeo.lng) return null;
+  var lat = e.lat, lng = e.lng;
+  if (!lat || !lng) {
+    var qc = typeof QUARTIER_COORDS !== 'undefined' ? QUARTIER_COORDS[e.quartier] : null;
+    if (qc) { lat = qc[0]; lng = qc[1]; }
+  }
+  if (!lat || !lng) return null;
+  return haversineKm(_searchGeo.lat, _searchGeo.lng, lat, lng);
+}
+
+function _enrichSearchDist() {
+  if (!_searchGeo.active || !_searchGeo.lat) return;
+  (window.etablissements || []).forEach(function(e) {
+    e._searchDistKm = _searchGeoDist(e);
+  });
+}
+
+function _updateSearchGeoBtn() {
+  var btn = document.getElementById('_searchGeoBtn');
+  if (!btn) return;
+  if (_searchGeo.active && _searchGeo.lat) {
+    btn.style.color = 'var(--green)';
+    btn.style.borderColor = 'rgba(0,255,170,0.5)';
+    btn.style.background = 'rgba(0,255,170,0.1)';
+    btn.title = 'Géoloc activée — ' + (_searchGeo.label || 'GPS') + ' · Cliquer pour modifier';
+    btn.innerHTML = '📍';
+  } else {
+    btn.style.color = 'var(--muted)';
+    btn.style.borderColor = 'rgba(255,255,255,0.12)';
+    btn.style.background = 'rgba(255,255,255,0.04)';
+    btn.title = 'Activer la géolocalisation pour trier les résultats de recherche';
+    btn.innerHTML = '🌐';
+  }
+}
+
+window.openSearchGeoModal = function() {
+  var existing = document.getElementById('_sgModal');
+  if (existing) existing.remove();
+  var curLat  = _searchGeo.lat  ? _searchGeo.lat.toFixed(5)  : '—';
+  var curLng  = _searchGeo.lng  ? _searchGeo.lng.toFixed(5)  : '—';
+  var isActive = _searchGeo.active && _searchGeo.lat !== null;
+  var proxKm  = _searchGeo.proximityKm || 3;
+
+  function proxBtn(k) {
+    var sel = proxKm === k;
+    return "<button onclick='_sgSetProx("+k+",this)' style='flex:1;padding:0.35rem 0.1rem;border-radius:7px;font-size:0.68rem;font-weight:700;font-family:DM Sans,sans-serif;cursor:pointer;transition:all 0.18s;border:1.5px solid " +
+      (sel ? "var(--green);background:rgba(0,255,170,0.14);color:var(--green);" : "rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:var(--muted);") +
+      "'>"+k+" km</button>";
+  }
+
+  var html =
+    "<div id='_sgModal' style='position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:2000;display:flex;align-items:flex-end;justify-content:center;padding-bottom:calc(var(--nav-h) + var(--player-h) + 0.5rem);animation:fadeIn 0.2s;'>" +
+    "<div style='background:var(--surface);border:1px solid rgba(0,229,255,0.25);border-radius:20px 20px 14px 14px;width:100%;max-width:480px;padding:1.1rem 1rem 1rem;position:relative;'>" +
+    "<button onclick=\'document.getElementById(\'_sgModal\').remove()\' style=\'position:absolute;top:0.75rem;right:0.75rem;background:rgba(255,255,255,0.08);border:none;color:var(--muted);width:28px;height:28px;border-radius:50%;font-size:0.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;\'>✕</button>" +
+    "<div style='font-family:Syne,sans-serif;font-weight:800;font-size:0.95rem;color:var(--cyan);margin-bottom:0.25rem;'>📍 Ma position pour la recherche</div>" +
+    "<div style='font-size:0.72rem;color:var(--muted);margin-bottom:0.9rem;line-height:1.4;'>Les résultats seront triés : <strong style=\'color:var(--green)\'>établissements proches en premier</strong> (surlignés), puis les autres.</div>" +
+    (isActive
+      ? "<div style='background:rgba(0,255,170,0.07);border:1px solid rgba(0,255,170,0.25);border-radius:10px;padding:0.55rem 0.7rem;margin-bottom:0.75rem;font-size:0.72rem;color:var(--green);display:flex;align-items:center;gap:0.5rem;'><span>✅</span><div><strong>" + (_searchGeo.label||'GPS') + "</strong> — " + curLat + "° N, " + curLng + "° E<br><span style='color:var(--muted);font-size:0.65rem;'>Position enregistrée — modifiez ci-dessous</span></div></div>"
+      : "<div style='background:rgba(255,68,102,0.07);border:1px solid rgba(255,68,102,0.2);border-radius:10px;padding:0.5rem 0.7rem;margin-bottom:0.75rem;font-size:0.72rem;color:var(--muted);'>Aucune position définie — choisissez une méthode ci-dessous</div>") +
+    "<div style='font-size:0.62rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.45rem;'>Définir ma position via</div>" +
+    "<div style='display:flex;gap:0.5rem;margin-bottom:0.85rem;'>" +
+      "<button id='_sgBtnGps' onclick='_sgSelectGPS()' style='flex:1;padding:0.65rem 0.4rem;background:rgba(0,229,255,0.07);border:1.5px solid rgba(0,229,255,0.25);border-radius:10px;color:var(--cyan);font-family:DM Sans,sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:0.25rem;transition:all 0.18s;'><span style='font-size:1.3rem;'>📡</span>GPS Auto</button>" +
+      "<button id='_sgBtnWa' onclick='_sgSelectWhatsapp()' style='flex:1;padding:0.65rem 0.4rem;background:rgba(37,211,102,0.07);border:1.5px solid rgba(37,211,102,0.2);border-radius:10px;color:#25d366;font-family:DM Sans,sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:0.25rem;transition:all 0.18s;'><span style='font-size:1.3rem;'>💬</span>WhatsApp</button>" +
+    "</div>" +
+    "<div style='font-size:0.62rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.35rem;'>Rayon « zone proche » <span id='_sgProxLabel' style='color:var(--green);'>" + proxKm + " km</span></div>" +
+    "<div style='display:flex;gap:0.35rem;margin-bottom:0.9rem;'>" + [1,2,3,5,10].map(proxBtn).join('') + "</div>" +
+    "<div id='_sgStatus' style='font-size:0.72rem;color:var(--muted);min-height:1.3rem;margin-bottom:0.7rem;text-align:center;'></div>" +
+    "<div style='display:flex;gap:0.5rem;'>" +
+      (isActive ? "<button onclick='_sgDisable()' style='flex:1;padding:0.6rem;border-radius:10px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.08);color:var(--red);font-family:DM Sans,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;'>🚫 Désactiver</button>" : "") +
+      "<button onclick='_sgConfirm()' style='flex:2;padding:0.6rem;border-radius:10px;border:none;background:linear-gradient(135deg,rgba(0,229,255,0.25),rgba(0,255,170,0.2));color:var(--cyan);font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;'>✅ Valider et Trier</button>" +
+    "</div></div></div>";
+
+  document.body.insertAdjacentHTML('beforeend', html);
+};
+
+window._sgSetProx = function(km, btn) {
+  _searchGeo.proximityKm = km;
+  document.querySelectorAll('#_sgModal [onclick^="_sgSetProx"]').forEach(function(b){
+    b.style.borderColor='rgba(255,255,255,0.1)'; b.style.background='rgba(255,255,255,0.03)'; b.style.color='var(--muted)';
+  });
+  btn.style.borderColor='var(--green)'; btn.style.background='rgba(0,255,170,0.14)'; btn.style.color='var(--green)';
+  var lbl = document.getElementById('_sgProxLabel');
+  if (lbl) lbl.textContent = km + ' km';
+};
+
+window._sgSelectGPS = function() {
+  var st = document.getElementById('_sgStatus');
+  if (st) st.innerHTML = '⏳ Localisation GPS en cours...';
+  if (!navigator.geolocation) {
+    if (st) st.innerHTML = '❌ GPS non disponible sur cet appareil';
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      _searchGeo.lat = pos.coords.latitude; _searchGeo.lng = pos.coords.longitude;
+      _searchGeo.label = 'GPS'; _searchGeo.method = 'gps';
+      if (st) st.innerHTML = '✅ Position obtenue : ' + _searchGeo.lat.toFixed(5) + '° N, ' + _searchGeo.lng.toFixed(5) + '° E';
+      var b = document.getElementById('_sgBtnGps');
+      if (b) { b.style.borderColor='var(--cyan)'; b.style.background='rgba(0,229,255,0.2)'; }
+    },
+    function(err) {
+      if (st) st.innerHTML = '❌ ' + (err.message || 'Erreur GPS — vérifiez les autorisations');
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+  );
+};
+
+window._sgSelectWhatsapp = function() {
+  var st = document.getElementById('_sgStatus');
+  if (navigator.geolocation) {
+    if (st) st.innerHTML = '⏳ Récupération de votre position...';
+    navigator.geolocation.getCurrentPosition(
+      function(pos) {
+        _searchGeo.lat = pos.coords.latitude; _searchGeo.lng = pos.coords.longitude;
+        _searchGeo.label = 'WhatsApp / GPS'; _searchGeo.method = 'whatsapp';
+        var link = 'https://maps.google.com/?q=' + _searchGeo.lat.toFixed(6) + ',' + _searchGeo.lng.toFixed(6);
+        if (st) st.innerHTML = '✅ Position obtenue — <a href="' + link + '" target="_blank" style="color:var(--cyan);">Vérifier sur Maps</a>';
+        var b = document.getElementById('_sgBtnWa');
+        if (b) { b.style.borderColor='#25d366'; b.style.background='rgba(37,211,102,0.18)'; }
+      },
+      function() { _sgShowPasteInput(); },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    );
+  } else { _sgShowPasteInput(); }
+};
+
+window._sgShowPasteInput = function() {
+  var st = document.getElementById('_sgStatus');
+  if (!st) return;
+  st.innerHTML = "<div style='display:flex;gap:0.4rem;margin-top:0.3rem;'><input id='_sgPasteInp' type='url' placeholder='https://maps.google.com/?q=...' style='flex:1;padding:0.4rem 0.5rem;border-radius:7px;border:1px solid rgba(0,229,255,0.3);background:var(--surface2);color:var(--text);font-family:DM Sans,sans-serif;font-size:0.72rem;outline:none;'><button onclick='_sgParsePaste()' style='padding:0.4rem 0.65rem;border-radius:7px;border:none;background:rgba(0,229,255,0.2);color:var(--cyan);font-weight:700;font-size:0.72rem;cursor:pointer;'>OK</button></div><div style='font-size:0.65rem;color:var(--muted);margin-top:0.3rem;'>Partagez votre position via WhatsApp → copiez le lien reçu ici</div>";
+};
+
+window._sgParsePaste = function() {
+  var inp = document.getElementById('_sgPasteInp');
+  var val = inp ? inp.value.trim() : '';
+  var st  = document.getElementById('_sgStatus');
+  var m = val.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/) ||
+          val.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/) ||
+          val.match(/place\/[^@]*@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+  if (m) {
+    _searchGeo.lat = parseFloat(m[1]); _searchGeo.lng = parseFloat(m[2]);
+    _searchGeo.label = 'WhatsApp'; _searchGeo.method = 'whatsapp';
+    if (st) st.innerHTML = '✅ Position extraite : ' + _searchGeo.lat.toFixed(5) + '° N, ' + _searchGeo.lng.toFixed(5) + '° E';
+  } else {
+    if (st) st.innerHTML = '❌ Lien non reconnu — copiez un lien Google Maps valide';
+  }
+};
+
+window._sgDisable = function() {
+  _searchGeo.active = false; _searchGeo.lat = null; _searchGeo.lng = null;
+  _saveSearchGeo(); _enrichSearchDist(); _updateSearchGeoBtn();
+  var m = document.getElementById('_sgModal'); if (m) m.remove();
+  if (typeof renderAll === 'function') renderAll();
+  if (typeof window.showToast === 'function') window.showToast('📍 Géoloc recherche désactivée');
+};
+
+window._sgConfirm = function() {
+  if (!_searchGeo.lat || !_searchGeo.lng) {
+    var st = document.getElementById('_sgStatus');
+    if (st) st.innerHTML = '⚠️ Aucune position définie — utilisez GPS ou WhatsApp';
+    return;
+  }
+  _searchGeo.active = true;
+  _saveSearchGeo(); _enrichSearchDist(); _updateSearchGeoBtn();
+  var m = document.getElementById('_sgModal'); if (m) m.remove();
+  if (typeof renderAll === 'function') renderAll();
+  if (typeof window.showToast === 'function') window.showToast('📍 Recherche géolocalisée activée !');
+};
+
 // ── Coordonnées approximatives des quartiers de Libreville ──
 var QUARTIER_COORDS = {
   "Centre-ville":      [0.3924, 9.4536],
@@ -13699,6 +13906,25 @@ function filterData(){
     data = _pinMyEtabFirst(data);
     return data;
   }
+  // ── GÉOLOC RECHERCHE : trier proches d'abord, sans filtrer ──
+  if(typeof _searchGeo !== "undefined" && _searchGeo.active && _searchGeo.lat !== null){
+    var proxKm = _searchGeo.proximityKm || 3;
+    // Enrichir les distances
+    data.forEach(function(e){
+      e._searchDistKm = _searchGeoDist(e);
+    });
+    // Séparer proches / éloignés
+    var _proches   = data.filter(function(e){ return e._searchDistKm !== null && e._searchDistKm <= proxKm; });
+    var _eloignes  = data.filter(function(e){ return e._searchDistKm === null || e._searchDistKm > proxKm; });
+    // Trier chaque groupe par distance croissante
+    _proches.sort(function(a,b){ return (a._searchDistKm||9999)-(b._searchDistKm||9999); });
+    _eloignes.sort(function(a,b){ return (a._searchDistKm||9999)-(b._searchDistKm||9999); });
+    // Marquer pour le rendu visuel
+    _proches.forEach(function(e){ e._searchGeoProche = true; });
+    _eloignes.forEach(function(e){ e._searchGeoProche = false; });
+    data = _pinMyEtabFirst(_proches.concat(_eloignes));
+    return data;
+  }
   data.sort(function(a,b){
     if(currentSort==="affluence"){
       // Utiliser l'affluence réelle (live) si disponible
@@ -15199,10 +15425,21 @@ function buildCard(e,delay,compact,rank){
       encodeURIComponent(etabPhotoForBtn)
     );
   };
+  // Géoloc recherche : badge distance + bordure verte si zone proche
+  var _sgNearStyle = "";
+  var _sgDistBadge = "";
+  if(typeof _searchGeo !== "undefined" && _searchGeo.active && _searchGeo.lat !== null && e._searchGeoProche === true){
+    _sgNearStyle = "border:1.5px solid rgba(0,255,170,0.45);box-shadow:0 0 16px rgba(0,255,170,0.1);";
+    if(typeof e._searchDistKm === "number"){
+      var _sgDist = e._searchDistKm < 1 ? Math.round(e._searchDistKm*1000)+"m" : e._searchDistKm.toFixed(1)+"km";
+      _sgDistBadge = "<span style=\'display:inline-flex;align-items:center;gap:0.22rem;background:rgba(0,255,170,0.12);border:1px solid rgba(0,255,170,0.35);color:var(--green);font-size:0.62rem;font-weight:700;border-radius:20px;padding:0.12rem 0.45rem;margin-left:0.3rem;\'>📍 "+_sgDist+"</span>";
+    }
+  }
   return "<div class=\"card\" id=\"card-etab-"+e.id+"\" style=\"animation-delay:"+delay+"s;"+(e._isPinned&&!isAdmin?"border:1.5px solid rgba(255,45,155,0.5);box-shadow:0 0 18px rgba(255,45,155,0.12);":"")+(eventFlashHtml?"border-color:rgba(255,45,155,0.4);":"")+"\">"+
     pinnedBanner+
     eventFlashHtml+
     photosHtml+
+    (typeof window.buildLiveStatusStrip === 'function' ? (window.buildLiveStatusStrip(e)||'') : '')+
     "<div class=\"card-top\">"+
     "<div class=\"card-row1\"><div>"+
     "<div class=\"card-num rank-"+(rank===1?'1':rank===2?'2':rank===3?'3':'other')+"\">N°"+(rank!=null?rank:e.id)+"</div>"+
@@ -16297,8 +16534,23 @@ function renderAllImmediate(){
       +"<button onclick=\"closeNearbyMode()\" style=\"background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.25);color:var(--red);font-size:0.7rem;font-weight:700;padding:0.25rem 0.55rem;border-radius:8px;cursor:pointer;font-family:DM Sans,sans-serif;\">&#10005; Désactiver</button>"
       +"</div>";
   }
+  // ── GÉOLOC RECHERCHE banner ──
+  var searchGeoBannerHtml = "";
+  if(typeof _searchGeo !== "undefined" && _searchGeo.active && _searchGeo.lat !== null){
+    var _sgProches = data.filter(function(e){ return e._searchGeoProche; }).length;
+    var _sgProxKm  = _searchGeo.proximityKm || 3;
+    searchGeoBannerHtml =
+      "<div style=\"background:rgba(0,255,170,0.05);border:1px solid rgba(0,255,170,0.22);border-radius:12px;padding:0.6rem 0.85rem;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.55rem;\">" +
+      "<div style=\"width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 7px rgba(0,255,170,0.7);flex-shrink:0;animation:pulse 2s infinite;\"></div>" +
+      "<div style=\"flex:1;\">" +
+        "<div style=\"font-size:0.78rem;font-weight:700;color:var(--green);\">" + _sgProches + " établissement" + (_sgProches>1?"s":"") + " dans votre zone (" + _sgProxKm + " km)</div>" +
+        "<div style=\"font-size:0.62rem;color:var(--muted);margin-top:0.1rem;\">Via " + (_searchGeo.label||"GPS") + " · Les plus proches apparaissent en premier</div>" +
+      "</div>" +
+      "<button onclick=\"_sgDisable()\" style=\"background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.25);color:var(--red);font-size:0.68rem;font-weight:700;padding:0.22rem 0.5rem;border-radius:8px;cursor:pointer;font-family:DM Sans,sans-serif;\">&#10005;</button>" +
+      "</div>";
+  }
 
-  var html=gpsBannerHtml;
+  var html=gpsBannerHtml+searchGeoBannerHtml;
   if(currentView==="compact"){
     // Vue compacte : tri par score (avec cache)
     if(!isAdmin){
@@ -16310,8 +16562,9 @@ function renderAllImmediate(){
     data.forEach(function(e,i){ html+=buildCompactRow(e,i+1); });
     html+="</div>";
   } else if(currentView==="liste"){
-    // Tri par score dans la vue liste (visiteurs, avec cache)
-    if(!isAdmin){
+    // Tri par score dans la vue liste (visiteurs, avec cache) — sauf si géoloc recherche active
+    var _sgListActive = typeof _searchGeo !== "undefined" && _searchGeo.active && _searchGeo.lat !== null;
+    if(!isAdmin && !_sgListActive){
       data = data.slice().sort(function(a,b){
         return _getCachedScore(b).score - _getCachedScore(a).score;
       });
@@ -16320,7 +16573,19 @@ function renderAllImmediate(){
     var shown = data.slice(0, PAGE);
     var rest  = data.length - PAGE;
     html+="<div class=\"cards-list\">";
-    shown.forEach(function(e,i){html+=buildCard(e,i*0.02,false,i+1);});
+    // Injecter séparateur géoloc si actif
+    var _sgSepInserted = false;
+    shown.forEach(function(e,i){
+      if(_sgListActive && !_sgSepInserted && e._searchGeoProche === false){
+        _sgSepInserted = true;
+        html += "<div style=\"display:flex;align-items:center;gap:0.6rem;margin:0.5rem 0 0.7rem;\">" +
+          "<div style=\"flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(255,45,155,0.25),transparent);\"></div>" +
+          "<span style=\"font-size:0.62rem;font-weight:700;font-family:Syne,sans-serif;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);white-space:nowrap;\">📍 Plus loin de votre zone</span>" +
+          "<div style=\"flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(255,45,155,0.25),transparent);\"></div>" +
+          "</div>";
+      }
+      html+=buildCard(e,i*0.02,false,i+1);
+    });
     html+="</div>";
     if(rest > 0){
       html += '<div style="text-align:center;padding:1rem 0;">'
@@ -16796,7 +17061,7 @@ function renderPayments(){
     html+="<div style=\"font-family:Syne,sans-serif;font-size:1.15rem;font-weight:800;color:var(--pink);\">"+total+"</div><div style=\"font-size:0.62rem;color:var(--muted);\">Total</div></div>";
     html+="</div>";
     html+="<div style=\"display:flex;gap:0.4rem;margin-bottom:0.7rem;align-items:center;\">";
-    html+="<input id=\"paySearchInp\" type=\"text\" placeholder=\"\u{1F50D} Rechercher...\" value=\""+_paySearch+"\" oninput=\"_paySearch=this.value.toLowerCase();renderPayments()\" style=\"flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,45,155,0.2);border-radius:10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.82rem;padding:0.5rem 0.8rem;outline:none;\">";
+    html+="<input id=\"paySearchInp\" type=\"text\" placeholder=\"🔍 Rechercher...\" value=\""+_paySearch+"\" oninput=\"_paySearch=this.value.toLowerCase();renderPayments()\" style=\"flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,45,155,0.2);border-radius:10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.82rem;padding:0.5rem 0.8rem;outline:none;\">";
     html+="</div>";
     html+="<div style=\"display:flex;gap:0.4rem;margin-bottom:0.9rem;flex-wrap:wrap;\">";
     html+="<button onclick=\"_payFilter=\'all\';renderPayments()\" style=\"flex:1;padding:0.4rem;border-radius:8px;border:1px solid "+(_payFilter==="all"?"var(--pink)":"rgba(255,255,255,0.1)")+";background:"+(_payFilter==="all"?"rgba(255,45,155,0.15)":"transparent")+";color:"+(_payFilter==="all"?"var(--pink)":"var(--muted)")+";font-size:0.75rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;\">Tous ("+total+")</button>";
@@ -42154,44 +42419,8 @@ console.log('[AMBI241] ✅ Module PRO — Likes·Commentaires·Partage Firebase 
     window.buildCard = function(e, delay, compact, rank) {
       var html = _origBuildCard.call(this, e, delay, compact, rank);
 
-      /* === Injection barre live publique === */
-      var lsHtml = window.buildLiveStatusStrip(e);
-      if (lsHtml) {
-        /* Insérer après le wrapper photos (qui se ferme avec </div></div> avant "<!-- Photos soiree") */
-        var inserted = false;
-
-        /* Pattern 1: fin du wrapper photo avant le commentaire soiree */
-        if (!inserted) {
-          var marker = '<\/div>\n  photosHtml += "<\/div>"; \/\/ ferme wrapper';
-          /* Plus simple : chercher le bloc photosHtml fermant */
-        }
-
-        /* Pattern fiable : après la balise fermante du photo-wrapper qu'on connaît */
-        /* La zone photo génère: <div style='width:100%;'>...<div>...</div></div></div> */
-        /* Puis soireeHtml commence. On insère entre les deux. */
-        var photoEndPattern = /(<\/div>\s*)(<div style='position:relative;width:100%;overflow:hidden)/;
-        if (photoEndPattern.test(html)) {
-          html = html.replace(photoEndPattern, '$1' + lsHtml + '$2');
-          inserted = true;
-        }
-
-        /* Fallback pattern : avant la section de contact/status dans la card-body */
-        if (!inserted) {
-          var fallbackPattern = /(<div class='card-body'[^>]*>)/;
-          if (fallbackPattern.test(html)) {
-            html = html.replace(fallbackPattern, '$1' + lsHtml);
-            inserted = true;
-          }
-        }
-
-        /* Fallback ultime : juste après la photo (div height:120px) */
-        if (!inserted) {
-          html = html.replace(
-            /(height:120px;overflow:hidden[^>]*>[\s\S]*?<\/div>\s*<\/div>)/,
-            '$1' + lsHtml
-          );
-        }
-      }
+      /* === Injection barre live publique — désactivée : injection directe dans buildCard() === */
+      /* La barre live est maintenant injectée directement dans buildCard après photosHtml */
 
       /* === Injection contrôles gérant dans onglet Statut === */
       var canEdit = window.isAdmin || (typeof window.isResponsable === 'function' && window.isResponsable(e.id));
