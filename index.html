@@ -293,7 +293,7 @@ html, body {
   box-sizing: border-box;
 }
 .hero-btn {
-  max-width: calc(50% - 0.5rem);
+  max-width: 100%;
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
@@ -2136,13 +2136,13 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 
 /* CTA Buttons */
 .hero-actions{
-  display:flex;gap:0.65rem;justify-content:center;
-  margin-top:0;flex-wrap:wrap;
-  width:100%;max-width:320px;
+  display:flex;gap:0.5rem;justify-content:center;
+  margin-top:0;flex-direction:column;align-items:stretch;
+  width:100%;max-width:280px;
 }
 .hero-btn{
   display:inline-flex;align-items:center;gap:0.35rem;
-  padding:0.7rem 1.4rem;
+  padding:0.7rem 1.2rem;
   border-radius:100px;
   font-size:0.82rem;
   font-weight:800;
@@ -2151,8 +2151,9 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   font-family:'Syne',sans-serif;
   transition:all 0.22s;
   letter-spacing:0.01em;
-  flex:1;
+  width:100%;
   justify-content:center;
+  white-space:nowrap;
 }
 .hero-btn:active{transform:scale(0.95);}
 .hero-btn-primary{
@@ -7279,7 +7280,7 @@ if (document.readyState === 'loading') {
     </div><!-- /#snap-bloc-3 -->
 
     <!-- ══ SNAP BLOC 4 — Rejoindre AMBI241 ══ -->
-    <div class="snap-bloc" id="snap-bloc-4">
+    <div class="snap-bloc snap-bloc--scroll" id="snap-bloc-4">
       <div class="snap-bloc-label">04 · Rejoindre</div>
 
     <!-- ══ SECTION REJOINDRE AMBI241 ══ -->
@@ -7336,18 +7337,23 @@ if (document.readyState === 'loading') {
         </button>
 
       </div>
+
+    <!-- ══ CADRE PUBLICITÉS & PARTENAIRES ══ -->
+    <div id="pubFrame" style="margin:0.6rem 1rem 1.2rem;">
+      <div id="pubFrameInner"><!-- Publicités chargées dynamiquement --></div>
+    </div>
+
     </div>
 
     <style>
     /* ══ JOIN SECTION ══ */
     .join-section{
       margin:0;
-      padding:1rem 1rem 1rem;
+      padding:0.8rem 1rem 0.6rem;
       position:relative;
-      height:100%;
       display:flex;
       flex-direction:column;
-      justify-content:center;
+      justify-content:flex-start;
     }
     .join-header{
       text-align:center;
@@ -20803,7 +20809,7 @@ window.closeAdminDashboard=closeAdminDashboard;
 
 function switchAdmTab(tab){
   _currentAdmTab=tab;
-  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support","content","appconfig","importgmaps"];
+  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support","content","appconfig","importgmaps","publicites"];
   tabs.forEach(function(t){
     var btn=document.getElementById("admtab-"+t);
     var panel=document.getElementById("admpanel-"+t);
@@ -20831,6 +20837,7 @@ function switchAdmTab(tab){
   else if(tab==="content") { if(typeof window.renderAdmContent==="function") window.renderAdmContent(); }
   else if(tab==="appconfig") { if(typeof window.renderAdmAppConfig==="function") window.renderAdmAppConfig(0); }
   else if(tab==="importgmaps") { if(!window._igm2Inited) igm2Init(); }
+  else if(tab==="publicites") { admRenderPublicites(); }
 }
 window.switchAdmTab=switchAdmTab;
 window.openAdminAddModal=openAdminAddModal;
@@ -23762,6 +23769,7 @@ window.doAssignEtab = doAssignEtab;
       <button class="adm-tab"        id="admtab-content"       onclick="switchAdmTab('content');setTimeout(function(){if(typeof window.renderAdmContent==='function'&&document.getElementById('adminContentPanel').innerHTML.indexOf('Chargement')!==-1)window.renderAdmContent(0);},200);">📋 Contenu</button>
       <button class="adm-tab"        id="admtab-support"       onclick="switchAdmTab('support')" style="position:relative;">💬 Support<span id="admSupportBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:#fff;font-size:0.5rem;font-weight:800;width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center;border:1px solid var(--bg);"></span></button>
       <button class="adm-tab"        id="admtab-importgmaps"   onclick="switchAdmTab('importgmaps')" style="color:var(--green);">🗺️ Import Maps</button>
+      <button class="adm-tab"        id="admtab-publicites"   onclick="switchAdmTab('publicites')" style="color:var(--amber);">📢 Publicités</button>
     </div>
 
     <!-- ── Contenu des panneaux ── -->
@@ -24038,6 +24046,47 @@ window.doAssignEtab = doAssignEtab;
 
       </div>
       <!-- FIN Import Google Maps ══ -->
+
+
+      <!-- ══ Publicités & Sponsors ══ -->
+      <div id="admpanel-publicites" class="adm-panel" style="display:none;">
+        <div id="adminPublicitesContent">
+
+          <!-- Header -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;flex-wrap:wrap;gap:0.5rem;">
+            <div>
+              <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:var(--amber);">📢 Publicités & Partenaires</div>
+              <div style="font-size:0.7rem;color:var(--muted);margin-top:0.2rem;">Gérez les bannières affichées sur la page d'accueil</div>
+            </div>
+            <button onclick="admPubOpenForm()" style="background:linear-gradient(135deg,var(--amber),#ff8800);border:none;color:#000;font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;padding:0.55rem 1rem;border-radius:10px;cursor:pointer;">+ Nouvelle publicité</button>
+          </div>
+
+          <!-- Stats rapides -->
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-bottom:1.2rem;">
+            <div style="background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:0.75rem;text-align:center;">
+              <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;color:var(--amber);" id="pubStatTotal">0</div>
+              <div style="font-size:0.6rem;color:var(--muted);margin-top:0.1rem;">Total</div>
+            </div>
+            <div style="background:rgba(0,255,170,0.07);border:1px solid rgba(0,255,170,0.2);border-radius:12px;padding:0.75rem;text-align:center;">
+              <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;color:var(--green);" id="pubStatActives">0</div>
+              <div style="font-size:0.6rem;color:var(--muted);margin-top:0.1rem;">Actives</div>
+            </div>
+            <div style="background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.2);border-radius:12px;padding:0.75rem;text-align:center;">
+              <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;color:var(--cyan);" id="pubStatClics">0</div>
+              <div style="font-size:0.6rem;color:var(--muted);margin-top:0.1rem;">Clics totaux</div>
+            </div>
+          </div>
+
+          <!-- Liste des publicités -->
+          <div id="admPubList" style="display:flex;flex-direction:column;gap:0.7rem;">
+            <div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.78rem;">
+              <div style="font-size:2rem;margin-bottom:0.5rem;">📢</div>
+              Aucune publicité pour l'instant.<br>Cliquez sur <strong style="color:var(--amber);">+ Nouvelle publicité</strong> pour commencer.
+            </div>
+          </div>
+
+        </div>
+      </div>
 
     </div><!-- /adm-content -->
   </div><!-- /adminDashPanel -->
@@ -42432,5 +42481,360 @@ console.log('[AMBI241] ✅ Module PRO — Likes·Commentaires·Partage Firebase 
 
 })();
 </script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   MODULE PUBLICITÉS & PARTENAIRES — AMBI241
+   Gestion Admin : ajout / édition / suppression / activation
+   Affichage public : cadre de la page d'accueil
+   ══════════════════════════════════════════════════════════════ */
+(function(){
+
+  /* ── Collection Firebase ── */
+  var PUB_COLLECTION = "publicites";
+
+  /* ── Cache mémoire ── */
+  window._pubCache = [];
+
+  /* ════════════════════════════════════════
+     LECTURE depuis Firebase
+     ════════════════════════════════════════ */
+  function _loadPubs(cb) {
+    if(!window.db || !window.fbCollection || !window.fbGetDocs) {
+      cb([]); return;
+    }
+    try {
+      window.fbGetDocs(window.fbCollection(window.db, PUB_COLLECTION))
+        .then(function(snap){
+          var list = [];
+          snap.forEach(function(d){ list.push(Object.assign({id:d.id}, d.data())); });
+          list.sort(function(a,b){ return (a.ordre||99)-(b.ordre||99); });
+          window._pubCache = list;
+          cb(list);
+        }).catch(function(){ cb([]); });
+    } catch(e){ cb([]); }
+  }
+
+  /* ════════════════════════════════════════
+     RENDU ADMIN — liste
+     ════════════════════════════════════════ */
+  window.admRenderPublicites = function() {
+    var listEl = document.getElementById("admPubList");
+    if(listEl) listEl.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--cyan);font-size:0.78rem;">⏳ Chargement...</div>';
+    _loadPubs(function(list){
+      /* Stats */
+      var actives = list.filter(function(p){ return p.active; }).length;
+      var clics   = list.reduce(function(s,p){ return s+(p.clics||0); }, 0);
+      var s1 = document.getElementById("pubStatTotal");   if(s1) s1.textContent = list.length;
+      var s2 = document.getElementById("pubStatActives"); if(s2) s2.textContent = actives;
+      var s3 = document.getElementById("pubStatClics");   if(s3) s3.textContent = clics;
+
+      if(!listEl) return;
+      if(!list.length){
+        listEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.78rem;"><div style="font-size:2rem;margin-bottom:0.5rem;">📢</div>Aucune publicité pour l'instant.<br>Cliquez sur <strong style="color:var(--amber);">+ Nouvelle publicité</strong> pour commencer.</div>';
+        return;
+      }
+      listEl.innerHTML = list.map(function(p){
+        var statusColor = p.active ? 'var(--green)' : 'var(--muted)';
+        var statusLabel = p.active ? '● Actif' : '○ Inactif';
+        var imgHtml = p.logo ? '<img src="'+p.logo+'" style="width:44px;height:44px;object-fit:contain;border-radius:8px;border:1px solid rgba(255,255,255,0.1);flex-shrink:0;" onerror="this.style.display='none'">' : '<div style="width:44px;height:44px;border-radius:8px;background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.2);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;">📢</div>';
+        return '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:0.9rem;position:relative;">'
+          + '<div style="display:flex;gap:0.7rem;align-items:flex-start;">'
+          +   imgHtml
+          +   '<div style="flex:1;min-width:0;">'
+          +     '<div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.2rem;">'
+          +       '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;color:var(--text);">'+_esc(p.nom||'Sans nom')+'</div>'
+          +       '<span style="font-size:0.58rem;font-weight:700;color:'+statusColor+';">'+statusLabel+'</span>'
+          +     '</div>'
+          +     '<div style="font-size:0.68rem;color:var(--muted);margin-bottom:0.35rem;line-height:1.4;">'+_esc(p.slogan||'')+'</div>'
+          +     '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;">'
+          +       (p.type?'<span style="font-size:0.55rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:5px;background:rgba(255,215,0,0.1);color:var(--amber);border:1px solid rgba(255,215,0,0.2);">'+_esc(p.type)+'</span>':'')
+          +       '<span style="font-size:0.55rem;color:var(--muted);">'+( p.clics||0)+' clics</span>'
+          +       (p.lien?'<span style="font-size:0.55rem;color:var(--cyan);">🔗 Lien</span>':'')
+          +     '</div>'
+          +   '</div>'
+          +   '<div style="display:flex;flex-direction:column;gap:0.3rem;flex-shrink:0;">'
+          +     '<button onclick="admPubToggle(''+p.id+'','+(!p.active)+')" style="background:'+(p.active?'rgba(255,68,102,0.1)':'rgba(0,255,170,0.1)')+';border:1px solid '+(p.active?'rgba(255,68,102,0.3)':'rgba(0,255,170,0.3)')+';color:'+(p.active?'var(--red)':'var(--green)')+';font-size:0.62rem;font-weight:700;padding:0.2rem 0.5rem;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap;">'+(p.active?'⏸ Désact.':'▶ Activer')+'</button>'
+          +     '<button onclick="admPubOpenForm(''+p.id+'')" style="background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);color:var(--cyan);font-size:0.62rem;font-weight:700;padding:0.2rem 0.5rem;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;">✏️ Éditer</button>'
+          +     '<button onclick="admPubDelete(''+p.id+'')" style="background:rgba(255,68,102,0.07);border:1px solid rgba(255,68,102,0.2);color:var(--red);font-size:0.62rem;font-weight:700;padding:0.2rem 0.5rem;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;">🗑</button>'
+          +   '</div>'
+          + '</div>'
+          + '</div>';
+      }).join('');
+    });
+  };
+
+  function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  /* ════════════════════════════════════════
+     FORMULAIRE ajout/édition
+     ════════════════════════════════════════ */
+  window.admPubOpenForm = function(id) {
+    var existing = id ? (window._pubCache.find(function(p){ return p.id===id; })||{}) : {};
+    var isEdit = !!id;
+    var wrap = document.getElementById("_admPubFormWrap");
+    if(wrap) wrap.remove();
+
+    var html = '<div id="_admPubFormWrap" style="position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:10100;display:flex;align-items:flex-end;justify-content:center;">'
+      +'<div style="background:var(--surface);border:1px solid rgba(255,215,0,0.35);border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:1.4rem 1.2rem 2rem;max-height:92vh;overflow-y:auto;position:relative;">'
+      +'<button onclick="document.getElementById('_admPubFormWrap').remove()" style="position:absolute;top:0.8rem;right:0.8rem;background:rgba(255,255,255,0.08);border:none;color:var(--muted);width:30px;height:30px;border-radius:50%;font-size:1rem;cursor:pointer;">✕</button>'
+      +'<div style="font-family:Syne,sans-serif;font-weight:800;color:var(--amber);font-size:1rem;margin-bottom:0.3rem;">'+(isEdit?'✏️ Modifier':'📢 Nouvelle')+'  publicité</div>'
+      +'<div style="font-size:0.7rem;color:var(--muted);margin-bottom:1.2rem;">Sponsor · Partenaire · Client · Annonceur</div>'
+
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;margin-bottom:0.7rem;">'
+
+      /* Nom */
+      +'<div style="grid-column:1/-1;">'
+      +'<label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.3rem;">🏢 Nom de l'entreprise *</label>'
+      +'<input id="pubf-nom" type="text" maxlength="60" value="'+_esc(existing.nom||'')+'" placeholder="Ex: Airtel Gabon" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.25);border-radius:8px;color:var(--text);padding:0.55rem 0.7rem;font-size:0.82rem;font-family:DM Sans,sans-serif;outline:none;box-sizing:border-box;">'
+      +'</div>'
+
+      /* Type */
+      +'<div>'
+      +'<label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.3rem;">📌 Type</label>'
+      +'<select id="pubf-type" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.52rem 0.6rem;font-size:0.78rem;font-family:DM Sans,sans-serif;outline:none;">'
+      +'<option value="Sponsor" '+(existing.type==='Sponsor'?'selected':'')+'>💎 Sponsor</option>'
+      +'<option value="Partenaire" '+(existing.type==='Partenaire'?'selected':'')+'>🤝 Partenaire</option>'
+      +'<option value="Client" '+(existing.type==='Client'?'selected':'')+'>⭐ Client</option>'
+      +'<option value="Annonceur" '+(existing.type==='Annonceur'?'selected':'')+'>📣 Annonceur</option>'
+      +'</select>'
+      +'</div>'
+
+      /* Ordre */
+      +'<div>'
+      +'<label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.3rem;">🔢 Ordre d'affichage</label>'
+      +'<input id="pubf-ordre" type="number" min="1" max="99" value="'+(existing.ordre||1)+'" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.52rem 0.6rem;font-size:0.82rem;font-family:DM Sans,sans-serif;outline:none;">'
+      +'</div>'
+
+      /* Slogan */
+      +'<div style="grid-column:1/-1;">'
+      +'<label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.3rem;">💬 Slogan / Description courte</label>'
+      +'<input id="pubf-slogan" type="text" maxlength="100" value="'+_esc(existing.slogan||'')+'" placeholder="Ex: Le réseau qui vous connecte au Gabon" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.52rem 0.7rem;font-size:0.8rem;font-family:DM Sans,sans-serif;outline:none;box-sizing:border-box;">'
+      +'</div>'
+
+      /* Services */
+      +'<div style="grid-column:1/-1;">'
+      +'<label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.3rem;">🛠️ Services proposés (séparés par des virgules)</label>'
+      +'<input id="pubf-services" type="text" maxlength="200" value="'+_esc((existing.services||[]).join(', '))+'" placeholder="Ex: Mobile Money, Forfaits data, Recharges" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.52rem 0.7rem;font-size:0.8rem;font-family:DM Sans,sans-serif;outline:none;box-sizing:border-box;">'
+      +'</div>'
+
+      /* Logo URL */
+      +'<div style="grid-column:1/-1;">'
+      +'<label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.3rem;">🖼️ URL du logo</label>'
+      +'<input id="pubf-logo" type="url" value="'+_esc(existing.logo||'')+'" placeholder="https://exemple.com/logo.png" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.52rem 0.7rem;font-size:0.78rem;font-family:DM Sans,sans-serif;outline:none;box-sizing:border-box;">'
+      +'<div style="margin-top:0.5rem;" id="pubf-logoPreviewWrap">'+(existing.logo?'<img src="'+_esc(existing.logo)+'" style="max-height:60px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);" onerror="this.style.display='none'">':'')+'</div>'
+      +'</div>'
+
+      /* Image bannière */
+      +'<div style="grid-column:1/-1;">'
+      +'<label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.3rem;">🖼️ Image bannière (URL optionnelle)</label>'
+      +'<input id="pubf-image" type="url" value="'+_esc(existing.image||'')+'" placeholder="https://exemple.com/banniere.jpg" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.52rem 0.7rem;font-size:0.78rem;font-family:DM Sans,sans-serif;outline:none;box-sizing:border-box;">'
+      +'</div>'
+
+      /* Lien CTA */
+      +'<div style="grid-column:1/-1;">'
+      +'<label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.3rem;">🔗 Lien de redirection (URL)</label>'
+      +'<input id="pubf-lien" type="url" value="'+_esc(existing.lien||'')+'" placeholder="https://site-partenaire.ga" style="width:100%;background:var(--surface2);border:1px solid rgba(0,229,255,0.25);border-radius:8px;color:var(--text);padding:0.52rem 0.7rem;font-size:0.78rem;font-family:DM Sans,sans-serif;outline:none;box-sizing:border-box;">'
+      +'</div>'
+
+      /* Texte du bouton CTA */
+      +'<div>'
+      +'<label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.3rem;">🎯 Texte du bouton</label>'
+      +'<input id="pubf-cta" type="text" maxlength="30" value="'+_esc(existing.cta||'En savoir plus')+'" placeholder="En savoir plus" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.52rem 0.6rem;font-size:0.8rem;font-family:DM Sans,sans-serif;outline:none;">'
+      +'</div>'
+
+      /* Couleur accent */
+      +'<div>'
+      +'<label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.3rem;">🎨 Couleur accent</label>'
+      +'<input id="pubf-couleur" type="color" value="'+(existing.couleur||'#ffd700')+'" style="width:100%;height:42px;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;cursor:pointer;padding:0.2rem;">'
+      +'</div>'
+
+      +'</div>'
+
+      /* Actif / Inactif */
+      +'<div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:1.2rem;padding:0.7rem;background:rgba(0,255,170,0.05);border:1px solid rgba(0,255,170,0.2);border-radius:10px;">'
+      +'<input type="checkbox" id="pubf-active" '+(existing.active!==false?'checked':'')+' style="accent-color:var(--green);width:16px;height:16px;">'
+      +'<label for="pubf-active" style="font-size:0.78rem;color:var(--text);cursor:pointer;">Afficher immédiatement sur la page d'accueil</label>'
+      +'</div>'
+
+      /* Boutons */
+      +'<div style="display:flex;gap:0.5rem;">'
+      +'<button onclick="document.getElementById('_admPubFormWrap').remove()" style="flex:1;padding:0.65rem;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.82rem;cursor:pointer;">Annuler</button>'
+      +'<button onclick="admPubSave(''+(id||'')+'',''+_esc(existing.nom||'')+'')" style="flex:2;padding:0.65rem;border-radius:10px;border:none;background:linear-gradient(135deg,var(--amber),#ff8800);color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;">'+(isEdit?'💾 Enregistrer':'📢 Publier la publicité')+'</button>'
+      +'</div>'
+
+      +'</div></div>';
+
+    document.body.insertAdjacentHTML('beforeend', html);
+
+    /* Preview logo en live */
+    var logoInp = document.getElementById('pubf-logo');
+    if(logoInp) logoInp.addEventListener('input', function(){
+      var prev = document.getElementById('pubf-logoPreviewWrap');
+      if(prev) prev.innerHTML = this.value ? '<img src="'+_esc(this.value)+'" style="max-height:60px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);margin-top:0.3rem;" onerror="this.style.display='none'">' : '';
+    });
+  };
+
+  /* ════════════════════════════════════════
+     SAUVEGARDE
+     ════════════════════════════════════════ */
+  window.admPubSave = function(id) {
+    var nom     = (document.getElementById('pubf-nom')||{}).value.trim();
+    var slogan  = (document.getElementById('pubf-slogan')||{}).value.trim();
+    var type    = (document.getElementById('pubf-type')||{}).value;
+    var ordre   = parseInt((document.getElementById('pubf-ordre')||{}).value)||1;
+    var logo    = (document.getElementById('pubf-logo')||{}).value.trim();
+    var image   = (document.getElementById('pubf-image')||{}).value.trim();
+    var lien    = (document.getElementById('pubf-lien')||{}).value.trim();
+    var cta     = (document.getElementById('pubf-cta')||{}).value.trim()||'En savoir plus';
+    var couleur = (document.getElementById('pubf-couleur')||{}).value||'#ffd700';
+    var active  = (document.getElementById('pubf-active')||{}).checked;
+    var servicesRaw = (document.getElementById('pubf-services')||{}).value.trim();
+    var services = servicesRaw ? servicesRaw.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
+
+    if(!nom){ if(typeof showToast==='function') showToast('❌ Le nom est obligatoire'); return; }
+
+    var data = { nom:nom, slogan:slogan, type:type, ordre:ordre, logo:logo, image:image, lien:lien, cta:cta, couleur:couleur, active:active, services:services, updatedAt:Date.now() };
+    if(!id) data.createdAt = Date.now();
+    if(!id) data.clics = 0;
+
+    if(!window.db){ if(typeof showToast==='function') showToast('Firebase non disponible'); return; }
+
+    var promise;
+    if(id){
+      promise = window.fbUpdateDoc ? window.fbUpdateDoc(window.fbDoc(window.db, PUB_COLLECTION, id), data)
+              : window.fbSetDoc(window.fbDoc(window.db, PUB_COLLECTION, id), data, {merge:true});
+    } else {
+      promise = window.fbAddDoc(window.fbCollection(window.db, PUB_COLLECTION), data);
+    }
+
+    promise.then(function(){
+      var wrap = document.getElementById('_admPubFormWrap');
+      if(wrap) wrap.remove();
+      if(typeof showToast==='function') showToast(id?'✅ Publicité mise à jour !':'🎉 Publicité publiée !');
+      window.admRenderPublicites();
+      renderPubFrame(); // Rafraîchir le cadre public
+    }).catch(function(err){
+      if(typeof showToast==='function') showToast('Erreur: '+err.message);
+    });
+  };
+
+  /* ════════════════════════════════════════
+     TOGGLE ACTIF / INACTIF
+     ════════════════════════════════════════ */
+  window.admPubToggle = function(id, newActive) {
+    if(!window.db || !window.fbUpdateDoc || !window.fbDoc) return;
+    window.fbUpdateDoc(window.fbDoc(window.db, PUB_COLLECTION, id), {active:newActive})
+      .then(function(){
+        if(typeof showToast==='function') showToast(newActive?'▶ Publicité activée':'⏸ Publicité désactivée');
+        window.admRenderPublicites();
+        renderPubFrame();
+      }).catch(function(err){ if(typeof showToast==='function') showToast('Erreur: '+err.message); });
+  };
+
+  /* ════════════════════════════════════════
+     SUPPRESSION
+     ════════════════════════════════════════ */
+  window.admPubDelete = function(id) {
+    if(!confirm('Supprimer cette publicité définitivement ?')) return;
+    if(!window.db || !window.fbDeleteDoc || !window.fbDoc) return;
+    window.fbDeleteDoc(window.fbDoc(window.db, PUB_COLLECTION, id))
+      .then(function(){
+        if(typeof showToast==='function') showToast('🗑 Publicité supprimée');
+        window.admRenderPublicites();
+        renderPubFrame();
+      }).catch(function(err){ if(typeof showToast==='function') showToast('Erreur: '+err.message); });
+  };
+
+  /* ════════════════════════════════════════
+     RENDU PUBLIC — cadre page d'accueil
+     ════════════════════════════════════════ */
+  function renderPubFrame() {
+    var frame = document.getElementById('pubFrameInner');
+    if(!frame) return;
+
+    _loadPubs(function(list){
+      var actives = list.filter(function(p){ return p.active; });
+      if(!actives.length){ frame.innerHTML = ''; return; }
+
+      var html = '<div style="margin-bottom:0.5rem;">'
+        +'<div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.6rem;">'
+        +'<div style="height:1px;flex:1;background:rgba(255,255,255,0.08);"></div>'
+        +'<span style="font-size:0.5rem;font-weight:700;color:rgba(255,255,255,0.25);letter-spacing:0.12em;text-transform:uppercase;white-space:nowrap;">Partenaires & Sponsors</span>'
+        +'<div style="height:1px;flex:1;background:rgba(255,255,255,0.08);"></div>'
+        +'</div>'
+        +'<div style="display:flex;flex-direction:column;gap:0.55rem;">';
+
+      actives.forEach(function(p){
+        var accent = p.couleur || '#ffd700';
+        var accentRgb = _hexToRgb(accent);
+        var servicesHtml = (p.services||[]).slice(0,4).map(function(s){
+          return '<span style="font-size:0.55rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:99px;background:rgba('+accentRgb+',0.12);border:1px solid rgba('+accentRgb+',0.3);color:'+accent+';white-space:nowrap;">'+_esc(s)+'</span>';
+        }).join('');
+
+        html += '<div onclick="pubFrameClick(''+p.id+'',''+_esc(p.lien||'')+'')" '
+          +'style="background:linear-gradient(135deg,rgba('+accentRgb+',0.07),rgba('+accentRgb+',0.03));border:1px solid rgba('+accentRgb+',0.25);border-radius:14px;padding:0.8rem 0.85rem;cursor:'+(p.lien?'pointer':'default')+';transition:all 0.2s;overflow:hidden;position:relative;" '
+          +'role="'+(p.lien?'link':'presentation')+'">';
+
+        /* Bande couleur latérale */
+        html += '<div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,'+accent+',transparent);border-radius:14px 0 0 14px;"></div>';
+
+        if(p.image){
+          html += '<img src="'+_esc(p.image)+'" style="width:100%;height:80px;object-fit:cover;border-radius:10px;margin-bottom:0.6rem;display:block;" onerror="this.style.display='none'">';
+        }
+
+        html += '<div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:'+(servicesHtml?'0.5rem':'0')+'">';
+        if(p.logo){
+          html += '<img src="'+_esc(p.logo)+'" style="width:36px;height:36px;object-fit:contain;border-radius:8px;border:1px solid rgba('+accentRgb+',0.2);flex-shrink:0;background:rgba(255,255,255,0.04);" onerror="this.style.display='none'">';
+        }
+        html += '<div style="flex:1;min-width:0;">'
+          +'<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;color:'+accent+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+_esc(p.nom||'')+'</div>'
+          +(p.slogan?'<div style="font-size:0.64rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+_esc(p.slogan)+'</div>':'')
+          +'</div>';
+        if(p.lien && p.cta){
+          html += '<span style="font-size:0.6rem;font-weight:700;padding:0.22rem 0.6rem;border-radius:99px;background:rgba('+accentRgb+',0.15);border:1px solid rgba('+accentRgb+',0.4);color:'+accent+';white-space:nowrap;flex-shrink:0;">'+_esc(p.cta)+' →</span>';
+        }
+        html += '</div>';
+
+        if(servicesHtml){
+          html += '<div style="display:flex;gap:0.3rem;flex-wrap:wrap;padding-left:0.2rem;">'+servicesHtml+'</div>';
+        }
+        html += '<div style="font-size:0.48rem;color:rgba(255,255,255,0.18);text-align:right;margin-top:0.3rem;">Pub</div>';
+        html += '</div>';
+      });
+
+      html += '</div></div>';
+      frame.innerHTML = html;
+    });
+  }
+
+  window.renderPubFrame = renderPubFrame;
+
+  /* ── Clic sur une pub (compteur + redirect) ── */
+  window.pubFrameClick = function(id, lien) {
+    if(!lien) return;
+    /* Incrémenter le compteur de clics */
+    if(window.db && window.fbDoc && window.fbUpdateDoc && window.fbFieldIncrement){
+      window.fbUpdateDoc(window.fbDoc(window.db, PUB_COLLECTION, id), {clics: window.fbFieldIncrement(1)}).catch(function(){});
+    }
+    window.open(lien, '_blank', 'noopener,noreferrer');
+  };
+
+  /* ── Helper : hex → "r,g,b" ── */
+  function _hexToRgb(hex){
+    var r = parseInt(hex.slice(1,3),16)||255;
+    var g = parseInt(hex.slice(3,5),16)||215;
+    var b = parseInt(hex.slice(5,7),16)||0;
+    return r+','+g+','+b;
+  }
+
+  /* ── Chargement initial du cadre public ── */
+  setTimeout(function(){
+    renderPubFrame();
+  }, 3000); // après que Firebase soit prêt
+
+})();
+</script>
+
 </body>
 </html>
