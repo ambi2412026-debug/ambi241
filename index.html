@@ -7399,7 +7399,7 @@ if (document.readyState === 'loading') {
         <div class="gps-accuracy-bar"><div class="gps-accuracy-fill" id="gpsAccuracyFill" style="width:0%"></div></div>
       </div>
     </div>
-    <div class="search-wrap" style="position:relative;display:flex;align-items:center;"><span>&#128269;</span><input type="text" id="searchInput" placeholder="Rechercher nom, type, quartier..." oninput="renderAll();document.getElementById('searchClearBtn').style.display=this.value?'flex':'none'"><button id="searchClearBtn" onclick="document.getElementById('searchInput').value='';renderAll();this.style.display='none';document.getElementById('searchInput').focus()" style="display:none;position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;color:var(--muted);width:20px;height:20px;border-radius:50%;font-size:0.75rem;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.15s;" title="Effacer">&#10005;</button></div>
+    <div class="search-wrap" style="position:relative;display:flex;align-items:center;"><span>&#128269;</span><input type="text" id="searchInput" placeholder="Rechercher par nom ou quartier..." oninput="renderAll();document.getElementById('searchClearBtn').style.display=this.value?'flex':'none'"><button id="searchClearBtn" onclick="document.getElementById('searchInput').value='';renderAll();this.style.display='none';document.getElementById('searchInput').focus()" style="display:none;position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;color:var(--muted);width:20px;height:20px;border-radius:50%;font-size:0.75rem;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.15s;" title="Effacer">&#10005;</button></div>
     <!-- Bandeau "Mon établissement" — visible uniquement pour les membres propriétaires -->
     <div id="myEtabBanner" style="display:none;background:linear-gradient(90deg,rgba(255,45,155,0.13),rgba(0,229,255,0.07));border:1.5px solid rgba(255,45,155,0.35);border-radius:14px;padding:0.7rem 0.9rem;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.55rem;">
       <span style="font-size:1.1rem;">📌</span>
@@ -13577,9 +13577,14 @@ function estPaiementConfirme(etab){
 }
 
 function filterData(){
-  var q=document.getElementById("searchInput").value.toLowerCase();
+  var q=document.getElementById("searchInput").value.toLowerCase().trim();
   var data=etablissements.filter(function(e){
-    var ms=!q||e.nom.toLowerCase().indexOf(q)!==-1||(e.quartier&&e.quartier.toLowerCase().indexOf(q)!==-1)||(e.type&&e.type.toLowerCase().indexOf(q)!==-1);
+    // ── Recherche textuelle : NOM et QUARTIER uniquement (jamais e.type pour éviter les faux positifs inter-catégories) ──
+    var ms=!q
+      ||e.nom.toLowerCase().indexOf(q)!==-1
+      ||(e.quartier&&e.quartier.toLowerCase().indexOf(q)!==-1)
+      ||(e.description&&e.description.toLowerCase().indexOf(q)!==-1);
+    // ── Filtre de catégorie : comparaison stricte via getCategory ──
     var mt=currentType==="all"||(getCategory(e.type)===currentType);
     var mv=currentStatus==="all"||(e.statut&&e.statut.indexOf(currentStatus)!==-1);
     // Admin voit tout (actifs + archivés) pour pouvoir les trier
@@ -17590,6 +17595,11 @@ window.goToEtab = goToEtab;
 // ── Filtre de type dédié (lieux uniquement) ──
 function setTypeFilter(type, el){
   currentType = type;
+  // Vider la recherche textuelle quand on filtre par catégorie (évite les faux positifs)
+  if(type !== 'all') {
+    var si = document.getElementById('searchInput');
+    if(si) si.value = '';
+  }
   // N'activer/désactiver que les chips du bloc #typeChips
   document.querySelectorAll('#typeChips .fchip').forEach(function(c){
     c.classList.remove('active');
