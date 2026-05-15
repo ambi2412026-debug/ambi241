@@ -31,321 +31,24 @@
 html{overflow-x:hidden;max-width:100vw;scrollbar-gutter:stable;overflow-y:scroll;}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;padding-bottom:calc(var(--nav-h) + var(--player-h));padding-top:116px;max-width:100%;width:100%;}
-
-/* ═══════════════════════════════════════════════════════════════════
-   ══ SCROLL-SNAP 4 BLOCS — PAGE ACCUEIL UNIQUEMENT               ══
-   ═══════════════════════════════════════════════════════════════════ */
-
-/* Conteneur snap : remplace le scroll libre du body UNIQUEMENT sur #sec-accueil */
-#sec-accueil{
-  /* Snap vertical, un bloc à la fois */
-  overflow-y: scroll;
-  scroll-snap-type: y mandatory;
-  scroll-behavior: smooth;
-  /* Occupe l'espace dispo entre topbar et bottom-nav */
-  height: calc(100vh - 116px - var(--nav-h) - var(--player-h) - var(--safe-bottom));
-  /* Pas de padding body car on gère ici */
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  position: relative;
-  /* Masquer la scrollbar native mais garder le scroll */
-  scrollbar-width: none;
-}
-#sec-accueil::-webkit-scrollbar{ display:none; }
-
-/* Les 4 blocs snap : chacun prend exactement la hauteur du viewport dispo */
-.snap-bloc{
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
-  min-height: calc(100vh - 116px - var(--nav-h) - var(--player-h) - var(--safe-bottom));
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  position: relative;
-  overflow: hidden;
-}
-
-/* Blocs 2 & 3 qui ont plus de contenu : permettre un dépassement gracieux */
-.snap-bloc.snap-bloc--scroll{
-  justify-content: flex-start;
-  overflow-y: auto;
-  scrollbar-width: none;
-}
-.snap-bloc.snap-bloc--scroll::-webkit-scrollbar{ display:none; }
-
-/* Séparateur lumineux entre chaque bloc */
-.snap-bloc::after{
-  content: '';
-  position: absolute;
-  bottom: 0; left: 10%; right: 10%;
-  height: 1px;
-  background: linear-gradient(90deg,
-    transparent 0%,
-    rgba(255,45,155,0.25) 30%,
-    rgba(0,229,255,0.35) 50%,
-    rgba(255,45,155,0.25) 70%,
-    transparent 100%
-  );
-  pointer-events: none;
-}
-.snap-bloc:last-child::after{ display:none; }
-
-/* Indicateur de progression (pastilles latérales) */
-#snapProgress{
-  position: fixed;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  z-index: 50;
-  pointer-events: none;
-  /* Visible seulement sur la section accueil */
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-#snapProgress.visible{ opacity: 1; }
-.snap-dot{
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.25);
-  transition: all 0.35s cubic-bezier(0.34,1.56,0.64,1);
-}
-.snap-dot.active{
-  width: 5px;
-  height: 16px;
-  border-radius: 3px;
-  background: var(--pink);
-  border-color: var(--pink);
-  box-shadow: 0 0 8px rgba(255,45,155,0.7);
-}
-
-/* Flèche bas animée (hint de scroll) — visible sur bloc 1 seulement */
-.snap-scroll-hint{
-  position: absolute;
-  bottom: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  opacity: 0.45;
-  animation: hintBounce 2s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 5;
-}
-.snap-scroll-hint span{
-  font-size: 0.52rem;
-  color: var(--muted);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  font-family: 'Syne', sans-serif;
-  font-weight: 700;
-}
-.snap-scroll-hint svg{
-  width: 16px; height: 16px;
-  fill: none;
-  stroke: var(--pink);
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-@keyframes hintBounce{
-  0%,100%{ transform:translateX(-50%) translateY(0); opacity:0.4; }
-  50%{ transform:translateX(-50%) translateY(5px); opacity:0.75; }
-}
-
-/* Numéro de bloc — label en haut à gauche de chaque bloc */
-.snap-bloc-label{
-  position: absolute;
-  top: 14px;
-  left: 16px;
-  font-family: 'Syne', sans-serif;
-  font-size: 0.46rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.18);
-  z-index: 4;
-  pointer-events: none;
-}
-
-/* Ajustements internes des blocs pour éviter scroll interne inutile */
-#snap-bloc-1 .hero-section{ flex: 1; display:flex; flex-direction:column; justify-content:stretch; }
-#snap-bloc-2{ padding-top: 0; }
-#snap-bloc-3{ padding-top: 0; }
-#snap-bloc-4{ padding-top: 0; }
-
-/* Sur le body : désactiver le scroll natif quand accueil actif */
-body.snap-accueil-active{
-  overflow: hidden;
-}
-
-/* Quand le body a snap actif, padding-bottom géré par le conteneur */
-body.snap-accueil-active{
-  padding-bottom: 0;
-}
-/* ═══════════════════════════════════════════════════════════════════ */
 body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(255,45,155,0.12) 0%,transparent 50%),radial-gradient(ellipse at 90% 30%,rgba(0,229,255,0.10) 0%,transparent 50%),radial-gradient(ellipse at 50% 90%,rgba(204,68,255,0.08) 0%,transparent 50%);pointer-events:none;z-index:0;will-change:transform;}
 /* Optimisation GPU pour les éléments animés */
 .live-dot,.heb-dot,.dispo-updated-dot,.cef-live,.hero-eyebrow-dot{will-change:opacity,transform;}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
 
 /* ═══════════════════════════════════════════════════════════════ */
-/* ═══════════════════════════════════════════════════════════════════
-   ══ STABILITÉ HORIZONTALE — Centrage & anti-débordement global  ══
-   ═══════════════════════════════════════════════════════════════════ */
-
-/* Racine : interdire tout débordement horizontal sur html et body */
-html, body {
-  overflow-x: hidden !important;
-  max-width: 100vw;
+/* ══ STABILISER LE LAYOUT — Éviter les sauts latéraux ══════════ */
+/* ═══════════════════════════════════════════════════════════════ */
+main, section, .pane, .tab-pane, [role="tabpanel"] {
   width: 100%;
-}
-
-/* Toutes les sections principales : contraintes strictes */
-#sec-accueil,
-#sec-etablissements,
-#sec-paiements,
-#sec-profil,
-#sec-social,
-#sec-contacts,
-#sec-publications {
-  overflow-x: hidden !important;
-  max-width: 100%;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-/* Boutons de la bottom-nav : centrage forcé, pas de débordement */
-.bottom-nav, .nav-bar, [class*="bottom-nav"], [class*="nav-bar"] {
-  overflow: hidden;
-}
-.nav-item {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-  flex: 1;
-  text-align: center;
-}
-
-/* Header topbar : centrage et anti-overflow */
-.topbar, .top-bar, header, #topbar, #header {
-  overflow-x: hidden;
-  max-width: 100vw;
-}
-
-/* Guide bar (les 2 boutons "Guide AMBI241" et "Chanson de la semaine") */
-.header-guide-bar {
-  overflow-x: auto;
-  max-width: 100%;
-  scrollbar-width: none;
-}
-.header-guide-bar::-webkit-scrollbar { display: none; }
-.guide-bar-btn, .hgb-btn, [class*="guide-btn"] {
-  flex-shrink: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 50%;
-}
-
-/* Cartes génériques : texte ne dépasse pas */
-.card, .top6-card, .type-tile, .join-card,
-.hss-chip, .stat-chip, .compact-row {
-  overflow: hidden;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-/* Textes longs dans les cards */
-.t6c-name, .cr-name, .join-card-title, .join-card-desc,
-.top6-card [class*="name"] {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-.type-tile [class*="name"] {
-  white-space: normal !important;
-  overflow: visible !important;
-  text-overflow: unset !important;
-}
-
-/* Hero ticker : ne jamais dépasser */
-.hero-ticker-wrap {
-  overflow: hidden !important;
-  max-width: 100%;
-}
-
-/* Grilles : pas de débordement */
-.types-grid, .top6-grid, .join-grid, .home-stats-strip {
-  max-width: 100%;
   overflow-x: hidden;
 }
 
-/* Boutons hero : centrage et wrap propre */
-.hero-actions {
-  flex-wrap: nowrap;
-  justify-content: center;
-  max-width: 100%;
-  padding: 0 0.5rem;
-  box-sizing: border-box;
+/* ══ ACTIVER le scroll latéral UNIQUEMENT où c'est pertinent ══ */
+.soc-tabs, .socpub-filter-row, .igm-steps, .header-guide-bar,
+.demo-nav-profil, .af-filter-row {
+  overflow-x: auto !important;
 }
-.hero-btn {
-  max-width: 100%;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
-  text-align: center;
-}
-
-/* Barre météo : centrage strict */
-.meteo-strip {
-  max-width: calc(100% - 2rem);
-  overflow: hidden;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-/* Rows et containers divers */
-.filter-row, .sort-row, .notif-filter-row,
-.igm-steps, .af-filter-row, .socpub-filter-row,
-.soc-tabs, .demo-nav-profil {
-  max-width: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-/* Padding interne global sur les sections pour éviter le toucher des bords */
-#sec-accueil > *,
-#sec-etablissements > *:not(.gps-panel):not(.card-overlay):not(.overlay),
-#sec-social > * {
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-/* Empêcher la sélection/glissement accidentel horizontal sur le contenu */
-main, #sec-accueil, #sec-etablissements,
-#sec-paiements, #sec-profil, #sec-social {
-  -webkit-user-drag: none;
-  touch-action: pan-y; /* Uniquement scroll vertical autorisé */
-}
-
-/* Exception : éléments avec scroll horizontal légitimes */
-.soc-tabs, .socpub-filter-row, .igm-steps,
-.header-guide-bar, .demo-nav-profil, .af-filter-row,
-.filter-row, .notif-filter-row, .igm-cat-grid,
-.stats-scroll, .soc-cat-row {
-  touch-action: pan-x pan-y;
-}
-
-/* ═══════════════════════════════════════════════════════════════════ */
 
 /* ══════════════════════════════════════════════════════════════
    ══ OPTION 1 — FLASH ÉVÉNEMENT (bandeau dans la carte)       ══
@@ -2000,13 +1703,8 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 /* ── Bloc principal hero ── */
 .hero-main{
   position:relative;
-  padding:1.4rem 1.2rem 1.2rem;
+  padding:0.9rem 1.2rem 1rem;
   text-align:center;
-  flex:1;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:space-evenly;
 }
 .hero-main::before{
   content:'';position:absolute;inset:0;
@@ -2022,13 +1720,13 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   background:rgba(255,45,155,0.08);
   border:1px solid rgba(255,45,155,0.25);
   border-radius:100px;
-  padding:0.28rem 0.9rem;
-  font-size:0.62rem;
+  padding:0.22rem 0.75rem;
+  font-size:0.55rem;
   font-weight:800;
   letter-spacing:0.1em;
   text-transform:uppercase;
   color:var(--pink);
-  margin-bottom:0;
+  margin-bottom:0.6rem;
 }
 .hero-eyebrow-dot{width:5px;height:5px;border-radius:50%;background:var(--pink);animation:pulse 2s infinite;}
 
@@ -2067,16 +1765,14 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   display:inline-flex;flex-direction:column;align-items:center;
   background:rgba(255,45,155,0.06);
   border:1px solid rgba(255,45,155,0.18);
-  border-radius:16px;
-  padding:0.6rem 1.6rem;
-  margin:0 0;
+  border-radius:12px;
+  padding:0.38rem 0.9rem;
+  margin:0.6rem 0 0.7rem;
   position:relative;
-  width:100%;
-  max-width:320px;
 }
 .hero-clock{
   font-family:'Syne',sans-serif;
-  font-size:1.55rem;
+  font-size:1.15rem;
   font-weight:800;
   letter-spacing:0.08em;
   color:var(--text);
@@ -2098,10 +1794,10 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   gap:0.4rem;flex-wrap:wrap;
   background:rgba(0,229,255,0.04);
   border:1px solid rgba(0,229,255,0.12);
-  border-radius:14px;
-  padding:0.7rem 1rem;
-  margin:0 auto;
-  max-width:320px;
+  border-radius:11px;
+  padding:0.38rem 0.8rem;
+  margin:0.4rem auto 0;
+  max-width:300px;
   width:100%;
   transition:opacity 0.5s ease, border-color 0.4s, background 0.4s;
   animation:fadeUp 0.5s ease both;
@@ -2142,24 +1838,19 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 /* CTA Buttons */
 .hero-actions{
   display:flex;gap:0.5rem;justify-content:center;
-  margin-top:0;flex-direction:column;align-items:stretch;
-  flex-wrap:nowrap;
-  width:100%;max-width:340px;
+  margin-top:0.7rem;flex-wrap:wrap;
 }
 .hero-btn{
   display:inline-flex;align-items:center;gap:0.35rem;
-  padding:0.7rem 1.2rem;
+  padding:0.55rem 1.1rem;
   border-radius:100px;
-  font-size:0.82rem;
+  font-size:0.76rem;
   font-weight:800;
   border:none;
   cursor:pointer;
   font-family:'Syne',sans-serif;
   transition:all 0.22s;
   letter-spacing:0.01em;
-  width:100%;
-  justify-content:center;
-  white-space:nowrap;
 }
 .hero-btn:active{transform:scale(0.95);}
 .hero-btn-primary{
@@ -2176,29 +1867,25 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 
 /* ══ RUBRIQUE TYPES D'ÉTABLISSEMENTS ══ */
 .home-types-section{
-  margin: 0.4rem 0 0.8rem;
-  padding: 0 0.8rem;
+  margin: 0.8rem 0 1.4rem;
+  padding: 0 1rem;
   animation: fadeUp 0.6s 0.15s ease both;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
 }
 .home-section-label{
   font-size:0.6rem;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;
-  color:var(--muted);margin-bottom:0.6rem;display:flex;align-items:center;gap:0.5rem;
+  color:var(--muted);margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;
 }
 .home-section-label::after{content:'';flex:1;height:1px;background:rgba(255,255,255,0.06);}
 
 .types-grid{
   display:grid;
   grid-template-columns:repeat(3,1fr);
-  gap:0.55rem;
-  flex: 1;
+  gap:0.5rem;
 }
 .type-tile{
   position:relative;
   border-radius:16px;
-  padding:1.0rem 0.5rem 0.9rem;
+  padding:0.9rem 0.5rem 0.75rem;
   text-align:center;
   cursor:pointer;
   transition:all 0.22s;
@@ -2263,7 +1950,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .type-tile-hotel:hover{border-color:rgba(180,110,0,0.5);box-shadow:0 6px 22px rgba(200,140,0,0.25);}
 
 .tt-icon{font-size:1.6rem;margin-bottom:0.3rem;line-height:1;position:relative;z-index:2;}
-.tt-name{font-family:'Syne',sans-serif;font-weight:800;font-size:0.65rem;color:#2a0040;text-transform:uppercase;letter-spacing:0.05em;position:relative;z-index:2;text-shadow:none;white-space:normal !important;word-break:break-word !important;overflow:visible !important;line-height:1.3;}
+.tt-name{font-family:'Syne',sans-serif;font-weight:800;font-size:0.65rem;color:#2a0040;text-transform:uppercase;letter-spacing:0.05em;position:relative;z-index:2;text-shadow:none;}
 .tt-count{
   display:inline-block;margin-top:0.28rem;
   font-size:0.6rem;font-weight:700;
@@ -2280,31 +1967,28 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 
 /* ══ TOP 3 LIEUX ══ */
 .home-top6-section{
-  margin-bottom:0;
+  margin-bottom:0.9rem;
   animation:fadeUp 0.6s 0.25s ease both;
-  padding:0.8rem 0.8rem 0;
-  flex:1;
-  display:flex;
-  flex-direction:column;
+  padding:0 1rem;
 }
 .top6-header{
   display:flex;align-items:center;justify-content:space-between;
-  margin-bottom:0.55rem;
+  margin-bottom:0.65rem;
 }
 .top6-title{
-  font-family:'Syne',sans-serif;font-weight:800;font-size:0.92rem;
+  font-family:'Syne',sans-serif;font-weight:800;font-size:0.88rem;
   color:var(--text);
   display:flex;align-items:center;gap:0.45rem;
 }
-.top6-title .t6-flame{font-size:1.2rem;}
+.top6-title .t6-flame{font-size:1.1rem;}
 .top6-title .t6-sub{
   font-family:'DM Sans',sans-serif;font-weight:400;font-size:0.68rem;
   color:var(--muted);margin-left:0.15rem;
 }
 .top6-see-all{
-  font-size:0.7rem;font-weight:700;color:var(--pink);
+  font-size:0.68rem;font-weight:700;color:var(--pink);
   background:rgba(255,45,155,0.08);border:1px solid rgba(255,45,155,0.2);
-  padding:0.28rem 0.8rem;border-radius:100px;cursor:pointer;
+  padding:0.22rem 0.7rem;border-radius:100px;cursor:pointer;
   font-family:'DM Sans',sans-serif;
   transition:all 0.2s;
   white-space:nowrap;
@@ -2312,13 +1996,13 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .top6-see-all:active{opacity:0.7;}
 
 /* Barres horizontales compactes */
-.top6-grid{display:flex;flex-direction:column;gap:0.45rem;flex:1;}
+.top6-grid{display:flex;flex-direction:column;gap:0.42rem;}
 .top6-card{
   position:relative;
   background:var(--surface);
   border:2px solid;
   border-radius:10px;
-  padding:0.55rem 0.7rem;
+  padding:0.48rem 0.6rem;
   display:flex;align-items:center;gap:0.5rem;
   cursor:pointer;
   transition:all 0.22s;
@@ -2326,7 +2010,6 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   -webkit-tap-highlight-color:transparent;
   user-select:none;
   min-height:48px;height:auto;
-  flex:1;
 }
 .top6-card:active{transform:scale(0.98);opacity:0.85;}
 .top6-card:hover{transform:translateX(3px);}
@@ -2458,8 +2141,8 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 /* ══ STATS STRIP ACCUEIL (4 chips) ══ */
 .home-stats-strip{
   display:grid;grid-template-columns:repeat(4,1fr);gap:0.5rem;
-  margin-bottom:0.6rem;
-  padding:0.7rem 0.8rem 0;
+  margin-bottom:1.2rem;
+  padding:0 1rem;
   animation:fadeUp 0.6s 0.1s ease both;
 }
 .hss-chip{
@@ -5785,7 +5468,8 @@ const i18n = {
 
     /* Hero buttons */
     const heroBtns = document.querySelectorAll('.hero-actions .hero-btn');
-    if (heroBtns[0]) heroBtns[0].innerHTML = d.hero_nearby;
+    if (heroBtns[0]) heroBtns[0].innerHTML = d.hero_explore;
+    if (heroBtns[1]) heroBtns[1].innerHTML = d.hero_nearby;
 
     /* Top ce soir label */
     const topLabel = document.querySelector('#sec-accueil > div[style*="Top ce soir"], #sec-accueil > div[style*="top_ce_soir"]');
@@ -6049,420 +5733,6 @@ if (document.readyState === 'loading') {
 }
 </script>
 
-<style>
-/* ══════════════════════════════════════════════════════════════════════
-   ██ AMBI241 — LUXURY FEMININE NIGHT REDESIGN  2026
-   ██ Overrides : boutons, textes, labels, blocs — rendu pro de luxe
-   ══════════════════════════════════════════════════════════════════════ */
-
-/* ── Palette de luxe féminin nuit ── */
-:root {
-  --lux-rose:      #ff3fa4;
-  --lux-pink:      #ff1a8c;
-  --lux-gold:      #ffd080;
-  --lux-champagne: #ffe8b0;
-  --lux-mauve:     #d4a8e8;
-  --lux-violet:    #9b59d4;
-  --lux-deep:      #120720;
-  --lux-surface:   #1c0930;
-  --lux-glass:     rgba(255,255,255,0.045);
-  --lux-glow-pink: rgba(255,60,164,0.35);
-  --lux-glow-gold: rgba(255,210,100,0.35);
-  --shadow-lux:    0 8px 32px rgba(0,0,0,0.55), 0 2px 8px rgba(255,45,155,0.18);
-}
-
-/* ── Import police de luxe ── */
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap');
-
-/* ══ BLOC LABELS — VISIBLES, LUXUEUX ══ */
-.snap-bloc-label {
-  position: absolute !important;
-  top: 12px !important;
-  left: 50% !important;
-  transform: translateX(-50%) !important;
-  font-family: 'Syne', sans-serif !important;
-  font-size: 0.56rem !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.22em !important;
-  text-transform: uppercase !important;
-  color: rgba(255, 200, 220, 0.75) !important;
-  background: linear-gradient(90deg, rgba(255,45,155,0.12), rgba(204,68,255,0.08)) !important;
-  border: 1px solid rgba(255,45,155,0.22) !important;
-  border-radius: 100px !important;
-  padding: 0.2rem 0.9rem !important;
-  backdrop-filter: blur(8px) !important;
-  z-index: 10 !important;
-  pointer-events: none !important;
-  white-space: nowrap !important;
-  box-shadow: 0 0 12px rgba(255,45,155,0.15) !important;
-}
-
-/* ══ SNAP BLOC — fond scintillant ══ */
-.snap-bloc {
-  background:
-    radial-gradient(ellipse 70% 45% at 20% 15%, rgba(255,45,155,0.09) 0%, transparent 65%),
-    radial-gradient(ellipse 55% 40% at 85% 80%, rgba(204,68,255,0.08) 0%, transparent 60%),
-    radial-gradient(ellipse 40% 35% at 60% 5%, rgba(0,229,255,0.05) 0%, transparent 55%);
-}
-
-/* ══ TICKER — plus large, plus chic ══ */
-.hero-ticker-wrap {
-  padding: 0.7rem 0 !important;
-}
-.hero-ticker-text {
-  font-size: 0.9rem !important;
-  letter-spacing: 0.09em !important;
-}
-
-/* ══ EYEBROW — style rose doré ══ */
-.hero-eyebrow {
-  font-size: 0.68rem !important;
-  padding: 0.32rem 1.1rem !important;
-  background: linear-gradient(135deg, rgba(255,45,155,0.14), rgba(204,68,255,0.09)) !important;
-  border-color: rgba(255,45,155,0.4) !important;
-  box-shadow: 0 0 18px rgba(255,45,155,0.2), inset 0 1px 0 rgba(255,255,255,0.08) !important;
-  letter-spacing: 0.14em !important;
-}
-
-/* ══ HORLOGE — plus grande, plus lumineuse ══ */
-.hero-clock-block {
-  background: linear-gradient(135deg, rgba(255,45,155,0.10), rgba(204,68,255,0.07)) !important;
-  border: 1.5px solid rgba(255,45,155,0.28) !important;
-  border-radius: 20px !important;
-  padding: 0.9rem 2rem !important;
-  max-width: 100% !important;
-  width: calc(100% - 2.4rem) !important;
-  box-shadow: 0 0 28px rgba(255,45,155,0.18), inset 0 1px 0 rgba(255,255,255,0.06) !important;
-}
-.hero-clock {
-  font-size: 2.2rem !important;
-  letter-spacing: 0.12em !important;
-  background: linear-gradient(135deg, #fff8fc, #ffd0e8, #ffffff) !important;
-  -webkit-background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
-  background-clip: text !important;
-  filter: drop-shadow(0 0 8px rgba(255,80,180,0.45)) !important;
-}
-.hero-date {
-  font-size: 0.72rem !important;
-  color: rgba(255,200,230,0.75) !important;
-  letter-spacing: 0.08em !important;
-  text-transform: capitalize !important;
-  margin-top: 0.35rem !important;
-}
-
-/* ══ MÉTÉO — élégante ══ */
-.meteo-strip {
-  max-width: 100% !important;
-  width: calc(100% - 2.4rem) !important;
-  background: linear-gradient(135deg, rgba(0,229,255,0.07), rgba(0,180,200,0.04)) !important;
-  border: 1.5px solid rgba(0,229,255,0.2) !important;
-  border-radius: 18px !important;
-  padding: 0.85rem 1.2rem !important;
-  box-shadow: 0 4px 20px rgba(0,229,255,0.1), inset 0 1px 0 rgba(255,255,255,0.05) !important;
-}
-.meteo-temp {
-  font-size: 1.05rem !important;
-  background: linear-gradient(135deg, #00e5ff, #80f0ff) !important;
-  -webkit-background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
-  background-clip: text !important;
-}
-.meteo-detail-row {
-  font-size: 0.6rem !important;
-}
-.meteo-desc {
-  font-size: 0.62rem !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.06em !important;
-}
-
-/* ══ BOUTONS HERO — GRANDS, LUXUEUX, FÉMININS ══ */
-.hero-actions {
-  gap: 0.65rem !important;
-  width: 100% !important;
-  max-width: 100% !important;
-  padding: 0 1.2rem !important;
-}
-.hero-btn {
-  padding: 0.95rem 1.6rem !important;
-  font-size: 0.92rem !important;
-  font-weight: 800 !important;
-  border-radius: 16px !important;
-  letter-spacing: 0.04em !important;
-  box-shadow: var(--shadow-lux) !important;
-}
-.hero-btn-secondary {
-  background: linear-gradient(135deg, rgba(0,229,255,0.14), rgba(0,180,200,0.09)) !important;
-  border: 1.5px solid rgba(0,229,255,0.42) !important;
-  color: #7aeaff !important;
-  font-size: 0.9rem !important;
-  box-shadow: 0 6px 24px rgba(0,229,255,0.18), inset 0 1px 0 rgba(255,255,255,0.08) !important;
-}
-.hero-btn-install {
-  background: linear-gradient(135deg, rgba(204,68,255,0.22), rgba(255,45,155,0.16)) !important;
-  border: 1.5px solid rgba(204,68,255,0.5) !important;
-  color: #e090ff !important;
-  box-shadow: 0 6px 24px rgba(204,68,255,0.22), inset 0 1px 0 rgba(255,255,255,0.08) !important;
-}
-
-/* ══ SECTION LABELS (Bloc 2 "Types d'établissements") ══ */
-.home-section-label {
-  font-size: 0.72rem !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.18em !important;
-  color: rgba(255,180,220,0.85) !important;
-  margin-bottom: 0.75rem !important;
-  text-transform: uppercase !important;
-}
-.home-section-label::after {
-  background: linear-gradient(90deg, rgba(255,45,155,0.3), transparent) !important;
-  height: 1.5px !important;
-}
-
-/* ══ STATS STRIP (Bloc 2) ══ */
-.hss-chip {
-  background: linear-gradient(135deg, rgba(255,255,255,0.055), rgba(255,45,155,0.045)) !important;
-  border: 1.5px solid rgba(255,45,155,0.2) !important;
-  border-radius: 14px !important;
-  padding: 0.7rem 0.5rem !important;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.25) !important;
-}
-
-/* ══ TYPE TILES — 2 colonnes, texte complet visible ══ */
-.types-grid {
-  grid-template-columns: repeat(2, 1fr) !important;
-  gap: 0.72rem !important;
-}
-.type-tile {
-  padding: 1.15rem 0.85rem 1rem !important;
-  border-radius: 20px !important;
-  box-shadow: 0 4px 18px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.22) !important;
-  overflow: visible !important;
-  min-height: 110px !important;
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-.tt-icon {
-  font-size: 2.1rem !important;
-  margin-bottom: 0.45rem !important;
-}
-.tt-name {
-  font-size: 0.75rem !important;
-  letter-spacing: 0.04em !important;
-  white-space: normal !important;
-  word-break: break-word !important;
-  overflow: visible !important;
-  text-overflow: unset !important;
-  line-height: 1.3 !important;
-  display: block !important;
-  width: 100% !important;
-  text-align: center !important;
-}
-.tt-count {
-  font-size: 0.68rem !important;
-  padding: 0.15rem 0.55rem !important;
-  margin-top: 0.32rem !important;
-}
-
-/* ══ TOP 6 — Titre visible ══ */
-.top6-title {
-  font-size: 1.05rem !important;
-  background: linear-gradient(135deg, #fff8fc, #ffc8e8, #ffffff) !important;
-  -webkit-background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
-  background-clip: text !important;
-}
-.top6-title .t6-sub {
-  -webkit-text-fill-color: rgba(176,136,192,0.85) !important;
-  color: rgba(176,136,192,0.85) !important;
-  font-size: 0.72rem !important;
-}
-.top6-see-all {
-  font-size: 0.72rem !important;
-  padding: 0.35rem 0.95rem !important;
-  background: linear-gradient(135deg, rgba(255,45,155,0.15), rgba(204,68,255,0.1)) !important;
-  border: 1.5px solid rgba(255,45,155,0.35) !important;
-  border-radius: 100px !important;
-  box-shadow: 0 0 14px rgba(255,45,155,0.15) !important;
-}
-
-/* ══ TOP 6 CARDS — plus hautes ══ */
-.top6-grid {
-  gap: 0.55rem !important;
-}
-.top6-card {
-  padding: 0.75rem 0.9rem !important;
-  border-radius: 14px !important;
-  min-height: 58px !important;
-  box-shadow: 0 3px 14px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.18) !important;
-  border-width: 2px !important;
-}
-.t6c-name {
-  font-size: 0.82rem !important;
-  font-weight: 800 !important;
-}
-.t6c-cat {
-  font-size: 0.56rem !important;
-  opacity: 0.8 !important;
-}
-.t6c-icon {
-  font-size: 1.55rem !important;
-  width: 32px !important;
-  height: 32px !important;
-}
-
-/* ══ SECTION REJOINDRE — Titre luxe ══ */
-.join-eyebrow {
-  font-size: 0.6rem !important;
-  letter-spacing: 0.16em !important;
-  padding: 0.25rem 0.85rem !important;
-  background: rgba(255,45,155,0.1) !important;
-  border: 1px solid rgba(255,45,155,0.3) !important;
-  border-radius: 100px !important;
-  margin-bottom: 0.5rem !important;
-}
-.join-title {
-  font-family: 'Syne', sans-serif !important;
-  font-size: 1.3rem !important;
-  font-weight: 800 !important;
-  background: linear-gradient(135deg, #fff8fc, #ffb8d8, #ffffff) !important;
-  -webkit-background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
-  background-clip: text !important;
-  margin-bottom: 0.3rem !important;
-  line-height: 1.2 !important;
-}
-.join-sub {
-  font-size: 0.68rem !important;
-  color: rgba(200,160,200,0.8) !important;
-  line-height: 1.55 !important;
-}
-
-/* ══ JOIN CARDS — luxe féminin nuit ══ */
-.join-grid {
-  gap: 0.7rem !important;
-}
-.join-card {
-  padding: 1rem 1.1rem !important;
-  border-radius: 18px !important;
-  min-height: 76px !important;
-  box-shadow: 0 4px 22px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.07) !important;
-}
-.join-card-membre {
-  background: linear-gradient(135deg, rgba(0,229,255,0.13), rgba(0,180,200,0.07)) !important;
-  border: 1.5px solid rgba(0,229,255,0.38) !important;
-  box-shadow: 0 4px 22px rgba(0,229,255,0.14), inset 0 1px 0 rgba(255,255,255,0.06) !important;
-}
-.join-card-taxi {
-  background: linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,180,0,0.07)) !important;
-  border: 1.5px solid rgba(255,215,0,0.42) !important;
-  box-shadow: 0 4px 22px rgba(255,215,0,0.14), inset 0 1px 0 rgba(255,255,255,0.06) !important;
-}
-.join-card-etabl {
-  background: linear-gradient(135deg, rgba(255,45,155,0.16), rgba(204,68,255,0.09)) !important;
-  border: 1.5px solid rgba(255,45,155,0.42) !important;
-  box-shadow: 0 4px 22px rgba(255,45,155,0.16), inset 0 1px 0 rgba(255,255,255,0.06) !important;
-}
-.join-card-icon {
-  font-size: 1.75rem !important;
-  width: 48px !important;
-  height: 48px !important;
-  border-radius: 14px !important;
-  background: rgba(255,255,255,0.07) !important;
-  border: 1px solid rgba(255,255,255,0.1) !important;
-}
-.join-card-title {
-  font-size: 0.96rem !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.01em !important;
-}
-.join-card-desc {
-  font-size: 0.68rem !important;
-  color: rgba(200,170,210,0.8) !important;
-  margin-bottom: 0.4rem !important;
-}
-.join-tag {
-  font-size: 0.54rem !important;
-  padding: 0.16rem 0.55rem !important;
-  border-radius: 100px !important;
-}
-.join-card-arrow {
-  font-size: 1.4rem !important;
-  opacity: 0.6 !important;
-}
-
-/* ══ HEADER GUIDE BUTTONS — plus visibles ══ */
-.guide-bar-btn, .hgb-btn, [class*="guide-btn"] {
-  font-size: 0.72rem !important;
-  font-weight: 800 !important;
-  padding: 0.38rem 0.85rem !important;
-}
-
-/* ══ BOTTOM NAV — label plus lisibles ══ */
-.nav-item {
-  font-size: 0.54rem !important;
-  font-weight: 700 !important;
-}
-
-/* ══ SÉPARATEURS ENTRE BLOCS — plus lumineux ══ */
-.snap-bloc::after {
-  background: linear-gradient(90deg,
-    transparent 0%,
-    rgba(255,45,155,0.35) 25%,
-    rgba(255,200,230,0.5) 50%,
-    rgba(255,45,155,0.35) 75%,
-    transparent 100%
-  ) !important;
-  height: 1.5px !important;
-  left: 5% !important;
-  right: 5% !important;
-}
-
-/* ══ FOND BODY — nuances profondes de nuit ══ */
-body::before {
-  background:
-    radial-gradient(ellipse at 15% 10%, rgba(255,45,155,0.16) 0%, transparent 48%),
-    radial-gradient(ellipse at 88% 25%, rgba(0,229,255,0.12) 0%, transparent 48%),
-    radial-gradient(ellipse at 50% 95%, rgba(204,68,255,0.12) 0%, transparent 48%),
-    radial-gradient(ellipse at 70% 60%, rgba(255,215,0,0.05) 0%, transparent 38%) !important;
-}
-
-/* ══ SCROLL HINT — élégant ══ */
-.snap-scroll-hint span {
-  color: rgba(255,180,220,0.7) !important;
-  font-size: 0.56rem !important;
-  letter-spacing: 0.14em !important;
-}
-
-/* ══ PASTILLES PROGRESSION ══ */
-.snap-dot {
-  background: rgba(255,180,220,0.15) !important;
-  border-color: rgba(255,180,220,0.3) !important;
-}
-.snap-dot.active {
-  background: linear-gradient(180deg, var(--lux-rose), var(--lux-violet)) !important;
-  box-shadow: 0 0 10px rgba(255,45,155,0.8) !important;
-}
-
-/* ══ PUB FRAME HERO — harmonisé ══ */
-#pubFrameHero {
-  margin: 0.6rem 1.2rem 0.3rem !important;
-}
-
-/* ══ ANIMATION D'ENTRÉE DES BLOCS ══ */
-@keyframes luxFadeIn {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.snap-bloc { animation: luxFadeIn 0.6s ease both; }
-#snap-bloc-2 { animation-delay: 0.05s; }
-#snap-bloc-3 { animation-delay: 0.1s; }
-#snap-bloc-4 { animation-delay: 0.15s; }
-
-</style>
 </head>
 <body>
 
@@ -7592,12 +6862,17 @@ body::before {
       <div class="heb-cta">Voir →</div>
     </div>
 
-    <!-- ══ BLOC 1 : HERO ══ -->
-    <div class="snap-bloc" id="snap-bloc-1">
-      <div class="snap-bloc-label">01 · Accueil</div>
-
     <!-- ══ HERO LUXURY REDESIGN ══ -->
     <div class="hero-section">
+
+      <!-- Bandeau live -->
+      <div class="hero-live-banner">
+        <div class="hlb-left">
+          <div class="hlb-dot"></div>
+          <span>Données en temps réel · Libreville</span>
+        </div>
+        <span class="hlb-time" id="heroDate"></span>
+      </div>
 
       <!-- Bloc principal -->
       <div class="hero-main">
@@ -7649,26 +6924,12 @@ body::before {
 
         <!-- CTAs -->
         <div class="hero-actions">
-          <button class="hero-btn hero-btn-secondary" onclick="quickNearby()" style="border:1px solid rgba(0,229,255,0.3);color:var(--cyan);background:rgba(0,229,255,0.07);">&#128205; Près de chez moi</button>
-          <button class="hero-btn hero-btn-install" id="installPwaBtn" onclick="installPWA()" style="display:none;background:linear-gradient(135deg,rgba(204,68,255,0.18),rgba(255,45,155,0.12));border:1px solid rgba(204,68,255,0.45);color:var(--purple);font-weight:800;margin-top:0.2rem;">&#128640; Installer l'app</button>
+          <button class="hero-btn hero-btn-primary" onclick="switchSection('etablissements',document.querySelectorAll('.nav-item')[1])">Explorer les lieux</button>
+          <button class="hero-btn hero-btn-secondary" onclick="quickNearby()" style="border:1px solid rgba(0,229,255,0.3);color:var(--cyan);background:rgba(0,229,255,0.07);">&#128205; Près de moi</button>
+          <button class="hero-btn hero-btn-install" id="installPwaBtn" onclick="installPWA()" style="display:none;background:linear-gradient(135deg,rgba(204,68,255,0.18),rgba(255,45,155,0.12));border:1px solid rgba(204,68,255,0.45);color:var(--purple);font-weight:800;">&#128640; Installer</button>
         </div>
       </div>
     </div>
-
-    <!-- ══ CADRE ANNONCES — bas du bloc hero ══ -->
-    <div id="pubFrameHero" style="margin:0.5rem 1rem 0.2rem;min-height:0;"></div>
-
-    <!-- ══ SNAP BLOC 1 — fin (le hero + meteo + CTAs) + fermeture ══ -->
-      <!-- Hint scroll pour bloc 1 -->
-      <div class="snap-scroll-hint">
-        <span>Défiler</span>
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14" style="color:var(--pink)"><polyline points="3,5 8,11 13,5"/></svg>
-      </div>
-    </div><!-- /#snap-bloc-1 -->
-
-    <!-- ══ SNAP BLOC 2 — Stats + Types ══ -->
-    <div class="snap-bloc snap-bloc--scroll" id="snap-bloc-2">
-      <div class="snap-bloc-label">02 · Explorer</div>
 
     <!-- ══ STATS STRIP ══ -->
     <div class="home-stats-strip" id="statsRowHome"></div>
@@ -7680,15 +6941,6 @@ body::before {
         <!-- généré par renderHome -->
       </div>
     </div>
-
-    <!-- ══ CADRE ANNONCES — bas de la section Explorer ══ -->
-    <div id="pubFrameExplorer" style="margin:0.5rem 0.8rem 0.8rem;"></div>
-
-    </div><!-- /#snap-bloc-2 -->
-
-    <!-- ══ SNAP BLOC 3 — Top 6 lieux ══ -->
-    <div class="snap-bloc snap-bloc--scroll" id="snap-bloc-3">
-      <div class="snap-bloc-label">03 · Top du moment</div>
 
     <!-- ══ TOP 6 LIEUX ══ -->
     <div class="home-top6-section">
@@ -7702,12 +6954,6 @@ body::before {
       </div>
       <div class="top6-grid" id="topLieux"></div>
     </div>
-
-    </div><!-- /#snap-bloc-3 -->
-
-    <!-- ══ SNAP BLOC 4 — Rejoindre AMBI241 ══ -->
-    <div class="snap-bloc snap-bloc--scroll" id="snap-bloc-4">
-      <div class="snap-bloc-label">04 · Rejoindre</div>
 
     <!-- ══ SECTION REJOINDRE AMBI241 ══ -->
     <div class="join-section">
@@ -7763,23 +7009,14 @@ body::before {
         </button>
 
       </div>
-
-    <!-- ══ CADRE PUBLICITÉS & PARTENAIRES ══ -->
-    <div id="pubFrame" style="margin:0.6rem 1rem 1.2rem;">
-      <div id="pubFrameInner"><!-- Publicités chargées dynamiquement --></div>
-    </div>
-
     </div>
 
     <style>
     /* ══ JOIN SECTION ══ */
     .join-section{
-      margin:0;
-      padding:0.8rem 1rem 0.6rem;
+      margin:0.4rem 0 0;
+      padding:1rem 1rem 1.6rem;
       position:relative;
-      display:flex;
-      flex-direction:column;
-      justify-content:flex-start;
     }
     .join-header{
       text-align:center;
@@ -7884,16 +7121,6 @@ body::before {
     .join-card-etabl .join-card-arrow{color:var(--pink);}
     .join-card:active .join-card-arrow{opacity:1;transform:translateX(3px);}
     </style>
-  </div><!-- /#snap-bloc-4 -->
-
-  </div><!-- /#sec-accueil -->
-
-  <!-- Indicateur de progression snap (4 pastilles latérales) -->
-  <div id="snapProgress">
-    <div class="snap-dot active" data-bloc="1"></div>
-    <div class="snap-dot" data-bloc="2"></div>
-    <div class="snap-dot" data-bloc="3"></div>
-    <div class="snap-dot" data-bloc="4"></div>
   </div>
 
   <!-- SEC: LIEUX -->
@@ -7949,10 +7176,7 @@ body::before {
         <div class="gps-accuracy-bar"><div class="gps-accuracy-fill" id="gpsAccuracyFill" style="width:0%"></div></div>
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.8rem;">
-      <div class="search-wrap" style="position:relative;display:flex;align-items:center;flex:1;margin-bottom:0;"><span>&#128269;</span><input type="text" id="searchInput" placeholder="Rechercher nom, type, quartier..." oninput="renderAll();document.getElementById('searchClearBtn').style.display=this.value?'flex':'none'"><button id="searchClearBtn" onclick="document.getElementById('searchInput').value='';renderAll();this.style.display='none';document.getElementById('searchInput').focus()" style="display:none;position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;color:var(--muted);width:20px;height:20px;border-radius:50%;font-size:0.75rem;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.15s;" title="Effacer">&#10005;</button></div>
-      <button id="_searchGeoBtn" onclick="openSearchGeoModal()" title="Activer la géolocalisation pour trier les résultats" style="width:38px;height:38px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:var(--muted);font-size:1.05rem;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all 0.2s;">🌐</button>
-    </div>
+    <div class="search-wrap" style="position:relative;display:flex;align-items:center;"><span>&#128269;</span><input type="text" id="searchInput" placeholder="Rechercher nom, type, quartier..." oninput="renderAll();document.getElementById('searchClearBtn').style.display=this.value?'flex':'none'"><button id="searchClearBtn" onclick="document.getElementById('searchInput').value='';renderAll();this.style.display='none';document.getElementById('searchInput').focus()" style="display:none;position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;color:var(--muted);width:20px;height:20px;border-radius:50%;font-size:0.75rem;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.15s;" title="Effacer">&#10005;</button></div>
     <!-- Bandeau "Mon établissement" — visible uniquement pour les membres propriétaires -->
     <div id="myEtabBanner" style="display:none;background:linear-gradient(90deg,rgba(255,45,155,0.13),rgba(0,229,255,0.07));border:1.5px solid rgba(255,45,155,0.35);border-radius:14px;padding:0.7rem 0.9rem;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.55rem;">
       <span style="font-size:1.1rem;">📌</span>
@@ -9710,10 +8934,10 @@ onAuthStateChanged(auth, function(user) {
       // ── Mettre à jour le label nav Connexion → Profil ──
       if(typeof updateNavLabels === "function") updateNavLabels();
       // ── Pré-remplir sec-profil avec les vraies données utilisateur ──
-      if(typeof _syncProfilSection === "function") setTimeout(_syncProfilSection, 200); // PERF
+      if(typeof _syncProfilSection === "function") setTimeout(_syncProfilSection, 400);
       // ── Actualiser le panneau paiements ──
-      if(typeof updatePayVis === "function") setTimeout(updatePayVis, 300); // PERF
-    }, 400); // PERF: réduit de 2000→400ms
+      if(typeof updatePayVis === "function") setTimeout(updatePayVis, 500);
+    }, 2000);
   } else {
     window.currentUserEmail  = "";
     window.currentUserUID    = null;
@@ -9775,15 +8999,10 @@ function _writeSessionLog(data){
 // Signal que Firebase est prêt — loadData() sera appelé par le script principal
 window.__firebaseReady = true;
 if (window.__appReady) { loadData(); initMeteo(); }
-// Charger la config admin dès que Firebase est prêt
+// Charger la config admin (superadmin + admins secondaires) dès que Firebase est prêt
 setTimeout(function(){
   if(typeof loadAdminConfig === "function") loadAdminConfig();
-}, 200); // PERF: réduit de 400→200ms
-
-// Initialiser le bouton géoloc recherche dès que le DOM est prêt
-setTimeout(function(){
-  if(typeof _updateSearchGeoBtn === "function") _updateSearchGeoBtn();
-}, 600);
+}, 400);
 
 // ══════════════════════════════════════════════════════════════
 // ══  MOTEUR DONNÉES RÉELLES FIRESTORE — TEMPS RÉEL          ══
@@ -9947,10 +9166,10 @@ function _subscribeAllEtabs() {
 // Appeler dès que Firebase est prêt + après chaque loadData
 window._subscribeAllEtabs = _subscribeAllEtabs;
 
-// Abonnement différé — après loadData pour ne pas bloquer le chargement initial
+// Abonnement immédiat (les établissements locaux sont déjà chargés)
 setTimeout(function() {
   _subscribeAllEtabs();
-}, 2000); // PERF: décalé à 2s pour laisser loadData se terminer d'abord
+}, 800);
 
 </script>
 
@@ -11143,12 +10362,10 @@ function isSuperAdminUser(){
 // Charge la config super-admin et la liste des admins depuis Firebase
 function loadAdminConfig(){
   if(!window.db || typeof window.fbGetDoc !== "function"){
-    // Firebase pas encore initialise : reessayer avec backoff (max 10 tentatives)
-    if(!loadAdminConfig._attempts) loadAdminConfig._attempts = 0;
-    if(++loadAdminConfig._attempts < 10) setTimeout(function(){ loadAdminConfig(); }, 500);
+    // Firebase pas encore initialise : reessayer dans 300ms
+    setTimeout(function(){ loadAdminConfig(); }, 300);
     return;
   }
-  loadAdminConfig._attempts = 0;
   // S'assurer que currentUserEmail est synchronisé avec window.currentUserEmail
   if(!currentUserEmail && window.currentUserEmail) currentUserEmail = window.currentUserEmail;
 
@@ -11435,205 +10652,6 @@ var _gpsState = {
   timestamp: null, watchId: null, watching: false,
   radius: 1, sort: "distance", loading: false, error: null, permissionDenied: false
 };
-
-/* ═══════════════════════════════════════════════════════════════
-   GÉOLOC RECHERCHE — Tri des résultats de recherche par proximité
-   ═══════════════════════════════════════════════════════════════ */
-var _searchGeo = {
-  active: false, lat: null, lng: null,
-  label: '', method: null, proximityKm: 3, loading: false
-};
-
-(function _loadSearchGeo() {
-  try {
-    var s = localStorage.getItem('ambi_searchGeo');
-    if (s) {
-      var p = JSON.parse(s);
-      if (p && p.lat && p.lng) {
-        _searchGeo.active = !!p.active;
-        _searchGeo.lat = p.lat; _searchGeo.lng = p.lng;
-        _searchGeo.label = p.label || 'GPS';
-        _searchGeo.method = p.method || 'gps';
-        _searchGeo.proximityKm = p.proximityKm || 3;
-      }
-    }
-  } catch(e) {}
-})();
-
-function _saveSearchGeo() {
-  try { localStorage.setItem('ambi_searchGeo', JSON.stringify(_searchGeo)); } catch(e) {}
-}
-
-function _searchGeoDist(e) {
-  if (!_searchGeo.lat || !_searchGeo.lng) return null;
-  var lat = e.lat, lng = e.lng;
-  if (!lat || !lng) {
-    var qc = typeof QUARTIER_COORDS !== 'undefined' ? QUARTIER_COORDS[e.quartier] : null;
-    if (qc) { lat = qc[0]; lng = qc[1]; }
-  }
-  if (!lat || !lng) return null;
-  return haversineKm(_searchGeo.lat, _searchGeo.lng, lat, lng);
-}
-
-function _enrichSearchDist() {
-  if (!_searchGeo.active || !_searchGeo.lat) return;
-  (window.etablissements || []).forEach(function(e) {
-    e._searchDistKm = _searchGeoDist(e);
-  });
-}
-
-function _updateSearchGeoBtn() {
-  var btn = document.getElementById('_searchGeoBtn');
-  if (!btn) return;
-  if (_searchGeo.active && _searchGeo.lat) {
-    btn.style.color = 'var(--green)';
-    btn.style.borderColor = 'rgba(0,255,170,0.5)';
-    btn.style.background = 'rgba(0,255,170,0.1)';
-    btn.title = 'Géoloc activée — ' + (_searchGeo.label || 'GPS') + ' · Cliquer pour modifier';
-    btn.innerHTML = '📍';
-  } else {
-    btn.style.color = 'var(--muted)';
-    btn.style.borderColor = 'rgba(255,255,255,0.12)';
-    btn.style.background = 'rgba(255,255,255,0.04)';
-    btn.title = 'Activer la géolocalisation pour trier les résultats de recherche';
-    btn.innerHTML = '🌐';
-  }
-}
-
-window.openSearchGeoModal = function() {
-  var existing = document.getElementById('_sgModal');
-  if (existing) existing.remove();
-  var curLat  = _searchGeo.lat  ? _searchGeo.lat.toFixed(5)  : '—';
-  var curLng  = _searchGeo.lng  ? _searchGeo.lng.toFixed(5)  : '—';
-  var isActive = _searchGeo.active && _searchGeo.lat !== null;
-  var proxKm  = _searchGeo.proximityKm || 3;
-
-  function proxBtn(k) {
-    var sel = proxKm === k;
-    return "<button onclick='_sgSetProx("+k+",this)' style='flex:1;padding:0.35rem 0.1rem;border-radius:7px;font-size:0.68rem;font-weight:700;font-family:DM Sans,sans-serif;cursor:pointer;transition:all 0.18s;border:1.5px solid " +
-      (sel ? "var(--green);background:rgba(0,255,170,0.14);color:var(--green);" : "rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:var(--muted);") +
-      "'>"+k+" km</button>";
-  }
-
-  var html =
-    "<div id='_sgModal' style='position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:2000;display:flex;align-items:flex-end;justify-content:center;padding-bottom:calc(var(--nav-h) + var(--player-h) + 0.5rem);animation:fadeIn 0.2s;'>" +
-    "<div style='background:var(--surface);border:1px solid rgba(0,229,255,0.25);border-radius:20px 20px 14px 14px;width:100%;max-width:480px;padding:1.1rem 1rem 1rem;position:relative;'>" +
-    "<button onclick=\'document.getElementById(\'_sgModal\').remove()\' style=\'position:absolute;top:0.75rem;right:0.75rem;background:rgba(255,255,255,0.08);border:none;color:var(--muted);width:28px;height:28px;border-radius:50%;font-size:0.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;\'>✕</button>" +
-    "<div style='font-family:Syne,sans-serif;font-weight:800;font-size:0.95rem;color:var(--cyan);margin-bottom:0.25rem;'>📍 Ma position pour la recherche</div>" +
-    "<div style='font-size:0.72rem;color:var(--muted);margin-bottom:0.9rem;line-height:1.4;'>Les résultats seront triés : <strong style=\'color:var(--green)\'>établissements proches en premier</strong> (surlignés), puis les autres.</div>" +
-    (isActive
-      ? "<div style='background:rgba(0,255,170,0.07);border:1px solid rgba(0,255,170,0.25);border-radius:10px;padding:0.55rem 0.7rem;margin-bottom:0.75rem;font-size:0.72rem;color:var(--green);display:flex;align-items:center;gap:0.5rem;'><span>✅</span><div><strong>" + (_searchGeo.label||'GPS') + "</strong> — " + curLat + "° N, " + curLng + "° E<br><span style='color:var(--muted);font-size:0.65rem;'>Position enregistrée — modifiez ci-dessous</span></div></div>"
-      : "<div style='background:rgba(255,68,102,0.07);border:1px solid rgba(255,68,102,0.2);border-radius:10px;padding:0.5rem 0.7rem;margin-bottom:0.75rem;font-size:0.72rem;color:var(--muted);'>Aucune position définie — choisissez une méthode ci-dessous</div>") +
-    "<div style='font-size:0.62rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.45rem;'>Définir ma position via</div>" +
-    "<div style='display:flex;gap:0.5rem;margin-bottom:0.85rem;'>" +
-      "<button id='_sgBtnGps' onclick='_sgSelectGPS()' style='flex:1;padding:0.65rem 0.4rem;background:rgba(0,229,255,0.07);border:1.5px solid rgba(0,229,255,0.25);border-radius:10px;color:var(--cyan);font-family:DM Sans,sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:0.25rem;transition:all 0.18s;'><span style='font-size:1.3rem;'>📡</span>GPS Auto</button>" +
-      "<button id='_sgBtnWa' onclick='_sgSelectWhatsapp()' style='flex:1;padding:0.65rem 0.4rem;background:rgba(37,211,102,0.07);border:1.5px solid rgba(37,211,102,0.2);border-radius:10px;color:#25d366;font-family:DM Sans,sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:0.25rem;transition:all 0.18s;'><span style='font-size:1.3rem;'>💬</span>WhatsApp</button>" +
-    "</div>" +
-    "<div style='font-size:0.62rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.35rem;'>Rayon « zone proche » <span id='_sgProxLabel' style='color:var(--green);'>" + proxKm + " km</span></div>" +
-    "<div style='display:flex;gap:0.35rem;margin-bottom:0.9rem;'>" + [1,2,3,5,10].map(proxBtn).join('') + "</div>" +
-    "<div id='_sgStatus' style='font-size:0.72rem;color:var(--muted);min-height:1.3rem;margin-bottom:0.7rem;text-align:center;'></div>" +
-    "<div style='display:flex;gap:0.5rem;'>" +
-      (isActive ? "<button onclick='_sgDisable()' style='flex:1;padding:0.6rem;border-radius:10px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.08);color:var(--red);font-family:DM Sans,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;'>🚫 Désactiver</button>" : "") +
-      "<button onclick='_sgConfirm()' style='flex:2;padding:0.6rem;border-radius:10px;border:none;background:linear-gradient(135deg,rgba(0,229,255,0.25),rgba(0,255,170,0.2));color:var(--cyan);font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;'>✅ Valider et Trier</button>" +
-    "</div></div></div>";
-
-  document.body.insertAdjacentHTML('beforeend', html);
-};
-
-window._sgSetProx = function(km, btn) {
-  _searchGeo.proximityKm = km;
-  document.querySelectorAll('#_sgModal [onclick^="_sgSetProx"]').forEach(function(b){
-    b.style.borderColor='rgba(255,255,255,0.1)'; b.style.background='rgba(255,255,255,0.03)'; b.style.color='var(--muted)';
-  });
-  btn.style.borderColor='var(--green)'; btn.style.background='rgba(0,255,170,0.14)'; btn.style.color='var(--green)';
-  var lbl = document.getElementById('_sgProxLabel');
-  if (lbl) lbl.textContent = km + ' km';
-};
-
-window._sgSelectGPS = function() {
-  var st = document.getElementById('_sgStatus');
-  if (st) st.innerHTML = '⏳ Localisation GPS en cours...';
-  if (!navigator.geolocation) {
-    if (st) st.innerHTML = '❌ GPS non disponible sur cet appareil';
-    return;
-  }
-  navigator.geolocation.getCurrentPosition(
-    function(pos) {
-      _searchGeo.lat = pos.coords.latitude; _searchGeo.lng = pos.coords.longitude;
-      _searchGeo.label = 'GPS'; _searchGeo.method = 'gps';
-      if (st) st.innerHTML = '✅ Position obtenue : ' + _searchGeo.lat.toFixed(5) + '° N, ' + _searchGeo.lng.toFixed(5) + '° E';
-      var b = document.getElementById('_sgBtnGps');
-      if (b) { b.style.borderColor='var(--cyan)'; b.style.background='rgba(0,229,255,0.2)'; }
-    },
-    function(err) {
-      if (st) st.innerHTML = '❌ ' + (err.message || 'Erreur GPS — vérifiez les autorisations');
-    },
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-  );
-};
-
-window._sgSelectWhatsapp = function() {
-  var st = document.getElementById('_sgStatus');
-  if (navigator.geolocation) {
-    if (st) st.innerHTML = '⏳ Récupération de votre position...';
-    navigator.geolocation.getCurrentPosition(
-      function(pos) {
-        _searchGeo.lat = pos.coords.latitude; _searchGeo.lng = pos.coords.longitude;
-        _searchGeo.label = 'WhatsApp / GPS'; _searchGeo.method = 'whatsapp';
-        var link = 'https://maps.google.com/?q=' + _searchGeo.lat.toFixed(6) + ',' + _searchGeo.lng.toFixed(6);
-        if (st) st.innerHTML = '✅ Position obtenue — <a href="' + link + '" target="_blank" style="color:var(--cyan);">Vérifier sur Maps</a>';
-        var b = document.getElementById('_sgBtnWa');
-        if (b) { b.style.borderColor='#25d366'; b.style.background='rgba(37,211,102,0.18)'; }
-      },
-      function() { _sgShowPasteInput(); },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
-    );
-  } else { _sgShowPasteInput(); }
-};
-
-window._sgShowPasteInput = function() {
-  var st = document.getElementById('_sgStatus');
-  if (!st) return;
-  st.innerHTML = "<div style='display:flex;gap:0.4rem;margin-top:0.3rem;'><input id='_sgPasteInp' type='url' placeholder='https://maps.google.com/?q=...' style='flex:1;padding:0.4rem 0.5rem;border-radius:7px;border:1px solid rgba(0,229,255,0.3);background:var(--surface2);color:var(--text);font-family:DM Sans,sans-serif;font-size:0.72rem;outline:none;'><button onclick='_sgParsePaste()' style='padding:0.4rem 0.65rem;border-radius:7px;border:none;background:rgba(0,229,255,0.2);color:var(--cyan);font-weight:700;font-size:0.72rem;cursor:pointer;'>OK</button></div><div style='font-size:0.65rem;color:var(--muted);margin-top:0.3rem;'>Partagez votre position via WhatsApp → copiez le lien reçu ici</div>";
-};
-
-window._sgParsePaste = function() {
-  var inp = document.getElementById('_sgPasteInp');
-  var val = inp ? inp.value.trim() : '';
-  var st  = document.getElementById('_sgStatus');
-  var m = val.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/) ||
-          val.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/) ||
-          val.match(/place\/[^@]*@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
-  if (m) {
-    _searchGeo.lat = parseFloat(m[1]); _searchGeo.lng = parseFloat(m[2]);
-    _searchGeo.label = 'WhatsApp'; _searchGeo.method = 'whatsapp';
-    if (st) st.innerHTML = '✅ Position extraite : ' + _searchGeo.lat.toFixed(5) + '° N, ' + _searchGeo.lng.toFixed(5) + '° E';
-  } else {
-    if (st) st.innerHTML = '❌ Lien non reconnu — copiez un lien Google Maps valide';
-  }
-};
-
-window._sgDisable = function() {
-  _searchGeo.active = false; _searchGeo.lat = null; _searchGeo.lng = null;
-  _saveSearchGeo(); _enrichSearchDist(); _updateSearchGeoBtn();
-  var m = document.getElementById('_sgModal'); if (m) m.remove();
-  if (typeof renderAll === 'function') renderAll();
-  if (typeof window.showToast === 'function') window.showToast('📍 Géoloc recherche désactivée');
-};
-
-window._sgConfirm = function() {
-  if (!_searchGeo.lat || !_searchGeo.lng) {
-    var st = document.getElementById('_sgStatus');
-    if (st) st.innerHTML = '⚠️ Aucune position définie — utilisez GPS ou WhatsApp';
-    return;
-  }
-  _searchGeo.active = true;
-  _saveSearchGeo(); _enrichSearchDist(); _updateSearchGeoBtn();
-  var m = document.getElementById('_sgModal'); if (m) m.remove();
-  if (typeof renderAll === 'function') renderAll();
-  if (typeof window.showToast === 'function') window.showToast('📍 Recherche géolocalisée activée !');
-};
-
 // ── Coordonnées approximatives des quartiers de Libreville ──
 var QUARTIER_COORDS = {
   "Centre-ville":      [0.3924, 9.4536],
@@ -14353,25 +13371,6 @@ function filterData(){
     data = _pinMyEtabFirst(data);
     return data;
   }
-  // ── GÉOLOC RECHERCHE : trier proches d'abord, sans filtrer ──
-  if(typeof _searchGeo !== "undefined" && _searchGeo.active && _searchGeo.lat !== null){
-    var proxKm = _searchGeo.proximityKm || 3;
-    // Enrichir les distances
-    data.forEach(function(e){
-      e._searchDistKm = _searchGeoDist(e);
-    });
-    // Séparer proches / éloignés
-    var _proches   = data.filter(function(e){ return e._searchDistKm !== null && e._searchDistKm <= proxKm; });
-    var _eloignes  = data.filter(function(e){ return e._searchDistKm === null || e._searchDistKm > proxKm; });
-    // Trier chaque groupe par distance croissante
-    _proches.sort(function(a,b){ return (a._searchDistKm||9999)-(b._searchDistKm||9999); });
-    _eloignes.sort(function(a,b){ return (a._searchDistKm||9999)-(b._searchDistKm||9999); });
-    // Marquer pour le rendu visuel
-    _proches.forEach(function(e){ e._searchGeoProche = true; });
-    _eloignes.forEach(function(e){ e._searchGeoProche = false; });
-    data = _pinMyEtabFirst(_proches.concat(_eloignes));
-    return data;
-  }
   data.sort(function(a,b){
     if(currentSort==="affluence"){
       // Utiliser l'affluence réelle (live) si disponible
@@ -15872,21 +14871,10 @@ function buildCard(e,delay,compact,rank){
       encodeURIComponent(etabPhotoForBtn)
     );
   };
-  // Géoloc recherche : badge distance + bordure verte si zone proche
-  var _sgNearStyle = "";
-  var _sgDistBadge = "";
-  if(typeof _searchGeo !== "undefined" && _searchGeo.active && _searchGeo.lat !== null && e._searchGeoProche === true){
-    _sgNearStyle = "border:1.5px solid rgba(0,255,170,0.45);box-shadow:0 0 16px rgba(0,255,170,0.1);";
-    if(typeof e._searchDistKm === "number"){
-      var _sgDist = e._searchDistKm < 1 ? Math.round(e._searchDistKm*1000)+"m" : e._searchDistKm.toFixed(1)+"km";
-      _sgDistBadge = "<span style=\'display:inline-flex;align-items:center;gap:0.22rem;background:rgba(0,255,170,0.12);border:1px solid rgba(0,255,170,0.35);color:var(--green);font-size:0.62rem;font-weight:700;border-radius:20px;padding:0.12rem 0.45rem;margin-left:0.3rem;\'>📍 "+_sgDist+"</span>";
-    }
-  }
   return "<div class=\"card\" id=\"card-etab-"+e.id+"\" style=\"animation-delay:"+delay+"s;"+(e._isPinned&&!isAdmin?"border:1.5px solid rgba(255,45,155,0.5);box-shadow:0 0 18px rgba(255,45,155,0.12);":"")+(eventFlashHtml?"border-color:rgba(255,45,155,0.4);":"")+"\">"+
     pinnedBanner+
     eventFlashHtml+
     photosHtml+
-    (typeof window.buildLiveStatusStrip === 'function' ? (window.buildLiveStatusStrip(e)||'') : '')+
     "<div class=\"card-top\">"+
     "<div class=\"card-row1\"><div>"+
     "<div class=\"card-num rank-"+(rank===1?'1':rank===2?'2':rank===3?'3':'other')+"\">N°"+(rank!=null?rank:e.id)+"</div>"+
@@ -16918,8 +15906,7 @@ function renderAllImmediate(){
   /* ── Restaurer les photos persistantes au chaque rendu ── */
   restorePhotosPersistence();
   _rankCache = null; // invalider le cache rankings
-  // PERF: loadSoireePhotos est appelé uniquement depuis loadData (pas à chaque render)
-  // loadSoireePhotos(); // supprimé du renderAllImmediate — trop fréquent
+  loadSoireePhotos();
 
   // ── Bandeau "Mon établissement" (membres propriétaires uniquement) ──
   var myBanner = document.getElementById("myEtabBanner");
@@ -16982,23 +15969,8 @@ function renderAllImmediate(){
       +"<button onclick=\"closeNearbyMode()\" style=\"background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.25);color:var(--red);font-size:0.7rem;font-weight:700;padding:0.25rem 0.55rem;border-radius:8px;cursor:pointer;font-family:DM Sans,sans-serif;\">&#10005; Désactiver</button>"
       +"</div>";
   }
-  // ── GÉOLOC RECHERCHE banner ──
-  var searchGeoBannerHtml = "";
-  if(typeof _searchGeo !== "undefined" && _searchGeo.active && _searchGeo.lat !== null){
-    var _sgProches = data.filter(function(e){ return e._searchGeoProche; }).length;
-    var _sgProxKm  = _searchGeo.proximityKm || 3;
-    searchGeoBannerHtml =
-      "<div style=\"background:rgba(0,255,170,0.05);border:1px solid rgba(0,255,170,0.22);border-radius:12px;padding:0.6rem 0.85rem;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.55rem;\">" +
-      "<div style=\"width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 7px rgba(0,255,170,0.7);flex-shrink:0;animation:pulse 2s infinite;\"></div>" +
-      "<div style=\"flex:1;\">" +
-        "<div style=\"font-size:0.78rem;font-weight:700;color:var(--green);\">" + _sgProches + " établissement" + (_sgProches>1?"s":"") + " dans votre zone (" + _sgProxKm + " km)</div>" +
-        "<div style=\"font-size:0.62rem;color:var(--muted);margin-top:0.1rem;\">Via " + (_searchGeo.label||"GPS") + " · Les plus proches apparaissent en premier</div>" +
-      "</div>" +
-      "<button onclick=\"_sgDisable()\" style=\"background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.25);color:var(--red);font-size:0.68rem;font-weight:700;padding:0.22rem 0.5rem;border-radius:8px;cursor:pointer;font-family:DM Sans,sans-serif;\">&#10005;</button>" +
-      "</div>";
-  }
 
-  var html=gpsBannerHtml+searchGeoBannerHtml;
+  var html=gpsBannerHtml;
   if(currentView==="compact"){
     // Vue compacte : tri par score (avec cache)
     if(!isAdmin){
@@ -17010,9 +15982,8 @@ function renderAllImmediate(){
     data.forEach(function(e,i){ html+=buildCompactRow(e,i+1); });
     html+="</div>";
   } else if(currentView==="liste"){
-    // Tri par score dans la vue liste (visiteurs, avec cache) — sauf si géoloc recherche active
-    var _sgListActive = typeof _searchGeo !== "undefined" && _searchGeo.active && _searchGeo.lat !== null;
-    if(!isAdmin && !_sgListActive){
+    // Tri par score dans la vue liste (visiteurs, avec cache)
+    if(!isAdmin){
       data = data.slice().sort(function(a,b){
         return _getCachedScore(b).score - _getCachedScore(a).score;
       });
@@ -17021,19 +15992,7 @@ function renderAllImmediate(){
     var shown = data.slice(0, PAGE);
     var rest  = data.length - PAGE;
     html+="<div class=\"cards-list\">";
-    // Injecter séparateur géoloc si actif
-    var _sgSepInserted = false;
-    shown.forEach(function(e,i){
-      if(_sgListActive && !_sgSepInserted && e._searchGeoProche === false){
-        _sgSepInserted = true;
-        html += "<div style=\"display:flex;align-items:center;gap:0.6rem;margin:0.5rem 0 0.7rem;\">" +
-          "<div style=\"flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(255,45,155,0.25),transparent);\"></div>" +
-          "<span style=\"font-size:0.62rem;font-weight:700;font-family:Syne,sans-serif;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);white-space:nowrap;\">📍 Plus loin de votre zone</span>" +
-          "<div style=\"flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(255,45,155,0.25),transparent);\"></div>" +
-          "</div>";
-      }
-      html+=buildCard(e,i*0.02,false,i+1);
-    });
+    shown.forEach(function(e,i){html+=buildCard(e,i*0.02,false,i+1);});
     html+="</div>";
     if(rest > 0){
       html += '<div style="text-align:center;padding:1rem 0;">'
@@ -17509,7 +16468,7 @@ function renderPayments(){
     html+="<div style=\"font-family:Syne,sans-serif;font-size:1.15rem;font-weight:800;color:var(--pink);\">"+total+"</div><div style=\"font-size:0.62rem;color:var(--muted);\">Total</div></div>";
     html+="</div>";
     html+="<div style=\"display:flex;gap:0.4rem;margin-bottom:0.7rem;align-items:center;\">";
-    html+="<input id=\"paySearchInp\" type=\"text\" placeholder=\"🔍 Rechercher...\" value=\""+_paySearch+"\" oninput=\"_paySearch=this.value.toLowerCase();renderPayments()\" style=\"flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,45,155,0.2);border-radius:10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.82rem;padding:0.5rem 0.8rem;outline:none;\">";
+    html+="<input id=\"paySearchInp\" type=\"text\" placeholder=\"\u{1F50D} Rechercher...\" value=\""+_paySearch+"\" oninput=\"_paySearch=this.value.toLowerCase();renderPayments()\" style=\"flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,45,155,0.2);border-radius:10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.82rem;padding:0.5rem 0.8rem;outline:none;\">";
     html+="</div>";
     html+="<div style=\"display:flex;gap:0.4rem;margin-bottom:0.9rem;flex-wrap:wrap;\">";
     html+="<button onclick=\"_payFilter=\'all\';renderPayments()\" style=\"flex:1;padding:0.4rem;border-radius:8px;border:1px solid "+(_payFilter==="all"?"var(--pink)":"rgba(255,255,255,0.1)")+";background:"+(_payFilter==="all"?"rgba(255,45,155,0.15)":"transparent")+";color:"+(_payFilter==="all"?"var(--pink)":"var(--muted)")+";font-size:0.75rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;\">Tous ("+total+")</button>";
@@ -18138,7 +17097,7 @@ function updateNavLabels(){
 window.updateNavLabels = updateNavLabels;
 
 /* Appel initial au chargement (utilisateur potentiellement déjà connecté via session) */
-(function(){ setTimeout(updateNavLabels, 100); })(); // PERF: délai réduit
+(function(){ setTimeout(updateNavLabels, 800); })();
 
 // ── Navigation vers un établissement spécifique ─────────────────
 function goToEtab(id) {
@@ -18233,11 +17192,6 @@ document.addEventListener("change",function(e){
 });
 
 
-
-/* ═══════════════════════════════════════════════════════════════════
-   ══ DÉSACTIVÉ — Swipe horizontal entre onglets désactivé        ══
-   ══ Navigation uniquement via la barre bottom-nav ou les boutons ══
-   ═══════════════════════════════════════════════════════════════════
 (function(){
   var _touchStartX = 0;
   var _touchStartY = 0;
@@ -18287,8 +17241,6 @@ document.addEventListener("change",function(e){
     switchSection(SECS_SWIPE[next], navBtns[next]||null);
   },{passive:true});
 })();
-*/
-/* Swipe inter-onglets désactivé — navigation via bottom-nav uniquement */
 
 // Compresse une image via canvas avant envoi (max 800px, qualité 0.75)
 function compressImage(file,callback){
@@ -20192,8 +19144,8 @@ function _startApp(){
   _startAppAttempts++;
   if(typeof window.fbGetDocs==="function" && typeof window.fbCollection==="function" && window.db){
     loadData();
-  } else if(_startAppAttempts < 25){ // PERF: max 25 tentatives au lieu de 40
-    setTimeout(_startApp, 200); // PERF: 200ms au lieu de 250ms
+  } else if(_startAppAttempts < 40){
+    setTimeout(_startApp, 250);
   } else {
     // Firebase jamais prêt → afficher les données locales immédiatement
     // Les données locales sont déjà chargées (pré-population au démarrage)
@@ -20218,7 +19170,7 @@ loadSuperAdmin();
     +'</div>';
 })();
 renderStats(); renderHome(); renderPayments();
-setTimeout(initMeteo, 1500); // PERF: météo non critique au démarrage
+setTimeout(initMeteo, 500);
 
 _startApp();
 updatePayVis();
@@ -20376,8 +19328,7 @@ window.openLegalModal = openLegalModal;
 window.closeLegalModal = closeLegalModal;
 
 
-// ── SWIPE MOBILE désactivé — navigation via bottom-nav uniquement ──
-/* DÉSACTIVÉ
+// ── SWIPE MOBILE pour naviguer entre sections ─────────────────
 (function(){
   var startX=0, startY=0;
   var mainEl = document.querySelector("main");
@@ -20400,7 +19351,6 @@ window.closeLegalModal = closeLegalModal;
     }
   }, {passive:true});
 })();
-*/
 
 // ══════════════════════════════════════════════════════════════
 // ══ SYSTÈME DE NOTIFICATIONS CIBLÉES AMBI241 v2             ══
@@ -20548,8 +19498,7 @@ function pushNotif(opts){
   notifs.push(item);
   saveNotifs(notifs);
   renderNotifBadge();
-  // Toast visible uniquement pour les notifs envoyées par l'admin (fromAdmin)
-  if(!notifPanelOpen && opts.fromAdmin) showNotifToast(item.icon+" "+item.title, item);
+  if(!notifPanelOpen) showNotifToast(item.icon+" "+item.title, item);
 
   // ── Persistance Firebase pour les membres/établissements connectés ──
   // Cela permet aux notifs admin d'être visibles sur tous les appareils de l'utilisateur
@@ -21118,12 +20067,12 @@ function checkAutoNotifs(){
     var myEtab=etablissements.find(function(e){return(e.email||"").toLowerCase().trim()===(currentUserEmail||"").toLowerCase().trim();});
     if(myEtab){
       if(myEtab.paiement&&myEtab.paiement.indexOf("Actif")!==-1){
-        // pushNotif désactivé — bannière AMBI241·INFO supprimée
+        pushNotif({targetRole:"etablissement",key:"paiement_confirmed",icon:"✅",title:"Abonnement actif — "+myEtab.nom,msg:"Votre fiche est visible par tous les utilisateurs AMBI241.",channel:"push"});
         // Vérifier renouvellement
         notifyEtablissementRenewal(myEtab);
       }
       if((myEtab.affluence||0)>=80){
-        // pushNotif affluence désactivé — bannière supprimée
+        pushNotif({targetRole:"etablissement",key:"top_affluence",icon:"🏆",title:"🏆 Vous êtes dans le Top 3 !",msg:myEtab.nom+" affiche "+myEtab.affluence+"% d'affluence.",channel:"push"});
       }
     }
   }
@@ -21235,7 +20184,7 @@ window.closeAdminDashboard=closeAdminDashboard;
 
 function switchAdmTab(tab){
   _currentAdmTab=tab;
-  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support","content","appconfig","importgmaps","publicites"];
+  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support","content","appconfig","importgmaps"];
   tabs.forEach(function(t){
     var btn=document.getElementById("admtab-"+t);
     var panel=document.getElementById("admpanel-"+t);
@@ -21263,7 +20212,6 @@ function switchAdmTab(tab){
   else if(tab==="content") { if(typeof window.renderAdmContent==="function") window.renderAdmContent(); }
   else if(tab==="appconfig") { if(typeof window.renderAdmAppConfig==="function") window.renderAdmAppConfig(0); }
   else if(tab==="importgmaps") { if(!window._igm2Inited) igm2Init(); }
-  else if(tab==="publicites") { admRenderPublicites(); }
 }
 window.switchAdmTab=switchAdmTab;
 window.openAdminAddModal=openAdminAddModal;
@@ -24195,7 +23143,6 @@ window.doAssignEtab = doAssignEtab;
       <button class="adm-tab"        id="admtab-content"       onclick="switchAdmTab('content');setTimeout(function(){if(typeof window.renderAdmContent==='function'&&document.getElementById('adminContentPanel').innerHTML.indexOf('Chargement')!==-1)window.renderAdmContent(0);},200);">📋 Contenu</button>
       <button class="adm-tab"        id="admtab-support"       onclick="switchAdmTab('support')" style="position:relative;">💬 Support<span id="admSupportBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:#fff;font-size:0.5rem;font-weight:800;width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center;border:1px solid var(--bg);"></span></button>
       <button class="adm-tab"        id="admtab-importgmaps"   onclick="switchAdmTab('importgmaps')" style="color:var(--green);">🗺️ Import Maps</button>
-      <button class="adm-tab"        id="admtab-publicites"   onclick="switchAdmTab('publicites')" style="color:var(--amber);">📢 Publicités</button>
     </div>
 
     <!-- ── Contenu des panneaux ── -->
@@ -24472,66 +23419,6 @@ window.doAssignEtab = doAssignEtab;
 
       </div>
       <!-- FIN Import Google Maps ══ -->
-
-
-      <!-- ══ Publicités & Sponsors ══ -->
-      <div id="admpanel-publicites" class="adm-panel" style="display:none;">
-        <div id="adminPublicitesContent">
-
-          <!-- Header -->
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-            <div>
-              <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:var(--amber);">📢 Publicités & Partenaires</div>
-              <div style="font-size:0.68rem;color:var(--muted);margin-top:0.15rem;">Sponsors · Clients · Annonceurs · Partenaires</div>
-            </div>
-            <button onclick="admPubOpenForm()" style="background:linear-gradient(135deg,var(--amber),#ff8800);border:none;color:#000;font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;padding:0.55rem 1rem;border-radius:10px;cursor:pointer;box-shadow:0 4px 14px rgba(255,215,0,0.3);">+ Nouvelle publicité</button>
-          </div>
-
-          <!-- Guide emplacements -->
-          <div style="background:linear-gradient(135deg,rgba(255,215,0,0.07),rgba(255,140,0,0.04));border:1px solid rgba(255,215,0,0.2);border-radius:14px;padding:0.8rem 0.9rem;margin-bottom:1rem;">
-            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;color:var(--amber);margin-bottom:0.55rem;">🗺️ Emplacements publicitaires</div>
-            <div style="display:flex;flex-direction:column;gap:0.4rem;">
-              <div style="display:flex;align-items:center;gap:0.6rem;">
-                <div style="width:26px;height:26px;border-radius:8px;background:rgba(255,45,155,0.15);border:1px solid rgba(255,45,155,0.3);display:flex;align-items:center;justify-content:center;font-size:0.7rem;flex-shrink:0;">①</div>
-                <div><div style="font-size:0.72rem;font-weight:700;color:var(--pink);">Bloc Hero (Accueil)</div><div style="font-size:0.6rem;color:var(--muted);">1ʳᵉ pub active · sous météo · fort impact</div></div>
-              </div>
-              <div style="display:flex;align-items:center;gap:0.6rem;">
-                <div style="width:26px;height:26px;border-radius:8px;background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.25);display:flex;align-items:center;justify-content:center;font-size:0.7rem;flex-shrink:0;">②</div>
-                <div><div style="font-size:0.72rem;font-weight:700;color:var(--cyan);">Explorer (Types)</div><div style="font-size:0.6rem;color:var(--muted);">2ᵉ pub · bas de la grille des établissements</div></div>
-              </div>
-              <div style="display:flex;align-items:center;gap:0.6rem;">
-                <div style="width:26px;height:26px;border-radius:8px;background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.25);display:flex;align-items:center;justify-content:center;font-size:0.7rem;flex-shrink:0;">③</div>
-                <div><div style="font-size:0.72rem;font-weight:700;color:var(--amber);">Rejoindre (Profils)</div><div style="font-size:0.6rem;color:var(--muted);">Toutes les pubs actives · section inscription</div></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Stats rapides -->
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-bottom:1.2rem;">
-            <div style="background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:0.75rem;text-align:center;">
-              <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;color:var(--amber);" id="pubStatTotal">0</div>
-              <div style="font-size:0.6rem;color:var(--muted);margin-top:0.1rem;">Total</div>
-            </div>
-            <div style="background:rgba(0,255,170,0.07);border:1px solid rgba(0,255,170,0.2);border-radius:12px;padding:0.75rem;text-align:center;">
-              <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;color:var(--green);" id="pubStatActives">0</div>
-              <div style="font-size:0.6rem;color:var(--muted);margin-top:0.1rem;">Actives</div>
-            </div>
-            <div style="background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.2);border-radius:12px;padding:0.75rem;text-align:center;">
-              <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;color:var(--cyan);" id="pubStatClics">0</div>
-              <div style="font-size:0.6rem;color:var(--muted);margin-top:0.1rem;">Clics totaux</div>
-            </div>
-          </div>
-
-          <!-- Liste des publicités -->
-          <div id="admPubList" style="display:flex;flex-direction:column;gap:0.7rem;">
-            <div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.78rem;">
-              <div style="font-size:2rem;margin-bottom:0.5rem;">📢</div>
-              Aucune publicité pour l'instant.<br>Cliquez sur <strong style="color:var(--amber);">+ Nouvelle publicité</strong> pour commencer.
-            </div>
-          </div>
-
-        </div>
-      </div>
 
     </div><!-- /adm-content -->
   </div><!-- /adminDashPanel -->
@@ -35493,7 +34380,7 @@ function _checkGlobalBanner(){
 }
 
 // Vérifier la bannière au chargement et toutes les 2 minutes
-setTimeout(_checkGlobalBanner, 5000); // PERF: bannière non critique
+setTimeout(_checkGlobalBanner, 3000);
 setInterval(_checkGlobalBanner, 120000);
 
 console.log('✅ AMBI241 Admin Control v2.0 chargé');
@@ -42409,974 +41296,5 @@ function _escPro(s){
 console.log('[AMBI241] ✅ Module PRO — Likes·Commentaires·Partage Firebase chargé');
 })();
 </script>
-
-<!-- ═══════════════════════════════════════════════════════════════
-     ══ SNAP SCROLL ACCUEIL — Gestion 4 blocs                    ══
-     ═══════════════════════════════════════════════════════════════ -->
-<script>
-(function(){
-  'use strict';
-
-  var snapContainer = document.getElementById('sec-accueil');
-  var snapProgress  = document.getElementById('snapProgress');
-  var snapDots      = document.querySelectorAll('#snapProgress .snap-dot');
-  var blocs         = ['snap-bloc-1','snap-bloc-2','snap-bloc-3','snap-bloc-4'];
-  var currentBloc   = 0;
-
-  /* ── Activer/désactiver le mode snap selon section visible ── */
-  function setSnapMode(active){
-    if(!snapContainer || !snapProgress) return;
-    if(active){
-      document.body.classList.add('snap-accueil-active');
-      snapProgress.classList.add('visible');
-      updateDots();
-    } else {
-      document.body.classList.remove('snap-accueil-active');
-      snapProgress.classList.remove('visible');
-    }
-  }
-
-  /* ── Mettre à jour les pastilles selon position de scroll ── */
-  function updateDots(){
-    if(!snapContainer) return;
-    var scrollTop    = snapContainer.scrollTop;
-    var totalHeight  = snapContainer.scrollHeight - snapContainer.clientHeight;
-    var rawIndex     = 0;
-
-    /* Chercher quel bloc est le plus visible */
-    blocs.forEach(function(id, i){
-      var el = document.getElementById(id);
-      if(!el) return;
-      var top = el.offsetTop - snapContainer.scrollTop;
-      var h   = el.offsetHeight;
-      if(top <= snapContainer.clientHeight / 2 && top + h > snapContainer.clientHeight / 2){
-        rawIndex = i;
-      }
-    });
-
-    /* Fallback : position approximative */
-    if(totalHeight > 0){
-      rawIndex = Math.round((scrollTop / totalHeight) * (blocs.length - 1));
-      rawIndex = Math.max(0, Math.min(blocs.length - 1, rawIndex));
-    }
-
-    if(rawIndex !== currentBloc){
-      currentBloc = rawIndex;
-    }
-
-    /* Mettre à jour visuellement */
-    snapDots.forEach(function(dot, i){
-      dot.classList.toggle('active', i === currentBloc);
-    });
-
-    /* Masquer le hint scroll quand on n'est plus sur le bloc 1 */
-    var hint = document.querySelector('.snap-scroll-hint');
-    if(hint) hint.style.opacity = (currentBloc === 0) ? '' : '0';
-  }
-
-  /* ── Observer si la section accueil est visible ── */
-  var accueilVisible = false;
-
-  function checkAccueilVisible(){
-    var sec = document.getElementById('sec-accueil');
-    if(!sec) return;
-    var hidden = sec.classList.contains('section-hidden');
-    if(!hidden && !accueilVisible){
-      accueilVisible = true;
-      setSnapMode(true);
-    } else if(hidden && accueilVisible){
-      accueilVisible = false;
-      setSnapMode(false);
-    }
-  }
-
-  /* ── Écouter le scroll du conteneur snap ── */
-  if(snapContainer){
-    var scrollTick = false;
-    snapContainer.addEventListener('scroll', function(){
-      if(!scrollTick){
-        scrollTick = true;
-        requestAnimationFrame(function(){
-          updateDots();
-          scrollTick = false;
-        });
-      }
-    }, {passive: true});
-  }
-
-  /* ── Patcher switchSection pour activer/désactiver snap ── */
-  var _origSwitch = window.switchSection;
-  window.switchSection = function(name, btn){
-    if(_origSwitch) _origSwitch(name, btn);
-    setTimeout(function(){
-      checkAccueilVisible();
-      if(name === 'accueil' && snapContainer){
-        /* Reset au premier bloc quand on revient à l'accueil */
-        setTimeout(function(){
-          snapContainer.scrollTop = 0;
-          currentBloc = 0;
-          updateDots();
-        }, 80);
-      }
-    }, 50);
-  };
-
-  /* ── Clic sur une pastille → naviguer vers le bloc ── */
-  snapDots.forEach(function(dot, i){
-    dot.style.cursor = 'pointer';
-    dot.style.pointerEvents = 'auto';
-    dot.addEventListener('click', function(){
-      var target = document.getElementById(blocs[i]);
-      if(target && snapContainer){
-        snapContainer.scrollTo({ top: target.offsetTop, behavior: 'smooth' });
-      }
-    });
-  });
-
-  /* ── Init ── */
-  checkAccueilVisible();
-  /* Accueil visible par défaut → activer snap */
-  setSnapMode(true);
-
-  /* Rebrancher la vérification si la page recharge ses sections */
-  window.addEventListener('hashchange', checkAccueilVisible);
-  document.addEventListener('visibilitychange', function(){
-    if(!document.hidden) checkAccueilVisible();
-  });
-
-  console.log('[AMBI241] ✅ Snap-scroll 4 blocs accueil — initialisé');
-})();
-</script>
-
-<!-- ═══════════════════════════════════════════════════════════════════
-     ══  AMBI241 — MODULE LIVE STATUS v1.0                          ══
-     ══  1. Diffusion match foot / Piste de danse                   ══
-     ══  2. Coupure électricité SEEG                                ══
-     ══  3. Météo (pluie / soleil)                                  ══
-     ══  Visible public + contrôles gérant/admin                    ══
-     ═══════════════════════════════════════════════════════════════════ -->
-<style>
-/* ══ LIVE STATUS STRIP — barre d'indicateurs intégrée dans la carte ══ */
-.lsb-strip {
-  display: flex;
-  align-items: center;
-  gap: 0.28rem;
-  padding: 0.3rem 0.65rem;
-  background: rgba(8,2,16,0.88);
-  backdrop-filter: blur(8px);
-  border-top: 1px solid rgba(255,255,255,0.05);
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-  overflow-x: auto;
-  scrollbar-width: none;
-  flex-wrap: nowrap;
-  min-height: 30px;
-}
-.lsb-strip::-webkit-scrollbar { display: none; }
-
-.lsb-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.22rem;
-  padding: 0.16rem 0.44rem;
-  border-radius: 20px;
-  font-size: 0.58rem;
-  font-weight: 800;
-  font-family: 'Syne', sans-serif;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  flex-shrink: 0;
-  border: 1px solid transparent;
-  transition: all 0.25s;
-  animation: lsbFadeIn 0.4s ease both;
-}
-@keyframes lsbFadeIn { from{opacity:0;transform:scale(0.82)} to{opacity:1;transform:scale(1)} }
-
-.lsb-foot  { background:rgba(0,255,170,0.13); border-color:rgba(0,255,170,0.4); color:var(--green); }
-.lsb-dance { background:rgba(255,45,155,0.13); border-color:rgba(255,45,155,0.42); color:var(--pink); }
-.lsb-seeg  { background:rgba(255,68,102,0.14); border-color:rgba(255,68,102,0.48); color:var(--red); }
-.lsb-sun   { background:rgba(255,215,0,0.12); border-color:rgba(255,215,0,0.42); color:var(--amber); }
-.lsb-rain  { background:rgba(0,229,255,0.1); border-color:rgba(0,229,255,0.38); color:var(--cyan); }
-
-.lsb-live-dot {
-  width:5px;height:5px;border-radius:50%;
-  background:currentColor;
-  animation:pulse 1.4s ease-in-out infinite;
-  flex-shrink:0;
-}
-.lsb-foot  .lsb-icon { animation:lsbPulseGrow 1.4s ease-in-out infinite; display:inline-block; }
-.lsb-dance .lsb-icon { animation:lsbDance 0.9s ease-in-out infinite alternate; display:inline-block; }
-.lsb-seeg  .lsb-icon { animation:lsbFlicker 1.6s ease-in-out infinite; display:inline-block; }
-.lsb-sun   .lsb-icon { animation:lsbSpin 7s linear infinite; display:inline-block; }
-.lsb-rain  .lsb-icon { animation:lsbRainFall 1.2s ease-in-out infinite; display:inline-block; }
-
-@keyframes lsbPulseGrow { 0%,100%{transform:scale(1)} 50%{transform:scale(1.4)} }
-@keyframes lsbDance { from{transform:rotate(-14deg)} to{transform:rotate(14deg)} }
-@keyframes lsbFlicker { 0%,100%{opacity:1} 20%{opacity:0.15} 40%{opacity:0.9} 60%{opacity:0.1} 80%{opacity:1} }
-@keyframes lsbSpin { to{transform:rotate(360deg)} }
-@keyframes lsbRainFall { 0%,100%{transform:translateY(0)} 50%{transform:translateY(3px)} }
-
-/* ══ PANNEAU GÉRANT — section Live Status ══ */
-.lsc-section {
-  background:rgba(0,229,255,0.03);
-  border:1px solid rgba(0,229,255,0.15);
-  border-radius:12px;
-  padding:0.7rem 0.8rem;
-  margin-bottom:0.65rem;
-}
-.lsc-section-title {
-  font-family:'Syne',sans-serif;
-  font-size:0.67rem;
-  font-weight:800;
-  text-transform:uppercase;
-  letter-spacing:0.08em;
-  color:var(--cyan);
-  margin-bottom:0.5rem;
-  display:flex;
-  align-items:center;
-  gap:0.3rem;
-}
-.lsc-row {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:0.45rem;
-  margin-bottom:0.38rem;
-  padding:0.35rem 0.45rem;
-  border-radius:8px;
-  background:rgba(255,255,255,0.025);
-  border:1px solid rgba(255,255,255,0.06);
-}
-.lsc-row:last-child{margin-bottom:0;}
-.lsc-row-sub{
-  margin-left:1rem;
-  background:rgba(255,215,0,0.04);
-  border-color:rgba(255,215,0,0.14);
-  border-left:2px solid rgba(255,215,0,0.4);
-}
-.lsc-row-label {
-  font-size:0.72rem;color:var(--text);font-weight:600;
-  flex:1;display:flex;align-items:center;gap:0.25rem;
-}
-
-/* Toggle */
-.lsc-tgl{position:relative;width:42px;height:22px;flex-shrink:0;}
-.lsc-tgl input{opacity:0;width:0;height:0;}
-.lsc-tgl-s{position:absolute;inset:0;background:rgba(255,255,255,0.1);border-radius:22px;cursor:pointer;transition:background 0.25s;}
-.lsc-tgl-s:before{content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform 0.25s;}
-.lsc-tgl input:checked+.lsc-tgl-s{background:var(--green);}
-.lsc-tgl.pink input:checked+.lsc-tgl-s{background:var(--pink);}
-.lsc-tgl.red input:checked+.lsc-tgl-s{background:var(--red);}
-.lsc-tgl.amber input:checked+.lsc-tgl-s{background:var(--amber);}
-.lsc-tgl input:checked+.lsc-tgl-s:before{transform:translateX(20px);}
-
-/* Météo boutons */
-.lsc-meteo-row{display:flex;gap:0.28rem;width:100%;margin-top:0.22rem;}
-.lsc-meteo-btn{
-  flex:1;padding:0.33rem 0.15rem;border-radius:7px;
-  font-size:0.68rem;font-weight:700;font-family:'DM Sans',sans-serif;
-  cursor:pointer;border:1.5px solid rgba(255,255,255,0.1);
-  background:rgba(255,255,255,0.03);color:var(--muted);
-  text-align:center;transition:all 0.18s;
-}
-.lsc-meteo-btn.sel-sun{border-color:var(--amber);background:rgba(255,215,0,0.14);color:var(--amber);}
-.lsc-meteo-btn.sel-rain{border-color:var(--cyan);background:rgba(0,229,255,0.12);color:var(--cyan);}
-.lsc-meteo-btn.sel-none{border-color:rgba(255,255,255,0.18);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.5);}
-.lsc-meteo-btn:active{opacity:0.7;transform:scale(0.95);}
-
-/* ══ BANNIÈRE SEEG GLOBALE flottante ══ */
-/* seegGlobalAlert supprimé — l'info coupure électricité apparaît uniquement
-   dans le badge lsb-seeg sur la carte de l'établissement concerné */
-</style>
-
-<script>
-/* ═══════════════════════════════════════════════════════════════════
-   AMBI241 — MODULE LIVE STATUS v1.0
-   Gère : foot_match · dance_floor · seeg_coupure · meteo
-   Public : badges animés sur chaque carte
-   Gérant / Admin : toggles dans le panneau de gestion
-   ═══════════════════════════════════════════════════════════════════ */
-(function() {
-  'use strict';
-
-  /* ═════════════════════════════════════════════
-     RENDU PUBLIC — Barre de badges live
-     Appelée depuis buildCard() via le patch ci-dessous
-     ============================================= */
-  window.buildLiveStatusStrip = function(e) {
-    var badges = [];
-
-    if (e.foot_match) {
-      badges.push(
-        "<span class='lsb-badge lsb-foot'>" +
-        "<span class='lsb-live-dot'></span>" +
-        "<span class='lsb-icon'>⚽</span>Match LIVE" +
-        "</span>"
-      );
-    }
-    if (e.dance_floor) {
-      badges.push(
-        "<span class='lsb-badge lsb-dance'>" +
-        "<span class='lsb-live-dot'></span>" +
-        "<span class='lsb-icon'>🕺</span>Piste de danse" +
-        "</span>"
-      );
-    }
-    if (e.seeg_coupure) {
-      var seegLabel = e.power_backup
-        ? "Coupure élec. — Groupe électrogène actif"
-        : "Coupure d'électricité en cours";
-      badges.push(
-        "<span class='lsb-badge lsb-seeg'>" +
-        "<span class='lsb-icon'>⚡</span>" + seegLabel +
-        "</span>"
-      );
-    }
-    if (e.meteo === 'sun') {
-      badges.push(
-        "<span class='lsb-badge lsb-sun'>" +
-        "<span class='lsb-icon'>☀️</span>Ensoleillé" +
-        "</span>"
-      );
-    } else if (e.meteo === 'rain') {
-      badges.push(
-        "<span class='lsb-badge lsb-rain'>" +
-        "<span class='lsb-icon'>🌧️</span>Il pleut" +
-        "</span>"
-      );
-    }
-
-    if (!badges.length) return '';
-    return "<div class='lsb-strip' aria-label='Statut en direct'>" + badges.join('') + "</div>";
-  };
-
-  /* ═════════════════════════════════════════════
-     CONTRÔLES GÉRANT / ADMIN
-     Injectés dans l'onglet "Statut" du panneau Pro
-     ============================================= */
-  window.buildLiveStatusControls = function(e) {
-    var eid = e.id;
-    var fmC = e.foot_match   ? 'checked' : '';
-    var dfC = e.dance_floor  ? 'checked' : '';
-    var sgC = e.seeg_coupure ? 'checked' : '';
-    var met = e.meteo || '';
-
-    return (
-      "<div class='lsc-section'>" +
-        "<div class='lsc-section-title'>📡 En direct — Signaler maintenant</div>" +
-
-        /* Foot */
-        "<div class='lsc-row'>" +
-          "<span class='lsc-row-label'>⚽ Diffusion match foot</span>" +
-          "<label class='lsc-tgl'>" +
-            "<input type='checkbox' " + fmC + " onchange=\"ambiLiveToggle(" + eid + ",'foot_match',this.checked)\">" +
-            "<span class='lsc-tgl-s'></span>" +
-          "</label>" +
-        "</div>" +
-
-        /* Piste de danse */
-        "<div class='lsc-row'>" +
-          "<span class='lsc-row-label'>🕺 Piste de danse ouverte</span>" +
-          "<label class='lsc-tgl pink'>" +
-            "<input type='checkbox' " + dfC + " onchange=\"ambiLiveToggle(" + eid + ",'dance_floor',this.checked)\">" +
-            "<span class='lsc-tgl-s'></span>" +
-          "</label>" +
-        "</div>" +
-
-        /* Coupure électricité */
-        "<div class='lsc-row'>" +
-          "<span class='lsc-row-label'>⚡ Coupure d'électricité en cours</span>" +
-          "<label class='lsc-tgl red'>" +
-            "<input type='checkbox' " + sgC + " onchange=\"ambiLiveToggle(" + eid + ",'seeg_coupure',this.checked)\">" +
-            "<span class='lsc-tgl-s'></span>" +
-          "</label>" +
-        "</div>" +
-
-        /* Groupe électrogène — visible seulement si coupure active */
-        (e.seeg_coupure ? (
-        "<div class='lsc-row lsc-row-sub'>" +
-          "<span class='lsc-row-label'>🔌 Groupe électrogène de relais actif</span>" +
-          "<label class='lsc-tgl amber'>" +
-            "<input type='checkbox' " + (e.power_backup ? 'checked' : '') + " onchange=\"ambiLiveToggle(" + eid + ",'power_backup',this.checked)\">" +
-            "<span class='lsc-tgl-s'></span>" +
-          "</label>" +
-        "</div>"
-        ) : '') +
-
-        /* Météo */
-        "<div class='lsc-row' style='flex-direction:column;align-items:flex-start;gap:0.22rem;'>" +
-          "<span class='lsc-row-label'>🌤️ Météo actuelle (Libreville)</span>" +
-          "<div class='lsc-meteo-row'>" +
-            "<button class='lsc-meteo-btn" + (met===''?   ' sel-none':'') + "' onclick=\"ambiLiveMeteo(" + eid + ",'')\">— Aucune</button>" +
-            "<button class='lsc-meteo-btn" + (met==='sun'? ' sel-sun' :'') + "' onclick=\"ambiLiveMeteo(" + eid + ",'sun')\">☀️ Soleil</button>" +
-            "<button class='lsc-meteo-btn" + (met==='rain'?' sel-rain':'') + "' onclick=\"ambiLiveMeteo(" + eid + ",'rain')\">🌧️ Pluie</button>" +
-          "</div>" +
-        "</div>" +
-
-      "</div>"
-    );
-  };
-
-  /* ═════════════════════════════════════════════
-     ACTIONS — Sauvegarde Firebase
-     ============================================= */
-  window.ambiLiveToggle = function(eid, field, val) {
-    var obj = {}; obj[field] = val;
-    if (typeof window.updateField === 'function') window.updateField(eid, obj);
-
-    var msgs = {
-      foot_match:   val ? '⚽ Match foot affiché !'                          : '⚽ Match foot désactivé',
-      dance_floor:  val ? '🕺 Piste de danse activée !'                      : '🕺 Piste de danse désactivée',
-      seeg_coupure: val ? '⚡ Coupure d\'électricité signalée !'             : '⚡ Coupure électricité retirée',
-      power_backup: val ? '🔌 Groupe électrogène de relais activé !'         : '🔌 Groupe électrogène désactivé'
-    };
-    if (typeof window.showToast === 'function') window.showToast(msgs[field] || '✅ Mis à jour');
-
-    /* Mettre à jour le local + rafraîchir */
-    var etab = (window.etablissements||[]).find(function(x){ return x.id === eid; });
-    if (etab) {
-      etab[field] = val;
-      /* Si on désactive la coupure, on remet aussi le groupe électrogène à false */
-      if (field === 'seeg_coupure' && !val) {
-        etab.power_backup = false;
-        if (typeof window.updateField === 'function') window.updateField(eid, { power_backup: false });
-      }
-    }
-
-    _refreshSeegBanner();
-    if (typeof window.renderAll === 'function') setTimeout(window.renderAll, 120);
-  };
-
-  window.ambiLiveMeteo = function(eid, val) {
-    if (typeof window.updateField === 'function') window.updateField(eid, { meteo: val });
-    var msgs = { sun:'☀️ Météo : Ensoleillé !', rain:'🌧️ Météo : Pluie signalée !', '':'🌤️ Météo effacée' };
-    if (typeof window.showToast === 'function') window.showToast(msgs[val] || '✅ Météo mise à jour');
-
-    var etab = (window.etablissements||[]).find(function(x){ return x.id === eid; });
-    if (etab) etab.meteo = val;
-
-    if (typeof window.renderAll === 'function') setTimeout(window.renderAll, 120);
-  };
-
-  /* La coupure SEEG est signalée uniquement via le badge lsb-seeg sur la carte
-     de l'établissement concerné — plus de bannière globale intrusive */
-
-  /* ═════════════════════════════════════════════
-     PATCH buildCard — Injection automatique
-     ============================================= */
-  var _origBuildCard = null;
-  function _patchBuildCard() {
-    if (typeof window.buildCard !== 'function') return;
-    if (window.buildCard.__lsPatched) return;
-
-    _origBuildCard = window.buildCard;
-    window.buildCard = function(e, delay, compact, rank) {
-      var html = _origBuildCard.call(this, e, delay, compact, rank);
-
-      /* === Injection barre live publique — désactivée : injection directe dans buildCard() === */
-      /* La barre live est maintenant injectée directement dans buildCard après photosHtml */
-
-      /* === Injection contrôles gérant dans onglet Statut === */
-      var canEdit = window.isAdmin || (typeof window.isResponsable === 'function' && window.isResponsable(e.id));
-      if (canEdit) {
-        var ctrlHtml = window.buildLiveStatusControls(e);
-        /* Dans le panneau gérant : avant la section "Horaires du jour" */
-        html = html.replace(
-          /(<div class='pro-sec'>🕒 Horaires du jour<\/div>)/,
-          ctrlHtml + '$1'
-        );
-        /* Dans le panneau admin : après le bouton "Annoncer un événement" */
-        html = html.replace(
-          /(<div class="edit-row" style="margin-top:0\.5rem;border-top)/,
-          '<div class="edit-row" style="border-top:1px solid rgba(0,229,255,0.12);padding-top:0.6rem;">' +
-          '<div class="edit-lbl" style="color:var(--cyan);margin-bottom:0.3rem;">📡 Statut LIVE</div>' +
-          ctrlHtml +
-          '</div>' +
-          '<div class="edit-row" style="margin-top:0.5rem;border-top'
-        );
-      }
-
-      return html;
-    };
-    window.buildCard.__lsPatched = true;
-  }
-
-  /* ═════════════════════════════════════════════
-     INIT — attendre que les fonctions soient prêtes
-     ============================================= */
-  var _initAttempts = 0;
-  function _init() {
-    _initAttempts++;
-    var ready = typeof window.buildCard === 'function' &&
-                typeof window.updateField === 'function';
-    if (ready) {
-      _patchBuildCard();
-      console.log('[AMBI241] ✅ Live Status Module v1.0 — initialisé');
-    } else if (_initAttempts < 40) {
-      setTimeout(_init, 200);
-    } else {
-      console.warn('[AMBI241] ⚠️ Live Status Module — fonctions de base non trouvées');
-    }
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', _init);
-  } else {
-    setTimeout(_init, 500); // PERF: délai augmenté
-  }
-
-})();
-</script>
-
-<script>
-/* ══════════════════════════════════════════════════════════════
-   MODULE PUBLICITÉS & PARTENAIRES — AMBI241
-   Gestion Admin : ajout / édition / suppression / activation
-   Affichage public : cadre de la page d'accueil
-   ══════════════════════════════════════════════════════════════ */
-(function(){
-
-  /* ── Collection Firebase ── */
-  var PUB_COLLECTION = "publicites";
-
-  /* ── Cache mémoire ── */
-  window._pubCache = [];
-
-  /* ════════════════════════════════════════
-     LECTURE depuis Firebase
-     ════════════════════════════════════════ */
-  function _loadPubs(cb) {
-    if(!window.db || !window.fbCollection || !window.fbGetDocs) {
-      cb([]); return;
-    }
-    try {
-      window.fbGetDocs(window.fbCollection(window.db, PUB_COLLECTION))
-        .then(function(snap){
-          var list = [];
-          snap.forEach(function(d){ list.push(Object.assign({id:d.id}, d.data())); });
-          list.sort(function(a,b){ return (a.ordre||99)-(b.ordre||99); });
-          window._pubCache = list;
-          cb(list);
-        }).catch(function(){ cb([]); });
-    } catch(e){ cb([]); }
-  }
-
-  /* ════════════════════════════════════════
-     RENDU ADMIN — liste
-     ════════════════════════════════════════ */
-  window.admRenderPublicites = function() {
-    var listEl = document.getElementById("admPubList");
-    if(listEl) listEl.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--cyan);font-size:0.78rem;">⏳ Chargement...</div>';
-    _loadPubs(function(list){
-      /* Stats */
-      var actives = list.filter(function(p){ return p.active; }).length;
-      var clics   = list.reduce(function(s,p){ return s+(p.clics||0); }, 0);
-      var s1 = document.getElementById("pubStatTotal");   if(s1) s1.textContent = list.length;
-      var s2 = document.getElementById("pubStatActives"); if(s2) s2.textContent = actives;
-      var s3 = document.getElementById("pubStatClics");   if(s3) s3.textContent = clics;
-
-      if(!listEl) return;
-      if(!list.length){
-        listEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.78rem;"><div style="font-size:2rem;margin-bottom:0.5rem;">📢</div>Aucune publicité pour l'instant.<br>Cliquez sur <strong style="color:var(--amber);">+ Nouvelle publicité</strong> pour commencer.</div>';
-        return;
-      }
-      listEl.innerHTML = list.map(function(p){
-        var statusColor = p.active ? 'var(--green)' : 'var(--muted)';
-        var statusLabel = p.active ? '● Actif' : '○ Inactif';
-        var imgHtml = p.logo ? '<img src="'+p.logo+'" style="width:44px;height:44px;object-fit:contain;border-radius:8px;border:1px solid rgba(255,255,255,0.1);flex-shrink:0;" onerror="this.style.display='none'">' : '<div style="width:44px;height:44px;border-radius:8px;background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.2);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;">📢</div>';
-        return '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:0.9rem;position:relative;">'
-          + '<div style="display:flex;gap:0.7rem;align-items:flex-start;">'
-          +   imgHtml
-          +   '<div style="flex:1;min-width:0;">'
-          +     '<div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.2rem;">'
-          +       '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;color:var(--text);">'+_esc(p.nom||'Sans nom')+'</div>'
-          +       '<span style="font-size:0.58rem;font-weight:700;color:'+statusColor+';">'+statusLabel+'</span>'
-          +     '</div>'
-          +     '<div style="font-size:0.68rem;color:var(--muted);margin-bottom:0.35rem;line-height:1.4;">'+_esc(p.slogan||'')+'</div>'
-          +     '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;">'
-          +       (p.type?'<span style="font-size:0.55rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:5px;background:rgba(255,215,0,0.1);color:var(--amber);border:1px solid rgba(255,215,0,0.2);">'+_esc(p.type)+'</span>':'')
-          +       '<span style="font-size:0.55rem;color:var(--muted);">'+( p.clics||0)+' clics</span>'
-          +       (p.lien?'<span style="font-size:0.55rem;color:var(--cyan);">🔗 Lien</span>':'')
-          +     '</div>'
-          +   '</div>'
-          +   '<div style="display:flex;flex-direction:column;gap:0.3rem;flex-shrink:0;">'
-          +     '<button onclick="admPubToggle(''+p.id+'','+(!p.active)+')" style="background:'+(p.active?'rgba(255,68,102,0.1)':'rgba(0,255,170,0.1)')+';border:1px solid '+(p.active?'rgba(255,68,102,0.3)':'rgba(0,255,170,0.3)')+';color:'+(p.active?'var(--red)':'var(--green)')+';font-size:0.62rem;font-weight:700;padding:0.2rem 0.5rem;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap;">'+(p.active?'⏸ Désact.':'▶ Activer')+'</button>'
-          +     '<button onclick="admPubOpenForm(''+p.id+'')" style="background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);color:var(--cyan);font-size:0.62rem;font-weight:700;padding:0.2rem 0.5rem;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;">✏️ Éditer</button>'
-          +     '<button onclick="admPubDelete(''+p.id+'')" style="background:rgba(255,68,102,0.07);border:1px solid rgba(255,68,102,0.2);color:var(--red);font-size:0.62rem;font-weight:700;padding:0.2rem 0.5rem;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;">🗑</button>'
-          +   '</div>'
-          + '</div>'
-          + '</div>';
-      }).join('');
-    });
-  };
-
-  function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-  /* ════════════════════════════════════════
-     FORMULAIRE ajout/édition
-     ════════════════════════════════════════ */
-  window.admPubOpenForm = function(id) {
-    var existing = id ? (window._pubCache.find(function(p){ return p.id===id; })||{}) : {};
-    var isEdit = !!id;
-    var wrap = document.getElementById("_admPubFormWrap");
-    if(wrap) wrap.remove();
-
-    var html = '<div id="_admPubFormWrap" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:10100;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(6px);">'
-      +'<div style="background:var(--surface);border:1px solid rgba(255,215,0,0.35);border-radius:24px 24px 0 0;width:100%;max-width:520px;padding:1.5rem 1.2rem 2.2rem;max-height:93vh;overflow-y:auto;position:relative;box-shadow:0 -16px 48px rgba(0,0,0,0.7);">'
-      +'<div style="width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,0.12);margin:0 auto 1.1rem;"></div>'
-      +'<button onclick="document.getElementById(\'_admPubFormWrap\').remove()" style="position:absolute;top:1rem;right:1rem;background:rgba(255,255,255,0.08);border:none;color:var(--muted);width:32px;height:32px;border-radius:50%;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>'
-
-      +'<div style="font-family:Syne,sans-serif;font-weight:800;color:var(--amber);font-size:1rem;margin-bottom:0.15rem;">'+(isEdit?'✏️ Modifier la publicité':'📢 Nouvelle publicité')+'</div>'
-      +'<div style="font-size:0.68rem;color:var(--muted);margin-bottom:1.3rem;">Sponsor · Partenaire · Client · Annonceur</div>'
-
-      /* ─── Identité ─── */
-      +'<div style="font-size:0.6rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,215,0,0.6);margin-bottom:0.6rem;">① Identité</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;margin-bottom:1rem;">'
-
-      /* Nom */
-      +'<div style="grid-column:1/-1;">'
-      +'<label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.3rem;">🏢 Nom de l\'entreprise *</label>'
-      +'<input id="pubf-nom" type="text" maxlength="60" value="'+_esc(existing.nom||'')+'" placeholder="Ex: Airtel Gabon" style="width:100%;background:var(--surface2);border:1.5px solid rgba(255,215,0,0.3);border-radius:10px;color:var(--text);padding:0.6rem 0.75rem;font-size:0.82rem;font-family:DM Sans,sans-serif;outline:none;box-sizing:border-box;transition:border-color 0.2s;" onfocus="this.style.borderColor=\'rgba(255,215,0,0.7)\'" onblur="this.style.borderColor=\'rgba(255,215,0,0.3)\'">'
-      +'</div>'
-
-      /* Slogan */
-      +'<div style="grid-column:1/-1;">'
-      +'<label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.3rem;">💬 Slogan / Description courte</label>'
-      +'<input id="pubf-slogan" type="text" maxlength="100" value="'+_esc(existing.slogan||'')+'" placeholder="Ex: Le réseau qui vous connecte au Gabon" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:var(--text);padding:0.55rem 0.75rem;font-size:0.8rem;font-family:DM Sans,sans-serif;outline:none;box-sizing:border-box;">'
-      +'</div>'
-
-      /* Services */
-      +'<div style="grid-column:1/-1;">'
-      +'<label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.3rem;">🛠️ Services <span style="opacity:0.6;">(séparés par des virgules)</span></label>'
-      +'<input id="pubf-services" type="text" maxlength="200" value="'+_esc((existing.services||[]).join(', '))+'" placeholder="Ex: Mobile Money, Forfaits data, Recharges" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:var(--text);padding:0.55rem 0.75rem;font-size:0.8rem;font-family:DM Sans,sans-serif;outline:none;box-sizing:border-box;">'
-      +'</div>'
-
-      /* Type + Ordre */
-      +'<div>'
-      +'<label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.3rem;">📌 Type</label>'
-      +'<select id="pubf-type" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:var(--text);padding:0.55rem 0.65rem;font-size:0.78rem;font-family:DM Sans,sans-serif;outline:none;">'
-      +'<option value="Sponsor" '+(existing.type==='Sponsor'?'selected':'')+'>💎 Sponsor</option>'
-      +'<option value="Partenaire" '+(existing.type==='Partenaire'?'selected':'')+'>🤝 Partenaire</option>'
-      +'<option value="Client" '+(existing.type==='Client'?'selected':'')+'>⭐ Client</option>'
-      +'<option value="Annonceur" '+(existing.type==='Annonceur'?'selected':'')+'>📣 Annonceur</option>'
-      +'</select>'
-      +'</div>'
-      +'<div>'
-      +'<label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.3rem;">🔢 Ordre d\'affichage</label>'
-      +'<input id="pubf-ordre" type="number" min="1" max="99" value="'+(existing.ordre||1)+'" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:var(--text);padding:0.55rem 0.65rem;font-size:0.82rem;font-family:DM Sans,sans-serif;outline:none;">'
-      +'</div>'
-
-      +'</div>'
-
-      /* ─── Visuels ─── */
-      +'<div style="font-size:0.6rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:rgba(0,229,255,0.6);margin-bottom:0.6rem;">② Visuels</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;margin-bottom:1rem;">'
-
-      /* Logo upload + URL */
-      +'<div style="grid-column:1/-1;background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.15);border-radius:12px;padding:0.75rem;">'
-      +'<div style="font-size:0.7rem;font-weight:700;color:var(--cyan);margin-bottom:0.5rem;">🖼️ Logo de l\'entreprise</div>'
-      +'<div style="display:flex;gap:0.5rem;align-items:flex-start;">'
-      +'<div style="flex:1;">'
-      +'<label style="font-size:0.62rem;color:var(--muted);display:block;margin-bottom:0.25rem;">URL du logo</label>'
-      +'<input id="pubf-logo" type="url" value="'+_esc(existing.logo||'')+'" placeholder="https://exemple.com/logo.png" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.48rem 0.6rem;font-size:0.72rem;font-family:DM Sans,sans-serif;outline:none;box-sizing:border-box;margin-bottom:0.4rem;">'
-      +'<label style="font-size:0.62rem;color:var(--muted);display:block;margin-bottom:0.25rem;">— ou charger un fichier —</label>'
-      +'<input type="file" id="pubf-logo-file" accept="image/*" style="display:none;" onchange="admPubFileToUrl(this,\'pubf-logo\',\'pubf-logoPreviewWrap\')">'
-      +'<button onclick="document.getElementById(\'pubf-logo-file\').click()" style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.65rem;font-weight:700;padding:0.3rem 0.65rem;border-radius:7px;cursor:pointer;font-family:DM Sans,sans-serif;width:100%;">📁 Parcourir…</button>'
-      +'</div>'
-      +'<div id="pubf-logoPreviewWrap" style="width:60px;height:60px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;font-size:1.4rem;">'
-      +(existing.logo?'<img src="'+_esc(existing.logo)+'" style="width:100%;height:100%;object-fit:contain;" onerror="this.parentNode.innerHTML=\'🏢\'">':'🏢')
-      +'</div>'
-      +'</div>'
-      +'</div>'
-
-      /* Bannière upload + URL */
-      +'<div style="grid-column:1/-1;background:rgba(204,68,255,0.04);border:1px solid rgba(204,68,255,0.15);border-radius:12px;padding:0.75rem;">'
-      +'<div style="font-size:0.7rem;font-weight:700;color:var(--purple);margin-bottom:0.5rem;">🖼️ Image bannière <span style="font-weight:400;opacity:0.7;">(optionnelle)</span></div>'
-      +'<input id="pubf-image" type="url" value="'+_esc(existing.image||'')+'" placeholder="https://exemple.com/banniere.jpg" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.48rem 0.65rem;font-size:0.72rem;font-family:DM Sans,sans-serif;outline:none;box-sizing:border-box;margin-bottom:0.45rem;">'
-      +'<input type="file" id="pubf-image-file" accept="image/*" style="display:none;" onchange="admPubFileToUrl(this,\'pubf-image\',\'pubf-imagePreviewWrap\')">'
-      +'<button onclick="document.getElementById(\'pubf-image-file\').click()" style="background:rgba(204,68,255,0.1);border:1px solid rgba(204,68,255,0.3);color:var(--purple);font-size:0.65rem;font-weight:700;padding:0.3rem 0.65rem;border-radius:7px;cursor:pointer;font-family:DM Sans,sans-serif;">📁 Parcourir une bannière…</button>'
-      +'<div id="pubf-imagePreviewWrap" style="margin-top:0.5rem;">'
-      +(existing.image?'<img src="'+_esc(existing.image)+'" style="width:100%;max-height:80px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,0.08);" onerror="this.style.display=\'none\'">':'')
-      +'</div>'
-      +'</div>'
-
-      +'</div>'
-
-      /* ─── Lien & CTA ─── */
-      +'<div style="font-size:0.6rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:rgba(0,255,170,0.6);margin-bottom:0.6rem;">③ Lien & Couleur</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;margin-bottom:1rem;">'
-
-      +'<div style="grid-column:1/-1;">'
-      +'<label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.3rem;">🔗 URL de redirection</label>'
-      +'<input id="pubf-lien" type="url" value="'+_esc(existing.lien||'')+'" placeholder="https://site-partenaire.ga" style="width:100%;background:var(--surface2);border:1.5px solid rgba(0,229,255,0.25);border-radius:10px;color:var(--text);padding:0.55rem 0.75rem;font-size:0.78rem;font-family:DM Sans,sans-serif;outline:none;box-sizing:border-box;">'
-      +'</div>'
-
-      +'<div>'
-      +'<label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.3rem;">🎯 Texte du bouton CTA</label>'
-      +'<input id="pubf-cta" type="text" maxlength="30" value="'+_esc(existing.cta||'En savoir plus')+'" placeholder="En savoir plus" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:var(--text);padding:0.55rem 0.65rem;font-size:0.8rem;font-family:DM Sans,sans-serif;outline:none;">'
-      +'</div>'
-
-      +'<div>'
-      +'<label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.3rem;">🎨 Couleur accent</label>'
-      +'<input id="pubf-couleur" type="color" value="'+(existing.couleur||'#ffd700')+'" style="width:100%;height:44px;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:10px;cursor:pointer;padding:0.2rem;">'
-      +'</div>'
-
-      +'</div>'
-
-      /* Actif */
-      +'<div style="display:flex;align-items:center;gap:0.7rem;margin-bottom:1.3rem;padding:0.7rem 0.85rem;background:rgba(0,255,170,0.05);border:1px solid rgba(0,255,170,0.2);border-radius:12px;">'
-      +'<input type="checkbox" id="pubf-active" '+(existing.active!==false?'checked':'')+' style="accent-color:var(--green);width:17px;height:17px;flex-shrink:0;">'
-      +'<div>'
-      +'<label for="pubf-active" style="font-size:0.78rem;color:var(--text);cursor:pointer;font-weight:600;">Afficher sur la page d\'accueil</label>'
-      +'<div style="font-size:0.62rem;color:var(--muted);margin-top:0.1rem;">La pub sera visible par tous les visiteurs</div>'
-      +'</div>'
-      +'</div>'
-
-      /* Boutons action */
-      +'<div style="display:flex;gap:0.5rem;">'
-      +'<button onclick="document.getElementById(\'_admPubFormWrap\').remove()" style="flex:1;padding:0.7rem;border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.82rem;cursor:pointer;">Annuler</button>'
-      +'<button onclick="admPubSave(\''+(id||'')+'\',\''+_esc(existing.nom||'')+'\')" style="flex:2;padding:0.7rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--amber),#ff8800);color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;box-shadow:0 4px 14px rgba(255,215,0,0.3);">'+(isEdit?'💾 Enregistrer':'📢 Publier la publicité')+'</button>'
-      +'</div>'
-
-      +'</div></div>';
-
-    document.body.insertAdjacentHTML('beforeend', html);
-
-    /* Live preview logo URL */
-    var logoInp = document.getElementById('pubf-logo');
-    if(logoInp) logoInp.addEventListener('input', function(){
-      var prev = document.getElementById('pubf-logoPreviewWrap');
-      if(prev) prev.innerHTML = this.value
-        ? '<img src="'+_esc(this.value)+'" style="width:100%;height:100%;object-fit:contain;" onerror="this.parentNode.innerHTML=\'🏢\'">'
-        : '🏢';
-    });
-
-    /* Live preview image bannière URL */
-    var imgInp = document.getElementById('pubf-image');
-    if(imgInp) imgInp.addEventListener('input', function(){
-      var prev = document.getElementById('pubf-imagePreviewWrap');
-      if(prev) prev.innerHTML = this.value
-        ? '<img src="'+_esc(this.value)+'" style="width:100%;max-height:80px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,0.08);" onerror="this.style.display=\'none\'">'
-        : '';
-    });
-  };
-
-  /* ── Conversion fichier local → data-URL pour les inputs ── */
-  window.admPubFileToUrl = function(inputEl, targetId, previewId) {
-    var file = inputEl.files && inputEl.files[0];
-    if(!file) return;
-    if(file.size > 2 * 1024 * 1024){
-      if(typeof showToast==='function') showToast('⚠️ Image trop lourde (max 2 Mo)');
-      return;
-    }
-    var reader = new FileReader();
-    reader.onload = function(e){
-      var url = e.target.result;
-      var inp = document.getElementById(targetId);
-      if(inp){ inp.value = url; }
-      var prev = document.getElementById(previewId);
-      if(prev && targetId === 'pubf-logo'){
-        prev.innerHTML = '<img src="'+url+'" style="width:100%;height:100%;object-fit:contain;">';
-      } else if(prev){
-        prev.innerHTML = '<img src="'+url+'" style="width:100%;max-height:80px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,0.08);">';
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  /* ════════════════════════════════════════
-     SAUVEGARDE
-     ════════════════════════════════════════ */
-  window.admPubSave = function(id) {
-    var nom     = (document.getElementById('pubf-nom')||{}).value.trim();
-    var slogan  = (document.getElementById('pubf-slogan')||{}).value.trim();
-    var type    = (document.getElementById('pubf-type')||{}).value;
-    var ordre   = parseInt((document.getElementById('pubf-ordre')||{}).value)||1;
-    var logo    = (document.getElementById('pubf-logo')||{}).value.trim();
-    var image   = (document.getElementById('pubf-image')||{}).value.trim();
-    var lien    = (document.getElementById('pubf-lien')||{}).value.trim();
-    var cta     = (document.getElementById('pubf-cta')||{}).value.trim()||'En savoir plus';
-    var couleur = (document.getElementById('pubf-couleur')||{}).value||'#ffd700';
-    var active  = (document.getElementById('pubf-active')||{}).checked;
-    var servicesRaw = (document.getElementById('pubf-services')||{}).value.trim();
-    var services = servicesRaw ? servicesRaw.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
-
-    if(!nom){ if(typeof showToast==='function') showToast('❌ Le nom est obligatoire'); return; }
-
-    var data = { nom:nom, slogan:slogan, type:type, ordre:ordre, logo:logo, image:image, lien:lien, cta:cta, couleur:couleur, active:active, services:services, updatedAt:Date.now() };
-    if(!id) data.createdAt = Date.now();
-    if(!id) data.clics = 0;
-
-    if(!window.db){ if(typeof showToast==='function') showToast('Firebase non disponible'); return; }
-
-    var promise;
-    if(id){
-      promise = window.fbUpdateDoc ? window.fbUpdateDoc(window.fbDoc(window.db, PUB_COLLECTION, id), data)
-              : window.fbSetDoc(window.fbDoc(window.db, PUB_COLLECTION, id), data, {merge:true});
-    } else {
-      promise = window.fbAddDoc(window.fbCollection(window.db, PUB_COLLECTION), data);
-    }
-
-    promise.then(function(){
-      var wrap = document.getElementById('_admPubFormWrap');
-      if(wrap) wrap.remove();
-      if(typeof showToast==='function') showToast(id?'✅ Publicité mise à jour !':'🎉 Publicité publiée !');
-      window.admRenderPublicites();
-      renderPubFrame(); // Rafraîchir le cadre public
-    }).catch(function(err){
-      if(typeof showToast==='function') showToast('Erreur: '+err.message);
-    });
-  };
-
-  /* ════════════════════════════════════════
-     TOGGLE ACTIF / INACTIF
-     ════════════════════════════════════════ */
-  window.admPubToggle = function(id, newActive) {
-    if(!window.db || !window.fbUpdateDoc || !window.fbDoc) return;
-    window.fbUpdateDoc(window.fbDoc(window.db, PUB_COLLECTION, id), {active:newActive})
-      .then(function(){
-        if(typeof showToast==='function') showToast(newActive?'▶ Publicité activée':'⏸ Publicité désactivée');
-        window.admRenderPublicites();
-        renderPubFrame();
-      }).catch(function(err){ if(typeof showToast==='function') showToast('Erreur: '+err.message); });
-  };
-
-  /* ════════════════════════════════════════
-     SUPPRESSION
-     ════════════════════════════════════════ */
-  window.admPubDelete = function(id) {
-    if(!confirm('Supprimer cette publicité définitivement ?')) return;
-    if(!window.db || !window.fbDeleteDoc || !window.fbDoc) return;
-    window.fbDeleteDoc(window.fbDoc(window.db, PUB_COLLECTION, id))
-      .then(function(){
-        if(typeof showToast==='function') showToast('🗑 Publicité supprimée');
-        window.admRenderPublicites();
-        renderPubFrame();
-      }).catch(function(err){ if(typeof showToast==='function') showToast('Erreur: '+err.message); });
-  };
-
-  /* ════════════════════════════════════════
-     RENDU PUBLIC — cadre page d'accueil
-     ════════════════════════════════════════ */
-  function _buildPubHtml(actives, compact) {
-    if(!actives.length) return '';
-
-    var html = '<div style="margin-bottom:0;">'
-      +'<div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.5rem;">'
-      +'<div style="height:1px;flex:1;background:rgba(255,255,255,0.08);"></div>'
-      +'<span style="font-size:0.5rem;font-weight:700;color:rgba(255,255,255,0.25);letter-spacing:0.12em;text-transform:uppercase;white-space:nowrap;">Partenaires & Sponsors</span>'
-      +'<div style="height:1px;flex:1;background:rgba(255,255,255,0.08);"></div>'
-      +'</div>'
-      +'<div style="display:flex;flex-direction:column;gap:0.45rem;">';
-
-    actives.forEach(function(p){
-      var accent = p.couleur || '#ffd700';
-      var accentRgb = _hexToRgb(accent);
-      var servicesHtml = (p.services||[]).slice(0,4).map(function(s){
-        return '<span style="font-size:0.55rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:99px;background:rgba('+accentRgb+',0.12);border:1px solid rgba('+accentRgb+',0.3);color:'+accent+';white-space:nowrap;">'+_esc(s)+'</span>';
-      }).join('');
-
-      html += '<div onclick="pubFrameClick(\''+p.id+'\',\''+_esc(p.lien||'')+'\''+')" '
-        +'style="background:linear-gradient(135deg,rgba('+accentRgb+',0.09),rgba('+accentRgb+',0.04));border:1px solid rgba('+accentRgb+',0.28);border-radius:14px;padding:0.75rem 0.85rem;cursor:'+(p.lien?'pointer':'default')+';transition:all 0.2s;overflow:hidden;position:relative;" '
-        +'role="'+(p.lien?'link':'presentation')+'">';
-
-      html += '<div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,'+accent+',transparent);border-radius:14px 0 0 14px;"></div>';
-
-      if(!compact && p.image){
-        html += '<img src="'+_esc(p.image)+'" style="width:100%;height:76px;object-fit:cover;border-radius:10px;margin-bottom:0.5rem;display:block;" onerror="this.style.display=\'none\'">';
-      }
-
-      html += '<div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:'+(servicesHtml?'0.45rem':'0')+'">';
-      if(p.logo){
-        html += '<img src="'+_esc(p.logo)+'" style="width:34px;height:34px;object-fit:contain;border-radius:8px;border:1px solid rgba('+accentRgb+',0.2);flex-shrink:0;background:rgba(255,255,255,0.04);" onerror="this.style.display=\'none\'">';
-      }
-      html += '<div style="flex:1;min-width:0;">'
-        +'<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.8rem;color:'+accent+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+_esc(p.nom||'')+'</div>'
-        +(p.slogan?'<div style="font-size:0.62rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+_esc(p.slogan)+'</div>':'')
-        +'</div>';
-      if(p.lien && p.cta){
-        html += '<span style="font-size:0.58rem;font-weight:700;padding:0.2rem 0.55rem;border-radius:99px;background:rgba('+accentRgb+',0.15);border:1px solid rgba('+accentRgb+',0.4);color:'+accent+';white-space:nowrap;flex-shrink:0;">'+_esc(p.cta)+' →</span>';
-      }
-      html += '</div>';
-
-      if(servicesHtml){
-        html += '<div style="display:flex;gap:0.3rem;flex-wrap:wrap;padding-left:0.2rem;">'+servicesHtml+'</div>';
-      }
-      html += '<div style="font-size:0.46rem;color:rgba(255,255,255,0.18);text-align:right;margin-top:0.25rem;">Pub</div>';
-      html += '</div>';
-    });
-
-    html += '</div></div>';
-    return html;
-  }
-
-  /* Cadre vide stylisé (placeholder / futur emplacement) */
-  function _buildPubPlaceholder(label) {
-    return '<div style="border:1.5px dashed rgba(255,215,0,0.18);border-radius:14px;padding:0.8rem 1rem;text-align:center;background:rgba(255,215,0,0.025);">'
-      +'<div style="font-size:0.58rem;font-weight:700;color:rgba(255,215,0,0.35);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.2rem;">📢 '+(label||'Espace publicitaire')+'</div>'
-      +'<div style="font-size:0.55rem;color:rgba(255,255,255,0.18);">Vos annonces · Partenaires · Sponsors</div>'
-      +'</div>';
-  }
-
-  function renderPubFrame() {
-    _loadPubs(function(list){
-      var actives = list.filter(function(p){ return p.active; });
-
-      /* ── cadre principal (snap-bloc-4 / bas de la section Rejoindre) ── */
-      var frame = document.getElementById('pubFrameInner');
-      if(frame){
-        frame.innerHTML = actives.length ? _buildPubHtml(actives, false) : _buildPubPlaceholder('Espace publicitaire');
-      }
-
-      /* ── cadre hero (snap-bloc-1, compact — max 1 pub) ── */
-      var fHero = document.getElementById('pubFrameHero');
-      if(fHero){
-        if(actives.length){
-          fHero.innerHTML = _buildPubHtml(actives.slice(0,1), true);
-        } else {
-          fHero.innerHTML = _buildPubPlaceholder('Annonces & partenaires');
-        }
-      }
-
-      /* ── cadre Explorer (snap-bloc-2) ── */
-      var fExp = document.getElementById('pubFrameExplorer');
-      if(fExp){
-        if(actives.length > 1){
-          fExp.innerHTML = _buildPubHtml(actives.slice(1,2), true);
-        } else if(actives.length === 0){
-          fExp.innerHTML = _buildPubPlaceholder('Vos publicités ici');
-        } else {
-          fExp.innerHTML = '';
-        }
-      }
-    });
-  }
-
-  window.renderPubFrame = renderPubFrame;
-
-  /* ── Clic sur une pub (compteur + redirect) ── */
-  window.pubFrameClick = function(id, lien) {
-    if(!lien) return;
-    if(window.db && window.fbDoc && window.fbUpdateDoc && window.fbFieldIncrement){
-      window.fbUpdateDoc(window.fbDoc(window.db, PUB_COLLECTION, id), {clics: window.fbFieldIncrement(1)}).catch(function(){});
-    }
-    window.open(lien, '_blank', 'noopener,noreferrer');
-  };
-
-  /* ── Helper : hex → "r,g,b" ── */
-  function _hexToRgb(hex){
-    var r = parseInt(hex.slice(1,3),16)||255;
-    var g = parseInt(hex.slice(3,5),16)||215;
-    var b = parseInt(hex.slice(5,7),16)||0;
-    return r+','+g+','+b;
-  }
-
-  /* ── Chargement initial du cadre public ── */
-  setTimeout(function(){
-    renderPubFrame();
-  }, 3000); // après que Firebase soit prêt
-
-})();
-</script>
-
 </body>
 </html>
