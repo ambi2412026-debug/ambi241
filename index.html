@@ -11697,6 +11697,14 @@ function loadData(){
     if(firebaseData.length > 0){
       // ── Firebase est la source de vérité unique ──
       // Les defaults servent UNIQUEMENT si Firebase est vide (première utilisation)
+      // ── Dédoublonnage : on garde le premier doc trouvé par e.id ──
+      var _seenIds = {};
+      firebaseData = firebaseData.filter(function(e){
+        var key = String(e.id || e._docId || '');
+        if(!key || _seenIds[key]) return false;
+        _seenIds[key] = true;
+        return true;
+      });
       etablissements = firebaseData;
     } else {
       // Firebase vide → fallback données locales
