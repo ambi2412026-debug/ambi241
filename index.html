@@ -41771,5 +41771,466 @@ console.log('[AMBI241] ✅ Module PRO — Likes·Commentaires·Partage Firebase 
   console.log('[AMBI241] ✅ Snap-scroll 4 blocs accueil — initialisé');
 })();
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     ══  AMBI241 — MODULE LIVE STATUS v1.0                          ══
+     ══  1. Diffusion match foot / Piste de danse                   ══
+     ══  2. Coupure électricité SEEG                                ══
+     ══  3. Météo (pluie / soleil)                                  ══
+     ══  Visible public + contrôles gérant/admin                    ══
+     ═══════════════════════════════════════════════════════════════════ -->
+<style>
+/* ══ LIVE STATUS STRIP — barre d'indicateurs intégrée dans la carte ══ */
+.lsb-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.3rem 0.65rem;
+  background: rgba(8,2,16,0.88);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-wrap: nowrap;
+  min-height: 30px;
+}
+.lsb-strip::-webkit-scrollbar { display: none; }
+
+.lsb-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  padding: 0.16rem 0.44rem;
+  border-radius: 20px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  font-family: 'Syne', sans-serif;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+  transition: all 0.25s;
+  animation: lsbFadeIn 0.4s ease both;
+}
+@keyframes lsbFadeIn { from{opacity:0;transform:scale(0.82)} to{opacity:1;transform:scale(1)} }
+
+.lsb-foot  { background:rgba(0,255,170,0.13); border-color:rgba(0,255,170,0.4); color:var(--green); }
+.lsb-dance { background:rgba(255,45,155,0.13); border-color:rgba(255,45,155,0.42); color:var(--pink); }
+.lsb-seeg  { background:rgba(255,68,102,0.14); border-color:rgba(255,68,102,0.48); color:var(--red); }
+.lsb-sun   { background:rgba(255,215,0,0.12); border-color:rgba(255,215,0,0.42); color:var(--amber); }
+.lsb-rain  { background:rgba(0,229,255,0.1); border-color:rgba(0,229,255,0.38); color:var(--cyan); }
+
+.lsb-live-dot {
+  width:5px;height:5px;border-radius:50%;
+  background:currentColor;
+  animation:pulse 1.4s ease-in-out infinite;
+  flex-shrink:0;
+}
+.lsb-foot  .lsb-icon { animation:lsbPulseGrow 1.4s ease-in-out infinite; display:inline-block; }
+.lsb-dance .lsb-icon { animation:lsbDance 0.9s ease-in-out infinite alternate; display:inline-block; }
+.lsb-seeg  .lsb-icon { animation:lsbFlicker 1.6s ease-in-out infinite; display:inline-block; }
+.lsb-sun   .lsb-icon { animation:lsbSpin 7s linear infinite; display:inline-block; }
+.lsb-rain  .lsb-icon { animation:lsbRainFall 1.2s ease-in-out infinite; display:inline-block; }
+
+@keyframes lsbPulseGrow { 0%,100%{transform:scale(1)} 50%{transform:scale(1.4)} }
+@keyframes lsbDance { from{transform:rotate(-14deg)} to{transform:rotate(14deg)} }
+@keyframes lsbFlicker { 0%,100%{opacity:1} 20%{opacity:0.15} 40%{opacity:0.9} 60%{opacity:0.1} 80%{opacity:1} }
+@keyframes lsbSpin { to{transform:rotate(360deg)} }
+@keyframes lsbRainFall { 0%,100%{transform:translateY(0)} 50%{transform:translateY(3px)} }
+
+/* ══ PANNEAU GÉRANT — section Live Status ══ */
+.lsc-section {
+  background:rgba(0,229,255,0.03);
+  border:1px solid rgba(0,229,255,0.15);
+  border-radius:12px;
+  padding:0.7rem 0.8rem;
+  margin-bottom:0.65rem;
+}
+.lsc-section-title {
+  font-family:'Syne',sans-serif;
+  font-size:0.67rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  color:var(--cyan);
+  margin-bottom:0.5rem;
+  display:flex;
+  align-items:center;
+  gap:0.3rem;
+}
+.lsc-row {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:0.45rem;
+  margin-bottom:0.38rem;
+  padding:0.35rem 0.45rem;
+  border-radius:8px;
+  background:rgba(255,255,255,0.025);
+  border:1px solid rgba(255,255,255,0.06);
+}
+.lsc-row:last-child{margin-bottom:0;}
+.lsc-row-label {
+  font-size:0.72rem;color:var(--text);font-weight:600;
+  flex:1;display:flex;align-items:center;gap:0.25rem;
+}
+
+/* Toggle */
+.lsc-tgl{position:relative;width:42px;height:22px;flex-shrink:0;}
+.lsc-tgl input{opacity:0;width:0;height:0;}
+.lsc-tgl-s{position:absolute;inset:0;background:rgba(255,255,255,0.1);border-radius:22px;cursor:pointer;transition:background 0.25s;}
+.lsc-tgl-s:before{content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform 0.25s;}
+.lsc-tgl input:checked+.lsc-tgl-s{background:var(--green);}
+.lsc-tgl.pink input:checked+.lsc-tgl-s{background:var(--pink);}
+.lsc-tgl.red input:checked+.lsc-tgl-s{background:var(--red);}
+.lsc-tgl.amber input:checked+.lsc-tgl-s{background:var(--amber);}
+.lsc-tgl input:checked+.lsc-tgl-s:before{transform:translateX(20px);}
+
+/* Météo boutons */
+.lsc-meteo-row{display:flex;gap:0.28rem;width:100%;margin-top:0.22rem;}
+.lsc-meteo-btn{
+  flex:1;padding:0.33rem 0.15rem;border-radius:7px;
+  font-size:0.68rem;font-weight:700;font-family:'DM Sans',sans-serif;
+  cursor:pointer;border:1.5px solid rgba(255,255,255,0.1);
+  background:rgba(255,255,255,0.03);color:var(--muted);
+  text-align:center;transition:all 0.18s;
+}
+.lsc-meteo-btn.sel-sun{border-color:var(--amber);background:rgba(255,215,0,0.14);color:var(--amber);}
+.lsc-meteo-btn.sel-rain{border-color:var(--cyan);background:rgba(0,229,255,0.12);color:var(--cyan);}
+.lsc-meteo-btn.sel-none{border-color:rgba(255,255,255,0.18);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.5);}
+.lsc-meteo-btn:active{opacity:0.7;transform:scale(0.95);}
+
+/* ══ BANNIÈRE SEEG GLOBALE flottante ══ */
+#seegGlobalAlert{
+  position:fixed;
+  top:116px;left:0;right:0;
+  z-index:199;
+  background:linear-gradient(90deg,rgba(200,15,42,0.97),rgba(180,10,35,0.95));
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+  padding:0.4rem 1rem;
+  display:none;
+  align-items:center;
+  gap:0.45rem;
+  border-bottom:2px solid rgba(255,68,102,0.7);
+  box-shadow:0 4px 24px rgba(255,0,0,0.35);
+  animation:seegSlideIn 0.4s cubic-bezier(0.34,1.56,0.64,1);
+}
+#seegGlobalAlert.seeg-show{display:flex;}
+@keyframes seegSlideIn{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
+.sga-icon{font-size:1.05rem;animation:lsbFlicker 1.6s infinite;flex-shrink:0;}
+.sga-text{flex:1;font-size:0.7rem;font-weight:700;color:#fff;font-family:'Syne',sans-serif;line-height:1.3;}
+.sga-close{
+  background:rgba(255,255,255,0.18);border:none;color:#fff;
+  width:22px;height:22px;border-radius:50%;cursor:pointer;
+  font-size:0.75rem;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:background 0.15s;
+}
+.sga-close:active{background:rgba(255,255,255,0.35);}
+</style>
+
+<!-- Bannière SEEG globale (injectée par JS si nécessaire) -->
+<div id="seegGlobalAlert">
+  <span class="sga-icon">⚡</span>
+  <span class="sga-text">Coupure SEEG signalée — Certains établissements fonctionnent avec groupe électrogène</span>
+  <button class="sga-close" onclick="ambiSeegDismiss()">✕</button>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   AMBI241 — MODULE LIVE STATUS v1.0
+   Gère : foot_match · dance_floor · seeg_coupure · meteo
+   Public : badges animés sur chaque carte
+   Gérant / Admin : toggles dans le panneau de gestion
+   ═══════════════════════════════════════════════════════════════════ */
+(function() {
+  'use strict';
+
+  /* ═════════════════════════════════════════════
+     RENDU PUBLIC — Barre de badges live
+     Appelée depuis buildCard() via le patch ci-dessous
+     ============================================= */
+  window.buildLiveStatusStrip = function(e) {
+    var badges = [];
+
+    if (e.foot_match) {
+      badges.push(
+        "<span class='lsb-badge lsb-foot'>" +
+        "<span class='lsb-live-dot'></span>" +
+        "<span class='lsb-icon'>⚽</span>Match LIVE" +
+        "</span>"
+      );
+    }
+    if (e.dance_floor) {
+      badges.push(
+        "<span class='lsb-badge lsb-dance'>" +
+        "<span class='lsb-live-dot'></span>" +
+        "<span class='lsb-icon'>🕺</span>Piste de danse" +
+        "</span>"
+      );
+    }
+    if (e.seeg_coupure) {
+      badges.push(
+        "<span class='lsb-badge lsb-seeg'>" +
+        "<span class='lsb-icon'>⚡</span>Coupure SEEG" +
+        "</span>"
+      );
+    }
+    if (e.meteo === 'sun') {
+      badges.push(
+        "<span class='lsb-badge lsb-sun'>" +
+        "<span class='lsb-icon'>☀️</span>Ensoleillé" +
+        "</span>"
+      );
+    } else if (e.meteo === 'rain') {
+      badges.push(
+        "<span class='lsb-badge lsb-rain'>" +
+        "<span class='lsb-icon'>🌧️</span>Il pleut" +
+        "</span>"
+      );
+    }
+
+    if (!badges.length) return '';
+    return "<div class='lsb-strip' aria-label='Statut en direct'>" + badges.join('') + "</div>";
+  };
+
+  /* ═════════════════════════════════════════════
+     CONTRÔLES GÉRANT / ADMIN
+     Injectés dans l'onglet "Statut" du panneau Pro
+     ============================================= */
+  window.buildLiveStatusControls = function(e) {
+    var eid = e.id;
+    var fmC = e.foot_match   ? 'checked' : '';
+    var dfC = e.dance_floor  ? 'checked' : '';
+    var sgC = e.seeg_coupure ? 'checked' : '';
+    var met = e.meteo || '';
+
+    return (
+      "<div class='lsc-section'>" +
+        "<div class='lsc-section-title'>📡 En direct — Signaler maintenant</div>" +
+
+        /* Foot */
+        "<div class='lsc-row'>" +
+          "<span class='lsc-row-label'>⚽ Diffusion match foot</span>" +
+          "<label class='lsc-tgl'>" +
+            "<input type='checkbox' " + fmC + " onchange=\"ambiLiveToggle(" + eid + ",'foot_match',this.checked)\">" +
+            "<span class='lsc-tgl-s'></span>" +
+          "</label>" +
+        "</div>" +
+
+        /* Piste de danse */
+        "<div class='lsc-row'>" +
+          "<span class='lsc-row-label'>🕺 Piste de danse ouverte</span>" +
+          "<label class='lsc-tgl pink'>" +
+            "<input type='checkbox' " + dfC + " onchange=\"ambiLiveToggle(" + eid + ",'dance_floor',this.checked)\">" +
+            "<span class='lsc-tgl-s'></span>" +
+          "</label>" +
+        "</div>" +
+
+        /* SEEG */
+        "<div class='lsc-row'>" +
+          "<span class='lsc-row-label'>⚡ Coupure SEEG en cours</span>" +
+          "<label class='lsc-tgl red'>" +
+            "<input type='checkbox' " + sgC + " onchange=\"ambiLiveToggle(" + eid + ",'seeg_coupure',this.checked)\">" +
+            "<span class='lsc-tgl-s'></span>" +
+          "</label>" +
+        "</div>" +
+
+        /* Météo */
+        "<div class='lsc-row' style='flex-direction:column;align-items:flex-start;gap:0.22rem;'>" +
+          "<span class='lsc-row-label'>🌤️ Météo actuelle (Libreville)</span>" +
+          "<div class='lsc-meteo-row'>" +
+            "<button class='lsc-meteo-btn" + (met===''?   ' sel-none':'') + "' onclick=\"ambiLiveMeteo(" + eid + ",'')\">— Aucune</button>" +
+            "<button class='lsc-meteo-btn" + (met==='sun'? ' sel-sun' :'') + "' onclick=\"ambiLiveMeteo(" + eid + ",'sun')\">☀️ Soleil</button>" +
+            "<button class='lsc-meteo-btn" + (met==='rain'?' sel-rain':'') + "' onclick=\"ambiLiveMeteo(" + eid + ",'rain')\">🌧️ Pluie</button>" +
+          "</div>" +
+        "</div>" +
+
+      "</div>"
+    );
+  };
+
+  /* ═════════════════════════════════════════════
+     ACTIONS — Sauvegarde Firebase
+     ============================================= */
+  window.ambiLiveToggle = function(eid, field, val) {
+    var obj = {}; obj[field] = val;
+    if (typeof window.updateField === 'function') window.updateField(eid, obj);
+
+    var msgs = {
+      foot_match:   val ? '⚽ Match foot affiché !'       : '⚽ Match foot désactivé',
+      dance_floor:  val ? '🕺 Piste de danse activée !'   : '🕺 Piste de danse désactivée',
+      seeg_coupure: val ? '⚡ Coupure SEEG signalée !'    : '⚡ Coupure SEEG retirée'
+    };
+    if (typeof window.showToast === 'function') window.showToast(msgs[field] || '✅ Mis à jour');
+
+    /* Mettre à jour le local + rafraîchir */
+    var etab = (window.etablissements||[]).find(function(x){ return x.id === eid; });
+    if (etab) etab[field] = val;
+
+    _refreshSeegBanner();
+    if (typeof window.renderAll === 'function') setTimeout(window.renderAll, 120);
+  };
+
+  window.ambiLiveMeteo = function(eid, val) {
+    if (typeof window.updateField === 'function') window.updateField(eid, { meteo: val });
+    var msgs = { sun:'☀️ Météo : Ensoleillé !', rain:'🌧️ Météo : Pluie signalée !', '':'🌤️ Météo effacée' };
+    if (typeof window.showToast === 'function') window.showToast(msgs[val] || '✅ Météo mise à jour');
+
+    var etab = (window.etablissements||[]).find(function(x){ return x.id === eid; });
+    if (etab) etab.meteo = val;
+
+    if (typeof window.renderAll === 'function') setTimeout(window.renderAll, 120);
+  };
+
+  /* Fermer la bannière SEEG manuellement (réapparaît au prochain renderAll) */
+  window.ambiSeegDismiss = function() {
+    var b = document.getElementById('seegGlobalAlert');
+    if (b) { b.classList.remove('seeg-show'); b.style.display='none'; }
+  };
+
+  /* ═════════════════════════════════════════════
+     BANNIÈRE SEEG GLOBALE
+     ============================================= */
+  function _refreshSeegBanner() {
+    var anySeeg = (window.etablissements || []).some(function(e){ return !!e.seeg_coupure; });
+    var b = document.getElementById('seegGlobalAlert');
+    if (!b) return;
+    if (anySeeg) {
+      b.classList.add('seeg-show');
+      b.style.display = 'flex';
+    } else {
+      b.classList.remove('seeg-show');
+      b.style.display = 'none';
+    }
+  }
+  window._refreshSeegBanner = _refreshSeegBanner;
+
+  /* ═════════════════════════════════════════════
+     PATCH buildCard — Injection automatique
+     ============================================= */
+  var _origBuildCard = null;
+  function _patchBuildCard() {
+    if (typeof window.buildCard !== 'function') return;
+    if (window.buildCard.__lsPatched) return;
+
+    _origBuildCard = window.buildCard;
+    window.buildCard = function(e, delay, compact, rank) {
+      var html = _origBuildCard.call(this, e, delay, compact, rank);
+
+      /* === Injection barre live publique === */
+      var lsHtml = window.buildLiveStatusStrip(e);
+      if (lsHtml) {
+        /* Insérer après le wrapper photos (qui se ferme avec </div></div> avant "<!-- Photos soiree") */
+        var inserted = false;
+
+        /* Pattern 1: fin du wrapper photo avant le commentaire soiree */
+        if (!inserted) {
+          var marker = '<\/div>\n  photosHtml += "<\/div>"; \/\/ ferme wrapper';
+          /* Plus simple : chercher le bloc photosHtml fermant */
+        }
+
+        /* Pattern fiable : après la balise fermante du photo-wrapper qu'on connaît */
+        /* La zone photo génère: <div style='width:100%;'>...<div>...</div></div></div> */
+        /* Puis soireeHtml commence. On insère entre les deux. */
+        var photoEndPattern = /(<\/div>\s*)(<div style='position:relative;width:100%;overflow:hidden)/;
+        if (photoEndPattern.test(html)) {
+          html = html.replace(photoEndPattern, '$1' + lsHtml + '$2');
+          inserted = true;
+        }
+
+        /* Fallback pattern : avant la section de contact/status dans la card-body */
+        if (!inserted) {
+          var fallbackPattern = /(<div class='card-body'[^>]*>)/;
+          if (fallbackPattern.test(html)) {
+            html = html.replace(fallbackPattern, '$1' + lsHtml);
+            inserted = true;
+          }
+        }
+
+        /* Fallback ultime : juste après la photo (div height:120px) */
+        if (!inserted) {
+          html = html.replace(
+            /(height:120px;overflow:hidden[^>]*>[\s\S]*?<\/div>\s*<\/div>)/,
+            '$1' + lsHtml
+          );
+        }
+      }
+
+      /* === Injection contrôles gérant dans onglet Statut === */
+      var canEdit = window.isAdmin || (typeof window.isResponsable === 'function' && window.isResponsable(e.id));
+      if (canEdit) {
+        var ctrlHtml = window.buildLiveStatusControls(e);
+        /* Dans le panneau gérant : avant la section "Horaires du jour" */
+        html = html.replace(
+          /(<div class='pro-sec'>🕒 Horaires du jour<\/div>)/,
+          ctrlHtml + '$1'
+        );
+        /* Dans le panneau admin : après le bouton "Annoncer un événement" */
+        html = html.replace(
+          /(<div class="edit-row" style="margin-top:0\.5rem;border-top)/,
+          '<div class="edit-row" style="border-top:1px solid rgba(0,229,255,0.12);padding-top:0.6rem;">' +
+          '<div class="edit-lbl" style="color:var(--cyan);margin-bottom:0.3rem;">📡 Statut LIVE</div>' +
+          ctrlHtml +
+          '</div>' +
+          '<div class="edit-row" style="margin-top:0.5rem;border-top'
+        );
+      }
+
+      return html;
+    };
+    window.buildCard.__lsPatched = true;
+  }
+
+  /* ═════════════════════════════════════════════
+     PATCH renderAll — rafraîchit la bannière SEEG
+     ============================================= */
+  function _patchRenderAll() {
+    if (typeof window.renderAll !== 'function') return;
+    if (window.renderAll.__lsPatched) return;
+    var _orig = window.renderAll;
+    window.renderAll = function() {
+      _orig.apply(this, arguments);
+      setTimeout(_refreshSeegBanner, 80);
+    };
+    window.renderAll.__lsPatched = true;
+  }
+
+  /* ═════════════════════════════════════════════
+     INIT — attendre que les fonctions soient prêtes
+     ============================================= */
+  var _initAttempts = 0;
+  function _init() {
+    _initAttempts++;
+    var ready = typeof window.buildCard === 'function' &&
+                typeof window.renderAll === 'function' &&
+                typeof window.updateField === 'function';
+    if (ready) {
+      _patchBuildCard();
+      _patchRenderAll();
+      /* Vérifier bannière SEEG dès que les données sont là */
+      var _watchSeeg = setInterval(function() {
+        if (window.etablissements && window.etablissements.length > 0) {
+          clearInterval(_watchSeeg);
+          _refreshSeegBanner();
+        }
+      }, 600);
+      console.log('[AMBI241] ✅ Live Status Module v1.0 — initialisé');
+    } else if (_initAttempts < 40) {
+      setTimeout(_init, 200);
+    } else {
+      console.warn('[AMBI241] ⚠️ Live Status Module — fonctions de base non trouvées');
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _init);
+  } else {
+    setTimeout(_init, 300);
+  }
+
+})();
+</script>
 </body>
 </html>
