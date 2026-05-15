@@ -31,24 +31,316 @@
 html{overflow-x:hidden;max-width:100vw;scrollbar-gutter:stable;overflow-y:scroll;}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;padding-bottom:calc(var(--nav-h) + var(--player-h));padding-top:116px;max-width:100%;width:100%;}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ══ SCROLL-SNAP 4 BLOCS — PAGE ACCUEIL UNIQUEMENT               ══
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Conteneur snap : remplace le scroll libre du body UNIQUEMENT sur #sec-accueil */
+#sec-accueil{
+  /* Snap vertical, un bloc à la fois */
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  /* Occupe l'espace dispo entre topbar et bottom-nav */
+  height: calc(100vh - 116px - var(--nav-h) - var(--player-h) - var(--safe-bottom));
+  /* Pas de padding body car on gère ici */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+  /* Masquer la scrollbar native mais garder le scroll */
+  scrollbar-width: none;
+}
+#sec-accueil::-webkit-scrollbar{ display:none; }
+
+/* Les 4 blocs snap : chacun prend exactement la hauteur du viewport dispo */
+.snap-bloc{
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  min-height: calc(100vh - 116px - var(--nav-h) - var(--player-h) - var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Blocs 2 & 3 qui ont plus de contenu : permettre un dépassement gracieux */
+.snap-bloc.snap-bloc--scroll{
+  justify-content: flex-start;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.snap-bloc.snap-bloc--scroll::-webkit-scrollbar{ display:none; }
+
+/* Séparateur lumineux entre chaque bloc */
+.snap-bloc::after{
+  content: '';
+  position: absolute;
+  bottom: 0; left: 10%; right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,45,155,0.25) 30%,
+    rgba(0,229,255,0.35) 50%,
+    rgba(255,45,155,0.25) 70%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+.snap-bloc:last-child::after{ display:none; }
+
+/* Indicateur de progression (pastilles latérales) */
+#snapProgress{
+  position: fixed;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 50;
+  pointer-events: none;
+  /* Visible seulement sur la section accueil */
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+#snapProgress.visible{ opacity: 1; }
+.snap-dot{
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.25);
+  transition: all 0.35s cubic-bezier(0.34,1.56,0.64,1);
+}
+.snap-dot.active{
+  width: 5px;
+  height: 16px;
+  border-radius: 3px;
+  background: var(--pink);
+  border-color: var(--pink);
+  box-shadow: 0 0 8px rgba(255,45,155,0.7);
+}
+
+/* Flèche bas animée (hint de scroll) — visible sur bloc 1 seulement */
+.snap-scroll-hint{
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  opacity: 0.45;
+  animation: hintBounce 2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 5;
+}
+.snap-scroll-hint span{
+  font-size: 0.52rem;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+}
+.snap-scroll-hint svg{
+  width: 16px; height: 16px;
+  fill: none;
+  stroke: var(--pink);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+@keyframes hintBounce{
+  0%,100%{ transform:translateX(-50%) translateY(0); opacity:0.4; }
+  50%{ transform:translateX(-50%) translateY(5px); opacity:0.75; }
+}
+
+/* Numéro de bloc — label en haut à gauche de chaque bloc */
+.snap-bloc-label{
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  font-family: 'Syne', sans-serif;
+  font-size: 0.46rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.18);
+  z-index: 4;
+  pointer-events: none;
+}
+
+/* Ajustements internes des blocs pour éviter scroll interne inutile */
+#snap-bloc-1 .hero-section{ flex: 1; }
+#snap-bloc-2{ padding-top: 1.2rem; }
+#snap-bloc-3{ padding-top: 0.6rem; }
+#snap-bloc-4{ padding-top: 0.6rem; }
+
+/* Sur le body : désactiver le scroll natif quand accueil actif */
+body.snap-accueil-active{
+  overflow: hidden;
+}
+
+/* Quand le body a snap actif, padding-bottom géré par le conteneur */
+body.snap-accueil-active{
+  padding-bottom: 0;
+}
+/* ═══════════════════════════════════════════════════════════════════ */
 body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(255,45,155,0.12) 0%,transparent 50%),radial-gradient(ellipse at 90% 30%,rgba(0,229,255,0.10) 0%,transparent 50%),radial-gradient(ellipse at 50% 90%,rgba(204,68,255,0.08) 0%,transparent 50%);pointer-events:none;z-index:0;will-change:transform;}
 /* Optimisation GPU pour les éléments animés */
 .live-dot,.heb-dot,.dispo-updated-dot,.cef-live,.hero-eyebrow-dot{will-change:opacity,transform;}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
 
 /* ═══════════════════════════════════════════════════════════════ */
-/* ══ STABILISER LE LAYOUT — Éviter les sauts latéraux ══════════ */
-/* ═══════════════════════════════════════════════════════════════ */
-main, section, .pane, .tab-pane, [role="tabpanel"] {
+/* ═══════════════════════════════════════════════════════════════════
+   ══ STABILITÉ HORIZONTALE — Centrage & anti-débordement global  ══
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Racine : interdire tout débordement horizontal sur html et body */
+html, body {
+  overflow-x: hidden !important;
+  max-width: 100vw;
   width: 100%;
+}
+
+/* Toutes les sections principales : contraintes strictes */
+#sec-accueil,
+#sec-etablissements,
+#sec-paiements,
+#sec-profil,
+#sec-social,
+#sec-contacts,
+#sec-publications {
+  overflow-x: hidden !important;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Boutons de la bottom-nav : centrage forcé, pas de débordement */
+.bottom-nav, .nav-bar, [class*="bottom-nav"], [class*="nav-bar"] {
+  overflow: hidden;
+}
+.nav-item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+  text-align: center;
+}
+
+/* Header topbar : centrage et anti-overflow */
+.topbar, .top-bar, header, #topbar, #header {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Guide bar (les 2 boutons "Guide AMBI241" et "Chanson de la semaine") */
+.header-guide-bar {
+  overflow-x: auto;
+  max-width: 100%;
+  scrollbar-width: none;
+}
+.header-guide-bar::-webkit-scrollbar { display: none; }
+.guide-bar-btn, .hgb-btn, [class*="guide-btn"] {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 50%;
+}
+
+/* Cartes génériques : texte ne dépasse pas */
+.card, .top6-card, .type-tile, .join-card,
+.hss-chip, .stat-chip, .compact-row {
+  overflow: hidden;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Textes longs dans les cards */
+.t6c-name, .cr-name, .join-card-title, .join-card-desc,
+.top6-card [class*="name"], .type-tile [class*="name"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* Hero ticker : ne jamais dépasser */
+.hero-ticker-wrap {
+  overflow: hidden !important;
+  max-width: 100%;
+}
+
+/* Grilles : pas de débordement */
+.types-grid, .top6-grid, .join-grid, .home-stats-strip {
+  max-width: 100%;
   overflow-x: hidden;
 }
 
-/* ══ ACTIVER le scroll latéral UNIQUEMENT où c'est pertinent ══ */
-.soc-tabs, .socpub-filter-row, .igm-steps, .header-guide-bar,
-.demo-nav-profil, .af-filter-row {
-  overflow-x: auto !important;
+/* Boutons hero : centrage et wrap propre */
+.hero-actions {
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 100%;
+  padding: 0 0.5rem;
+  box-sizing: border-box;
 }
+.hero-btn {
+  max-width: calc(50% - 0.5rem);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* Barre météo : centrage strict */
+.meteo-strip {
+  max-width: calc(100% - 2rem);
+  overflow: hidden;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Rows et containers divers */
+.filter-row, .sort-row, .notif-filter-row,
+.igm-steps, .af-filter-row, .socpub-filter-row,
+.soc-tabs, .demo-nav-profil {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+/* Padding interne global sur les sections pour éviter le toucher des bords */
+#sec-accueil > *,
+#sec-etablissements > *:not(.gps-panel):not(.card-overlay):not(.overlay),
+#sec-social > * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Empêcher la sélection/glissement accidentel horizontal sur le contenu */
+main, #sec-accueil, #sec-etablissements,
+#sec-paiements, #sec-profil, #sec-social {
+  -webkit-user-drag: none;
+  touch-action: pan-y; /* Uniquement scroll vertical autorisé */
+}
+
+/* Exception : éléments avec scroll horizontal légitimes */
+.soc-tabs, .socpub-filter-row, .igm-steps,
+.header-guide-bar, .demo-nav-profil, .af-filter-row,
+.filter-row, .notif-filter-row, .igm-cat-grid,
+.stats-scroll, .soc-cat-row {
+  touch-action: pan-x pan-y;
+}
+
+/* ═══════════════════════════════════════════════════════════════════ */
 
 /* ══════════════════════════════════════════════════════════════
    ══ OPTION 1 — FLASH ÉVÉNEMENT (bandeau dans la carte)       ══
@@ -6861,6 +7153,10 @@ if (document.readyState === 'loading') {
       <div class="heb-cta">Voir →</div>
     </div>
 
+    <!-- ══ BLOC 1 : HERO ══ -->
+    <div class="snap-bloc" id="snap-bloc-1">
+      <div class="snap-bloc-label">01 · Accueil</div>
+
     <!-- ══ HERO LUXURY REDESIGN ══ -->
     <div class="hero-section">
 
@@ -6929,6 +7225,18 @@ if (document.readyState === 'loading') {
       </div>
     </div>
 
+    <!-- ══ SNAP BLOC 1 — fin (le hero + meteo + CTAs) + fermeture ══ -->
+      <!-- Hint scroll pour bloc 1 -->
+      <div class="snap-scroll-hint">
+        <span>Défiler</span>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14" style="color:var(--pink)"><polyline points="3,5 8,11 13,5"/></svg>
+      </div>
+    </div><!-- /#snap-bloc-1 -->
+
+    <!-- ══ SNAP BLOC 2 — Stats + Types ══ -->
+    <div class="snap-bloc snap-bloc--scroll" id="snap-bloc-2">
+      <div class="snap-bloc-label">02 · Explorer</div>
+
     <!-- ══ STATS STRIP ══ -->
     <div class="home-stats-strip" id="statsRowHome"></div>
 
@@ -6939,6 +7247,12 @@ if (document.readyState === 'loading') {
         <!-- généré par renderHome -->
       </div>
     </div>
+
+    </div><!-- /#snap-bloc-2 -->
+
+    <!-- ══ SNAP BLOC 3 — Top 6 lieux ══ -->
+    <div class="snap-bloc snap-bloc--scroll" id="snap-bloc-3">
+      <div class="snap-bloc-label">03 · Top du moment</div>
 
     <!-- ══ TOP 6 LIEUX ══ -->
     <div class="home-top6-section">
@@ -6952,6 +7266,12 @@ if (document.readyState === 'loading') {
       </div>
       <div class="top6-grid" id="topLieux"></div>
     </div>
+
+    </div><!-- /#snap-bloc-3 -->
+
+    <!-- ══ SNAP BLOC 4 — Rejoindre AMBI241 ══ -->
+    <div class="snap-bloc" id="snap-bloc-4">
+      <div class="snap-bloc-label">04 · Rejoindre</div>
 
     <!-- ══ SECTION REJOINDRE AMBI241 ══ -->
     <div class="join-section">
@@ -7119,6 +7439,16 @@ if (document.readyState === 'loading') {
     .join-card-etabl .join-card-arrow{color:var(--pink);}
     .join-card:active .join-card-arrow{opacity:1;transform:translateX(3px);}
     </style>
+  </div><!-- /#snap-bloc-4 -->
+
+  </div><!-- /#sec-accueil -->
+
+  <!-- Indicateur de progression snap (4 pastilles latérales) -->
+  <div id="snapProgress">
+    <div class="snap-dot active" data-bloc="1"></div>
+    <div class="snap-dot" data-bloc="2"></div>
+    <div class="snap-dot" data-bloc="3"></div>
+    <div class="snap-dot" data-bloc="4"></div>
   </div>
 
   <!-- SEC: LIEUX -->
@@ -17190,6 +17520,11 @@ document.addEventListener("change",function(e){
 });
 
 
+
+/* ═══════════════════════════════════════════════════════════════════
+   ══ DÉSACTIVÉ — Swipe horizontal entre onglets désactivé        ══
+   ══ Navigation uniquement via la barre bottom-nav ou les boutons ══
+   ═══════════════════════════════════════════════════════════════════
 (function(){
   var _touchStartX = 0;
   var _touchStartY = 0;
@@ -17239,6 +17574,8 @@ document.addEventListener("change",function(e){
     switchSection(SECS_SWIPE[next], navBtns[next]||null);
   },{passive:true});
 })();
+*/
+/* Swipe inter-onglets désactivé — navigation via bottom-nav uniquement */
 
 // Compresse une image via canvas avant envoi (max 800px, qualité 0.75)
 function compressImage(file,callback){
@@ -19326,7 +19663,8 @@ window.openLegalModal = openLegalModal;
 window.closeLegalModal = closeLegalModal;
 
 
-// ── SWIPE MOBILE pour naviguer entre sections ─────────────────
+// ── SWIPE MOBILE désactivé — navigation via bottom-nav uniquement ──
+/* DÉSACTIVÉ
 (function(){
   var startX=0, startY=0;
   var mainEl = document.querySelector("main");
@@ -19349,6 +19687,7 @@ window.closeLegalModal = closeLegalModal;
     }
   }, {passive:true});
 })();
+*/
 
 // ══════════════════════════════════════════════════════════════
 // ══ SYSTÈME DE NOTIFICATIONS CIBLÉES AMBI241 v2             ══
@@ -41292,6 +41631,144 @@ function _escPro(s){
 })();
 
 console.log('[AMBI241] ✅ Module PRO — Likes·Commentaires·Partage Firebase chargé');
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     ══ SNAP SCROLL ACCUEIL — Gestion 4 blocs                    ══
+     ═══════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  'use strict';
+
+  var snapContainer = document.getElementById('sec-accueil');
+  var snapProgress  = document.getElementById('snapProgress');
+  var snapDots      = document.querySelectorAll('#snapProgress .snap-dot');
+  var blocs         = ['snap-bloc-1','snap-bloc-2','snap-bloc-3','snap-bloc-4'];
+  var currentBloc   = 0;
+
+  /* ── Activer/désactiver le mode snap selon section visible ── */
+  function setSnapMode(active){
+    if(!snapContainer || !snapProgress) return;
+    if(active){
+      document.body.classList.add('snap-accueil-active');
+      snapProgress.classList.add('visible');
+      updateDots();
+    } else {
+      document.body.classList.remove('snap-accueil-active');
+      snapProgress.classList.remove('visible');
+    }
+  }
+
+  /* ── Mettre à jour les pastilles selon position de scroll ── */
+  function updateDots(){
+    if(!snapContainer) return;
+    var scrollTop    = snapContainer.scrollTop;
+    var totalHeight  = snapContainer.scrollHeight - snapContainer.clientHeight;
+    var rawIndex     = 0;
+
+    /* Chercher quel bloc est le plus visible */
+    blocs.forEach(function(id, i){
+      var el = document.getElementById(id);
+      if(!el) return;
+      var top = el.offsetTop - snapContainer.scrollTop;
+      var h   = el.offsetHeight;
+      if(top <= snapContainer.clientHeight / 2 && top + h > snapContainer.clientHeight / 2){
+        rawIndex = i;
+      }
+    });
+
+    /* Fallback : position approximative */
+    if(totalHeight > 0){
+      rawIndex = Math.round((scrollTop / totalHeight) * (blocs.length - 1));
+      rawIndex = Math.max(0, Math.min(blocs.length - 1, rawIndex));
+    }
+
+    if(rawIndex !== currentBloc){
+      currentBloc = rawIndex;
+    }
+
+    /* Mettre à jour visuellement */
+    snapDots.forEach(function(dot, i){
+      dot.classList.toggle('active', i === currentBloc);
+    });
+
+    /* Masquer le hint scroll quand on n'est plus sur le bloc 1 */
+    var hint = document.querySelector('.snap-scroll-hint');
+    if(hint) hint.style.opacity = (currentBloc === 0) ? '' : '0';
+  }
+
+  /* ── Observer si la section accueil est visible ── */
+  var accueilVisible = false;
+
+  function checkAccueilVisible(){
+    var sec = document.getElementById('sec-accueil');
+    if(!sec) return;
+    var hidden = sec.classList.contains('section-hidden');
+    if(!hidden && !accueilVisible){
+      accueilVisible = true;
+      setSnapMode(true);
+    } else if(hidden && accueilVisible){
+      accueilVisible = false;
+      setSnapMode(false);
+    }
+  }
+
+  /* ── Écouter le scroll du conteneur snap ── */
+  if(snapContainer){
+    var scrollTick = false;
+    snapContainer.addEventListener('scroll', function(){
+      if(!scrollTick){
+        scrollTick = true;
+        requestAnimationFrame(function(){
+          updateDots();
+          scrollTick = false;
+        });
+      }
+    }, {passive: true});
+  }
+
+  /* ── Patcher switchSection pour activer/désactiver snap ── */
+  var _origSwitch = window.switchSection;
+  window.switchSection = function(name, btn){
+    if(_origSwitch) _origSwitch(name, btn);
+    setTimeout(function(){
+      checkAccueilVisible();
+      if(name === 'accueil' && snapContainer){
+        /* Reset au premier bloc quand on revient à l'accueil */
+        setTimeout(function(){
+          snapContainer.scrollTop = 0;
+          currentBloc = 0;
+          updateDots();
+        }, 80);
+      }
+    }, 50);
+  };
+
+  /* ── Clic sur une pastille → naviguer vers le bloc ── */
+  snapDots.forEach(function(dot, i){
+    dot.style.cursor = 'pointer';
+    dot.style.pointerEvents = 'auto';
+    dot.addEventListener('click', function(){
+      var target = document.getElementById(blocs[i]);
+      if(target && snapContainer){
+        snapContainer.scrollTo({ top: target.offsetTop, behavior: 'smooth' });
+      }
+    });
+  });
+
+  /* ── Init ── */
+  checkAccueilVisible();
+  /* Accueil visible par défaut → activer snap */
+  setSnapMode(true);
+
+  /* Rebrancher la vérification si la page recharge ses sections */
+  window.addEventListener('hashchange', checkAccueilVisible);
+  document.addEventListener('visibilitychange', function(){
+    if(!document.hidden) checkAccueilVisible();
+  });
+
+  console.log('[AMBI241] ✅ Snap-scroll 4 blocs accueil — initialisé');
 })();
 </script>
 </body>
