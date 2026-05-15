@@ -1619,7 +1619,9 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 }
 .hero-ticker-wrap{
   overflow:hidden;
-  width:100%;
+  width:calc(100% + 2.4rem);
+  margin-left:-1.2rem;
+  margin-right:-1.2rem;
   background:linear-gradient(90deg,
     rgba(30,10,5,0.95) 0%,
     rgba(50,20,0,0.98) 20%,
@@ -1802,8 +1804,8 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   border:1px solid rgba(0,229,255,0.12);
   border-radius:11px;
   padding:0.38rem 0.8rem;
-  margin:0.4rem auto 0;
-  max-width:300px;
+  margin:0.4rem 0 0;
+  max-width:100%;
   width:100%;
   transition:opacity 0.5s ease, border-color 0.4s, background 0.4s;
   animation:fadeUp 0.5s ease both;
@@ -1843,12 +1845,13 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 
 /* CTA Buttons */
 .hero-actions{
-  display:flex;gap:0.5rem;justify-content:center;
+  display:flex;gap:0.5rem;justify-content:stretch;
   margin-top:0.5rem;flex-wrap:wrap;
+  width:100%;
 }
 .hero-actions:empty{display:none;margin:0;}
 .hero-btn{
-  display:inline-flex;align-items:center;gap:0.35rem;
+  display:inline-flex;align-items:center;justify-content:center;gap:0.35rem;
   padding:0.55rem 1.1rem;
   border-radius:100px;
   font-size:0.76rem;
@@ -1858,6 +1861,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   font-family:'Syne',sans-serif;
   transition:all 0.22s;
   letter-spacing:0.01em;
+  flex:1;
 }
 .hero-btn:active{transform:scale(0.95);}
 .hero-btn-primary{
@@ -2449,6 +2453,58 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .gps-no-result{text-align:center;padding:1.5rem;color:var(--muted);font-size:0.82rem;}
 .gps-no-result span{display:block;font-size:2rem;margin-bottom:0.5rem;}
 
+/* ══ GÉOLOCALISATION AVANCÉE — MÉTHODE DE SÉLECTION ══ */
+.geo-method-sheet{display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,0.82);backdrop-filter:blur(8px);align-items:flex-end;justify-content:center;}
+.geo-method-sheet.open{display:flex;}
+.geo-method-box{width:min(480px,100%);background:var(--surface);border:1.5px solid rgba(0,229,255,0.3);border-bottom:none;border-radius:26px 26px 0 0;padding:0 1.1rem 2.5rem;animation:slideUp 0.35s cubic-bezier(0.34,1.1,0.64,1);}
+.geo-method-drag{width:38px;height:4px;border-radius:2px;background:rgba(255,255,255,0.15);margin:0.75rem auto 1.1rem;}
+.geo-method-title{font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:var(--cyan);text-align:center;margin-bottom:0.35rem;}
+.geo-method-sub{font-size:0.72rem;color:var(--muted);text-align:center;margin-bottom:1.3rem;line-height:1.5;}
+.geo-method-options{display:flex;flex-direction:column;gap:0.65rem;margin-bottom:1rem;}
+.geo-method-btn{display:flex;align-items:center;gap:0.85rem;padding:0.9rem 1rem;border-radius:16px;border:1.5px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);cursor:pointer;transition:all 0.2s;text-align:left;width:100%;font-family:'DM Sans',sans-serif;}
+.geo-method-btn:active{transform:scale(0.97);}
+.geo-method-btn.gm-gps{border-color:rgba(0,229,255,0.3);background:rgba(0,229,255,0.06);}
+.geo-method-btn.gm-gps:hover{background:rgba(0,229,255,0.12);border-color:rgba(0,229,255,0.5);}
+.geo-method-btn.gm-wa{border-color:rgba(37,211,102,0.3);background:rgba(37,211,102,0.06);}
+.geo-method-btn.gm-wa:hover{background:rgba(37,211,102,0.12);border-color:rgba(37,211,102,0.5);}
+.geo-method-btn.gm-manual{border-color:rgba(255,215,0,0.25);background:rgba(255,215,0,0.04);}
+.geo-method-btn.gm-manual:hover{background:rgba(255,215,0,0.1);border-color:rgba(255,215,0,0.4);}
+.geo-method-icon{font-size:1.7rem;flex-shrink:0;width:42px;text-align:center;}
+.geo-method-label{font-family:'Syne',sans-serif;font-weight:800;font-size:0.88rem;}
+.geo-method-desc{font-size:0.68rem;color:var(--muted);margin-top:0.15rem;line-height:1.4;}
+.gm-gps .geo-method-label{color:var(--cyan);}
+.gm-wa .geo-method-label{color:#25d366;}
+.gm-manual .geo-method-label{color:var(--amber);}
+.geo-method-cancel{width:100%;padding:0.7rem;border-radius:13px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--muted);font-family:'DM Sans',sans-serif;font-weight:600;font-size:0.82rem;cursor:pointer;}
+/* WhatsApp location input */
+.geo-wa-input-wrap{display:none;background:rgba(37,211,102,0.05);border:1.5px solid rgba(37,211,102,0.25);border-radius:14px;padding:0.85rem;margin-bottom:0.65rem;}
+.geo-wa-input-wrap.show{display:block;}
+.geo-wa-label{font-size:0.7rem;color:#25d366;font-weight:700;margin-bottom:0.5rem;display:flex;align-items:center;gap:0.4rem;}
+.geo-wa-steps{font-size:0.65rem;color:var(--muted);line-height:1.7;margin-bottom:0.7rem;}
+.geo-wa-input{width:100%;padding:0.55rem 0.75rem;background:rgba(0,0,0,0.35);border:1px solid rgba(37,211,102,0.3);border-radius:9px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.82rem;margin-bottom:0.55rem;outline:none;}
+.geo-wa-input::placeholder{color:var(--muted);}
+.geo-wa-confirm{width:100%;padding:0.6rem;border-radius:10px;border:none;background:linear-gradient(135deg,#25d366,#128c50);color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;}
+/* Manuel input */
+.geo-manual-wrap{display:none;background:rgba(255,215,0,0.04);border:1.5px solid rgba(255,215,0,0.2);border-radius:14px;padding:0.85rem;margin-bottom:0.65rem;}
+.geo-manual-wrap.show{display:block;}
+.geo-manual-label{font-size:0.7rem;color:var(--amber);font-weight:700;margin-bottom:0.5rem;}
+.geo-manual-row{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.55rem;}
+.geo-manual-input{width:100%;padding:0.5rem 0.65rem;background:rgba(0,0,0,0.35);border:1px solid rgba(255,215,0,0.25);border-radius:9px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none;}
+.geo-manual-input::placeholder{color:var(--muted);}
+.geo-manual-confirm{width:100%;padding:0.6rem;border-radius:10px;border:none;background:linear-gradient(135deg,var(--amber),#ff9900);color:#000;font-family:'Syne',sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;}
+/* Secteur proximité dans la liste */
+.proximity-section-header{display:flex;align-items:center;gap:0.6rem;padding:0.55rem 0.75rem;border-radius:12px;margin-bottom:0.6rem;font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;}
+.proximity-section-header.prox-near{background:rgba(0,255,170,0.08);border:1px solid rgba(0,255,170,0.25);color:var(--green);}
+.proximity-section-header.prox-far{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);color:var(--muted);margin-top:0.8rem;}
+.prox-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.prox-dot-near{background:var(--green);box-shadow:0 0 8px rgba(0,255,170,0.7);animation:pulse 2s infinite;}
+.prox-dot-far{background:var(--muted);}
+/* Surbrillance carte proche */
+.card-prox-near{border-color:rgba(0,255,170,0.28) !important;box-shadow:0 0 0 1px rgba(0,255,170,0.15) inset;}
+/* Badge GPS actif sur le bouton */
+.gps-nearby-btn.geo-method-active{background:linear-gradient(135deg,rgba(0,255,170,0.12),rgba(0,229,255,0.08));border-color:var(--green);color:var(--green);}
+/* Badge méthode */
+.gnb-method-badge{font-size:0.58rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:6px;background:rgba(0,255,170,0.15);color:var(--green);border:1px solid rgba(0,255,170,0.3);margin-left:0.3rem;vertical-align:middle;}
 /* Badge distance sur les cartes */
 .dist-badge{display:inline-flex;align-items:center;gap:0.2rem;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);color:var(--cyan);font-size:0.55rem;font-weight:500;padding:0.06rem 0.3rem;border-radius:5px;margin-left:0.3rem;vertical-align:middle;text-transform:lowercase;opacity:0.85;}
 .dist-badge.dist-close{background:rgba(0,255,170,0.08);border-color:rgba(0,255,170,0.2);color:var(--green);}
@@ -7238,13 +7294,66 @@ if (document.readyState === 'loading') {
     <div class="sync-bar"><div class="sync-left"><div class="sync-spinner" id="syncSpinner"></div><span id="syncStatus">Donnees en direct</span></div><div style="display:flex;align-items:center;gap:0.5rem;"><span id="meteoMiniSyncBar" class="meteo-mini" title="Météo Libreville">⏳</span><span class="sync-time" id="syncTime"></span><button onclick="loadData();showToast('Actualisation...')" style="background:rgba(0,255,170,0.1);border:1px solid rgba(0,255,170,0.25);color:var(--green);font-size:0.72rem;font-weight:700;padding:0.22rem 0.55rem;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;" title="Actualiser">&#8635;</button></div></div>
     <div class="traffic-badge" id="trafficBadge"><div class="tb-left">&#128202; Visiteurs aujourd hui</div><div class="tb-val" id="trafficVal">0</div></div>
     <div class="stats-scroll" id="statsRow"></div>
-    <!-- ══ BOUTON PRÈS DE CHEZ VOUS ══ -->
-    <button class="gps-nearby-btn" id="gpsNearbyBtn" onclick="toggleNearbyMode()">
-      <span class="gnb-icon">&#128205;</span>
+    <!-- ══ BOUTON GÉOLOCALISATION AVANCÉE ══ -->
+    <button class="gps-nearby-btn" id="gpsNearbyBtn" onclick="openGeoMethodSheet()">
+      <span class="gnb-icon" id="gnbIcon">&#128205;</span>
       <span class="gnb-text">Près de chez vous<span class="gnb-sub" id="gpsNearbySubtxt">Trouver les lieux proches de votre position</span></span>
       <span class="gnb-badge" id="gpsNearbyBadge" style="display:none">0</span>
       <div class="gnb-pulse" style="display:none" id="gpsNearbyPulse"></div>
     </button>
+
+    <!-- ══ SHEET SÉLECTION MÉTHODE GÉOLOCALISATION ══ -->
+    <div class="geo-method-sheet" id="geoMethodSheet" onclick="if(event.target===this)closeGeoMethodSheet()">
+      <div class="geo-method-box">
+        <div class="geo-method-drag"></div>
+        <div class="geo-method-title">📍 Définir ma position</div>
+        <div class="geo-method-sub">Choisissez comment partager votre localisation<br>pour voir les établissements proches en premier</div>
+
+        <!-- Input WhatsApp (masqué par défaut) -->
+        <div class="geo-wa-input-wrap" id="geoWaInputWrap">
+          <div class="geo-wa-label">💬 Localisation via WhatsApp</div>
+          <div class="geo-wa-steps">1. Ouvrez WhatsApp → trombone 📎 → Localisation<br>2. Choisissez <strong style="color:#fff">Ma position actuelle</strong><br>3. Copiez le lien et collez-le ici ↓</div>
+          <input class="geo-wa-input" id="geoWaInput" type="text" placeholder="https://maps.google.com/?q=0.3924,9.4536 ou coordonnées...">
+          <button class="geo-wa-confirm" onclick="confirmGeoFromWA()">✅ Confirmer cette position</button>
+        </div>
+
+        <!-- Input Manuel (masqué par défaut) -->
+        <div class="geo-manual-wrap" id="geoManualWrap">
+          <div class="geo-manual-label">✋ Entrer mes coordonnées</div>
+          <div class="geo-manual-row">
+            <input class="geo-manual-input" id="geoManualLat" type="number" step="0.0001" placeholder="Latitude (ex: 0.3924)">
+            <input class="geo-manual-input" id="geoManualLng" type="number" step="0.0001" placeholder="Longitude (ex: 9.4536)">
+          </div>
+          <div style="font-size:0.63rem;color:var(--muted);margin-bottom:0.6rem;">💡 Ouvrez Google Maps → maintenez appuyé sur votre position → copiez les coordonnées</div>
+          <button class="geo-manual-confirm" onclick="confirmGeoFromManual()">✅ Utiliser ces coordonnées</button>
+        </div>
+
+        <div class="geo-method-options" id="geoMethodOptions">
+          <button class="geo-method-btn gm-gps" onclick="selectGeoMethod('gps')">
+            <span class="geo-method-icon">📡</span>
+            <div>
+              <div class="geo-method-label">GPS automatique</div>
+              <div class="geo-method-desc">Détection instantanée via votre appareil — précis et rapide</div>
+            </div>
+          </button>
+          <button class="geo-method-btn gm-wa" onclick="selectGeoMethod('whatsapp')">
+            <span class="geo-method-icon">💬</span>
+            <div>
+              <div class="geo-method-label">Localisation WhatsApp</div>
+              <div class="geo-method-desc">Partagez votre position WhatsApp puis collez le lien ici</div>
+            </div>
+          </button>
+          <button class="geo-method-btn gm-manual" onclick="selectGeoMethod('manual')">
+            <span class="geo-method-icon">✋</span>
+            <div>
+              <div class="geo-method-label">Entrer manuellement</div>
+              <div class="geo-method-desc">Saisissez vos coordonnées GPS depuis Google Maps</div>
+            </div>
+          </button>
+        </div>
+        <button class="geo-method-cancel" onclick="closeGeoMethodSheet()">Annuler</button>
+      </div>
+    </div>
     <!-- Panel GPS étendu -->
     <div class="gps-panel" id="gpsPanel">
       <div class="gps-panel-head">
@@ -14452,8 +14561,8 @@ window.toggleCompactDetail = function(eid){
   }
 };
 
-function buildCard(e,delay,compact,rank){
-  delay=delay||0;compact=compact||false;
+function buildCard(e,delay,compact,rank,extraClass){
+  delay=delay||0;compact=compact||false;extraClass=extraClass||"";
   var sc=statusClass(e.statut);
   var cat=getCategory(e.type);
   var ci=getCatInfo(cat);
@@ -14981,7 +15090,7 @@ function buildCard(e,delay,compact,rank){
       encodeURIComponent(etabPhotoForBtn)
     );
   };
-  return "<div class=\"card\" id=\"card-etab-"+e.id+"\" style=\"animation-delay:"+delay+"s;"+(e._isPinned&&!isAdmin?"border:1.5px solid rgba(255,45,155,0.5);box-shadow:0 0 18px rgba(255,45,155,0.12);":"")+(eventFlashHtml?"border-color:rgba(255,45,155,0.4);":"")+"\">"+
+  return "<div class=\"card"+(extraClass?" "+extraClass:"")+"\" id=\"card-etab-"+e.id+"\" style=\"animation-delay:"+delay+"s;"+(e._isPinned&&!isAdmin?"border:1.5px solid rgba(255,45,155,0.5);box-shadow:0 0 18px rgba(255,45,155,0.12);":"")+(eventFlashHtml?"border-color:rgba(255,45,155,0.4);":"")+"\">"+
     pinnedBanner+
     eventFlashHtml+
     photosHtml+
@@ -16069,15 +16178,49 @@ function renderAllImmediate(){
   }
   // ── GPS banner dans la liste ──
   var gpsBannerHtml = "";
-  if(typeof _gpsState !== "undefined" && _gpsState.active && _gpsState.lat !== null){
+  var gpsActive = typeof _gpsState !== "undefined" && _gpsState.active && _gpsState.lat !== null;
+  if(gpsActive){
     var nearby = typeof getNearbyCount === "function" ? getNearbyCount() : 0;
     var rLabel = _gpsState.radius >= 999 ? "tous" : (_gpsState.radius < 1 ? (_gpsState.radius*1000)+"m" : _gpsState.radius+"km");
-    gpsBannerHtml = "<div style=\"background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.2);border-radius:12px;padding:0.65rem 0.9rem;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.6rem;\">"
-      +"<div style=\"width:9px;height:9px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px rgba(0,229,255,0.6);flex-shrink:0;animation:pulse 2s infinite;\"></div>"
-      +"<div style=\"flex:1;\"><div style=\"font-size:0.78rem;font-weight:700;color:var(--cyan);\">"+nearby+" lieu"+(nearby>1?"x":"")+" dans "+rLabel+"</div>"
-      +"<div style=\"font-size:0.62rem;color:var(--muted);margin-top:0.1rem;\">Triés par "+(_gpsState.sort==="distance"?"distance":_gpsState.sort==="affluence"?"affluence":"note")+"</div></div>"
+    var methodLabel = _gpsState._method || "GPS";
+    var methodIcon = methodLabel === "WhatsApp" ? "💬" : methodLabel === "Manuel" ? "✋" : "📡";
+    gpsBannerHtml = "<div style=\"background:rgba(0,255,170,0.06);border:1px solid rgba(0,255,170,0.25);border-radius:14px;padding:0.7rem 0.9rem;margin-bottom:0.9rem;display:flex;align-items:center;gap:0.6rem;\">"
+      +"<div style=\"width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 10px rgba(0,255,170,0.7);flex-shrink:0;animation:pulse 2s infinite;\"></div>"
+      +"<div style=\"flex:1;\"><div style=\"font-size:0.8rem;font-weight:700;color:var(--green);\">"+methodIcon+" "+nearby+" lieu"+(nearby>1?"x":"")+" dans "+rLabel+" — triés par proximité</div>"
+      +"<div style=\"font-size:0.62rem;color:var(--muted);margin-top:0.1rem;\">Via "+methodLabel+" · "+(_gpsState.sort==="distance"?"distance":_gpsState.sort==="affluence"?"affluence":"note")+"</div></div>"
       +"<button onclick=\"closeNearbyMode()\" style=\"background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.25);color:var(--red);font-size:0.7rem;font-weight:700;padding:0.25rem 0.55rem;border-radius:8px;cursor:pointer;font-family:DM Sans,sans-serif;\">&#10005; Désactiver</button>"
       +"</div>";
+  }
+
+  // ── Fonction helper : séparer proches / lointains et insérer les headers ──
+  function buildProximityGroupedList(dataArr, buildFn, baseDelay) {
+    if (!gpsActive) return null; // pas de groupage sans GPS
+    var PROX_KM = _gpsState.radius >= 999 ? 3 : _gpsState.radius; // seuil "proche"
+    var near = dataArr.filter(function(e){ return typeof e._distKm === "number" && e._distKm <= PROX_KM; });
+    var far  = dataArr.filter(function(e){ return !(typeof e._distKm === "number" && e._distKm <= PROX_KM); });
+    // Les deux groupes sont déjà triés par distance via sortGpsData
+    var html2 = "";
+    if (near.length > 0) {
+      html2 += "<div class=\"proximity-section-header prox-near\">"
+             + "<div class=\"prox-dot prox-dot-near\"></div>"
+             + "&#127381; " + near.length + " lieu" + (near.length > 1 ? "x" : "") + " près de vous"
+             + "<span style=\"margin-left:auto;font-size:0.6rem;font-weight:400;color:rgba(0,255,170,0.7);\">≤ " + (PROX_KM < 1 ? (PROX_KM*1000)+"m" : PROX_KM+"km") + "</span>"
+             + "</div>";
+      html2 += "<div class=\"cards-list\">";
+      near.forEach(function(e,i){ html2 += buildFn(e, (baseDelay||0) + i*0.02, "card-prox-near", i+1); });
+      html2 += "</div>";
+    }
+    if (far.length > 0) {
+      html2 += "<div class=\"proximity-section-header prox-far\">"
+             + "<div class=\"prox-dot prox-dot-far\"></div>"
+             + "&#128205; " + far.length + " lieu" + (far.length > 1 ? "x" : "") + " plus loin"
+             + "</div>";
+      html2 += "<div class=\"cards-list\">";
+      far.forEach(function(e,i){ html2 += buildFn(e, (baseDelay||0) + i*0.02, "", near.length+i+1); });
+      html2 += "</div>";
+    }
+    if (near.length === 0 && far.length === 0) return null;
+    return html2;
   }
 
   var html=gpsBannerHtml;
@@ -16088,6 +16231,8 @@ function renderAllImmediate(){
         return _getCachedScore(b).score - _getCachedScore(a).score;
       });
     }
+    // GPS actif → trier par distance d'abord
+    if(gpsActive) data = sortGpsData(data);
     html+="<div class=\"compact-list\">";
     data.forEach(function(e,i){ html+=buildCompactRow(e,i+1); });
     html+="</div>";
@@ -16098,43 +16243,97 @@ function renderAllImmediate(){
         return _getCachedScore(b).score - _getCachedScore(a).score;
       });
     }
-    var PAGE = 20;
-    var shown = data.slice(0, PAGE);
-    var rest  = data.length - PAGE;
-    html+="<div class=\"cards-list\">";
-    shown.forEach(function(e,i){html+=buildCard(e,i*0.02,false,i+1);});
-    html+="</div>";
-    if(rest > 0){
-      html += '<div style="text-align:center;padding:1rem 0;">'
-        +'<button onclick="renderAllPaged('+PAGE+','+data.length+')" style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;padding:0.55rem 1.4rem;border-radius:100px;cursor:pointer;">Voir '+rest+' lieux de plus ↓</button>'
-        +'</div>';
+    // GPS actif → regrouper par proximité
+    if(gpsActive){
+      data = sortGpsData(data);
+      var proxHtml = buildProximityGroupedList(data, function(e, delay, extraClass, rank){
+        return buildCard(e, delay, false, rank, extraClass);
+      }, 0);
+      if(proxHtml) { html += proxHtml; }
+      else {
+        html+="<div class=\"cards-list\">";
+        data.forEach(function(e,i){html+=buildCard(e,i*0.02,false,i+1);});
+        html+="</div>";
+      }
+    } else {
+      var PAGE = 20;
+      var shown = data.slice(0, PAGE);
+      var rest  = data.length - PAGE;
+      html+="<div class=\"cards-list\">";
+      shown.forEach(function(e,i){html+=buildCard(e,i*0.02,false,i+1);});
+      html+="</div>";
+      if(rest > 0){
+        html += '<div style="text-align:center;padding:1rem 0;">'
+          +'<button onclick="renderAllPaged('+PAGE+','+data.length+')" style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;padding:0.55rem 1.4rem;border-radius:100px;cursor:pointer;">Voir '+rest+' lieux de plus ↓</button>'
+          +'</div>';
+      }
     }
   } else {
-    var groups={};
-    data.forEach(function(e){var c=getCategory(e.type);if(!groups[c])groups[c]=[];groups[c].push(e);});
-    var catHtml="";
-    // Compteur global pour numérotation continue entre catégories
-    var globalRank=0;
-    CATEGORIES.forEach(function(cat){
-      if(groups[cat.key]&&groups[cat.key].length>0){
-        // ── Tri par score à l'intérieur de chaque catégorie ──
-        var groupSorted = groups[cat.key].slice().sort(function(a,b){
-          return _getCachedScore(b).score - _getCachedScore(a).score;
-        });
-        catHtml+="<div class=\"cat-section\">";
-        catHtml+="<div class=\"cat-header\"><span class=\"cat-icon\">"+cat.icon+"</span><span class=\"cat-name\">"+cat.label+"</span><span class=\"cat-count\">"+groupSorted.length+" lieu"+(groupSorted.length>1?"x":"")+"</span></div>";
-        catHtml+="<div class=\"cards-list\">";
-        groupSorted.forEach(function(e,i){globalRank++;catHtml+=buildCard(e,i*0.04,false,globalRank);});
-        catHtml+="</div></div>";
+    if(gpsActive){
+      // GPS actif : d'abord une section "Proches de vous" toutes catégories mélangées, puis par catégorie
+      data = sortGpsData(data);
+      var PROX_KM2 = _gpsState.radius >= 999 ? 3 : _gpsState.radius;
+      var nearAll = data.filter(function(e){ return typeof e._distKm === "number" && e._distKm <= PROX_KM2; });
+      var farAll  = data.filter(function(e){ return !(typeof e._distKm === "number" && e._distKm <= PROX_KM2); });
+
+      if(nearAll.length > 0){
+        html += "<div class=\"proximity-section-header prox-near\">"
+              + "<div class=\"prox-dot prox-dot-near\"></div>"
+              + "&#127381; " + nearAll.length + " lieu" + (nearAll.length > 1 ? "x" : "") + " près de vous"
+              + "<span style=\"margin-left:auto;font-size:0.6rem;font-weight:400;color:rgba(0,255,170,0.7);\">≤ " + (PROX_KM2 < 1 ? (PROX_KM2*1000)+"m" : PROX_KM2+"km") + "</span>"
+              + "</div>";
+        html += "<div class=\"cards-list\">";
+        nearAll.forEach(function(e,i){ html += buildCard(e, i*0.03, false, i+1, "card-prox-near"); });
+        html += "</div>";
       }
-    });
-    // Fallback: si aucune catégorie reconnue, afficher en liste
-    if(!catHtml){
-      catHtml+="<div class=\"cards-list\">";
-      data.forEach(function(e,i){catHtml+=buildCard(e,i*0.04,false,i+1);});
-      catHtml+="</div>";
+
+      if(farAll.length > 0){
+        // Grouper les lointains par catégorie
+        var farGroups = {};
+        farAll.forEach(function(e){ var c=getCategory(e.type); if(!farGroups[c]) farGroups[c]=[]; farGroups[c].push(e); });
+        html += "<div class=\"proximity-section-header prox-far\" style=\"margin-top:" + (nearAll.length > 0 ? "0.8rem" : "0") + ";\">"
+              + "<div class=\"prox-dot prox-dot-far\"></div>"
+              + "&#128205; " + farAll.length + " lieu" + (farAll.length > 1 ? "x" : "") + " plus éloigné" + (farAll.length > 1 ? "s" : "")
+              + "</div>";
+        var farGlobalRank = nearAll.length;
+        CATEGORIES.forEach(function(cat){
+          if(farGroups[cat.key] && farGroups[cat.key].length > 0){
+            var gs = farGroups[cat.key].slice().sort(function(a,b){ return (a._distKm||9999)-(b._distKm||9999); });
+            html += "<div class=\"cat-section\">";
+            html += "<div class=\"cat-header\"><span class=\"cat-icon\">"+cat.icon+"</span><span class=\"cat-name\">"+cat.label+"</span><span class=\"cat-count\">"+gs.length+" lieu"+(gs.length>1?"x":"")+"</span></div>";
+            html += "<div class=\"cards-list\">";
+            gs.forEach(function(e,i){ farGlobalRank++; html += buildCard(e, i*0.04, false, farGlobalRank); });
+            html += "</div></div>";
+          }
+        });
+      }
+    } else {
+      var groups={};
+      data.forEach(function(e){var c=getCategory(e.type);if(!groups[c])groups[c]=[];groups[c].push(e);});
+      var catHtml="";
+      // Compteur global pour numérotation continue entre catégories
+      var globalRank=0;
+      CATEGORIES.forEach(function(cat){
+        if(groups[cat.key]&&groups[cat.key].length>0){
+          // ── Tri par score à l'intérieur de chaque catégorie ──
+          var groupSorted = groups[cat.key].slice().sort(function(a,b){
+            return _getCachedScore(b).score - _getCachedScore(a).score;
+          });
+          catHtml+="<div class=\"cat-section\">";
+          catHtml+="<div class=\"cat-header\"><span class=\"cat-icon\">"+cat.icon+"</span><span class=\"cat-name\">"+cat.label+"</span><span class=\"cat-count\">"+groupSorted.length+" lieu"+(groupSorted.length>1?"x":"")+"</span></div>";
+          catHtml+="<div class=\"cards-list\">";
+          groupSorted.forEach(function(e,i){globalRank++;catHtml+=buildCard(e,i*0.04,false,globalRank);});
+          catHtml+="</div></div>";
+        }
+      });
+      // Fallback: si aucune catégorie reconnue, afficher en liste
+      if(!catHtml){
+        catHtml+="<div class=\"cards-list\">";
+        data.forEach(function(e,i){catHtml+=buildCard(e,i*0.04,false,i+1);});
+        catHtml+="</div>";
+      }
+      html+=catHtml;
     }
-    html+=catHtml;
   }
   // Vue carte : mettre à jour les marqueurs si la carte est visible
   if(currentView==="carte"){
@@ -16369,9 +16568,136 @@ function closeNearbyMode() {
 function quickNearby() {
   switchSection("etablissements", document.querySelectorAll(".nav-item")[1]);
   setTimeout(function(){
-    if (!_gpsState.active) toggleNearbyMode();
+    if (!_gpsState.active) openGeoMethodSheet();
   }, 100);
 }
+
+// ══════════════════════════════════════════════════════════════
+// ══ GÉOLOCALISATION AVANCÉE — MÉTHODE PICKER               ══
+// ══════════════════════════════════════════════════════════════
+
+function openGeoMethodSheet() {
+  // Si déjà actif → toggler la désactivation
+  if (_gpsState.active) {
+    if(confirm('Désactiver la géolocalisation et revenir au classement normal ?')) {
+      closeNearbyMode();
+    }
+    return;
+  }
+  // Réinitialiser l'état du sheet
+  document.getElementById('geoWaInputWrap').classList.remove('show');
+  document.getElementById('geoManualWrap').classList.remove('show');
+  document.getElementById('geoMethodOptions').style.display = 'flex';
+  document.getElementById('geoMethodOptions').style.flexDirection = 'column';
+  document.getElementById('geoMethodSheet').classList.add('open');
+}
+
+function closeGeoMethodSheet() {
+  document.getElementById('geoMethodSheet').classList.remove('open');
+}
+
+function selectGeoMethod(method) {
+  if (method === 'gps') {
+    closeGeoMethodSheet();
+    _gpsState.active = true;
+    document.getElementById('gpsPanel').classList.add('show');
+    updateGpsBtn();
+    if (_gpsState.lat !== null) {
+      enrichWithDistances();
+      updateGpsPanel();
+      renderAll();
+    } else {
+      requestGps(true);
+    }
+  } else if (method === 'whatsapp') {
+    document.getElementById('geoMethodOptions').style.display = 'none';
+    document.getElementById('geoWaInputWrap').classList.add('show');
+    document.getElementById('geoManualWrap').classList.remove('show');
+    setTimeout(function(){ document.getElementById('geoWaInput').focus(); }, 300);
+  } else if (method === 'manual') {
+    document.getElementById('geoMethodOptions').style.display = 'none';
+    document.getElementById('geoManualWrap').classList.add('show');
+    document.getElementById('geoWaInputWrap').classList.remove('show');
+    setTimeout(function(){ document.getElementById('geoManualLat').focus(); }, 300);
+  }
+}
+
+function _parseCoords(str) {
+  // Tenter d'extraire lat/lng depuis une URL Google Maps ou des coordonnées brutes
+  if (!str) return null;
+  str = str.trim();
+  // Format: https://maps.google.com/?q=0.3924,9.4536
+  var m = str.match(/[?&]q=(-?\d+\.?\d*)[,\s](-?\d+\.?\d*)/i);
+  if (!m) m = str.match(/@(-?\d+\.?\d*)[,\s](-?\d+\.?\d*)/i);
+  if (!m) m = str.match(/^(-?\d+\.?\d*)[,\s;/\|]+(-?\d+\.?\d*)$/);
+  if (m) {
+    var lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+    if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      return { lat: lat, lng: lng };
+    }
+  }
+  return null;
+}
+
+function _applyExternalCoords(lat, lng, methodLabel) {
+  _gpsState.lat       = lat;
+  _gpsState.lng       = lng;
+  _gpsState.accuracy  = 500; // précision approximative
+  _gpsState.timestamp = Date.now();
+  _gpsState.loading   = false;
+  _gpsState.error     = null;
+  _gpsState.permissionDenied = false;
+  _gpsState.active    = true;
+  _gpsState._method   = methodLabel;
+  document.getElementById('gpsPanel').classList.add('show');
+  enrichWithDistances();
+  updateGpsBtn();
+  updateGpsPanel();
+  renderAll();
+  closeGeoMethodSheet();
+  showToast('📍 Position définie — résultats triés par proximité !');
+}
+
+function confirmGeoFromWA() {
+  var input = (document.getElementById('geoWaInput').value || '').trim();
+  var coords = _parseCoords(input);
+  if (!coords) {
+    showToast('⚠️ Lien ou coordonnées non reconnus. Vérifiez le format.');
+    return;
+  }
+  _applyExternalCoords(coords.lat, coords.lng, 'WhatsApp');
+}
+
+function confirmGeoFromManual() {
+  var lat = parseFloat(document.getElementById('geoManualLat').value);
+  var lng = parseFloat(document.getElementById('geoManualLng').value);
+  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    showToast('⚠️ Coordonnées invalides. Ex: Latitude 0.3924, Longitude 9.4536');
+    return;
+  }
+  _applyExternalCoords(lat, lng, 'Manuel');
+}
+
+// ── Surcharger updateGpsBtn pour afficher la méthode ──
+var _origUpdateGpsBtn = updateGpsBtn;
+updateGpsBtn = function() {
+  _origUpdateGpsBtn();
+  var btn = document.getElementById('gpsNearbyBtn');
+  var icon = document.getElementById('gnbIcon');
+  if (!btn) return;
+  if (_gpsState.active && _gpsState.lat !== null) {
+    btn.classList.add('geo-method-active');
+    if (icon) {
+      var method = _gpsState._method || 'GPS';
+      if (method === 'WhatsApp') icon.textContent = '💬';
+      else if (method === 'Manuel') icon.textContent = '✋';
+      else icon.textContent = '📡';
+    }
+  } else {
+    btn.classList.remove('geo-method-active');
+    if (icon) icon.textContent = '📍';
+  }
+};
 
 // ── Rayon de recherche ───────────────────────────────────────
 function setGpsRadius(km, btn) {
@@ -16539,6 +16865,11 @@ function updateGpsDetailModal() {
 window.toggleNearbyMode    = toggleNearbyMode;
 window.closeNearbyMode     = closeNearbyMode;
 window.quickNearby         = quickNearby;
+window.openGeoMethodSheet  = openGeoMethodSheet;
+window.closeGeoMethodSheet = closeGeoMethodSheet;
+window.selectGeoMethod     = selectGeoMethod;
+window.confirmGeoFromWA    = confirmGeoFromWA;
+window.confirmGeoFromManual= confirmGeoFromManual;
 window.setGpsRadius        = setGpsRadius;
 window.setGpsSort          = setGpsSort;
 window.refreshGpsPosition  = refreshGpsPosition;
