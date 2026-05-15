@@ -41871,6 +41871,12 @@ console.log('[AMBI241] ✅ Module PRO — Likes·Commentaires·Partage Firebase 
   border:1px solid rgba(255,255,255,0.06);
 }
 .lsc-row:last-child{margin-bottom:0;}
+.lsc-row-sub{
+  margin-left:1rem;
+  background:rgba(255,215,0,0.04);
+  border-color:rgba(255,215,0,0.14);
+  border-left:2px solid rgba(255,215,0,0.4);
+}
 .lsc-row-label {
   font-size:0.72rem;color:var(--text);font-weight:600;
   flex:1;display:flex;align-items:center;gap:0.25rem;
@@ -41930,10 +41936,10 @@ console.log('[AMBI241] ✅ Module PRO — Likes·Commentaires·Partage Firebase 
 .sga-close:active{background:rgba(255,255,255,0.35);}
 </style>
 
-<!-- Bannière SEEG globale (injectée par JS si nécessaire) -->
+<!-- Bannière coupure électricité globale (injectée par JS si nécessaire) -->
 <div id="seegGlobalAlert">
   <span class="sga-icon">⚡</span>
-  <span class="sga-text">Coupure SEEG signalée — Certains établissements fonctionnent avec groupe électrogène</span>
+  <span class="sga-text" id="seegGlobalAlertText">Coupure d'électricité signalée dans le secteur — Certains établissements fonctionnent sur groupe électrogène de relais</span>
   <button class="sga-close" onclick="ambiSeegDismiss()">✕</button>
 </div>
 
@@ -41971,9 +41977,12 @@ console.log('[AMBI241] ✅ Module PRO — Likes·Commentaires·Partage Firebase 
       );
     }
     if (e.seeg_coupure) {
+      var seegLabel = e.power_backup
+        ? "Coupure élec. — Groupe électrogène actif"
+        : "Coupure d'électricité en cours";
       badges.push(
         "<span class='lsb-badge lsb-seeg'>" +
-        "<span class='lsb-icon'>⚡</span>Coupure SEEG" +
+        "<span class='lsb-icon'>⚡</span>" + seegLabel +
         "</span>"
       );
     }
@@ -42028,14 +42037,25 @@ console.log('[AMBI241] ✅ Module PRO — Likes·Commentaires·Partage Firebase 
           "</label>" +
         "</div>" +
 
-        /* SEEG */
+        /* Coupure électricité */
         "<div class='lsc-row'>" +
-          "<span class='lsc-row-label'>⚡ Coupure SEEG en cours</span>" +
+          "<span class='lsc-row-label'>⚡ Coupure d'électricité en cours</span>" +
           "<label class='lsc-tgl red'>" +
             "<input type='checkbox' " + sgC + " onchange=\"ambiLiveToggle(" + eid + ",'seeg_coupure',this.checked)\">" +
             "<span class='lsc-tgl-s'></span>" +
           "</label>" +
         "</div>" +
+
+        /* Groupe électrogène — visible seulement si coupure active */
+        (e.seeg_coupure ? (
+        "<div class='lsc-row lsc-row-sub'>" +
+          "<span class='lsc-row-label'>🔌 Groupe électrogène de relais actif</span>" +
+          "<label class='lsc-tgl amber'>" +
+            "<input type='checkbox' " + (e.power_backup ? 'checked' : '') + " onchange=\"ambiLiveToggle(" + eid + ",'power_backup',this.checked)\">" +
+            "<span class='lsc-tgl-s'></span>" +
+          "</label>" +
+        "</div>"
+        ) : '') +
 
         /* Météo */
         "<div class='lsc-row' style='flex-direction:column;align-items:flex-start;gap:0.22rem;'>" +
@@ -42059,15 +42079,23 @@ console.log('[AMBI241] ✅ Module PRO — Likes·Commentaires·Partage Firebase 
     if (typeof window.updateField === 'function') window.updateField(eid, obj);
 
     var msgs = {
-      foot_match:   val ? '⚽ Match foot affiché !'       : '⚽ Match foot désactivé',
-      dance_floor:  val ? '🕺 Piste de danse activée !'   : '🕺 Piste de danse désactivée',
-      seeg_coupure: val ? '⚡ Coupure SEEG signalée !'    : '⚡ Coupure SEEG retirée'
+      foot_match:   val ? '⚽ Match foot affiché !'                          : '⚽ Match foot désactivé',
+      dance_floor:  val ? '🕺 Piste de danse activée !'                      : '🕺 Piste de danse désactivée',
+      seeg_coupure: val ? '⚡ Coupure d\'électricité signalée !'             : '⚡ Coupure électricité retirée',
+      power_backup: val ? '🔌 Groupe électrogène de relais activé !'         : '🔌 Groupe électrogène désactivé'
     };
     if (typeof window.showToast === 'function') window.showToast(msgs[field] || '✅ Mis à jour');
 
     /* Mettre à jour le local + rafraîchir */
     var etab = (window.etablissements||[]).find(function(x){ return x.id === eid; });
-    if (etab) etab[field] = val;
+    if (etab) {
+      etab[field] = val;
+      /* Si on désactive la coupure, on remet aussi le groupe électrogène à false */
+      if (field === 'seeg_coupure' && !val) {
+        etab.power_backup = false;
+        if (typeof window.updateField === 'function') window.updateField(eid, { power_backup: false });
+      }
+    }
 
     _refreshSeegBanner();
     if (typeof window.renderAll === 'function') setTimeout(window.renderAll, 120);
@@ -42095,9 +42123,16 @@ console.log('[AMBI241] ✅ Module PRO — Likes·Commentaires·Partage Firebase 
      ============================================= */
   function _refreshSeegBanner() {
     var anySeeg = (window.etablissements || []).some(function(e){ return !!e.seeg_coupure; });
+    var anyBackup = (window.etablissements || []).some(function(e){ return !!e.seeg_coupure && !!e.power_backup; });
     var b = document.getElementById('seegGlobalAlert');
+    var t = document.getElementById('seegGlobalAlertText');
     if (!b) return;
     if (anySeeg) {
+      if (t) {
+        t.textContent = anyBackup
+          ? 'Coupure d\'électricité dans le secteur — Certains établissements fonctionnent sur groupe électrogène de relais'
+          : 'Coupure d\'électricité signalée dans le secteur — Renseignez-vous auprès des établissements';
+      }
       b.classList.add('seeg-show');
       b.style.display = 'flex';
     } else {
