@@ -43142,6 +43142,14 @@ textarea.aqa-input { resize: vertical; min-height: 64px; }
           <label>Description courte</label>
           <textarea id="aqaDesc" class="aqa-input" placeholder="Ambiance, spécialités, ce qui le rend unique…" maxlength="250"></textarea>
         </div>
+        <div class="aqa-field" style="margin-top:0.5rem;">
+          <label>🔑 Mot de passe gérant <span class="req">*</span></label>
+          <div style="position:relative;">
+            <input type="password" id="aqaMdp" class="aqa-input" placeholder="Min. 6 caractères" minlength="6" maxlength="40" autocomplete="new-password" style="padding-right:2.6rem;">
+            <button type="button" onclick="(function(){var i=document.getElementById('aqaMdp');i.type=i.type==='password'?'text':'password';})()" style="position:absolute;right:0.6rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:rgba(255,255,255,0.5);">👁</button>
+          </div>
+          <div style="font-size:0.67rem;color:rgba(255,255,255,0.4);margin-top:0.3rem;">Ce mot de passe permettra au gérant de se connecter à son espace.</div>
+        </div>
       </div>
 
       <!-- ── ÉTAPE 3 : TYPE / CATÉGORIE ── -->
@@ -43360,7 +43368,7 @@ window.closeAqaModal = function() {
 
 /* ── Reset champs ── */
 function aqaReset() {
-  ['aqaQuartier','aqaNom','aqaGerant','aqaTel','aqaEmail','aqaOuv','aqaFerm','aqaDesc','aqaCapExact','aqaNbVip'].forEach(function(id) {
+  ['aqaQuartier','aqaNom','aqaGerant','aqaTel','aqaEmail','aqaOuv','aqaFerm','aqaDesc','aqaMdp','aqaCapExact','aqaNbVip'].forEach(function(id) {
     var el = document.getElementById(id); if (el) el.value = '';
   });
   document.getElementById('aqaGpsCoords').textContent = 'Appuyez sur le bouton →';
@@ -43437,6 +43445,10 @@ function aqaValidateStep() {
   if (_step === 1) {
     var n = (document.getElementById('aqaNom').value || '').trim();
     if (!n) { aqaShake('aqaNom'); showMsg('Le nom est obligatoire.','err'); return false; }
+    if (_step === 1) {
+      var mdp = (document.getElementById('aqaMdp').value || '').trim();
+      if (!mdp || mdp.length < 6) { aqaShake('aqaMdp'); showMsg('Le mot de passe est obligatoire (6 caractères min.).','err'); return false; }
+    }
     return true;
   }
   if (_step === 2) {
@@ -43524,6 +43536,7 @@ function aqaBuildRecap() {
   html += row('👤', 'Gérant', (document.getElementById('aqaGerant')||{}).value);
   html += row('📞', 'Téléphone', (document.getElementById('aqaTel')||{}).value);
   html += row('📧', 'Email', (document.getElementById('aqaEmail')||{}).value);
+  html += row('🔑', 'Mot de passe', (document.getElementById('aqaMdp')||{}).value ? '••••••' : '—');
   html += row('📍', 'Quartier', (document.getElementById('aqaQuartier')||{}).value);
   html += row('🌐', 'GPS', _gpsLat ? _gpsLat + ', ' + _gpsLng : '<em style="color:var(--red)">Non capturé</em>');
   html += row('🏷️', 'Type', cat ? cat.value : '—');
@@ -43678,6 +43691,7 @@ window.aqaSubmit = function() {
       // Méta
       created_at: now,
       created_by: 'admin_quick_add',
+      password: (document.getElementById('aqaMdp') ? (document.getElementById('aqaMdp').value || '').trim() : ''),
       maps_url: _gpsLat ? 'https://maps.google.com/?q=' + _gpsLat + ',' + _gpsLng : '',
       affluence_tendance: 'Stable',
       places_dispo: 0
