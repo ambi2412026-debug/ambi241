@@ -22,6 +22,10 @@
 <link rel="preconnect" href="https://maps.googleapis.com" crossorigin>
 <link rel="dns-prefetch" href="https://firestore.googleapis.com">
 <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com">
+<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+<!-- QR Code Vote System — bibliothèque QRCode.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
+        crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
 <!-- PERF: Cormorant Garamond supprimé (6 variantes inutiles), Syne réduit à 700+800 -->
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Playfair+Display:wght@600;700;800&display=swap"
       rel="stylesheet" media="print" onload="this.media='all'">
@@ -5350,6 +5354,81 @@ textarea.soc-input{resize:vertical;min-height:80px;line-height:1.5;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:rgba(255,45,155,0.3);border-radius:2px;}
 
+/* ════════════════════════════════════════════════════════════════
+   QR CODE VOTE SYSTEM — Styles (AMBI241 Patch)
+   ════════════════════════════════════════════════════════════════ */
+.qr-card-icon{position:absolute;top:8px;right:8px;width:32px;height:32px;background:linear-gradient(135deg,rgba(0,229,255,0.18),rgba(204,68,255,0.15));border:1.5px solid rgba(0,229,255,0.45);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10;transition:all 0.2s cubic-bezier(0.34,1.56,0.64,1);backdrop-filter:blur(6px);font-size:0.95rem;}
+.qr-card-icon:active{transform:scale(0.88);}
+.qr-card-icon:hover{border-color:var(--cyan);box-shadow:0 0 12px rgba(0,229,255,0.35);}
+.qr-card-icon-tooltip{position:absolute;top:-26px;right:0;font-size:0.55rem;font-weight:800;color:var(--cyan);background:rgba(0,0,0,0.8);border-radius:5px;padding:2px 6px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity 0.2s;}
+.qr-card-icon:hover .qr-card-icon-tooltip{opacity:1;}
+.qr-card-icon.qr-locked{border-color:rgba(255,215,0,0.35);background:linear-gradient(135deg,rgba(255,215,0,0.1),rgba(255,45,155,0.08));opacity:0.75;}
+.card{position:relative;}
+.qr-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.82);backdrop-filter:blur(14px);z-index:9990;display:none;align-items:center;justify-content:center;padding:1rem;}
+.qr-modal-overlay.open{display:flex;}
+.qr-modal-sheet{background:linear-gradient(145deg,#1e0a30,#230d35);border:1.5px solid rgba(0,229,255,0.3);border-radius:24px;padding:1.4rem;width:min(400px,100%);max-height:92vh;overflow-y:auto;position:relative;animation:qrPopIn 0.35s cubic-bezier(0.34,1.56,0.64,1);}
+@keyframes qrPopIn{from{transform:scale(0.82) translateY(30px);opacity:0;}to{transform:scale(1) translateY(0);opacity:1;}}
+.qr-modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.8rem;}
+.qr-modal-title{font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:var(--cyan);display:flex;align-items:center;gap:0.4rem;}
+.qr-modal-close{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);color:var(--muted);font-size:0.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;}
+.qr-modal-close:active{opacity:0.6;}
+.qr-canvas-wrap{background:#fff;border-radius:16px;padding:14px;display:flex;align-items:center;justify-content:center;margin:0.8rem auto;width:fit-content;box-shadow:0 8px 32px rgba(0,0,0,0.45),0 0 0 3px rgba(0,229,255,0.25);position:relative;}
+.qr-canvas-wrap canvas{display:block;border-radius:8px;}
+.qr-center-logo{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:36px;height:36px;background:#1a0a28;border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:0.55rem;font-weight:900;color:#ff2d9b;letter-spacing:-0.02em;border:2px solid #fff;}
+.qr-etab-info{text-align:center;margin-bottom:1rem;}
+.qr-etab-name{font-family:'Syne',sans-serif;font-size:0.95rem;font-weight:800;color:var(--text);margin-bottom:0.2rem;}
+.qr-etab-sub{font-size:0.68rem;color:var(--muted);}
+.qr-vote-counter{display:inline-flex;align-items:center;gap:0.35rem;background:rgba(0,255,170,0.1);border:1px solid rgba(0,255,170,0.3);border-radius:20px;padding:0.22rem 0.7rem;font-size:0.7rem;font-weight:700;color:var(--green);margin-top:0.4rem;font-family:'Syne',sans-serif;}
+.qr-vote-counter-num{font-size:0.9rem;font-weight:900;}
+.qr-instructions{background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.18);border-radius:12px;padding:0.8rem;margin-bottom:1rem;font-size:0.7rem;color:rgba(255,240,248,0.75);line-height:1.7;}
+.qr-instructions strong{color:var(--cyan);}
+.qr-dl-section{margin-bottom:0.8rem;}
+.qr-dl-label{font-size:0.62rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.5rem;}
+.qr-dl-row{display:flex;gap:0.4rem;flex-wrap:wrap;}
+.qr-dl-btn{flex:1;min-width:70px;padding:0.5rem 0.4rem;border-radius:10px;border:1.5px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.07);color:var(--cyan);font-size:0.68rem;font-weight:800;cursor:pointer;font-family:'DM Sans',sans-serif;text-align:center;transition:all 0.2s;display:flex;flex-direction:column;align-items:center;gap:0.2rem;}
+.qr-dl-btn:active{transform:scale(0.94);background:rgba(0,229,255,0.15);}
+.qr-dl-btn-icon{font-size:1.2rem;}
+.qr-dl-btn-fmt{font-size:0.55rem;font-family:'Syne',sans-serif;}
+.qr-vote-strip{display:flex;gap:0.5rem;margin-bottom:0.8rem;}
+.qr-vote-quick-btn{flex:1;padding:0.65rem 0.5rem;border-radius:12px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:800;font-size:0.8rem;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:0.3rem;}
+.qr-vote-quick-btn:active{transform:scale(0.94);}
+.qr-vote-pos{background:linear-gradient(135deg,rgba(0,255,170,0.25),rgba(0,229,255,0.15));border:1.5px solid rgba(0,255,170,0.45);color:var(--green);}
+.qr-vote-neg{background:linear-gradient(135deg,rgba(255,68,102,0.15),rgba(255,45,155,0.1));border:1.5px solid rgba(255,68,102,0.35);color:var(--red);}
+.qr-vote-quick-btn.qr-voted{box-shadow:0 0 16px rgba(0,255,170,0.3);}
+.qr-vote-confirm{display:none;text-align:center;padding:1rem;animation:qrFadeIn 0.4s ease;}
+@keyframes qrFadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+.qr-vote-confirm.show{display:block;}
+.qr-vote-confirm-icon{font-size:2.5rem;margin-bottom:0.4rem;}
+.qr-vote-confirm-title{font-family:'Syne',sans-serif;font-size:0.95rem;font-weight:800;color:var(--green);margin-bottom:0.3rem;}
+.qr-vote-confirm-msg{font-size:0.72rem;color:var(--muted);line-height:1.5;}
+.qr-scan-landing{display:none;position:fixed;inset:0;background:var(--bg);z-index:10000;overflow-y:auto;flex-direction:column;align-items:center;justify-content:flex-start;padding:2rem 1.2rem;}
+.qr-scan-landing.show{display:flex;}
+.qr-landing-logo{font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:900;color:var(--pink);margin-bottom:0.3rem;letter-spacing:-0.03em;}
+.qr-landing-etab-card{background:linear-gradient(145deg,#230d35,#2c1040);border:1.5px solid rgba(255,45,155,0.35);border-radius:20px;padding:1.4rem;width:100%;max-width:380px;margin:1.2rem 0;text-align:center;}
+.qr-landing-etab-name{font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:var(--text);margin-bottom:0.3rem;}
+.qr-landing-etab-type{font-size:0.72rem;color:var(--muted);margin-bottom:1rem;}
+.qr-landing-vote-btns{display:flex;gap:0.6rem;}
+.qr-landing-vote-btn{flex:1;padding:0.9rem 0.5rem;border-radius:14px;border:none;cursor:pointer;font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;transition:all 0.2s;}
+.qr-landing-vote-btn:active{transform:scale(0.92);}
+.qr-landing-pos{background:linear-gradient(135deg,#00c878,#00ffaa);color:#001a0e;}
+.qr-landing-neg{background:linear-gradient(135deg,#ff2244,#ff4466);color:#fff;}
+.qr-landing-signup-cta{background:rgba(255,45,155,0.07);border:1px solid rgba(255,45,155,0.25);border-radius:14px;padding:1.1rem;text-align:center;margin-top:0.5rem;width:100%;max-width:380px;}
+.qr-landing-signup-title{font-family:'Syne',sans-serif;font-size:0.88rem;font-weight:800;color:var(--pink);margin-bottom:0.35rem;}
+.qr-landing-signup-desc{font-size:0.7rem;color:var(--muted);line-height:1.5;margin-bottom:0.8rem;}
+.qr-landing-signup-btn{display:block;width:100%;padding:0.7rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;}
+.qr-landing-signup-btn:active{opacity:0.85;}
+.qr-admin-votes-panel{background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.2);border-radius:16px;padding:1rem;margin-bottom:1rem;}
+.qr-admin-votes-title{font-family:'Syne',sans-serif;font-size:0.82rem;font-weight:800;color:var(--cyan);margin-bottom:0.8rem;display:flex;align-items:center;gap:0.4rem;}
+.qr-admin-votes-title::after{content:'';flex:1;height:1px;background:rgba(0,229,255,0.18);}
+.qr-adm-vote-row{display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+.qr-adm-vote-row:last-child{border-bottom:none;}
+.qr-adm-vote-name{flex:1;font-size:0.75rem;font-weight:700;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.qr-adm-vote-bar{width:80px;height:6px;background:rgba(255,255,255,0.06);border-radius:10px;overflow:hidden;flex-shrink:0;}
+.qr-adm-vote-fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--green));border-radius:10px;transition:width 0.6s ease;}
+.qr-adm-vote-count{font-family:'Syne',sans-serif;font-size:0.8rem;font-weight:800;color:var(--green);flex-shrink:0;min-width:28px;text-align:right;}
+.qr-adm-vote-delta{font-size:0.6rem;font-weight:700;color:var(--amber);flex-shrink:0;}
+.qr-adm-live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px rgba(0,255,170,0.6);flex-shrink:0;animation:pulse 1.4s infinite;}
+
 </style>
 
 <!-- ══ AMBI241 i18n — Sélecteur de Langue 🌍 ══ -->
@@ -6637,7 +6716,7 @@ if (document.readyState === 'loading') {
       <span class="wshb-dot"></span>🎵
     </button>
     <!-- Cloche notifications -->
-    <div class="notif-bell-wrap" id="notifBellWrap" style="display:inline-flex;">
+    <div class="notif-bell-wrap" id="notifBellWrap" style="display:none;">
       <button class="notif-bell-btn" id="notifBellBtn" onclick="toggleNotifPanel()" title="Notifications">&#128276;</button>
       <div class="notif-badge" id="notifBadge">0</div>
     </div>
@@ -12008,9 +12087,8 @@ function toggleAdmin(){
     var unlockBtn=document.getElementById("adminUnlockBtn");
     if(abtn){ abtn.style.display="none"; abtn.style.background=""; abtn.style.borderColor=""; abtn.style.color=""; }
     if(unlockBtn) unlockBtn.style.display="flex";
-    // Cloche toujours visible — masquer uniquement les paramètres admin
-    var bellWrap = document.getElementById("notifBellWrap");
-    if(bellWrap) bellWrap.style.display = "inline-flex";
+    // Réévaluer la visibilité de la cloche après désactivation du mode admin
+    if(typeof renderNotifBadge === "function") renderNotifBadge();
     var navSettings = document.getElementById("navAdminSettings");
     if(navSettings) navSettings.style.display = "none";
     renderStats();renderAll();renderHome();updatePayVis();
@@ -13306,9 +13384,9 @@ function updateHeaderUser(pseudo){
   var tabInscription = document.getElementById("tabInscription");
   var tabConnexion = document.getElementById("tabConnexion");
   if(pseudo){
-    var display = pseudo.length > 12 ? pseudo.substring(0,12)+"…" : pseudo;
     var initiale = (pseudo||"?")[0].toUpperCase();
-    greetingName.textContent = display;
+    // Afficher seulement la première lettre du nom pour gagner de l'espace
+    greetingName.textContent = initiale;
     // Afficher l'initiale par défaut dans le thumb
     if(headerThumb) headerThumb.textContent = initiale;
     // Charger la vraie photo si dispo
@@ -13323,7 +13401,8 @@ function updateHeaderUser(pseudo){
     greeting.onclick = function(){ document.getElementById("userOverlay").classList.add("show"); switchUserTab("monprofil"); };
     logoutBtn.classList.add("show");
     if(loginBtn) loginBtn.style.display = "none";
-    // La cloche notifications est réservée aux admins uniquement (affichée via PIN)
+    // La cloche est visible pour les membres/admins connectés, seulement si notifs non lues
+    if(typeof renderNotifBadge === "function") renderNotifBadge();
     if(tabMonProfil){ tabMonProfil.style.display=""; }
     if(tabInscription){ tabInscription.style.display="none"; }
     if(tabConnexion){ tabConnexion.style.display="none"; }
@@ -13333,11 +13412,9 @@ function updateHeaderUser(pseudo){
     greeting.onclick = function(){ document.getElementById("userOverlay").classList.add("show"); };
     logoutBtn.classList.remove("show");
     if(loginBtn) loginBtn.style.display = "";
-    // La cloche reste toujours visible pour tous les visiteurs
-    if(false){
-      var bellWrap = document.getElementById("notifBellWrap");
-      if(bellWrap) bellWrap.style.display = "none";
-    }
+    // Masquer la cloche pour les visiteurs non connectés
+    var bellWrapLogout = document.getElementById("notifBellWrap");
+    if(bellWrapLogout) bellWrapLogout.style.display = "none";
     if(tabMonProfil){ tabMonProfil.style.display="none"; }
     if(tabInscription){ tabInscription.style.display=""; }
     if(tabConnexion){ tabConnexion.style.display=""; }
@@ -20258,6 +20335,19 @@ function showNotifToast(msg, notif){
 // ── Badge enrichi ────────────────────────────────────────────
 function renderNotifBadge(){
   var unread=loadNotifs().filter(function(n){return n.unread;}).length;
+  var isConnected = !!(window.currentUserUID);
+  // Cloche : visible uniquement pour membre/admin connecté ET s'il y a des notifs non lues
+  var bellWrap=document.getElementById("notifBellWrap");
+  if(bellWrap){
+    if(isConnected && unread>0){
+      bellWrap.style.display="inline-flex";
+    } else if(isConnected && isAdmin){
+      // Admin connecté : toujours visible (même sans non-lues)
+      bellWrap.style.display="inline-flex";
+    } else {
+      bellWrap.style.display="none";
+    }
+  }
   // Badge header
   var badge=document.getElementById("notifBadge");
   if(badge){
@@ -23609,6 +23699,7 @@ window.doAssignEtab = doAssignEtab;
       <button class="adm-tab"        id="admtab-content"       onclick="switchAdmTab('content');setTimeout(function(){if(typeof window.renderAdmContent==='function'&&document.getElementById('adminContentPanel').innerHTML.indexOf('Chargement')!==-1)window.renderAdmContent(0);},200);">📋 Contenu</button>
       <button class="adm-tab"        id="admtab-support"       onclick="switchAdmTab('support')" style="position:relative;">💬 Support<span id="admSupportBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:#fff;font-size:0.5rem;font-weight:800;width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center;border:1px solid var(--bg);"></span></button>
       <button class="adm-tab"        id="admtab-importgmaps"   onclick="switchAdmTab('importgmaps')" style="color:var(--green);">🗺️ Import Maps</button>
+      <button class="adm-tab"        id="admtab-qrvotes"       onclick="switchAdmTab('qrvotes');setTimeout(function(){if(typeof ambiQrLoadAdminVotes==='function')ambiQrLoadAdminVotes();},200);" style="color:var(--cyan);">📱 Votes QR</button>
     </div>
 
     <!-- ── Contenu des panneaux ── -->
@@ -23885,6 +23976,21 @@ window.doAssignEtab = doAssignEtab;
 
       </div>
       <!-- FIN Import Google Maps ══ -->
+
+      <!-- ══ Votes QR Code — Temps Réel ══ -->
+      <div id="admpanel-qrvotes" class="adm-panel" style="display:none;">
+        <div id="qrAdminVotesPanel" class="qr-admin-votes-panel">
+          <div class="qr-admin-votes-title">
+            <div class="qr-adm-live-dot"></div>
+            Votes QR Code — Temps Réel
+            <button onclick="ambiQrRefreshAdminVotes()" style="margin-left:auto;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);color:var(--cyan);font-size:0.6rem;font-weight:700;padding:0.18rem 0.5rem;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;">🔄 Actualiser</button>
+          </div>
+          <div id="qrAdminVotesList">
+            <div style="font-size:0.72rem;color:var(--muted);text-align:center;padding:0.6rem;">Chargement...</div>
+          </div>
+        </div>
+      </div>
+      <!-- FIN Votes QR ══ -->
 
     </div><!-- /adm-content -->
   </div><!-- /adminDashPanel -->
@@ -42946,6 +43052,677 @@ document.addEventListener('DOMContentLoaded', function() {
 window.openAdminAddModal = window.openAqaModal;
 
 console.log('[AMBI241] ✅ Patch Ajout Rapide Admin chargé');
+})();
+</script>
+
+<!-- ════════════════════════════════════════════════════════════════
+     AMBI241 — QR CODE VOTE SYSTEM
+     Fonctionnalités : QR par établissement · Icône sur cartes · Modal
+     vote rapide · Téléchargement A4/A5/Carré · Notifs push ·
+     Dashboard admin temps réel · Landing page post-scan
+     ════════════════════════════════════════════════════════════════ -->
+
+<!-- ── Landing Page Vote (URL ?ambi_vote=XXX) ── -->
+<div id="ambiQrScanLanding" class="qr-scan-landing" role="dialog" aria-modal="true" aria-label="Voter pour un établissement">
+  <div class="qr-landing-logo">AMBI<span style="color:var(--cyan)">241</span></div>
+  <div style="font-size:0.68rem;color:var(--muted);margin-bottom:0.5rem;">📍 Libreville en temps réel</div>
+
+  <div class="qr-landing-etab-card" id="qrLandingCard">
+    <div id="qrLandingEtabAvatar" style="font-size:2.5rem;margin-bottom:0.6rem;">🏠</div>
+    <div class="qr-landing-etab-name" id="qrLandingEtabName">—</div>
+    <div class="qr-landing-etab-type" id="qrLandingEtabType"></div>
+
+    <!-- Membre connecté -->
+    <div id="qrLandingMemberSection" style="display:none;">
+      <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.8rem;line-height:1.5;">
+        Votre vote aide cet établissement à progresser dans le classement AMBI241 🏆
+      </div>
+      <div class="qr-landing-vote-btns">
+        <button class="qr-landing-vote-btn qr-landing-pos" onclick="ambiQrCastVoteLanding('pos')">
+          👍<br><span style="font-size:0.7rem;display:block;margin-top:2px;">Top ambiance !</span>
+        </button>
+        <button class="qr-landing-vote-btn qr-landing-neg" onclick="ambiQrCastVoteLanding('neg')">
+          👎<br><span style="font-size:0.7rem;display:block;margin-top:2px;">Déçu…</span>
+        </button>
+      </div>
+      <div id="qrLandingVoteConfirm" style="display:none;margin-top:0.9rem;padding:0.9rem;background:rgba(0,255,170,0.07);border:1px solid rgba(0,255,170,0.3);border-radius:12px;text-align:center;">
+        <div style="font-size:1.8rem;">🎉</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;color:var(--green);font-size:0.9rem;margin-top:0.3rem;">Vote comptabilisé !</div>
+        <div style="font-size:0.7rem;color:var(--muted);margin-top:0.25rem;line-height:1.5;">Merci d'avoir participé à l'évaluation de cet établissement.</div>
+        <button onclick="ambiQrCloseLanding()" style="margin-top:0.7rem;padding:0.55rem 1.2rem;border-radius:10px;border:none;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;">
+          Découvrir AMBI241 →
+        </button>
+      </div>
+    </div>
+
+    <!-- Visiteur non-inscrit -->
+    <div id="qrLandingGuestSection" style="display:none;">
+      <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.7rem;line-height:1.5;">
+        Rejoignez AMBI241 pour voter et aider cet établissement à améliorer sa note !
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA inscription visiteurs -->
+  <div class="qr-landing-signup-cta" id="qrLandingSignupCta" style="display:none;">
+    <div class="qr-landing-signup-title">🔐 Devenir membre AMBI241</div>
+    <div class="qr-landing-signup-desc">
+      Créez un compte gratuit pour voter, noter et suivre l'ambiance des meilleurs spots de Libreville en temps réel.
+    </div>
+    <button class="qr-landing-signup-btn" onclick="ambiQrGoToSignup()">Créer mon compte gratuit →</button>
+    <div style="font-size:0.62rem;color:var(--muted);margin-top:0.5rem;">
+      Déjà membre ? <span style="color:var(--cyan);cursor:pointer;" onclick="ambiQrGoToSignup()">Se connecter</span>
+    </div>
+  </div>
+
+  <button onclick="ambiQrCloseLanding()"
+    style="margin-top:1rem;background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--muted);padding:0.5rem 1.2rem;border-radius:20px;font-size:0.72rem;cursor:pointer;">
+    ✕ Fermer
+  </button>
+</div>
+
+<!-- ── Modal QR Code Établissement ── -->
+<div id="ambiQrModal" class="qr-modal-overlay" onclick="if(event.target===this)ambiQrCloseModal()" role="dialog" aria-modal="true" aria-label="QR Code de vote">
+  <div class="qr-modal-sheet">
+    <div class="qr-modal-header">
+      <div class="qr-modal-title">&#9641; QR Vote</div>
+      <button class="qr-modal-close" onclick="ambiQrCloseModal()" aria-label="Fermer">✕</button>
+    </div>
+
+    <div class="qr-etab-info">
+      <div class="qr-etab-name" id="qrModalEtabName">—</div>
+      <div class="qr-etab-sub" id="qrModalEtabType"></div>
+      <div class="qr-vote-counter" id="qrModalVoteCounter">
+        <div class="qr-adm-live-dot"></div>
+        <span class="qr-vote-counter-num" id="qrModalVoteNum">0</span>
+        <span>votes QR ce mois</span>
+      </div>
+    </div>
+
+    <div class="qr-canvas-wrap">
+      <div id="qrModalCanvas"></div>
+      <div class="qr-center-logo">AMBI<br>241</div>
+    </div>
+
+    <div id="qrModalVoteSection">
+      <div style="font-size:0.62rem;color:var(--muted);text-align:center;margin-bottom:0.5rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Vote rapide sans scanner</div>
+      <div class="qr-vote-strip">
+        <button class="qr-vote-quick-btn qr-vote-pos" id="qrModalVotePosBtn" onclick="ambiQrCastVoteInline('pos')">
+          👍 Top ambiance !
+        </button>
+        <button class="qr-vote-quick-btn qr-vote-neg" id="qrModalVoteNegBtn" onclick="ambiQrCastVoteInline('neg')">
+          👎 Déçu…
+        </button>
+      </div>
+      <div id="qrModalVoteConfirm" class="qr-vote-confirm">
+        <div class="qr-vote-confirm-icon">🎉</div>
+        <div class="qr-vote-confirm-title">Vote enregistré !</div>
+        <div class="qr-vote-confirm-msg" id="qrModalVoteConfirmMsg">Merci ! L'établissement a été notifié.</div>
+      </div>
+    </div>
+
+    <div class="qr-instructions">
+      📲 <strong>Comment voter par QR Code :</strong><br>
+      1. Imprimez ce QR et affichez-le dans votre établissement<br>
+      2. Les clients le scannent avec leur smartphone<br>
+      3. Chaque scan-vote améliore votre position au classement<br>
+      4. Vous recevez une notification pour chaque vote comptabilisé
+    </div>
+
+    <div class="qr-dl-section">
+      <div class="qr-dl-label">📥 Télécharger pour affichage</div>
+      <div class="qr-dl-row">
+        <button class="qr-dl-btn" onclick="ambiQrDownload('a4')">
+          <span class="qr-dl-btn-icon">📄</span>
+          <span>Format A4</span>
+          <span class="qr-dl-btn-fmt">21×29,7 cm</span>
+        </button>
+        <button class="qr-dl-btn" onclick="ambiQrDownload('a5')">
+          <span class="qr-dl-btn-icon">📃</span>
+          <span>Format A5</span>
+          <span class="qr-dl-btn-fmt">14,8×21 cm</span>
+        </button>
+        <button class="qr-dl-btn" onclick="ambiQrDownload('square')">
+          <span class="qr-dl-btn-icon">🟦</span>
+          <span>Carré</span>
+          <span class="qr-dl-btn-fmt">10×10 cm</span>
+        </button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:0.4rem;align-items:center;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.5rem 0.7rem;margin-bottom:0.5rem;">
+      <span style="font-size:0.7rem;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="qrModalLink">—</span>
+      <button onclick="ambiQrCopyLink()" style="background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.65rem;font-weight:700;padding:0.22rem 0.55rem;border-radius:7px;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;">📋 Copier</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── QR Code Vote System — JavaScript ── -->
+<script>
+(function() {
+'use strict';
+
+var QR_BASE_URL       = window.location.origin + window.location.pathname;
+var _qrCurrentEtabId  = null;
+var _qrCurrentEtabObj = null;
+var _qrVoteCache      = {};
+var _qrAdminListener  = null;
+
+/* ─────────────────────────────────────────────────────────────
+   1. LANDING PAGE (URL ?ambi_vote=XXX)
+   ───────────────────────────────────────────────────────────── */
+function qrCheckLandingMode() {
+  var etabId = new URLSearchParams(window.location.search).get('ambi_vote');
+  if (etabId) qrShowScanLanding(etabId);
+}
+
+function qrShowScanLanding(etabId) {
+  var landing = document.getElementById('ambiQrScanLanding');
+  if (!landing) return;
+  landing.classList.add('show');
+  document.body.style.overflow = 'hidden';
+  var etab = (window.etablissements || []).find(function(e){ return String(e.id) === String(etabId); });
+  if (etab) {
+    qrPopulateLandingCard(etab);
+  } else {
+    setTimeout(function() {
+      var e2 = (window.etablissements || []).find(function(e){ return String(e.id) === String(etabId); });
+      if (e2) qrPopulateLandingCard(e2);
+      else {
+        document.getElementById('qrLandingEtabName').textContent = 'Établissement #' + etabId;
+        qrShowLandingSections(etabId);
+      }
+    }, 2500);
+  }
+}
+
+function qrPopulateLandingCard(etab) {
+  var icons = {'Bar':'🍻','Restaurant':'🍽️','Nightclub':'🎶','Maquis':'🌴','Hôtel':'🏨','Café':'☕'};
+  document.getElementById('qrLandingEtabAvatar').textContent = icons[etab.type] || '🏠';
+  document.getElementById('qrLandingEtabName').textContent   = etab.nom || 'Établissement';
+  document.getElementById('qrLandingEtabType').textContent   = (etab.type || '') + (etab.quartier ? ' • ' + etab.quartier : '');
+  qrShowLandingSections(etab.id);
+}
+
+function qrShowLandingSections(etabId) {
+  var isMember  = !!(window.currentUserUID);
+  var memberSec = document.getElementById('qrLandingMemberSection');
+  var guestSec  = document.getElementById('qrLandingGuestSection');
+  var signupCta = document.getElementById('qrLandingSignupCta');
+  window._qrLandingEtabId = etabId;
+  if (memberSec) memberSec.style.display = isMember ? 'block' : 'none';
+  if (guestSec)  guestSec.style.display  = isMember ? 'none'  : 'block';
+  if (signupCta) signupCta.style.display = isMember ? 'none'  : 'block';
+}
+
+window.ambiQrCastVoteLanding = function(direction) {
+  var etabId = window._qrLandingEtabId;
+  if (!etabId || !window.currentUserUID) { ambiQrGoToSignup(); return; }
+  qrRecordVote(etabId, direction, function(ok) {
+    var confirm = document.getElementById('qrLandingVoteConfirm');
+    var btns    = document.querySelector('#qrLandingMemberSection .qr-landing-vote-btns');
+    if (confirm) confirm.style.display = 'block';
+    if (btns)    btns.style.display    = 'none';
+    if (ok) { qrNotifyEtablissement(etabId, direction); qrNotifyAdmin(etabId, direction); }
+  });
+};
+
+window.ambiQrCloseLanding = function() {
+  var landing = document.getElementById('ambiQrScanLanding');
+  if (landing) landing.classList.remove('show');
+  document.body.style.overflow = '';
+  var url = new URL(window.location.href);
+  url.searchParams.delete('ambi_vote');
+  history.replaceState({}, '', url.toString());
+};
+
+window.ambiQrGoToSignup = function() {
+  ambiQrCloseLanding();
+  var btn = document.querySelector('[onclick*="openLogin"],[onclick*="showLogin"],#loginBtn,.auth-login-btn');
+  if (btn) btn.click();
+};
+
+/* ─────────────────────────────────────────────────────────────
+   2. MODAL QR CODE
+   ───────────────────────────────────────────────────────────── */
+function qrGetVoteUrl(etabId) {
+  return QR_BASE_URL + '?ambi_vote=' + etabId;
+}
+
+window.ambiQrOpenModal = function(etabId) {
+  var etab = (window.etablissements || []).find(function(e){ return String(e.id) === String(etabId); });
+  if (!etab) { if (typeof showToast === 'function') showToast('Établissement introuvable'); return; }
+
+  _qrCurrentEtabId  = etabId;
+  _qrCurrentEtabObj = etab;
+
+  var modal = document.getElementById('ambiQrModal');
+  if (!modal) return;
+
+  var icons = {'Bar':'🍻','Restaurant':'🍽️','Nightclub':'🎶','Maquis':'🌴','Hôtel':'🏨','Café':'☕'};
+  document.getElementById('qrModalEtabName').textContent = etab.nom || 'Établissement';
+  document.getElementById('qrModalEtabType').textContent = (icons[etab.type] || '🏠') + '  ' + (etab.type || '') + (etab.quartier ? '  •  📍 ' + etab.quartier : '');
+
+  var linkEl = document.getElementById('qrModalLink');
+  var voteUrl = qrGetVoteUrl(etabId);
+  if (linkEl) linkEl.textContent = voteUrl;
+
+  var voteSection = document.getElementById('qrModalVoteSection');
+  var voteConfirm = document.getElementById('qrModalVoteConfirm');
+  var posBtn = document.getElementById('qrModalVotePosBtn');
+  var negBtn = document.getElementById('qrModalVoteNegBtn');
+  if (voteSection) voteSection.style.display = window.currentUserUID ? 'block' : 'none';
+  if (voteConfirm) voteConfirm.classList.remove('show');
+  if (posBtn) { posBtn.disabled = false; posBtn.classList.remove('qr-voted'); }
+  if (negBtn) { negBtn.disabled = false; negBtn.classList.remove('qr-voted'); }
+
+  qrLoadVoteCount(etabId, function(count) {
+    var el = document.getElementById('qrModalVoteNum');
+    if (el) el.textContent = count;
+  });
+
+  qrGenerateCode(voteUrl);
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+};
+
+window.ambiQrCloseModal = function() {
+  var modal = document.getElementById('ambiQrModal');
+  if (modal) modal.classList.remove('open');
+  document.body.style.overflow = '';
+  _qrCurrentEtabId  = null;
+  _qrCurrentEtabObj = null;
+};
+
+/* ─────────────────────────────────────────────────────────────
+   3. GÉNÉRATION QR CODE
+   ───────────────────────────────────────────────────────────── */
+function qrGenerateCode(url) {
+  var container = document.getElementById('qrModalCanvas');
+  if (!container) return;
+  container.innerHTML = '';
+  function tryGenerate() {
+    if (typeof QRCode === 'undefined') { setTimeout(tryGenerate, 200); return; }
+    try {
+      new QRCode(container, {
+        text: url, width: 220, height: 220,
+        colorDark: '#000000', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.H
+      });
+    } catch(e) {
+      container.innerHTML = '<div style="font-size:0.7rem;color:var(--red);padding:0.5rem;">Erreur génération QR</div>';
+    }
+  }
+  tryGenerate();
+}
+
+/* ─────────────────────────────────────────────────────────────
+   4. VOTE INLINE (depuis le modal)
+   ───────────────────────────────────────────────────────────── */
+window.ambiQrCastVoteInline = function(direction) {
+  if (!_qrCurrentEtabId) return;
+  if (!window.currentUserUID) { if (typeof showToast === 'function') showToast('Connectez-vous pour voter'); return; }
+  var etabId = _qrCurrentEtabId;
+  var posBtn = document.getElementById('qrModalVotePosBtn');
+  var negBtn = document.getElementById('qrModalVoteNegBtn');
+  if (posBtn) posBtn.disabled = true;
+  if (negBtn) negBtn.disabled = true;
+  qrRecordVote(etabId, direction, function(ok) {
+    var confirm = document.getElementById('qrModalVoteConfirm');
+    var msgEl   = document.getElementById('qrModalVoteConfirmMsg');
+    if (confirm) confirm.classList.add('show');
+    if (msgEl) msgEl.textContent = ok
+      ? '✅ Vote comptabilisé ! L\'établissement a été notifié.'
+      : '⚠️ Vous avez déjà voté pour cet établissement ce mois-ci.';
+    if (ok) {
+      qrNotifyEtablissement(etabId, direction);
+      qrNotifyAdmin(etabId, direction);
+      qrLoadVoteCount(etabId, function(c) {
+        var el = document.getElementById('qrModalVoteNum');
+        if (el) el.textContent = c;
+      });
+    }
+  });
+};
+
+/* ─────────────────────────────────────────────────────────────
+   5. ENREGISTREMENT VOTE FIREBASE
+   ───────────────────────────────────────────────────────────── */
+function qrRecordVote(etabId, direction, callback) {
+  var monthKey = new Date().toISOString().slice(0, 7);
+  var voteKey  = 'ambi241_qrvote_' + etabId + '_' + (window.currentUserUID || 'anon') + '_' + monthKey;
+  try {
+    if (localStorage.getItem(voteKey)) { callback(false); return; }
+    localStorage.setItem(voteKey, '1');
+  } catch(e) {}
+
+  var voteData = {
+    etabId: String(etabId), direction: direction,
+    uid: window.currentUserUID || 'anon',
+    pseudo: window.currentUserPseudo || window.currentUserEmail || 'Anonyme',
+    ts: Date.now(), source: 'qr_code', monthKey: monthKey
+  };
+
+  if (window.db && window.fbAddDoc && window.fbCollection) {
+    window.fbAddDoc(window.fbCollection(window.db, 'qr_votes'), voteData)
+      .then(function() { return qrIncrementEtabVoteCount(etabId, direction); })
+      .catch(function(err) { console.warn('[QR] Firebase vote error:', err); });
+  }
+
+  if (!_qrVoteCache[etabId]) _qrVoteCache[etabId] = { count: 0 };
+  _qrVoteCache[etabId].count++;
+  _qrVoteCache[etabId].myVote = direction;
+  callback(true);
+}
+
+function qrIncrementEtabVoteCount(etabId, direction) {
+  if (!window.db || !window.fbDoc || !window.fbGetDoc || !window.fbSetDoc) return;
+  var docRef = window.fbDoc(window.db, 'qr_vote_counts', String(etabId));
+  return window.fbGetDoc(docRef).then(function(snap) {
+    var d = snap.exists() ? snap.data() : { pos: 0, neg: 0, total: 0 };
+    d[direction] = (d[direction] || 0) + 1;
+    d.total      = (d.total || 0) + 1;
+    d.lastUpdated = Date.now();
+    return window.fbSetDoc(docRef, d);
+  }).catch(function(e) { console.warn('[QR] increment error:', e); });
+}
+
+function qrLoadVoteCount(etabId, callback) {
+  if (_qrVoteCache[etabId]) { callback(_qrVoteCache[etabId].count || 0); return; }
+  if (window.db && window.fbDoc && window.fbGetDoc) {
+    window.fbGetDoc(window.fbDoc(window.db, 'qr_vote_counts', String(etabId)))
+      .then(function(snap) {
+        var count = snap.exists() ? (snap.data().total || 0) : 0;
+        _qrVoteCache[etabId] = { count: count };
+        callback(count);
+      }).catch(function() { callback(0); });
+  } else { callback(0); }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   6. NOTIFICATIONS PUSH
+   ───────────────────────────────────────────────────────────── */
+function qrNotifyEtablissement(etabId, direction) {
+  if (!window.db || !window.fbDoc || !window.fbGetDoc || !window.fbSetDoc || !window.fbGetDocs || !window.fbCollection) return;
+  var etab = (window.etablissements || []).find(function(e){ return String(e.id) === String(etabId); });
+  if (!etab || !etab.email) return;
+  var notif = {
+    id: Date.now() + '_qrvote', key: 'qr_vote_received',
+    icon: direction === 'pos' ? '🎉' : '📊',
+    title: direction === 'pos' ? '🏆 Nouveau vote positif via QR !' : '📊 Nouveau vote enregistré',
+    msg: direction === 'pos'
+      ? 'Félicitations ! Un client vous a attribué un vote positif via QR Code.'
+      : 'Un vote a été comptabilisé via votre QR Code.',
+    channel: 'push', ts: Date.now(), unread: true, fromQrVote: true, etabId: String(etabId)
+  };
+  window.fbGetDocs(window.fbCollection(window.db, 'users')).then(function(snap) {
+    snap.forEach(function(d) {
+      var u = d.data();
+      if ((u.email || '').toLowerCase() === etab.email.toLowerCase()) {
+        var ref = window.fbDoc(window.db, 'user_notifications', d.id);
+        window.fbGetDoc(ref).then(function(s2) {
+          var items = s2.exists() ? (s2.data().items || []) : [];
+          items.push(notif);
+          window.fbSetDoc(ref, { items: items.slice(-60), uid: d.id, updatedAt: Date.now() });
+        }).catch(function(){});
+      }
+    });
+  }).catch(function(){});
+}
+
+function qrNotifyAdmin(etabId, direction) {
+  if (!window.saveToAdminLog) return;
+  var etab = (window.etablissements || []).find(function(e){ return String(e.id) === String(etabId); });
+  window.saveToAdminLog({
+    id: Date.now() + '_qradm', key: 'qr_vote_admin', icon: '📱',
+    title: '📱 Vote QR — ' + (etab ? etab.nom : 'Étab. #' + etabId),
+    msg: 'Vote ' + (direction === 'pos' ? '👍 positif' : '👎 négatif') + ' reçu via QR Code',
+    channel: 'push', ts: Date.now(), unread: true, etabId: String(etabId), direction: direction
+  });
+}
+
+/* ─────────────────────────────────────────────────────────────
+   7. TÉLÉCHARGEMENT QR (Canvas → PNG — A4 / A5 / Carré)
+   ───────────────────────────────────────────────────────────── */
+window.ambiQrDownload = function(format) {
+  if (!_qrCurrentEtabObj) return;
+  var etab = _qrCurrentEtabObj;
+  var cfgs = {
+    a4:     { w: 794, h: 1123, qrSize: 420, label: 'A4' },
+    a5:     { w: 559, h:  794, qrSize: 300, label: 'A5' },
+    square: { w: 400, h:  400, qrSize: 280, label: 'Carré' }
+  };
+  var cfg = cfgs[format] || cfgs.a4;
+  var canvas = document.createElement('canvas');
+  canvas.width = cfg.w; canvas.height = cfg.h;
+  var ctx = canvas.getContext('2d');
+
+  var grad = ctx.createLinearGradient(0, 0, cfg.w, cfg.h);
+  grad.addColorStop(0, '#1a0a28'); grad.addColorStop(0.5, '#230d35'); grad.addColorStop(1, '#2c1040');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, cfg.w, cfg.h);
+
+  ctx.globalAlpha = 0.12;
+  ctx.fillStyle = '#ff2d9b'; ctx.beginPath(); ctx.arc(0, 0, cfg.w * 0.55, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#00e5ff'; ctx.beginPath(); ctx.arc(cfg.w, cfg.h, cfg.w * 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  var yOff = format === 'square' ? 20 : 50;
+  ctx.font = 'bold ' + Math.round(cfg.w * 0.09) + 'px Syne,Arial';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ff2d9b'; ctx.fillText('AMBI', cfg.w / 2 - cfg.w * 0.08, yOff + cfg.w * 0.09);
+  ctx.fillStyle = '#00e5ff'; ctx.fillText('241',  cfg.w / 2 + cfg.w * 0.06, yOff + cfg.w * 0.09);
+  var logoBottom = yOff + cfg.w * 0.095;
+
+  var qrEl = document.querySelector('#qrModalCanvas img') || document.querySelector('#qrModalCanvas canvas');
+
+  if (format !== 'square') {
+    ctx.font = 'bold ' + Math.round(cfg.w * 0.055) + 'px Syne,Arial';
+    ctx.fillStyle = '#fff0f8';
+    var nomY = logoBottom + 60;
+    ctx.fillText(etab.nom || 'Établissement', cfg.w / 2, nomY);
+    ctx.font = Math.round(cfg.w * 0.032) + 'px DM Sans,Arial';
+    ctx.fillStyle = '#b088c0';
+    ctx.fillText((etab.type || '') + (etab.quartier ? ' • ' + etab.quartier : ''), cfg.w / 2, nomY + 38);
+
+    var qrX = (cfg.w - cfg.qrSize) / 2, qrY = nomY + 75, pad = 18;
+    ctx.fillStyle = '#ffffff'; _roundRect(ctx, qrX - pad, qrY - pad, cfg.qrSize + pad * 2, cfg.qrSize + pad * 2, 22); ctx.fill();
+    if (qrEl) { try { ctx.drawImage(qrEl, qrX, qrY, cfg.qrSize, cfg.qrSize); } catch(e){} }
+
+    var qrBottom = qrY + cfg.qrSize + pad + 40;
+    ctx.font = 'bold ' + Math.round(cfg.w * 0.038) + 'px Syne,Arial'; ctx.fillStyle = '#00e5ff';
+    ctx.fillText('📲 Scannez pour voter', cfg.w / 2, qrBottom);
+    ctx.font = Math.round(cfg.w * 0.028) + 'px DM Sans,Arial'; ctx.fillStyle = '#b088c0';
+    ctx.fillText('et aider cet établissement à progresser !', cfg.w / 2, qrBottom + 36);
+
+    ctx.strokeStyle = 'rgba(255,45,155,0.4)'; ctx.lineWidth = 3;
+    _roundRect(ctx, 20, 20, cfg.w - 40, cfg.h - 40, 24); ctx.stroke();
+
+    ctx.font = Math.round(cfg.w * 0.024) + 'px DM Sans,Arial'; ctx.fillStyle = 'rgba(176,136,192,0.55)';
+    ctx.fillText('ambi241.com • Libreville, Gabon', cfg.w / 2, cfg.h - 28);
+  } else {
+    var qrXSq = (cfg.w - cfg.qrSize) / 2, qrYSq = logoBottom + 25;
+    ctx.fillStyle = '#ffffff'; _roundRect(ctx, qrXSq - 14, qrYSq - 14, cfg.qrSize + 28, cfg.qrSize + 28, 16); ctx.fill();
+    if (qrEl) { try { ctx.drawImage(qrEl, qrXSq, qrYSq, cfg.qrSize, cfg.qrSize); } catch(e){} }
+    ctx.font = 'bold ' + Math.round(cfg.w * 0.055) + 'px Syne,Arial'; ctx.fillStyle = '#fff0f8';
+    ctx.fillText(etab.nom || '—', cfg.w / 2, qrYSq + cfg.qrSize + 45);
+  }
+
+  var a = document.createElement('a');
+  a.download = 'ambi241_qr_' + (etab.nom || 'etablissement').replace(/[^a-z0-9]/gi, '_').toLowerCase() + '_' + format + '.png';
+  a.href = canvas.toDataURL('image/png', 0.96);
+  a.click();
+  if (typeof showToast === 'function') showToast('📥 QR ' + cfg.label + ' téléchargé !');
+};
+
+function _roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
+}
+
+/* ─────────────────────────────────────────────────────────────
+   8. COPIER LE LIEN
+   ───────────────────────────────────────────────────────────── */
+window.ambiQrCopyLink = function() {
+  if (!_qrCurrentEtabId) return;
+  var url = qrGetVoteUrl(_qrCurrentEtabId);
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(function() { if (typeof showToast === 'function') showToast('📋 Lien copié !'); });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = url; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    if (typeof showToast === 'function') showToast('📋 Lien copié !');
+  }
+};
+
+/* ─────────────────────────────────────────────────────────────
+   9. ICÔNE QR SUR LES CARTES ÉTABLISSEMENTS
+   ───────────────────────────────────────────────────────────── */
+function qrInjectCardIcons() {
+  (window.etablissements || []).forEach(function(etab) {
+    var cardEl = document.getElementById('card-etab-' + etab.id);
+    if (!cardEl || cardEl.querySelector('.qr-card-icon')) return;
+    var isMember = !!(window.currentUserUID);
+    var btn = document.createElement('button');
+    btn.className = 'qr-card-icon' + (isMember ? '' : ' qr-locked');
+    btn.setAttribute('title', isMember ? 'Voir le QR Code vote' : 'Inscription requise pour voter');
+    btn.setAttribute('aria-label', 'QR Code de vote — ' + (etab.nom || ''));
+    btn.innerHTML = '<span class="qr-card-icon-tooltip">' + (isMember ? '📲 QR Vote' : '🔐 Membres') + '</span>▦';
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (!isMember) {
+        if (typeof showToast === 'function') showToast('🔐 Inscrivez-vous pour voter !');
+        var loginBtn = document.querySelector('[onclick*="openLogin"],[onclick*="showLogin"],#loginBtn,.auth-login-btn');
+        if (loginBtn) setTimeout(function() { loginBtn.click(); }, 500);
+        return;
+      }
+      ambiQrOpenModal(etab.id);
+    });
+    cardEl.style.position = 'relative';
+    cardEl.appendChild(btn);
+  });
+}
+
+/* ─────────────────────────────────────────────────────────────
+   10. DASHBOARD ADMIN — Votes QR en temps réel
+   ───────────────────────────────────────────────────────────── */
+function qrLoadAdminVotes() {
+  var listEl = document.getElementById('qrAdminVotesList');
+  if (!listEl) return;
+  if (!window.db || !window.fbGetDocs || !window.fbCollection) {
+    listEl.innerHTML = '<div style="font-size:0.7rem;color:var(--muted);text-align:center;padding:0.6rem;">Firebase non disponible</div>';
+    return;
+  }
+  window.fbGetDocs(window.fbCollection(window.db, 'qr_vote_counts')).then(function(snap) {
+    if (snap.empty) {
+      listEl.innerHTML = '<div style="font-size:0.72rem;color:var(--muted);text-align:center;padding:0.7rem;">Aucun vote QR encore enregistré</div>';
+      return;
+    }
+    var votes = [];
+    snap.forEach(function(doc) {
+      var d = doc.data();
+      votes.push({ etabId: doc.id, total: d.total || 0, pos: d.pos || 0, neg: d.neg || 0 });
+    });
+    votes.sort(function(a, b) { return b.total - a.total; });
+    var maxVotes = votes[0].total || 1;
+    var html = '';
+    votes.slice(0, 10).forEach(function(v) {
+      var etab = (window.etablissements || []).find(function(e){ return String(e.id) === String(v.etabId); });
+      var nom = etab ? etab.nom : 'Étab. #' + v.etabId;
+      var pct    = Math.round(v.total / maxVotes * 100);
+      var posPct = v.total > 0 ? Math.round(v.pos / v.total * 100) : 0;
+      html += '<div class="qr-adm-vote-row">'
+        + '<div class="qr-adm-vote-name" title="' + nom + '">' + nom + '</div>'
+        + '<div class="qr-adm-vote-bar"><div class="qr-adm-vote-fill" style="width:' + pct + '%"></div></div>'
+        + '<div class="qr-adm-vote-count">' + v.total + '</div>'
+        + '<div class="qr-adm-vote-delta">👍 ' + posPct + '%</div>'
+        + '</div>';
+    });
+    listEl.innerHTML = html;
+  }).catch(function(err) {
+    listEl.innerHTML = '<div style="font-size:0.7rem;color:var(--red);padding:0.6rem;">Erreur: ' + err.message + '</div>';
+  });
+  clearTimeout(_qrAdminListener);
+  _qrAdminListener = setTimeout(qrLoadAdminVotes, 30000);
+}
+
+window.ambiQrRefreshAdminVotes = function() {
+  clearTimeout(_qrAdminListener);
+  qrLoadAdminVotes();
+};
+
+/* ─────────────────────────────────────────────────────────────
+   11. HOOK loadData / renderAll + MutationObserver
+   ───────────────────────────────────────────────────────────── */
+function qrHookFunctions() {
+  if (window._qrHookDone) return;
+  window._qrHookDone = true;
+  var origLoad = window.loadData;
+  if (typeof origLoad === 'function') {
+    window.loadData = function() {
+      var r = origLoad.apply(this, arguments);
+      setTimeout(qrInjectCardIcons, 600);
+      return r;
+    };
+  }
+  var origRender = window.renderAll;
+  if (typeof origRender === 'function') {
+    window.renderAll = function() {
+      var r = origRender.apply(this, arguments);
+      setTimeout(qrInjectCardIcons, 350);
+      return r;
+    };
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   12. EXPOSITION GLOBALE & DÉMARRAGE
+   ───────────────────────────────────────────────────────────── */
+window.ambiQrInjectCardIcons = qrInjectCardIcons;
+window.ambiQrLoadAdminVotes  = qrLoadAdminVotes;
+
+function qrInit() {
+  qrCheckLandingMode();
+  qrHookFunctions();
+  var attempts = 0;
+  var timer = setInterval(function() {
+    attempts++;
+    if ((window.etablissements || []).length > 0) {
+      clearInterval(timer);
+      qrInjectCardIcons();
+      if (window.isAdmin) setTimeout(qrLoadAdminVotes, 1200);
+    }
+    if (attempts > 30) clearInterval(timer);
+  }, 500);
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', qrInit);
+} else {
+  qrInit();
+}
+
+/* Observer DOM pour re-injecter après renderAll dynamique */
+var _qrReinjectTimer = null;
+new MutationObserver(function(mutations) {
+  var hasCard = mutations.some(function(m) {
+    return Array.from(m.addedNodes).some(function(n) {
+      return n.nodeType === 1 && (
+        (n.id && n.id.indexOf('card-etab-') !== -1) ||
+        (typeof n.className === 'string' && n.className.indexOf('card') !== -1)
+      );
+    });
+  });
+  if (hasCard) {
+    clearTimeout(_qrReinjectTimer);
+    _qrReinjectTimer = setTimeout(qrInjectCardIcons, 250);
+  }
+}).observe(document.body, { childList: true, subtree: true });
+
+console.log('[AMBI241] ✅ QR Code Vote System chargé');
+
 })();
 </script>
 
