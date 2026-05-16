@@ -3344,7 +3344,7 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   flex-shrink:0;
 }
 /* BOTTOM NAV */
-.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:50;background:rgba(13,0,20,0.97);backdrop-filter:blur(20px);border-top:1px solid rgba(255,45,155,0.15);display:flex;height:54px;padding:0 0.25rem;width:100%;box-sizing:border-box;overflow:hidden;}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:650;background:rgba(13,0,20,0.97);backdrop-filter:blur(20px);border-top:1px solid rgba(255,45,155,0.15);display:flex;height:54px;padding:0 0.25rem;width:100%;box-sizing:border-box;overflow:hidden;}
 .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.1rem;cursor:pointer;color:var(--muted);font-size:0.52rem;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;padding:0.3rem;transition:color 0.2s,transform 0.15s;border:none;background:none;font-family:'DM Sans',sans-serif;-webkit-tap-highlight-color:transparent;user-select:none;}
 .nav-item:active{transform:scale(0.88);opacity:0.75;}
 .nav-item .nav-icon{font-size:1.1rem;transition:transform 0.2s;}
@@ -6929,6 +6929,8 @@ if (document.readyState === 'loading') {
     </div>
     <button class="user-btn" id="userLoginBtn" onclick="document.getElementById('userOverlay').classList.add('show')">&#128100;</button>
     <button class="admin-btn" id="adminBtn" onclick="toggleAdmin()" style="display:none;">&#128513;</button><button id="adminUnlockBtn" onclick="pinBuf='';updateDots();document.getElementById('pinOverlay').classList.add('show');" title="Acces Admin" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.3);color:rgba(255,255,255,1);font-size:0.72rem;width:26px;height:26px;min-width:26px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">&#128274;</button>
+    <!-- ★ BOUTON INSTALLER PWA ★ -->
+    <button class="pwa-nav-btn" id="pwaNavBtn" onclick="installPWA()" title="Installer l'application">&#128640; Installer</button>
   </div>
   </div>
   <div class="header-guide-bar">
@@ -6987,8 +6989,8 @@ if (document.readyState === 'loading') {
     </label>
   </div>
 
-  <!-- Mode sombre -->
-  <div class="sitenav-setting-row">
+  <!-- Mode sombre toujours activé (info) -->
+  <div class="sitenav-setting-row" style="opacity:0.6">
     <span class="sni-icon">🌙</span>
     <span style="flex:1;font-size:0.78rem;">Mode sombre</span>
     <span style="font-size:0.62rem;color:var(--green);margin-left:auto;">Actif</span>
@@ -17307,6 +17309,12 @@ function goHome(){switchSection("accueil",document.querySelector(".nav-item"));}
 function switchSection(name,btn){
   /* FIX#2b — Mise à jour active immédiate, DOM section via rAF pour fluidité */
   if(btn){document.querySelectorAll(".nav-item").forEach(function(b){b.classList.remove("active");});btn.classList.add("active");}
+  /* FIX — Fermer le modal de publication si ouvert + restaurer overflow */
+  var _pubModal = document.getElementById('socPubModal');
+  if(_pubModal && _pubModal.classList.contains('open')){
+    _pubModal.classList.remove('open');
+    document.body.style.overflow = '';
+  }
   requestAnimationFrame(function(){
     SECS.forEach(function(s){document.getElementById("sec-"+s).classList.toggle("section-hidden",s!==name);});
   });
@@ -40137,6 +40145,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     var modal = document.getElementById('socPubModal');
     if(!modal) return;
     modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
     var t = type || 'ambiance';
     var chip = document.querySelector('.socpub-type-chip[onclick*="\''+t+'\'"]');
     if(chip) socPubSelectType(t, chip);
@@ -40147,6 +40156,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
   window.socClosePubModal = function() {
     var modal = document.getElementById('socPubModal');
     if(modal) modal.classList.remove('open');
+    document.body.style.overflow = '';
   };
 
   /* ── Sélection du type ── */
