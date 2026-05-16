@@ -290,6 +290,221 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 .notif-toast-title{font-size:0.75rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .notif-toast-msg{font-size:0.65rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
+
+/* ══════════════════════════════════════════════════════════════
+   ══ ONBOARDING NOTIFICATIONS — Modal professionnel par rôle   ══
+   ══════════════════════════════════════════════════════════════ */
+#notifOnboardOverlay{
+  display:none;position:fixed;inset:0;z-index:100000;
+  background:rgba(8,2,18,0.82);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  align-items:flex-end;justify-content:center;
+  animation:fadeIn 0.3s ease;
+}
+#notifOnboardOverlay.show{display:flex;}
+#notifOnboardModal{
+  width:100%;max-width:480px;
+  background:linear-gradient(175deg,#1e0a30 0%,#160825 100%);
+  border:1px solid rgba(255,45,155,0.22);
+  border-bottom:none;
+  border-radius:28px 28px 0 0;
+  padding:0 0 env(safe-area-inset-bottom,16px);
+  box-shadow:0 -16px 60px rgba(0,0,0,0.7),0 0 0 1px rgba(255,45,155,0.1);
+  animation:slideUpModal 0.45s cubic-bezier(.175,.885,.32,1.15) both;
+  max-height:92vh;
+  overflow-y:auto;
+  scrollbar-width:none;
+}
+#notifOnboardModal::-webkit-scrollbar{display:none;}
+@keyframes slideUpModal{
+  from{transform:translateY(100%);opacity:0}
+  to{transform:translateY(0);opacity:1}
+}
+/* Drag handle */
+.nob-handle{
+  width:40px;height:4px;
+  background:rgba(255,255,255,0.15);
+  border-radius:2px;
+  margin:12px auto 0;
+}
+/* Header : logo + titre */
+.nob-header{
+  display:flex;flex-direction:column;align-items:center;
+  padding:20px 24px 12px;
+  position:relative;
+}
+.nob-logo-wrap{
+  width:72px;height:72px;border-radius:20px;
+  background:linear-gradient(135deg,rgba(255,45,155,0.2),rgba(204,68,255,0.15));
+  border:1px solid rgba(255,45,155,0.3);
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:14px;
+  box-shadow:0 0 30px rgba(255,45,155,0.25);
+  position:relative;overflow:hidden;
+}
+.nob-logo-wrap img{
+  width:52px;height:52px;border-radius:14px;object-fit:cover;
+}
+.nob-logo-ring{
+  position:absolute;inset:-8px;
+  border-radius:28px;
+  border:2px solid rgba(255,45,155,0.2);
+  animation:notifOnboardPulse 2.5s ease-in-out infinite;
+}
+.nob-logo-ring2{
+  position:absolute;inset:-18px;
+  border-radius:36px;
+  border:1.5px solid rgba(204,68,255,0.12);
+  animation:notifOnboardPulse 2.5s ease-in-out 0.8s infinite;
+}
+@keyframes notifOnboardPulse{
+  0%,100%{opacity:0.6;transform:scale(1)}
+  50%{opacity:0.2;transform:scale(1.05)}
+}
+.nob-bell-badge{
+  position:absolute;
+  top:-6px;right:-6px;
+  width:26px;height:26px;border-radius:50%;
+  background:linear-gradient(135deg,var(--pink),var(--purple));
+  display:flex;align-items:center;justify-content:center;
+  font-size:0.85rem;
+  border:2.5px solid #160825;
+  animation:ambiIconPulse 1.5s ease-in-out infinite;
+}
+.nob-title{
+  font-family:'Syne',sans-serif;font-size:1.2rem;font-weight:800;
+  color:#fff;text-align:center;margin-bottom:6px;
+}
+.nob-subtitle{
+  font-size:0.72rem;color:rgba(255,255,255,0.5);
+  text-align:center;line-height:1.55;
+  max-width:280px;
+}
+/* Pill rôle */
+.nob-role-pill{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:4px 12px;border-radius:20px;
+  font-size:0.62rem;font-weight:800;
+  text-transform:uppercase;letter-spacing:0.08em;
+  margin:10px 0 0;
+  font-family:'Syne',sans-serif;
+}
+/* Divider */
+.nob-divider{
+  height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,45,155,0.2),transparent);
+  margin:4px 20px;
+}
+/* Section titre */
+.nob-section-title{
+  font-size:0.62rem;font-weight:800;
+  color:rgba(255,255,255,0.35);
+  text-transform:uppercase;letter-spacing:0.1em;
+  padding:14px 22px 6px;
+  font-family:'Syne',sans-serif;
+}
+/* Liste des notifications */
+.nob-list{
+  padding:0 16px;
+  display:flex;flex-direction:column;gap:6px;
+  margin-bottom:4px;
+}
+.nob-item{
+  display:flex;align-items:center;gap:12px;
+  padding:11px 12px;
+  background:rgba(255,255,255,0.03);
+  border:1px solid rgba(255,255,255,0.06);
+  border-radius:14px;
+  transition:background 0.2s,border-color 0.2s;
+}
+.nob-item.nob-item-on{
+  background:rgba(255,45,155,0.07);
+  border-color:rgba(255,45,155,0.2);
+}
+.nob-item-icon{
+  width:38px;height:38px;
+  border-radius:11px;
+  background:rgba(255,255,255,0.06);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.2rem;
+  flex-shrink:0;
+}
+.nob-item-text{flex:1;min-width:0;}
+.nob-item-label{
+  font-size:0.78rem;font-weight:700;color:#fff;
+  margin-bottom:2px;
+}
+.nob-item-desc{
+  font-size:0.62rem;color:rgba(255,255,255,0.4);
+  line-height:1.4;
+}
+/* Toggle switch */
+.nob-toggle{position:relative;width:44px;height:26px;flex-shrink:0;}
+.nob-toggle input{opacity:0;width:0;height:0;position:absolute;}
+.nob-toggle-track{
+  position:absolute;inset:0;
+  background:rgba(255,255,255,0.1);
+  border-radius:13px;
+  cursor:pointer;
+  transition:background 0.25s;
+  border:1px solid rgba(255,255,255,0.1);
+}
+.nob-toggle input:checked ~ .nob-toggle-track{
+  background:linear-gradient(90deg,var(--pink),var(--purple));
+  border-color:transparent;
+}
+.nob-toggle-thumb{
+  position:absolute;
+  width:20px;height:20px;
+  border-radius:50%;
+  background:#fff;
+  top:2px;left:3px;
+  transition:transform 0.25s cubic-bezier(.175,.885,.32,1.275);
+  box-shadow:0 2px 6px rgba(0,0,0,0.3);
+  pointer-events:none;
+}
+.nob-toggle input:checked ~ .nob-toggle-track .nob-toggle-thumb{
+  transform:translateX(18px);
+}
+/* Boutons */
+.nob-actions{
+  padding:16px 16px 8px;
+  display:flex;flex-direction:column;gap:10px;
+}
+.nob-btn-primary{
+  width:100%;padding:15px;
+  border-radius:16px;border:none;
+  background:linear-gradient(135deg,var(--pink),var(--purple));
+  color:#fff;
+  font-family:'Syne',sans-serif;font-size:0.92rem;font-weight:800;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  box-shadow:0 6px 24px rgba(255,45,155,0.35);
+  transition:transform 0.15s,box-shadow 0.15s;
+}
+.nob-btn-primary:active{transform:scale(0.97);box-shadow:0 3px 12px rgba(255,45,155,0.25);}
+.nob-btn-skip{
+  width:100%;padding:10px;
+  border-radius:14px;border:none;
+  background:transparent;
+  color:rgba(255,255,255,0.3);
+  font-family:'DM Sans',sans-serif;font-size:0.78rem;font-weight:500;
+  cursor:pointer;
+  transition:color 0.2s;
+}
+.nob-btn-skip:active{color:rgba(255,255,255,0.5);}
+/* Badge permission navigateur */
+.nob-perm-badge{
+  margin:0 16px 4px;
+  padding:10px 14px;
+  background:rgba(0,229,255,0.06);
+  border:1px solid rgba(0,229,255,0.2);
+  border-radius:12px;
+  display:flex;align-items:center;gap:10px;
+  font-size:0.68rem;color:rgba(0,229,255,0.8);
+  line-height:1.45;
+}
+.nob-perm-badge span{font-size:1.3rem;flex-shrink:0;}
 /* ── Overlay Appel Entrant ── */
 #ambiIncomingCall{display:none;position:fixed;inset:0;z-index:10000;background:rgba(10,2,20,0.93);backdrop-filter:blur(12px);flex-direction:column;align-items:center;justify-content:center;animation:fadeIn 0.3s ease;}
 #ambiIncomingCall.show{display:flex;}
@@ -7029,6 +7244,35 @@ if (document.readyState === 'loading') {
   </div>
 </div>
 
+<!-- ══ ONBOARDING NOTIFICATIONS AMBI241 — Modal professionnel ══ -->
+<div id="notifOnboardOverlay" role="dialog" aria-modal="true" aria-label="Activer les notifications">
+  <div id="notifOnboardModal">
+    <div class="nob-handle"></div>
+    <div class="nob-header">
+      <div class="nob-logo-wrap">
+        <div class="nob-logo-ring"></div>
+        <div class="nob-logo-ring2"></div>
+        <div class="nob-bell-badge">🔔</div>
+        <img src="icon-192.png" alt="AMBI241" onerror="this.style.display='none';this.parentNode.innerHTML+='<span style=\'font-size:2rem;\'>🍸</span>'">
+      </div>
+      <div class="nob-title">Activer les notifications</div>
+      <div class="nob-subtitle" id="nobSubtitle">Restez informé en temps réel des actualités AMBI241.</div>
+      <div class="nob-role-pill" id="nobRolePill">👤 Membre</div>
+    </div>
+    <div class="nob-divider"></div>
+    <div class="nob-perm-badge" id="nobPermBadge" style="display:none;">
+      <span>🌐</span>
+      <span>Votre navigateur demandera une autorisation. Appuyez sur <strong style="color:#00e5ff;">Autoriser</strong> pour recevoir les alertes même quand l'app est en arrière-plan.</span>
+    </div>
+    <div class="nob-section-title">Choisissez ce que vous recevez</div>
+    <div class="nob-list" id="nobList"></div>
+    <div class="nob-actions">
+      <button class="nob-btn-primary" id="nobConfirmBtn" onclick="ambiOnboardConfirm()">🔔 Activer mes notifications</button>
+      <button class="nob-btn-skip" onclick="ambiOnboardSkip()">Plus tard — ne pas activer</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ TOAST RICHE AMBI241 ══ -->
 <div class="notif-toast" id="notifToast">
   <div class="notif-toast-icon" id="notifToastIcon">🎉</div>
@@ -9220,6 +9464,10 @@ onAuthStateChanged(auth, function(user) {
       if(typeof renderAll === "function") { renderAll(); renderHome(); }
       // ── Synchroniser les notifications Firebase pour cet utilisateur ──
       if(typeof _syncUserNotifsFromFirebase === "function") _syncUserNotifsFromFirebase();
+      // ── Afficher l'onboarding notifications si pas encore fait ──
+      setTimeout(function(){
+        if(typeof ambiShowNotifOnboarding === 'function') ambiShowNotifOnboarding();
+      }, 2800);
       // ── Initialiser le cache des likes de l'utilisateur ──
       if(typeof _initLikedCache === 'function') setTimeout(_initLikedCache, 600);
       if(typeof window.__onAuthPubHook === 'function') window.__onAuthPubHook(user.uid);
@@ -19955,6 +20203,13 @@ var ROLE_EVENTS = {
     { key:"statut_updated",     label:"Statut mis à jour",         icon:"📡", desc:"Mise à jour en temps réel" },
     { key:"top_affluence",      label:"Vous êtes en top affluence",icon:"🏆", desc:"Top 3 ce soir" }
   ],
+  chauffeur: [
+    { key:"new_course",       label:"Nouvelle course reçue",    icon:"🚖", desc:"Un client vous demande" },
+    { key:"course_accepted",  label:"Course acceptée",          icon:"✅", desc:"Confirmation de prise en charge" },
+    { key:"new_avis_chauff",  label:"Nouvel avis reçu",         icon:"⭐", desc:"Un client a évalué votre course" },
+    { key:"objet_oublie",     label:"Requête objet oublié",     icon:"🎒", desc:"Un passager signale un oubli" },
+    { key:"paiement_course",  label:"Paiement de course",       icon:"💵", desc:"Confirmation du règlement" }
+  ],
   admin: [
     { key:"new_inscription",  label:"Nouvelle inscription",     icon:"🏠", desc:"Demande à valider" },
     { key:"paiement_pending", label:"Paiement en attente",      icon:"💳", desc:"Mobile Money à valider" },
@@ -20505,6 +20760,247 @@ function requestPushPermission(){
     renderNotifPrefs();
   });
 }
+
+/* ══════════════════════════════════════════════════════════════
+   ══ ONBOARDING NOTIFICATIONS — Module complet par rôle        ══
+   ══════════════════════════════════════════════════════════════ */
+
+var NOTIF_ONBOARD_KEY = 'ambi241_notif_onboard_v1';
+
+/* Configurations par rôle (label, subtitle, couleur, icône pill, événements) */
+var _nobRoleConfig = {
+  membre: {
+    pill    : '👤 Membre',
+    pillBg  : 'rgba(0,229,255,0.12)',
+    pillColor: '#00e5ff',
+    subtitle: 'Recevez les messages du forum, les ambiances en temps réel et les demandes d\'amis.',
+    events  : [
+      { key:'forum_msg',      label:'Messages du forum',         icon:'💬', desc:'Réponses et mentions dans les discussions', on:true  },
+      { key:'friend_request', label:'Demandes d\'amis',          icon:'👥', desc:'Quand un membre veut vous ajouter',         on:true  },
+      { key:'top_ambiance',   label:'Ambiances en direct',       icon:'🔥', desc:'Lieux très animés ce soir près de vous',   on:true  },
+      { key:'new_spot',       label:'Nouveau lieu ouvert',       icon:'🏠', desc:'Un bar/resto rejoint AMBI241',             on:false },
+      { key:'promo',          label:'Soirées & événements',      icon:'🎉', desc:'Promos et soirées spéciales annoncées',    on:false },
+      { key:'statut_change',  label:'Changement d\'ambiance',    icon:'🎵', desc:'Mise à jour d\'un de vos favoris',         on:false }
+    ]
+  },
+  etablissement: {
+    pill    : '🏢 Établissement',
+    pillBg  : 'rgba(255,215,0,0.12)',
+    pillColor: '#ffd700',
+    subtitle: 'Soyez alerté des commandes, avis et commentaires laissés sur votre établissement.',
+    events  : [
+      { key:'new_commande',        label:'Commande reçue',             icon:'🛎️', desc:'Un client passe commande chez vous',          on:true  },
+      { key:'new_avis',            label:'Nouvel avis / commentaire',  icon:'⭐', desc:'Un membre a noté ou commenté votre lieu',    on:true  },
+      { key:'top_affluence',       label:'Top affluence ce soir',      icon:'🏆', desc:'Vous êtes dans le top 3 ce soir',            on:true  },
+      { key:'photo_added',         label:'Photo soirée publiée',       icon:'📷', desc:'Une nouvelle photo a été ajoutée à votre fiche', on:true },
+      { key:'paiement_expire',     label:'Abonnement qui expire',      icon:'⚠️', desc:'Rappel de renouvellement sous 7 jours',      on:true  },
+      { key:'paiement_confirmed',  label:'Paiement confirmé',          icon:'✅', desc:'Votre abonnement a été validé',              on:true  }
+    ]
+  },
+  chauffeur: {
+    pill    : '🚖 Chauffeur',
+    pillBg  : 'rgba(0,255,170,0.12)',
+    pillColor: '#00ffaa',
+    subtitle: 'Recevez les courses en temps réel, les avis clients et les requêtes passagers.',
+    events  : [
+      { key:'new_course',      label:'Nouvelle course reçue',     icon:'🚖', desc:'Un client vous demande — répondez vite !', on:true  },
+      { key:'course_accepted', label:'Course confirmée',          icon:'✅', desc:'Confirmation de prise en charge',          on:true  },
+      { key:'new_avis_chauff', label:'Nouvel avis reçu',          icon:'⭐', desc:'Un client a évalué votre course',          on:true  },
+      { key:'objet_oublie',    label:'Objet oublié signalé',      icon:'🎒', desc:'Un passager signale un oubli dans le véhicule', on:true },
+      { key:'paiement_course', label:'Paiement de course reçu',   icon:'💵', desc:'Confirmation du règlement client',         on:true  }
+    ]
+  },
+  admin: {
+    pill    : '🔑 Admin',
+    pillBg  : 'rgba(255,215,0,0.15)',
+    pillColor: '#ffd700',
+    subtitle: 'Supervision complète : inscriptions, paiements, trafic et alertes système.',
+    events  : [
+      { key:'new_inscription',  label:'Nouvelle inscription',    icon:'🏠', desc:'Demande d\'établissement à valider',      on:true  },
+      { key:'paiement_pending', label:'Paiement en attente',     icon:'💳', desc:'Mobile Money à confirmer',               on:true  },
+      { key:'new_membre',       label:'Nouveau membre inscrit',  icon:'👤', desc:'Compte membre créé',                    on:true  },
+      { key:'paiement_expired', label:'Abonnement expiré',       icon:'❌', desc:'Établissement payant échu',             on:true  },
+      { key:'top_traffic',      label:'Pic de trafic',           icon:'📈', desc:'Activité inhabituelle sur l\'app',       on:false },
+      { key:'etabl_inactive',   label:'Établissement inactif',   icon:'😴', desc:'Pas de mise à jour > 24h',              on:false }
+    ]
+  },
+  visiteur: {
+    pill    : '👀 Visiteur',
+    pillBg  : 'rgba(255,255,255,0.08)',
+    pillColor: 'rgba(255,255,255,0.5)',
+    subtitle: 'Créez un compte pour accéder à toutes les fonctionnalités de notification.',
+    events  : [
+      { key:'new_spot',     label:'Nouveau lieu ouvert',     icon:'🏠', desc:'Un bar/resto rejoint AMBI241', on:true },
+      { key:'top_ambiance', label:'Ambiances en direct',     icon:'🔥', desc:'Lieux très animés ce soir',   on:true }
+    ]
+  }
+};
+
+/* ── Vérifier si l'onboarding doit s'afficher ── */
+function _nobShouldShow(){
+  try{
+    var data = JSON.parse(lsGet(NOTIF_ONBOARD_KEY)||'{}');
+    if(data.done) return false;            // déjà complété
+    if(data.skipped){
+      /* Ré-afficher après 3 jours si sauté */
+      var daysPassed = (Date.now() - (data.skippedAt||0)) / 86400000;
+      return daysPassed >= 3;
+    }
+    return true;
+  }catch(e){ return true; }
+}
+
+/* ── Construire et afficher le modal ── */
+function ambiShowNotifOnboarding(){
+  if(!_nobShouldShow()) return;
+
+  var role   = getUserRole() || 'membre';
+  var cfg    = _nobRoleConfig[role] || _nobRoleConfig['membre'];
+  var prefs  = loadNotifPrefs();
+
+  /* Pill de rôle */
+  var pill = document.getElementById('nobRolePill');
+  if(pill){
+    pill.textContent    = cfg.pill;
+    pill.style.background  = cfg.pillBg;
+    pill.style.color       = cfg.pillColor;
+    pill.style.border      = '1px solid ' + cfg.pillColor + '44';
+  }
+
+  /* Sous-titre */
+  var sub = document.getElementById('nobSubtitle');
+  if(sub) sub.textContent = cfg.subtitle;
+
+  /* Badge permission navigateur */
+  var permBadge = document.getElementById('nobPermBadge');
+  if(permBadge){
+    var needsPerm = (typeof Notification !== 'undefined' && Notification.permission === 'default');
+    permBadge.style.display = needsPerm ? 'flex' : 'none';
+  }
+
+  /* Liste des notifications */
+  var list = document.getElementById('nobList');
+  if(list){
+    list.innerHTML = cfg.events.map(function(ev){
+      var prefKey  = role + '_' + ev.key + '_push';
+      var isOn     = prefs[prefKey] !== undefined ? prefs[prefKey] : ev.on;
+      return '<label class="nob-item' + (isOn ? ' nob-item-on' : '') + '" id="nob-item-'+ev.key+'">'
+        + '<div class="nob-item-icon">'+ev.icon+'</div>'
+        + '<div class="nob-item-text">'
+        +   '<div class="nob-item-label">'+ev.label+'</div>'
+        +   '<div class="nob-item-desc">'+ev.desc+'</div>'
+        + '</div>'
+        + '<label class="nob-toggle">'
+        +   '<input type="checkbox" id="nob-chk-'+ev.key+'" '+(isOn?'checked':'')+' onchange="nobToggleItem(this,\''+ev.key+'\')">'
+        +   '<div class="nob-toggle-track"><div class="nob-toggle-thumb"></div></div>'
+        + '</label>'
+        + '</label>';
+    }).join('');
+  }
+
+  /* Afficher le modal */
+  var overlay = document.getElementById('notifOnboardOverlay');
+  if(overlay){ overlay.classList.add('show'); document.body.style.overflow='hidden'; }
+
+  /* Jouer un son de démo discret */
+  setTimeout(function(){
+    if(typeof ambiPlayNotifSound === 'function') ambiPlayNotifSound('default');
+  }, 600);
+}
+window.ambiShowNotifOnboarding = ambiShowNotifOnboarding;
+
+/* ── Toggle d'un item dans le modal ── */
+function nobToggleItem(chk, key){
+  var item = document.getElementById('nob-item-' + key);
+  if(item){ item.classList.toggle('nob-item-on', chk.checked); }
+}
+window.nobToggleItem = nobToggleItem;
+
+/* ── Confirmation : sauvegarder les prefs + demander permission ── */
+function ambiOnboardConfirm(){
+  var role = getUserRole() || 'membre';
+  var cfg  = _nobRoleConfig[role] || _nobRoleConfig['membre'];
+  var prefs = loadNotifPrefs();
+
+  /* Sauvegarder chaque préférence cochée */
+  cfg.events.forEach(function(ev){
+    var chk = document.getElementById('nob-chk-' + ev.key);
+    var val = chk ? chk.checked : ev.on;
+    ['push','sms','email','wa'].forEach(function(ch){
+      prefs[role + '_' + ev.key + '_' + ch] = val;
+    });
+  });
+  saveNotifPrefs(prefs);
+
+  /* Marquer comme complété */
+  try{ lsSetJSON(NOTIF_ONBOARD_KEY, { done:true, role:role, doneAt:Date.now() }); }catch(e){}
+
+  /* Fermer le modal */
+  _nobClose();
+
+  /* Demander permission navigateur si pas encore accordée */
+  if(typeof Notification !== 'undefined' && Notification.permission === 'default'){
+    setTimeout(function(){
+      Notification.requestPermission().then(function(result){
+        if(result === 'granted'){
+          /* Notification de bienvenue selon le rôle */
+          var welcome = {
+            membre      : { icon:'🎉', title:'Bienvenue dans la communauté !',       msg:'Vous recevrez vos messages et ambiances en temps réel.' },
+            etablissement:{ icon:'🏢', title:'Notifications activées pour votre lieu',msg:'Commandes, avis et alertes vous parviendront immédiatement.' },
+            chauffeur   : { icon:'🚖', title:'Prêt à recevoir des courses !',         msg:'Les nouvelles demandes vous seront envoyées en temps réel.' },
+            admin       : { icon:'🔑', title:'Surveillance système activée',           msg:'Inscriptions, paiements et alertes arriveront ici.' },
+            visiteur    : { icon:'✨', title:'Notifications activées',                 msg:'Restez informé des nouveaux lieux et ambiances.' }
+          }[role] || { icon:'🔔', title:'Notifications activées', msg:'Bienvenue sur AMBI241 !' };
+
+          pushNotif({
+            targetRole : 'all',
+            key        : 'welcome_notif',
+            icon       : welcome.icon,
+            title      : welcome.title,
+            msg        : welcome.msg,
+            channel    : 'push',
+            fromAdmin  : true
+          });
+        } else if(result === 'denied'){
+          showNotifToast('⚙️ Notifications désactivées dans les paramètres navigateur', null);
+        }
+        renderNotifPrefs();
+      });
+    }, 300);
+  } else if(typeof Notification !== 'undefined' && Notification.permission === 'granted'){
+    /* Permission déjà accordée → notification de confirmation directe */
+    var roleWelcome = {
+      membre      : { icon:'✅', title:'Préférences sauvegardées',   msg:'Vos notifications sont configurées.' },
+      etablissement:{ icon:'✅', title:'Alertes établissement actives', msg:'Vous recevrez commandes et avis.' },
+      chauffeur   : { icon:'✅', title:'Alertes chauffeur actives',   msg:'Courses et requêtes vous parviennent.' },
+      admin       : { icon:'✅', title:'Supervision activée',          msg:'Toutes les alertes admin sont actives.' }
+    }[role] || { icon:'✅', title:'Notifications configurées', msg:'' };
+    setTimeout(function(){
+      pushNotif({ targetRole:'all', key:'notif_prefs_saved', icon:roleWelcome.icon,
+        title:roleWelcome.title, msg:roleWelcome.msg, channel:'push', fromAdmin:true });
+    }, 200);
+  }
+}
+window.ambiOnboardConfirm = ambiOnboardConfirm;
+
+/* ── Skip ── */
+function ambiOnboardSkip(){
+  try{ lsSetJSON(NOTIF_ONBOARD_KEY, { skipped:true, skippedAt:Date.now() }); }catch(e){}
+  _nobClose();
+}
+window.ambiOnboardSkip = ambiOnboardSkip;
+
+function _nobClose(){
+  var overlay = document.getElementById('notifOnboardOverlay');
+  if(overlay){ overlay.classList.remove('show'); document.body.style.overflow=''; }
+}
+
+/* ── Réinitialiser l'onboarding (depuis les paramètres) ── */
+function ambiResetNotifOnboarding(){
+  try{ localStorage.removeItem(NOTIF_ONBOARD_KEY); }catch(e){}
+  setTimeout(ambiShowNotifOnboarding, 200);
+}
+window.ambiResetNotifOnboarding = ambiResetNotifOnboarding;
 
 function toggleNotifPanel(){
   notifPanelOpen=!notifPanelOpen;
@@ -26880,6 +27376,10 @@ window.addEventListener('appinstalled', function(){
   var ab = document.getElementById('androidBanner');
   if(ab) ab.style.display = 'none';
   showToast('✅ Ambi241 installé avec succès !');
+  /* Lancer l'onboarding notifications après installation */
+  setTimeout(function(){
+    if(typeof ambiShowNotifOnboarding === 'function') ambiShowNotifOnboarding();
+  }, 1800);
 });
 
 /* Fonction principale d'installation */
