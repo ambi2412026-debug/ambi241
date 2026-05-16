@@ -43296,6 +43296,11 @@ textarea.aqa-input { resize: vertical; min-height: 64px; }
       <div class="aqa-section" id="aqaStep5">
         <div id="aqaRecap" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:1rem;font-size:0.78rem;line-height:1.9;"></div>
         <div class="aqa-status-msg" id="aqaStatusMsg"></div>
+        <!-- Debug panel Android -->
+        <div id="aqaDebugBox" style="display:none;margin-top:0.8rem;background:rgba(0,0,0,0.5);border:1px solid rgba(0,229,255,0.25);border-radius:10px;padding:0.7rem;max-height:180px;overflow-y:auto;">
+          <div style="font-size:0.6rem;font-weight:800;color:#00e5ff;margin-bottom:0.35rem;">&#128295; LOG DEBUG</div>
+          <div id="aqaDebugLog" style="font-size:0.62rem;font-family:monospace;line-height:1.8;color:#aaddff;"></div>
+        </div>
       </div>
 
     </div><!-- /aqa-body -->
@@ -43317,6 +43322,20 @@ textarea.aqa-input { resize: vertical; min-height: 64px; }
 
 /* ── État ── */
 var _step = 0;
+
+/* ── Log debug Android ── */
+function aqaLog(msg, color) {
+  var box = document.getElementById('aqaDebugBox');
+  var log = document.getElementById('aqaDebugLog');
+  if (!box || !log) return;
+  box.style.display = 'block';
+  var line = document.createElement('div');
+  line.style.color = color || '#aaddff';
+  var ts = new Date().toTimeString().slice(0,8);
+  line.textContent = '[' + ts + '] ' + msg;
+  log.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
 var _totalSteps = 6;
 var _gpsLat = null;
 var _gpsLng = null;
@@ -43524,7 +43543,17 @@ function aqaUploadPhoto(inputId, path) {
     var inp = document.getElementById(inputId);
     var file = inp && inp.files && inp.files[0];
     if (!file) { resolve(''); return; }
-    if (!window.fbRef || !window.fbStorage || !window.fbUploadBytes || !window.fbGetDownloadURL) { resolve(''); return; }
+    if (!window.fbRef || !window.fbStorage || !window.fbUploadBytes || !window.fbGetDownloadURL) {
+      console.warn('[AQA] Firebase Storage non disponible pour', inputId);
+      resolve(''); return;
+    }
+    // ⏱️ Timeout de sécurité : 30s max par photo pour éviter le blocage infini
+    var _done = false;
+    var _timeout = setTimeout(function() {
+      if (!_done) { _done = true; console.warn('[AQA] Timeout upload photo:', inputId); aqaLog('⏱️ TIMEOUT upload ' + inputId, '#ff4466'); resolve(''); }
+    }, 30000);
+    function done(val) { if (!_done) { _done = true; clearTimeout(_timeout); resolve(val); } }
+
     var reader = new FileReader();
     reader.onload = function(ev) {
       var img = new Image();
@@ -43534,15 +43563,19 @@ function aqaUploadPhoto(inputId, path) {
         var canvas = document.createElement('canvas'); canvas.width=w; canvas.height=h;
         canvas.getContext('2d').drawImage(img,0,0,w,h);
         canvas.toBlob(function(blob) {
+          // 🛡️ Guard : blob null possible si canvas tainté ou mémoire insuffisante
+          if (!blob) { console.warn('[AQA] canvas.toBlob() a retourné null pour', inputId); done(''); return; }
           var ref = window.fbRef(window.fbStorage, path);
-          window.fbUploadBytes(ref, blob).then(function() { return window.fbGetDownloadURL(ref); })
-            .then(function(url) { resolve(url); }).catch(function() { resolve(''); });
+          window.fbUploadBytes(ref, blob)
+            .then(function() { return window.fbGetDownloadURL(ref); })
+            .then(function(url) { done(url); })
+            .catch(function(err) { console.warn('[AQA] Erreur upload Storage:', err.message || err); aqaLog('❌ Storage err: ' + (err.message || err.code || err), '#ff4466'); done(''); });
         }, 'image/jpeg', 0.88);
       };
-      img.onerror = function() { resolve(''); };
+      img.onerror = function() { done(''); };
       img.src = ev.target.result;
     };
-    reader.onerror = function() { resolve(''); };
+    reader.onerror = function() { done(''); };
     reader.readAsDataURL(file);
   });
 }
@@ -43576,10 +43609,18 @@ window.aqaSubmit = function() {
   msgEl3.className = 'aqa-status-msg loading';
   msgEl3.textContent = '⏳ Upload des photos et enregistrement…';
 
+  // Reset debug log
+  var dbgLog = document.getElementById('aqaDebugLog');
+  if (dbgLog) dbgLog.innerHTML = '';
+  aqaLog('Démarrage envoi…', '#00e5ff');
+  aqaLog('Firebase db: ' + (window.db ? '✅' : '❌'), window.db ? '#00ffaa' : '#ff4466');
+  aqaLog('Firebase storage: ' + (window.fbStorage ? '✅' : '❌'), window.fbStorage ? '#00ffaa' : '#ff4466');
+
   // Générer ID
   var maxId = (window.etablissements || []).reduce(function(m, e) { return Math.max(m, e.id || 0); }, 0);
   var newId = maxId + 1;
   var docId = 'etab_' + String(newId).padStart(3, '0');
+  aqaLog('ID généré: ' + docId, '#ffd700');
 
   // Collect data
   var esp  = document.querySelector('input[name="aqaEspace"]:checked');
@@ -43588,10 +43629,18 @@ window.aqaSubmit = function() {
   var capExact = parseInt((document.getElementById('aqaCapExact') || {}).value) || 0;
   var nbVip = parseInt((document.getElementById('aqaNbVip') || {}).value) || 0;
 
+  aqaLog('Upload photos en cours…', '#00e5ff');
+  var _extHas = document.getElementById('aqaPhotoExt') && document.getElementById('aqaPhotoExt').files && document.getElementById('aqaPhotoExt').files[0];
+  var _intHas = document.getElementById('aqaPhotoInt') && document.getElementById('aqaPhotoInt').files && document.getElementById('aqaPhotoInt').files[0];
+  aqaLog('Photo ext: ' + (_extHas ? '📷 ' + document.getElementById('aqaPhotoExt').files[0].name : 'aucune'));
+  aqaLog('Photo int: ' + (_intHas ? '📷 ' + document.getElementById('aqaPhotoInt').files[0].name : 'aucune'));
+
   Promise.all([
     aqaUploadPhoto('aqaPhotoExt', 'etablissements/' + docId + '/photo_exterieur.jpg'),
     aqaUploadPhoto('aqaPhotoInt', 'etablissements/' + docId + '/photo_interieur.jpg')
   ]).then(function(urls) {
+    aqaLog('Photos OK → ext:' + (urls[0] ? '✅' : '⚠️ vide') + ' int:' + (urls[1] ? '✅' : '⚠️ vide'), '#00ffaa');
+    aqaLog('Écriture Firestore…', '#00e5ff');
 
     var now = new Date().toISOString();
     var data = {
@@ -43638,6 +43687,7 @@ window.aqaSubmit = function() {
     return window.fbSetDoc(docRef, data);
 
   }).then(function() {
+    aqaLog('✅ Firestore écrit avec succès !', '#00ffaa');
     msgEl3.className = 'aqa-status-msg ok';
     msgEl3.textContent = '✅ Établissement créé avec succès dans Firebase !';
     subBtn.textContent = '✅ Créé !';
@@ -43645,8 +43695,10 @@ window.aqaSubmit = function() {
     setTimeout(function() { window.closeAqaModal(); }, 2200);
 
   }).catch(function(err) {
+    console.error('[AQA] Erreur aqaSubmit:', err);
+    aqaLog('❌ ERREUR: ' + (err && (err.message || err.code) ? (err.message || err.code) : JSON.stringify(err)), '#ff4466');
     msgEl3.className = 'aqa-status-msg err';
-    msgEl3.textContent = '❌ Erreur : ' + err.message;
+    msgEl3.textContent = '❌ Erreur : ' + (err && (err.message || err.code) ? (err.message || err.code) : JSON.stringify(err));
     subBtn.disabled = false; prevBtn.disabled = false;
     subBtn.textContent = '⚡ Créer l\'établissement';
   });
