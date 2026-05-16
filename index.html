@@ -20575,7 +20575,130 @@ function _ambiGetMeta(notif){
   else if(t.indexOf("update")!==-1||t.indexOf("nouveaute")!==-1) t="update";
   return _ambiNotifMeta[t] || _ambiNotifMeta.info;
 }
+/* ═══════════════════════════════════════════════════════════════
+   AMBI241 — SONNERIE NOTIFICATIONS (Web Audio API)
+   Joue une vraie sonnerie + vibration à chaque notification
+   ═══════════════════════════════════════════════════════════════ */
+(function(){
+  'use strict';
+
+  /* ── Contexte audio partagé (créé au premier appel pour contourner l'autoplay) ── */
+  var _ctx = null;
+  function _getCtx(){
+    if(!_ctx){
+      try{ _ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch(e){ _ctx = null; }
+    }
+    return _ctx;
+  }
+
+  /* ── Joue une séquence de notes (type "ding-dong" élégant) ── */
+  function _playRing(type){
+    var ctx = _getCtx();
+    if(!ctx) return;
+    // Reprendre si suspendu (politique autoplay mobile)
+    if(ctx.state === 'suspended') ctx.resume();
+
+    /* Définir les séquences selon le type de notification */
+    var sequences = {
+      // Notification standard : ding-dong
+      default: [
+        { freq:880, dur:0.12, delay:0,    vol:0.35 },
+        { freq:660, dur:0.18, delay:0.13, vol:0.28 }
+      ],
+      // Demande d'ami : 3 notes montantes
+      friend: [
+        { freq:523, dur:0.10, delay:0,    vol:0.30 },
+        { freq:659, dur:0.10, delay:0.11, vol:0.32 },
+        { freq:784, dur:0.18, delay:0.22, vol:0.35 }
+      ],
+      // Message / DM : double bip
+      msg: [
+        { freq:760, dur:0.09, delay:0,    vol:0.30 },
+        { freq:760, dur:0.09, delay:0.14, vol:0.25 }
+      ],
+      // Alerte admin / urgence : descente rapide
+      alert: [
+        { freq:1047, dur:0.10, delay:0,    vol:0.38 },
+        { freq:880,  dur:0.10, delay:0.11, vol:0.35 },
+        { freq:698,  dur:0.15, delay:0.22, vol:0.30 }
+      ]
+    };
+
+    var notes = sequences[type] || sequences['default'];
+    var now   = ctx.currentTime;
+
+    notes.forEach(function(n){
+      try{
+        var osc  = ctx.createOscillator();
+        var gain = ctx.createGain();
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.type      = 'sine';
+        osc.frequency.setValueAtTime(n.freq, now + n.delay);
+
+        /* Enveloppe : attaque douce → extinction progressive */
+        gain.gain.setValueAtTime(0,     now + n.delay);
+        gain.gain.linearRampToValueAtTime(n.vol, now + n.delay + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + n.delay + n.dur);
+
+        osc.start(now + n.delay);
+        osc.stop(now  + n.delay + n.dur + 0.01);
+      }catch(ex){}
+    });
+  }
+
+  /* ── Vibration selon le type ── */
+  function _vibrate(type){
+    if(!navigator.vibrate) return;
+    var patterns = {
+      default: [120, 60, 80],
+      friend:  [80, 50, 80, 50, 120],
+      msg:     [60, 40, 60],
+      alert:   [200, 80, 200]
+    };
+    try{ navigator.vibrate(patterns[type] || patterns['default']); }catch(ex){}
+  }
+
+  /* ── Déduire le type depuis l'objet notif ── */
+  function _notifType(notif){
+    if(!notif) return 'default';
+    var key = (notif.key || '').toLowerCase();
+    var ch  = (notif.channel || '').toLowerCase();
+    if(key.indexOf('friend') !== -1 || key.indexOf('ami')   !== -1) return 'friend';
+    if(key.indexOf('msg')    !== -1 || key.indexOf('dm')    !== -1 || ch === 'dm')    return 'msg';
+    if(key.indexOf('alert')  !== -1 || key.indexOf('admin') !== -1 || ch === 'admin') return 'alert';
+    return 'default';
+  }
+
+  /* ── API publique ── */
+  window.ambiRing = function(notif){
+    /* Respecter le réglage son de l'utilisateur */
+    var soundOff = (localStorage.getItem('ambi_sound_notif') === 'off');
+    var vibrOff  = (localStorage.getItem('ambi_vibrate_notif') === 'off');
+    var type = _notifType(notif);
+    if(!soundOff) _playRing(type);
+    if(!vibrOff)  _vibrate(type);
+  };
+
+  /* ── Débloquer le contexte audio au premier tap utilisateur ── */
+  function _unlockAudio(){
+    var ctx = _getCtx();
+    if(ctx && ctx.state === 'suspended'){
+      ctx.resume().catch(function(){});
+    }
+  }
+  document.addEventListener('touchstart', _unlockAudio, { once:true, passive:true });
+  document.addEventListener('click',      _unlockAudio, { once:true, passive:true });
+
+  console.log('[AMBI241] 🔔 Sonnerie notifications prête (Web Audio API)');
+})();
+
 function showNotifToast(msg, notif){
+  /* 🔔 Sonnerie + vibration à chaque notification */
+  if(typeof window.ambiRing === 'function') window.ambiRing(notif || null);
   var t=document.getElementById("notifToast");
   if(!t)return;
   // Mode riche si un objet notif est passé
@@ -20759,6 +20882,20 @@ function renderNotifPrefs(){
   } else if(typeof Notification!=="undefined"&&Notification.permission==="granted"){
     html+="<div style='text-align:center;font-size:0.68rem;color:var(--green);margin-top:0.4rem;'>✅ Notifications navigateur actives</div>";
   }
+  /* ── Toggles son + vibration ── */
+  var soundOn = (localStorage.getItem('ambi_sound_notif') !== 'off');
+  var vibrOn  = (localStorage.getItem('ambi_vibrate_notif') !== 'off');
+  html += "<div style='margin-top:0.7rem;border-top:1px solid rgba(255,255,255,0.06);padding-top:0.6rem;'>"
+        + "<div class='notif-pref-row'>"
+        + "<div><div class='notif-pref-label'>🔊 Son des notifications</div>"
+        + "<div class='notif-pref-sub'>Sonnerie à chaque notification reçue</div></div>"
+        + "<label class='notif-toggle'><input type='checkbox' id='ambiSoundToggle' "+(soundOn?'checked':'')+" onchange=\"localStorage.setItem('ambi_sound_notif',this.checked?'on':'off');if(this.checked&&typeof window.ambiRing==='function')window.ambiRing(null);\"><span class='notif-toggle-slider'></span></label>"
+        + "</div>"
+        + "<div class='notif-pref-row'>"
+        + "<div><div class='notif-pref-label'>📳 Vibration</div>"
+        + "<div class='notif-pref-sub'>Vibrer à chaque notification reçue</div></div>"
+        + "<label class='notif-toggle'><input type='checkbox' id='ambiVibrateToggle' "+(vibrOn?'checked':'')+" onchange=\"localStorage.setItem('ambi_vibrate_notif',this.checked?'on':'off')\"><span class='notif-toggle-slider'></span></label>"
+        + "</div></div>";
   panel.innerHTML=html;
 }
 
