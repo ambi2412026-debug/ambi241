@@ -5358,12 +5358,8 @@ textarea.soc-input{resize:vertical;min-height:80px;line-height:1.5;}
    QR CODE VOTE SYSTEM — Styles (AMBI241 Patch)
    ════════════════════════════════════════════════════════════════ */
 .qr-card-icon{position:absolute;top:8px;right:8px;width:32px;height:32px;background:linear-gradient(135deg,rgba(0,229,255,0.18),rgba(204,68,255,0.15));border:1.5px solid rgba(0,229,255,0.45);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10;transition:all 0.2s cubic-bezier(0.34,1.56,0.64,1);backdrop-filter:blur(6px);font-size:0.95rem;}
-.qr-card-icon:active{transform:scale(0.88);}
-.qr-card-icon:hover{border-color:var(--cyan);box-shadow:0 0 12px rgba(0,229,255,0.35);}
-.qr-card-icon-tooltip{position:absolute;top:-26px;right:0;font-size:0.55rem;font-weight:800;color:var(--cyan);background:rgba(0,0,0,0.8);border-radius:5px;padding:2px 6px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity 0.2s;}
-.qr-card-icon:hover .qr-card-icon-tooltip{opacity:1;}
-.qr-card-icon.qr-locked{border-color:rgba(255,215,0,0.35);background:linear-gradient(135deg,rgba(255,215,0,0.1),rgba(255,45,155,0.08));opacity:0.75;}
-.card{position:relative;}
+/* Fix: overflow:hidden + contain:layout sur .card clippait l'icône QR positionnée en absolute */
+.card{position:relative;overflow:visible !important;contain:style !important;}
 .qr-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.82);backdrop-filter:blur(14px);z-index:9990;display:none;align-items:center;justify-content:center;padding:1rem;}
 .qr-modal-overlay.open{display:flex;}
 .qr-modal-sheet{background:linear-gradient(145deg,#1e0a30,#230d35);border:1.5px solid rgba(0,229,255,0.3);border-radius:24px;padding:1.4rem;width:min(400px,100%);max-height:92vh;overflow-y:auto;position:relative;animation:qrPopIn 0.35s cubic-bezier(0.34,1.56,0.64,1);}
@@ -43716,6 +43712,294 @@ new MutationObserver(function(mutations) {
 }).observe(document.body, { childList: true, subtree: true });
 
 console.log('[AMBI241] ✅ QR Code Vote System chargé');
+
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     🔗 PATCH UNIVERSEL — NOMS CLIQUABLES → FICHES PUBLIQUES
+     Connecte TOUS les noms (établissements, membres, chauffeurs)
+     à openPublicProfile(), partout dans l'app.
+     ═══════════════════════════════════════════════════════════════ -->
+<script>
+(function() {
+'use strict';
+
+/* ── Attendre que les fonctions core soient disponibles ── */
+function _ready(fn) {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', fn);
+  } else {
+    fn();
+  }
+}
+
+/* ══════════════════════════════════════════════
+   1. PATCH NOMS ÉTABLISSEMENTS dans les .card
+   Remplace le bouton etab-name-order-btn par
+   un double rôle : clic court = profil, long clic = commande
+   ══════════════════════════════════════════════ */
+function _patchCardEtabNames() {
+  document.querySelectorAll('.card[id^="card-etab-"]').forEach(function(card) {
+    if (card.getAttribute('data-pp-name-patched')) return;
+    card.setAttribute('data-pp-name-patched', '1');
+
+    var etabIdStr = card.id.replace('card-etab-', '');
+    var etabId = parseInt(etabIdStr);
+    if (!etabId || isNaN(etabId)) return;
+
+    var nameBtn = card.querySelector('.etab-name-order-btn');
+    if (!nameBtn) return;
+
+    /* Distinguer clic court (profil) vs clic long (commande) */
+    var _pressTimer = null;
+    var _longPressed = false;
+
+    nameBtn.addEventListener('pointerdown', function() {
+      _longPressed = false;
+      _pressTimer = setTimeout(function() {
+        _longPressed = true;
+        /* Comportement original = commande */
+        if (window['_etabOrderBtn_' + etabId]) window['_etabOrderBtn_' + etabId]();
+      }, 500);
+    });
+
+    nameBtn.addEventListener('pointerup', function(e) {
+      clearTimeout(_pressTimer);
+      if (!_longPressed) {
+        e.stopPropagation();
+        var etab = (window.etablissements || []).find(function(x) { return x.id === etabId; });
+        if (etab && typeof window.openPublicProfile === 'function') {
+          window.openPublicProfile('etablissement', etabId, etab);
+        }
+      }
+    });
+
+    nameBtn.addEventListener('pointercancel', function() { clearTimeout(_pressTimer); });
+
+    /* Ajouter un micro-hint visuel */
+    nameBtn.style.textDecoration = 'underline';
+    nameBtn.style.textDecorationStyle = 'dotted';
+    nameBtn.style.textUnderlineOffset = '3px';
+    nameBtn.title = '👤 Voir la fiche · Maintenir pour commander';
+  });
+}
+
+/* ══════════════════════════════════════════════
+   2. PATCH NOMS MEMBRES dans les publications
+   .pub-author et .pub-avatar → openPublicProfile('membre')
+   ══════════════════════════════════════════════ */
+function _patchPubAuthors() {
+  document.querySelectorAll('.pub-author[onclick*="openPubAuthorFilter"]').forEach(function(el) {
+    if (el.getAttribute('data-pp-name-patched')) return;
+    el.setAttribute('data-pp-name-patched', '1');
+    el.style.textDecoration = 'underline';
+    el.style.textDecorationStyle = 'dotted';
+    el.style.textUnderlineOffset = '3px';
+    /* onclick déjà présent via openPubAuthorFilter → openPublicProfile, rien à ajouter */
+  });
+
+  /* Auteurs de commentaires (.pub-comment-author) → pas de onclick actuellement */
+  document.querySelectorAll('.pub-comment-author').forEach(function(el) {
+    if (el.getAttribute('data-pp-name-patched')) return;
+    el.setAttribute('data-pp-name-patched', '1');
+    var pseudo = el.textContent.trim();
+    if (!pseudo || pseudo === 'Anonyme') return;
+    el.style.cursor = 'pointer';
+    el.style.textDecoration = 'underline';
+    el.style.textDecorationStyle = 'dotted';
+    el.style.textUnderlineOffset = '2px';
+    el.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (typeof window.openPublicProfile === 'function') {
+        var rawData = { pseudo: pseudo, name: pseudo };
+        if (window.currentUserPseudo === pseudo && window.currentUserUID) {
+          rawData.uid = window.currentUserUID;
+        }
+        window.openPublicProfile('membre', 'pseudo_' + pseudo.replace(/\s/g, '_'), rawData);
+      }
+    });
+  });
+
+  /* Auteurs de commentaires socpub (.socpub-comment-author) */
+  document.querySelectorAll('.socpub-comment-author').forEach(function(el) {
+    if (el.getAttribute('data-pp-name-patched')) return;
+    el.setAttribute('data-pp-name-patched', '1');
+    var pseudo = el.childNodes[0] ? el.childNodes[0].textContent.trim() : el.textContent.trim();
+    if (!pseudo || pseudo === 'Anonyme' || pseudo === 'Membre') return;
+    el.style.cursor = 'pointer';
+    el.style.textDecoration = 'underline';
+    el.style.textDecorationStyle = 'dotted';
+    el.style.textUnderlineOffset = '2px';
+    el.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (typeof window.openPublicProfile === 'function') {
+        window.openPublicProfile('membre', 'pseudo_' + pseudo.replace(/\s/g, '_'), { pseudo: pseudo, name: pseudo });
+      }
+    });
+  });
+}
+
+/* ══════════════════════════════════════════════
+   3. PATCH NOMS MEMBRES dans la section Amis/Social
+   .friend-card déjà patché via openMemberProfile
+   On enrichit pour aussi ouvrir openPublicProfile
+   ══════════════════════════════════════════════ */
+function _patchFriendCards() {
+  document.querySelectorAll('.friend-card[onclick*="openMemberProfile"]').forEach(function(el) {
+    if (el.getAttribute('data-pp-name-patched')) return;
+    el.setAttribute('data-pp-name-patched', '1');
+    /* déjà lié via openMemberProfile — on surcharge pour tenter openPublicProfile si dispo */
+    var origOnclick = el.onclick;
+    el.onclick = function(e) {
+      /* extraire uid depuis onclick="openMemberProfile('uid')" */
+      var m = el.getAttribute('onclick') && el.getAttribute('onclick').match(/openMemberProfile\('([^']+)'\)/);
+      if (m && m[1] && typeof window.openPublicProfile === 'function') {
+        var uid = m[1];
+        var rawData = { uid: uid };
+        /* Chercher pseudo dans le DOM de la carte */
+        var nameEl = el.querySelector('[class*="name"],[class*="pseudo"],[class*="title"]');
+        if (nameEl) rawData.pseudo = rawData.name = nameEl.textContent.trim();
+        window.openPublicProfile('membre', 'pseudo_' + (rawData.pseudo || uid).replace(/\s/g, '_'), rawData);
+      } else if (typeof origOnclick === 'function') {
+        origOnclick.call(this, e);
+      }
+    };
+  });
+}
+
+/* ══════════════════════════════════════════════
+   4. PATCH NOM ÉTABLISSEMENT dans le top-6 accueil
+   .top6-card onclick="goToEtab(id)" → ajouter ouverture profil
+   ══════════════════════════════════════════════ */
+function _patchTop6Cards() {
+  document.querySelectorAll('.top6-card').forEach(function(card) {
+    if (card.getAttribute('data-pp-name-patched')) return;
+    card.setAttribute('data-pp-name-patched', '1');
+
+    var m = (card.getAttribute('onclick') || '').match(/goToEtab\((\d+)\)/);
+    if (!m) return;
+    var etabId = parseInt(m[1]);
+
+    /* Rendre le t6c-name cliquable pour le profil, le reste de la card = goToEtab */
+    var nameEl = card.querySelector('.t6c-name');
+    if (nameEl) {
+      nameEl.style.cursor = 'pointer';
+      nameEl.style.textDecoration = 'underline';
+      nameEl.style.textDecorationStyle = 'dotted';
+      nameEl.style.textUnderlineOffset = '2px';
+      nameEl.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var etab = (window.etablissements || []).find(function(x) { return x.id === etabId; });
+        if (etab && typeof window.openPublicProfile === 'function') {
+          window.openPublicProfile('etablissement', etabId, etab);
+        }
+      });
+    }
+  });
+}
+
+/* ══════════════════════════════════════════════
+   5. PATCH NOMS CHAUFFEURS
+   .wa-etab-name et liens chauffeurs
+   ══════════════════════════════════════════════ */
+function _patchDriverNames() {
+  document.querySelectorAll('[onclick*="showDriverProfile"],[onclick*="openDriverProfile"]').forEach(function(el) {
+    if (el.getAttribute('data-pp-name-patched')) return;
+    el.setAttribute('data-pp-name-patched', '1');
+    /* showDriverProfile déjà patché par le système profils publics via _prevShowDriverProfile */
+    el.style.cursor = 'pointer';
+  });
+}
+
+/* ══════════════════════════════════════════════
+   6. PATCH NOMS dans le FORUM / Publications par étab
+   .pub-etab-tag → openPublicProfile('etablissement')
+   ══════════════════════════════════════════════ */
+function _patchPubEtabTags() {
+  document.querySelectorAll('.pub-etab-tag[onclick*="searchEtabFromPub"]').forEach(function(el) {
+    if (el.getAttribute('data-pp-name-patched')) return;
+    el.setAttribute('data-pp-name-patched', '1');
+    /* searchEtabFromPub déjà patché → openPublicProfile */
+    el.style.textDecoration = 'underline';
+    el.style.textDecorationStyle = 'dotted';
+  });
+}
+
+/* ══════════════════════════════════════════════
+   7. PATCH NOMS dans les NOTIFICATIONS / connexions
+   Toute mention d'établissement ou de membre
+   avec data-etab-id ou data-uid
+   ══════════════════════════════════════════════ */
+function _patchDataAttrElements() {
+  /* Éléments [data-etab-id] */
+  document.querySelectorAll('[data-etab-id]:not([data-pp-name-patched])').forEach(function(el) {
+    el.setAttribute('data-pp-name-patched', '1');
+    var etabId = parseInt(el.getAttribute('data-etab-id'));
+    if (!etabId || isNaN(etabId)) return;
+    el.style.cursor = 'pointer';
+    el.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var etab = (window.etablissements || []).find(function(x) { return x.id === etabId; });
+      if (etab && typeof window.openPublicProfile === 'function') {
+        window.openPublicProfile('etablissement', etabId, etab);
+      }
+    });
+  });
+
+  /* Éléments [data-uid] qui affichent un nom */
+  document.querySelectorAll('[data-uid]:not([data-pp-name-patched])').forEach(function(el) {
+    el.setAttribute('data-pp-name-patched', '1');
+    var uid = el.getAttribute('data-uid');
+    if (!uid) return;
+    el.style.cursor = 'pointer';
+    el.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (typeof window.openPublicProfile === 'function') {
+        var pseudo = el.getAttribute('data-pseudo') || el.textContent.trim() || uid;
+        window.openPublicProfile('membre', 'pseudo_' + pseudo.replace(/\s/g, '_'), { uid: uid, pseudo: pseudo, name: pseudo });
+      }
+    });
+  });
+}
+
+/* ══════════════════════════════════════════════
+   ORCHESTRATEUR — lance tous les patchs
+   ══════════════════════════════════════════════ */
+function _runAllPatches() {
+  _patchCardEtabNames();
+  _patchPubAuthors();
+  _patchFriendCards();
+  _patchTop6Cards();
+  _patchDriverNames();
+  _patchPubEtabTags();
+  _patchDataAttrElements();
+}
+
+/* Lancement initial */
+_ready(function() {
+  setTimeout(_runAllPatches, 800);
+  setTimeout(_runAllPatches, 2500); /* re-passer après chargement Firebase */
+});
+
+/* Observer DOM pour re-patcher après rendu dynamique */
+var _ppUnivTimer = null;
+new MutationObserver(function(mutations) {
+  var relevant = mutations.some(function(m) {
+    return Array.from(m.addedNodes).some(function(n) {
+      return n.nodeType === 1;
+    });
+  });
+  if (relevant) {
+    clearTimeout(_ppUnivTimer);
+    _ppUnivTimer = setTimeout(_runAllPatches, 200);
+  }
+}).observe(document.body, { childList: true, subtree: true });
+
+/* Exposer pour appel manuel si besoin */
+window.ambiPatchClickableNames = _runAllPatches;
+
+console.log('[AMBI241] ✅ Patch noms cliquables chargé — tous les noms ouvrent le profil public');
 
 })();
 </script>
