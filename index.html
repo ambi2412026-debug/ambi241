@@ -19786,43 +19786,42 @@ var DEFAULT_MEMBER_PWD = "Ambi@241";
 
 function resetMemberPassword(uid, email, pseudo, fromTicketId){
   if(!isAdmin){ showToast("Accès refusé - Admin requis"); return; }
-  if(!uid){ showToast("UID membre introuvable"); return; }
+  if(!email){ showToast("Email membre introuvable"); return; }
 
-  var customPwd = prompt(
+  if(!confirm(
     "🔑 RÉINITIALISATION — " + pseudo + "\n" +
     "Email : " + email + "\n\n" +
-    "Mot de passe par défaut : " + DEFAULT_MEMBER_PWD + "\n\n" +
-    "Laissez tel quel pour le défaut, ou tapez un mot de passe personnalisé :",
-    DEFAULT_MEMBER_PWD
-  );
-  if(customPwd === null) return; // Annulé
-  var newPwd = (customPwd.trim() || DEFAULT_MEMBER_PWD);
+    "Un email de réinitialisation sera envoyé à l'utilisateur.\nConfirmer ?"
+  )) return;
 
-  if(!window.db || !window.fbDoc || !window.fbUpdateDoc){
+  if(!window.fbSendPasswordResetEmail || !window.auth){
     showToast("Firebase non disponible"); return;
   }
-  showToast("⏳ Réinitialisation en cours...");
-  var docRef = window.fbDoc(window.db, "users", uid);
-  window.fbUpdateDoc(docRef, {
-    password: newPwd,
-    password_reset_date: new Date().toISOString(),
-    password_reset_by_admin: true,
-    must_change_password: true
-  }).then(function(){
-    showToast("✅ MDP réinitialisé pour " + pseudo);
-    addAdminLog("🔑 MDP réinitialisé — " + pseudo + " (" + email + ")", "reset_member_pwd");
-    // Si appelé depuis un ticket support, clore le ticket avec message de confirmation
-    if(fromTicketId){
-      _supportResolveTicket(fromTicketId, email, pseudo, newPwd);
-    } else {
-      // Créer un ticket résolu automatiquement pour traçabilité
-      _supportAutoLog(uid, email, pseudo, newPwd);
+  showToast("⏳ Envoi en cours...");
+  window.fbSendPasswordResetEmail(window.auth, email).then(function(){
+    showToast("✅ Email de réinitialisation envoyé à " + email);
+    addAdminLog("🔑 Email reset envoyé — " + pseudo + " (" + email + ")", "reset_member_pwd");
+    // Traçabilité Firestore (sans stocker le mot de passe)
+    if(window.db && window.fbDoc && window.fbUpdateDoc && uid){
+      window.fbUpdateDoc(window.fbDoc(window.db, "users", uid), {
+        password_reset_date: new Date().toISOString(),
+        password_reset_by_admin: true,
+        must_change_password: true
+      }).catch(function(){});
     }
-    // Rafraîchir la liste si on est dans l'onglet users
+    if(fromTicketId){
+      _supportResolveTicket(fromTicketId, email, pseudo, "(lien envoyé par email)");
+    } else {
+      _supportAutoLog(uid, email, pseudo, "(lien envoyé par email)");
+    }
     if(_currentAdmTab === "users") renderAdmUsers();
     if(_currentAdmTab === "support") renderAdmSupport();
   }).catch(function(err){
-    showToast("Erreur: " + err.message);
+    if(err.code === "auth/user-not-found"){
+      showToast("❌ Aucun compte Firebase pour cet email. L'utilisateur doit s'inscrire.");
+    } else {
+      showToast("Erreur: " + err.message);
+    }
   });
 }
 window.resetMemberPassword = resetMemberPassword;
