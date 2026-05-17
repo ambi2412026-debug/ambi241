@@ -20,9 +20,17 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://maps.googleapis.com" crossorigin>
-<link rel="dns-prefetch" href="https://firestore.googleapis.com">
-<link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com">
+<!-- PERF: preconnect Firebase (upgrade depuis dns-prefetch) -->
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+<!-- PERF: modulepreload Firebase — browser télécharge les 4 modules dès le parsing du <head>,
+     avant même d'atteindre le <script type="module"> dans le body -->
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.1/firebase-storage.js">
 <!-- QR Code Vote System — bibliothèque QRCode.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
         crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
@@ -6198,7 +6206,53 @@ if (document.readyState === 'loading') {
 </head>
 <body>
 
-<div id="user-profile-modal" class="user-profile-modal">
+<!-- ══ SKELETON CHARGEMENT RAPIDE — visible immédiatement, masqué après DOMContentLoaded ══ -->
+<style>
+#ambi-splash{position:fixed;inset:0;z-index:99998;background:#1a0a28;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity 0.4s ease;}
+#ambi-splash.hide{opacity:0;pointer-events:none;}
+.splash-logo{font-family:'Syne',sans-serif;font-size:2rem;font-weight:900;color:#ff2d9b;letter-spacing:-0.04em;margin-bottom:0.4rem;}
+.splash-logo span{color:#00e5ff;}
+.splash-sub{font-size:0.75rem;color:#b088c0;margin-bottom:2rem;}
+.splash-cats{display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;width:min(320px,88vw);margin-bottom:2rem;}
+.splash-cat{border-radius:18px;padding:1.4rem 1rem;display:flex;flex-direction:column;align-items:center;gap:0.5rem;animation:skPulse 1.4s ease-in-out infinite;}
+.splash-cat:nth-child(1){background:rgba(66,133,244,0.25);animation-delay:0s;}
+.splash-cat:nth-child(2){background:rgba(52,168,83,0.25);animation-delay:0.15s;}
+.splash-cat:nth-child(3){background:rgba(251,188,5,0.25);animation-delay:0.3s;}
+.splash-cat:nth-child(4){background:rgba(155,81,224,0.25);animation-delay:0.45s;}
+.splash-cat-icon{font-size:1.8rem;}
+.splash-cat-label{font-family:'Syne',sans-serif;font-size:0.82rem;font-weight:700;color:rgba(255,255,255,0.6);}
+@keyframes skPulse{0%,100%{opacity:0.7}50%{opacity:1}}
+.splash-bar{width:180px;height:4px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;margin-bottom:0.6rem;}
+.splash-bar-fill{height:100%;background:linear-gradient(90deg,#ff2d9b,#00e5ff);border-radius:4px;animation:splashLoad 2s ease-in-out infinite;}
+@keyframes splashLoad{0%{width:0%;margin-left:0}60%{width:80%}100%{width:100%;margin-left:0}}
+.splash-tip{font-size:0.65rem;color:rgba(176,136,192,0.7);}
+</style>
+<div id="ambi-splash">
+  <div class="splash-logo">AMBI<span>241</span></div>
+  <div class="splash-sub">Ambiance Libreville en Direct</div>
+  <div class="splash-cats">
+    <div class="splash-cat"><div class="splash-cat-icon">🏙️</div><div class="splash-cat-label">Bar Terrasses</div></div>
+    <div class="splash-cat"><div class="splash-cat-icon">🍟</div><div class="splash-cat-label">Snacks</div></div>
+    <div class="splash-cat"><div class="splash-cat-icon">🍽️</div><div class="splash-cat-label">Restos & Pâtisseries</div></div>
+    <div class="splash-cat"><div class="splash-cat-icon">🎵</div><div class="splash-cat-label">Clubs</div></div>
+  </div>
+  <div class="splash-bar"><div class="splash-bar-fill"></div></div>
+  <div class="splash-tip">Chargement des données en direct...</div>
+</div>
+<script>
+// Masquer le splash dès que le DOM est prêt (contenu affiché)
+document.addEventListener('DOMContentLoaded', function() {
+  var splash = document.getElementById('ambi-splash');
+  if (splash) {
+    // Laisser 600ms pour que les premiers render se fassent
+    setTimeout(function() {
+      splash.classList.add('hide');
+      setTimeout(function() { splash.remove(); }, 450);
+    }, 600);
+  }
+});
+</script>
+<!-- ══ FIN SKELETON ══ --> class="user-profile-modal">
   <div class="profile-card-wrap">
     <div class="profile-header">
       <button class="profile-close-btn" onclick="closeMyProfileModal()">✕</button>
@@ -9086,7 +9140,7 @@ window.closePhotoViewer = closePhotoViewer;
 <!-- ══ FIREBASE SDK (module isolé) ══ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query, where, getDoc, addDoc, onSnapshot, serverTimestamp, limit, increment, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query, where, getDoc, addDoc, onSnapshot, serverTimestamp, limit, increment, arrayUnion, arrayRemove, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
 import { getStorage, ref, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-storage.js";
 
@@ -9103,6 +9157,16 @@ const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
+
+// ── Persistance OFFLINE : données chargées depuis IndexedDB au 2e visite ──
+// Les établissements s'affichent INSTANTANÉMENT, puis se synchronisent en fond
+enableIndexedDbPersistence(db).catch(function(err){
+  // FAILED_PRECONDITION = 2 onglets ouverts → ignoré, pas bloquant
+  // UNIMPLEMENTED = navigateur ne supporte pas → dégradation gracieuse
+  if(err && err.code !== 'failed-precondition' && err.code !== 'unimplemented'){
+    console.warn('[AMBI241] IndexedDB persistence:', err.code);
+  }
+});
 
 // ── Persistance locale : la session survit au refresh ──
 setPersistence(auth, browserLocalPersistence).catch(function(){});
@@ -12260,7 +12324,38 @@ function loadData(){
     setTimeout(loadData, 300);
     return;
   }
-  setSyncing(true);
+
+  /* ── PERF: Stale-While-Revalidate — charge le cache localStorage IMMÉDIATEMENT,
+     puis Firebase en arrière-plan pour mettre à jour ── */
+  var ETAB_CACHE_KEY = 'ambi241_etab_cache_v2';
+  var ETAB_CACHE_TTL = 5 * 60 * 1000; // 5 minutes — après ça, on force Firebase
+  try {
+    var cached = JSON.parse(localStorage.getItem(ETAB_CACHE_KEY) || 'null');
+    if(cached && cached.data && cached.data.length > 0) {
+      var age = Date.now() - (cached.ts || 0);
+      // Afficher immédiatement depuis le cache
+      etablissements = cached.data;
+      rebuildPaiements();
+      etablissements.forEach(function(e){ applyDynamicStatus(e); });
+      renderStats(); renderAll(); renderHome(); renderPayments();
+      updateSyncTime();
+      if(typeof i18n !== "undefined") i18n.applyTranslations();
+      // Si cache récent, pas besoin de Firebase immédiatement
+      if(age < ETAB_CACHE_TTL) {
+        setSyncing(false);
+        // Quand même syncer Firebase en fond (silencieux)
+        setTimeout(function(){ _loadDataFromFirebase(true); }, 200);
+        return;
+      }
+    }
+  } catch(e) {}
+  // Pas de cache ou cache trop vieux → charger depuis Firebase normalement
+  _loadDataFromFirebase(false);
+}
+
+function _loadDataFromFirebase(silent){
+  if(!silent) setSyncing(true);
+  var ETAB_CACHE_KEY = 'ambi241_etab_cache_v2';
   var q=window.fbQuery(window.fbCollection(window.db,"etablissements"),window.fbOrderBy("id"));
   window.fbGetDocs(q).then(function(snapshot){
     var firebaseData=[];
@@ -12275,10 +12370,12 @@ function loadData(){
         return true;
       });
       // ── Firebase est la source de vérité unique ──
-      // Les defaults servent UNIQUEMENT si Firebase est vide (première utilisation)
       etablissements = firebaseData;
+      // Sauvegarder en cache localStorage pour la prochaine visite
+      try {
+        localStorage.setItem(ETAB_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: firebaseData }));
+      } catch(e) {}
     } else {
-      // Firebase vide → fallback données locales
       etablissements = getDefaults();
     }
 
