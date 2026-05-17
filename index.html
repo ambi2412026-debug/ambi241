@@ -39558,8 +39558,13 @@ window.openDM = function(uid){
     if(typeof socToast==='function') socToast('🔒 Connectez-vous pour envoyer un message');
     return;
   }
+
+  /* ── FIX : ne plus bloquer si l'ami n'est pas encore dans _friends
+     (liste peut être en cours de chargement Firebase) ── */
   var friend = (_friends||[]).find(function(x){ return x.uid===uid; });
-  if(!friend){ if(typeof socToast==='function') socToast('⚠️ Ami introuvable'); return; }
+  // Si introuvable dans _friends, on crée un objet minimal et on continue
+  // Le nom réel sera chargé depuis Firestore si disponible
+  var friendResolved = friend || { uid: uid, name: null, avatar: null };
 
   if(typeof _dmUnsub==='function'){ _dmUnsub(); _dmUnsub=null; }
 
@@ -39568,9 +39573,22 @@ window.openDM = function(uid){
 
   var avEl=document.getElementById('dmPeerAv');
   var nameEl=document.getElementById('dmPeerName');
-  var peerName = friend.name||friend.pseudo||'Inconnu';
-  if(avEl)   avEl.textContent   = friend.avatar || (peerName[0]||'?').toUpperCase();
-  if(nameEl) nameEl.textContent = peerName;
+
+  // Affichage provisoire en attendant le chargement du nom
+  if(avEl)   avEl.textContent = friendResolved.avatar || (friendResolved.name ? friendResolved.name[0].toUpperCase() : '?');
+  if(nameEl) nameEl.textContent = friendResolved.name || '…';
+
+  // Charger le nom depuis Firestore si pas dans _friends
+  if(!friend && window.db && window.fbDoc && window.fbGetDoc){
+    window.fbGetDoc(window.fbDoc(window.db,'users',uid)).then(function(snap){
+      if(snap && (typeof snap.exists==='function' ? snap.exists() : snap.exists)){
+        var d = snap.data()||{};
+        var n = d.pseudo||d.displayName||d.nom||d.email||'Membre';
+        if(nameEl) nameEl.textContent = n;
+        if(avEl)   avEl.textContent   = (n[0]||'?').toUpperCase();
+      }
+    }).catch(function(){});
+  }
 
   var inp=document.getElementById('dmInput');
   if(inp) inp.value='';
@@ -39630,12 +39648,16 @@ window.dmSend = function(){
   var txt=inp.value.trim(); if(!txt||txt.length>500) return;
   var meUid=window.currentUserUID;
   if(!meUid){ if(typeof socToast==='function') socToast('🔒 Connexion requise'); return; }
-  var btn=document.getElementById('dmSendBtn'); if(btn) btn.disabled=true;
-  inp.value='';
+
+  /* ── FIX : vérifier Firebase AVANT d'effacer le texte ── */
   if(!window.db||!window.fbAddDoc||!window.fbCollection||!window.fbSetDoc||!window.fbDoc||!window.fbServerTimestamp){
-    if(typeof socToast==='function') socToast('⚠️ Firebase non disponible');
-    if(btn) btn.disabled=false; return;
+    if(typeof socToast==='function') socToast('⚠️ Firebase non disponible — réessayez dans un instant');
+    return; // texte conservé dans l'input
   }
+
+  var btn=document.getElementById('dmSendBtn'); if(btn) btn.disabled=true;
+  inp.value=''; // effacer seulement si Firebase est OK
+
   var ts=window.fbServerTimestamp();
   var msgData={ from:meUid, fromName:window.currentUserPseudo||window.currentUserEmail||'Moi', to:_dmCurrentUid, text:txt, sentAt:ts };
   window.fbAddDoc(window.fbCollection(window.db,'dm_conversations',_dmCurrentConvId,'messages'), msgData)
@@ -39646,7 +39668,10 @@ window.dmSend = function(){
       if(btn) btn.disabled=false;
     }).catch(function(e){
       console.warn('[DM] send error',e);
-      if(typeof socToast==='function') socToast('❌ Erreur : '+(e.message||'')); if(btn) btn.disabled=false;
+      /* ── FIX : restaurer le texte en cas d'erreur ── */
+      if(inp && !inp.value) inp.value=txt;
+      if(typeof socToast==='function') socToast('❌ Erreur envoi : '+(e.message||'réessayez'));
+      if(btn) btn.disabled=false;
     });
 };
 window.dmSend=window.dmSend;
