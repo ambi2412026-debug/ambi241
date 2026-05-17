@@ -2730,8 +2730,49 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .prox-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
 .prox-dot-near{background:var(--green);box-shadow:0 0 8px rgba(0,255,170,0.7);animation:pulse 2s infinite;}
 .prox-dot-far{background:var(--muted);}
-/* Surbrillance carte proche */
-.card-prox-near{border-color:rgba(0,255,170,0.28) !important;box-shadow:0 0 0 1px rgba(0,255,170,0.15) inset;}
+/* Surbrillance carte proche — GPS actif */
+.card-prox-near{
+  border-color:rgba(0,255,170,0.45) !important;
+  box-shadow:0 0 0 1.5px rgba(0,255,170,0.18) inset, 0 4px 18px rgba(0,255,170,0.10);
+  background:linear-gradient(180deg,rgba(0,255,170,0.045) 0%,transparent 60%) !important;
+}
+
+/* Surbrillance carte même quartier/zone — recherche textuelle */
+.card-zone-match{
+  border-color:rgba(0,255,170,0.5) !important;
+  box-shadow:0 0 0 1.5px rgba(0,255,170,0.20) inset, 0 4px 20px rgba(0,255,170,0.12);
+  background:linear-gradient(180deg,rgba(0,255,170,0.055) 0%,transparent 65%) !important;
+}
+/* Badge "Près de toi" affiché sur les cartes zone-match */
+.zone-match-badge{
+  display:inline-flex;align-items:center;gap:0.25rem;
+  background:rgba(0,255,170,0.12);
+  border:1px solid rgba(0,255,170,0.38);
+  color:var(--green);
+  font-size:0.55rem;font-weight:800;
+  padding:0.09rem 0.38rem;border-radius:20px;
+  margin-left:0.35rem;vertical-align:middle;
+  letter-spacing:0.03em;text-transform:uppercase;
+  animation:zone-match-glow 2.5s ease-in-out infinite;
+}
+@keyframes zone-match-glow{
+  0%,100%{box-shadow:0 0 0 rgba(0,255,170,0);}
+  50%{box-shadow:0 0 8px rgba(0,255,170,0.35);}
+}
+/* Indicateur vert dans le coin de la photo */
+.card-zone-match .zone-corner-dot{
+  position:absolute;top:8px;left:8px;
+  width:9px;height:9px;border-radius:50%;
+  background:var(--green);
+  box-shadow:0 0 10px rgba(0,255,170,0.85);
+  animation:pulse 1.8s infinite;
+  z-index:5;
+}
+/* Surbrillance ligne compacte même quartier */
+.zone-match-row{
+  border-left:3px solid rgba(0,255,170,0.6) !important;
+  background:linear-gradient(90deg,rgba(0,255,170,0.055) 0%,transparent 40%) !important;
+}
 /* Badge GPS actif sur le bouton */
 .gps-nearby-btn.geo-method-active{background:linear-gradient(135deg,rgba(0,255,170,0.12),rgba(0,229,255,0.08));border-color:var(--green);color:var(--green);}
 /* Badge méthode */
@@ -8514,10 +8555,10 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 
     <div class="soc-tab" onclick="socSwitchTab('amis')">
-      👤 Amis <span class="soc-tab-badge" id="tabBadgeFriends" style="display:none;">0</span>
+      👤 Amis <span class="soc-tab-badge" id="tabBadgeFriends">3</span>
     </div>
     <div class="soc-tab" onclick="socSwitchTab('demandes')">
-      📨 Demandes <span class="soc-tab-badge" id="tabBadgeReq" style="display:none;">0</span>
+      📨 Demandes <span class="soc-tab-badge" id="tabBadgeReq">2</span>
     </div>
     <div class="soc-tab" onclick="socSwitchTab('communautes')">🏘️ Communautés</div>
     <div class="soc-tab" onclick="socSwitchTab('projets')">🎯 Projets</div>
@@ -14376,6 +14417,11 @@ function filterData(){
     if(isAdmin) return ms&&mt;
     return ms&&mt&&mv;
   });
+
+  // ── Marquer les établissements dont le quartier correspond à la recherche ──
+  data.forEach(function(e){
+    e._zoneMatch = !!(q && q.length >= 2 && e.quartier && e.quartier.toLowerCase().indexOf(q) !== -1);
+  });
   // ── GPS : filtrer par rayon si mode actif ──
   if(typeof _gpsState !== "undefined" && _gpsState.active && _gpsState.lat !== null){
     data = filterByRadius(data);
@@ -15277,10 +15323,11 @@ function buildCompactRow(e, rank){
   var html = "";
 
   // ─ Ligne condensée ─
-  html += "<div class='compact-row' id='cr-"+e.id+"' onclick='toggleCompactDetail("+e.id+")'>";
+  var rowZoneClass = e._zoneMatch ? " zone-match-row" : "";
+  html += "<div class='compact-row"+rowZoneClass+"' id='cr-"+e.id+"' onclick='toggleCompactDetail("+e.id+")'>";
   html += "<div class='cr-rank "+rankCls+"'>"+rank+"</div>";
   html += "<div class='cr-icon'>"+ci.icon+"</div>";
-  html += "<div class='cr-name'>"+escHtml(e.nom)+"</div>";
+  html += "<div class='cr-name'>"+escHtml(e.nom)+(e._zoneMatch ? "<span class='zone-match-badge' style='margin-left:0.4rem;'>📍 Proche</span>" : "")+"</div>";
   if(statLabel) html += "<div class='cr-status "+statCls+"'>"+statLabel+"</div>";
   html += "<div class='cr-score'>⭐ "+note+"</div>";
   html += "<div class='cr-chevron'>▼</div>";
@@ -15363,6 +15410,20 @@ function buildCard(e,delay,compact,rank,extraClass){
   var aff=e.affluence||0;
   var affColor=aff>70?"var(--red)":aff>40?"var(--amber)":"var(--green)";
 
+  // ── Zone match : établissement du même quartier que la recherche ──
+  var isZoneMatch = !!(e._zoneMatch) && !extraClass.indexOf("card-prox-near") > -1;
+  if(isZoneMatch && extraClass.indexOf("card-zone-match") === -1){
+    extraClass = (extraClass ? extraClass+" " : "") + "card-zone-match";
+  }
+  // Badge "📍 Près de toi" affiché dans le nom quand zone match
+  var zoneMatchBadge = isZoneMatch
+    ? "<span class='zone-match-badge'>📍 Proche</span>"
+    : "";
+  // Point vert dans le coin de la photo
+  var zoneCornerDot = isZoneMatch
+    ? "<div class='zone-corner-dot'></div>"
+    : "";
+
   // Bandeau "Mon établissement" si épinglé (membre propriétaire)
   var pinnedBanner = "";
   if(e._isPinned && !isAdmin && currentUserEmail){
@@ -15420,6 +15481,8 @@ function buildCard(e,delay,compact,rank,extraClass){
   var displayedPhoto = (slotPhotos.length > 0) ? slotPhotos[0].url : (permPhoto || "");
   
   photosHtml += "<div style='position:relative;height:120px;overflow:hidden;background:rgba(255,45,155,0.06);cursor:pointer;'>";
+  // Point vert "zone proche" dans le coin de la photo
+  if(zoneCornerDot) photosHtml += zoneCornerDot;
   if(displayedPhoto){
     // Afficher la photo (slot ou permPhoto)
     var isSlotPhoto = slotPhotos.length > 0;
@@ -15891,7 +15954,7 @@ function buildCard(e,delay,compact,rank,extraClass){
     "<div class=\"card-top\">"+
     "<div class=\"card-row1\"><div>"+
     "<div class=\"card-num rank-"+(rank===1?'1':rank===2?'2':rank===3?'3':'other')+"\">N°"+(rank!=null?rank:e.id)+"</div>"+
-    "<div class=\"card-name\"><button class=\"etab-name-order-btn\" onclick=\"window['_etabOrderBtn_'+"+e.id+"] && window['_etabOrderBtn_'+"+e.id+"]()\" title=\"📋 Réserver à "+e.nom.replace(/"/g,'')+"\" style=\"font-family:'Syne',sans-serif;font-size:inherit;font-weight:inherit;\">"+e.nom+" <span class=\"etab-name-order-pulse\">+</span></button> <span onclick=\"openGalerie("+e.id+")\" title=\"Voir la galerie de "+(e.nom||"").replace(/"/g,'')+"\" style=\"cursor:pointer;display:inline-flex;align-items:center;gap:0.35rem;flex-wrap:wrap;transition:color 0.2s;\"><span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span>"+(e._distKm!=null?"<span class=\"dist-badge "+distClass(e._distKm)+"\">"+fmtDist(e._distKm)+"</span>":"")+"</span></div>"+
+    "<div class=\"card-name\"><button class=\"etab-name-order-btn\" onclick=\"window['_etabOrderBtn_'+"+e.id+"] && window['_etabOrderBtn_'+"+e.id+"]()\" title=\"📋 Réserver à "+e.nom.replace(/"/g,'')+"\" style=\"font-family:'Syne',sans-serif;font-size:inherit;font-weight:inherit;\">"+e.nom+" <span class=\"etab-name-order-pulse\">+</span></button> <span onclick=\"openGalerie("+e.id+")\" title=\"Voir la galerie de "+(e.nom||"").replace(/"/g,'')+"\" style=\"cursor:pointer;display:inline-flex;align-items:center;gap:0.35rem;flex-wrap:wrap;transition:color 0.2s;\"><span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span>"+(e._distKm!=null?"<span class=\"dist-badge "+distClass(e._distKm)+"\">"+fmtDist(e._distKm)+"</span>":"")+zoneMatchBadge+"</span></div>"+
     "<span class=\"cat-badge "+ci.badge+"\" style=\"cursor:pointer;\" onclick=\"goToTypeFilter('"+getCategory(e.type)+"')\" title=\"Filtrer par "+ci.label+"\">"+ci.icon+" "+ci.label+"</span>"+
     "<div style=\"font-size:0.7rem;color:var(--cyan);margin-top:0.2rem;cursor:pointer;display:inline-flex;align-items:center;gap:0.2rem;\" onclick=\"goToQuartier('"+e.quartier.replace(/'/g,"")+"')\">&#128205; "+e.quartier+"<span style='font-size:0.55rem;opacity:0.6;'> ›</span></div>"+
     "</div>"+(e.statut ? "<span class=\"status-pill "+sc+"\">"+e.statut+"</span>" : "")+"</div>"+
@@ -17050,19 +17113,45 @@ function renderAllImmediate(){
         html+="</div>";
       }
     } else {
-      var PAGE = 20;
-      var shown = data.slice(0, PAGE);
-      var rest  = data.length - PAGE;
-      html+="<div class=\"cards-list\">";
-      shown.forEach(function(e,i){html+=buildCard(e,i*0.02,false,i+1);});
-      html+="</div>";
-      if(rest > 0){
-        html += '<div style="text-align:center;padding:1rem 0;">'
-          +'<button onclick="renderAllPaged('+PAGE+','+data.length+')" style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;padding:0.55rem 1.4rem;border-radius:100px;cursor:pointer;">Voir '+rest+' lieux de plus ↓</button>'
-          +'</div>';
+      // Vérifier s'il y a des zone-match (recherche par quartier)
+      var zoneMatches = data.filter(function(e){ return e._zoneMatch; });
+      var nonZoneMatches = data.filter(function(e){ return !e._zoneMatch; });
+      var hasZoneFilter = zoneMatches.length > 0 && zoneMatches.length < data.length;
+
+      if(hasZoneFilter){
+        // Afficher les proches en premier avec un mini-header
+        var q2 = document.getElementById("searchInput").value.trim();
+        html += "<div class=\"proximity-section-header prox-near\" style='margin-bottom:0.55rem;'>"
+              + "<div class=\"prox-dot prox-dot-near\"></div>"
+              + "&#127381; " + zoneMatches.length + " lieu" + (zoneMatches.length > 1 ? "x" : "") + " dans ce quartier"
+              + "<span style='margin-left:auto;font-size:0.6rem;font-weight:400;color:rgba(0,255,170,0.7);'>"+q2+"</span>"
+              + "</div>";
+        html += "<div class=\"cards-list\">";
+        zoneMatches.forEach(function(e,i){ html += buildCard(e, i*0.02, false, i+1); });
+        html += "</div>";
+        if(nonZoneMatches.length > 0){
+          html += "<div class=\"proximity-section-header prox-far\" style='margin-top:0.55rem;margin-bottom:0.55rem;'>"
+                + "<div class=\"prox-dot prox-dot-far\"></div>"
+                + "&#128205; " + nonZoneMatches.length + " autre" + (nonZoneMatches.length > 1 ? "s" : "") + " lieu" + (nonZoneMatches.length > 1 ? "x" : "")
+                + "</div>";
+          html += "<div class=\"cards-list\">";
+          nonZoneMatches.forEach(function(e,i){ html += buildCard(e, i*0.02, false, zoneMatches.length+i+1); });
+          html += "</div>";
+        }
+      } else {
+        var PAGE = 20;
+        var shown = data.slice(0, PAGE);
+        var rest  = data.length - PAGE;
+        html+="<div class=\"cards-list\">";
+        shown.forEach(function(e,i){html+=buildCard(e,i*0.02,false,i+1);});
+        html+="</div>";
+        if(rest > 0){
+          html += '<div style="text-align:center;padding:1rem 0;">'
+            +'<button onclick="renderAllPaged('+PAGE+','+data.length+')" style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;padding:0.55rem 1.4rem;border-radius:100px;cursor:pointer;">Voir '+rest+' lieux de plus ↓</button>'
+            +'</div>';
+        }
       }
     }
-  } else {
     if(gpsActive){
       // GPS actif : d'abord une section "Proches de vous" toutes catégories mélangées, puis par catégorie
       data = sortGpsData(data);
@@ -17107,6 +17196,26 @@ function renderAllImmediate(){
       var catHtml="";
       // Compteur global pour numérotation continue entre catégories
       var globalRank=0;
+
+      // ── Zone-match : si recherche par quartier, afficher les proches en tête ──
+      var zmItems = data.filter(function(e){ return e._zoneMatch; });
+      var zmHasPartial = zmItems.length > 0 && zmItems.length < data.length;
+      if(zmHasPartial){
+        var q3 = document.getElementById("searchInput").value.trim();
+        catHtml += "<div class=\"proximity-section-header prox-near\" style='margin-bottom:0.55rem;'>"
+                 + "<div class=\"prox-dot prox-dot-near\"></div>"
+                 + "&#127381; " + zmItems.length + " lieu" + (zmItems.length > 1 ? "x" : "") + " dans ce quartier"
+                 + "<span style='margin-left:auto;font-size:0.6rem;font-weight:400;color:rgba(0,255,170,0.7);'>"+q3+"</span>"
+                 + "</div>";
+        catHtml += "<div class=\"cards-list\">";
+        zmItems.forEach(function(e,i){ globalRank++; catHtml += buildCard(e, i*0.03, false, globalRank); });
+        catHtml += "</div>";
+        catHtml += "<div class=\"proximity-section-header prox-far\" style='margin-top:0.55rem;margin-bottom:0.55rem;'>"
+                 + "<div class=\"prox-dot prox-dot-far\"></div>"
+                 + "Autres lieux contenant cette recherche"
+                 + "</div>";
+      }
+
       CATEGORIES.forEach(function(cat){
         if(groups[cat.key]&&groups[cat.key].length>0){
           // ── Tri par score à l'intérieur de chaque catégorie ──
@@ -38404,51 +38513,30 @@ function _socLoadFriendships(meUID, allUsers){
   }).catch(function(){});
 
   /* ── 1. Listener temps réel : sous-collection friends ── */
-  var _friendsFirstLoad = true;
   var u1 = window.fbOnSnapshot(
     window.fbCollection(window.db,'users',meUID,'friends'),
     function(snap){
-      if(_friendsFirstLoad){
-        // Premier chargement : reconstruire proprement depuis Firebase
-        _friendsFirstLoad = false;
-        _friends = [];
-        snap.forEach(function(d){
-          var data = d.data();
-          var pseudo = data.pseudo || data.name || data.email || d.id;
-          _friends.push({
-            uid: d.id,
-            name: pseudo,
-            avatar: data.avatarEmoji || data.avatar || '👤',
-            etab: data.etab || data.ville || 'Libreville',
-            status: 'online',
-            mutualFriends: 0,
-            tag: data.tag || null
-          });
+      snap.forEach(function(d){
+        // Ignorer si déjà dans la liste
+        if(_friends.find(function(f){ return f.uid===d.id; })) return;
+        var data = d.data();
+        var pseudo = data.pseudo || data.name || data.email || d.id;
+        _friends.push({
+          uid: d.id,
+          name: pseudo,
+          avatar: data.avatarEmoji || data.avatar || '👤',
+          etab: data.etab || data.ville || 'Libreville',
+          status: 'online',
+          mutualFriends: 0,
+          tag: data.tag || null
         });
-      } else {
-        // Mises à jour incrémentales
-        snap.docChanges && snap.docChanges().forEach(function(change){
-          if(change.type === 'added'){
-            var d = change.doc;
-            var data = d.data();
-            if(!_friends.find(function(f){ return f.uid===d.id; })){
-              var pseudo = data.pseudo || data.name || data.email || d.id;
-              _friends.push({
-                uid: d.id,
-                name: pseudo,
-                avatar: data.avatarEmoji || data.avatar || '👤',
-                etab: data.etab || data.ville || 'Libreville',
-                status: 'online',
-                mutualFriends: 0,
-                tag: data.tag || null
-              });
-            }
-          }
-          if(change.type === 'removed'){
-            _friends = _friends.filter(function(f){ return f.uid !== change.doc.id; });
-          }
-        });
-      }
+      });
+      // Gérer les suppressions (docChange type='removed')
+      snap.docChanges && snap.docChanges().forEach(function(change){
+        if(change.type === 'removed'){
+          _friends = _friends.filter(function(f){ return f.uid !== change.doc.id; });
+        }
+      });
       renderFriends();
       updateBadges();
     },
@@ -38583,17 +38671,12 @@ function _socInitialsAvatar(initials){
       // Stopper les listeners de l'éventuel utilisateur précédent
       if(typeof _socStopFriendListeners === 'function') _socStopFriendListeners();
       if(typeof _dmInboxUnsub !== 'undefined' && typeof _dmInboxUnsub === 'function'){ _dmInboxUnsub(); _dmInboxUnsub = null; }
-      // Réinitialiser toutes les listes pour éviter les résidus d'un autre utilisateur
-      _friends = []; _requestsIn = []; _requestsOut = []; _blocked = []; _suggestions = [];
-      renderFriends(); renderRequests(); renderBlocked(); updateBadges();
       setTimeout(_socLoadMembresFirebase, 800);
     } else if(!uid && _prevUID){
-      // Déconnexion : stopper tous les listeners et vider les listes
+      // Déconnexion : stopper tous les listeners
       _prevUID = null;
       if(typeof _socStopFriendListeners === 'function') _socStopFriendListeners();
       if(typeof _dmInboxUnsub !== 'undefined' && typeof _dmInboxUnsub === 'function'){ _dmInboxUnsub(); _dmInboxUnsub = null; }
-      _friends = []; _requestsIn = []; _requestsOut = []; _blocked = []; _suggestions = [];
-      renderFriends(); renderRequests(); renderBlocked(); updateBadges();
     }
   }, 500);
   // Aussi au cas où l'utilisateur est déjà connecté au chargement
@@ -39700,8 +39783,9 @@ window.executeConfirm = function(){
 function updateBadges(){
   var bf = document.getElementById('tabBadgeFriends');
   var br = document.getElementById('tabBadgeReq');
-  if(bf){ bf.textContent = _friends.length; bf.style.display = _friends.length ? '' : 'none'; }
-  if(br){ br.textContent = _requestsIn.length; br.style.display = _requestsIn.length ? '' : 'none'; }
+  if(bf) bf.textContent = _friends.length;
+  if(br) br.textContent = _requestsIn.length;
+  if(br) br.style.display = _requestsIn.length?'':'none';
 }
 
 function socToast(msg){
@@ -43098,6 +43182,9 @@ console.log('[AMBI241] ✅ Patch v4 — Firebase admin retry + performance mobil
   <div class="qr-cam-status" id="ambiQrCamStatus">Pointez la caméra vers le QR Code AMBI241</div>
   <button class="qr-cam-torch" id="ambiQrTorchBtn" style="display:none" onclick="ambiQrToggleTorch()">🔦 Lampe torche</button>
 </div>
+
+</body> dans index.html
+     ═══════════════════════════════════════════════════════════════════ -->
 
 <!-- ── STYLES ── -->
 <style>
