@@ -24,12 +24,12 @@
 <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com">
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
 <!-- QR Code Vote System — bibliothèque QRCode.js -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
-        crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+<!-- PERF: QRCode.js chargé dynamiquement au premier usage (voir qrGenerateCode) -->
 <!-- PERF: Cormorant Garamond supprimé (6 variantes inutiles), Syne réduit à 700+800 -->
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Playfair+Display:wght@600;700;800&display=swap"
+<!-- PERF: Playfair Display supprimé — remplacé par Georgia (police système, 0 KB réseau) -->
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap"
       rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet"></noscript>
+<noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""></noscript>
 <style>
@@ -2118,7 +2118,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   animation: fadeUp 0.6s 0.15s ease both;
 }
 .home-section-label{
-  font-family:'Playfair Display',Georgia,serif;
+  font-family:Georgia,serif;
   font-size:0.65rem;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;
   color:var(--muted);margin-bottom:0.85rem;display:flex;align-items:center;gap:0.6rem;
 }
@@ -2240,7 +2240,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 
 /* ── NOM ── */
 .tt-name{
-  font-family:'Playfair Display',Georgia,serif;
+  font-family:Georgia,serif;
   font-weight:700;
   font-size:1.0rem;
   color:#fff;
@@ -11970,63 +11970,114 @@ function triggerPhotoPermUpload(){
   if(inp) inp.click();
 }
 
+/* ─────────────────────────────────────────────────────────────
+   PERF — Cache localStorage établissements
+   • Affichage immédiat depuis le cache (< 5 ms)
+   • Requête Firebase toujours lancée en arrière-plan
+   • Cache valide 5 min — invalidé immédiatement par updateField()
+   ───────────────────────────────────────────────────────────── */
+var ETABS_CACHE_KEY = 'ambi241_etabs_v2';
+var ETABS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function _cacheRead() {
+  try {
+    var raw = localStorage.getItem(ETABS_CACHE_KEY);
+    if (!raw) return null;
+    var obj = JSON.parse(raw);
+    if (!obj || !Array.isArray(obj.data) || !obj.ts) return null;
+    if (Date.now() - obj.ts > ETABS_CACHE_TTL) return null; // expiré
+    return obj.data;
+  } catch(e) { return null; }
+}
+
+function _cacheWrite(data) {
+  try {
+    localStorage.setItem(ETABS_CACHE_KEY, JSON.stringify({ data: data, ts: Date.now() }));
+  } catch(e) { /* quota dépassé — ignorer silencieusement */ }
+}
+
+function _cacheInvalidate() {
+  try { localStorage.removeItem(ETABS_CACHE_KEY); } catch(e) {}
+}
+
+function _applyEtabs(data, fromCache) {
+  etablissements = data;
+  rebuildPaiements();
+  etablissements.forEach(function(e){ applyDynamicStatus(e); });
+  if (typeof invalidateScoreCache === 'function') invalidateScoreCache();
+  renderStats(); renderAll(); renderHome(); renderPayments(); updateSyncTime();
+  if (typeof i18n !== 'undefined') i18n.applyTranslations();
+  if (isAdmin && (_currentAdmTab === 'overview' || window._currentAdmTab === 'overview') && typeof renderAdmOverview === 'function') {
+    renderAdmOverview();
+  }
+  if (!fromCache) {
+    // Actions secondaires uniquement après la vraie réponse Firebase
+    document.getElementById('errorBanner').innerHTML = '';
+    setTimeout(loadAllPhotoProfiles, 1500);
+    loadPaiementsFromFirebase();
+    if (typeof window._subscribeAllEtabs === 'function') window._subscribeAllEtabs();
+    setTimeout(function(){
+      if (typeof loadSlotPhotosAsync === 'function' && etablissements && etablissements.length) {
+        var actifs = etablissements.filter(function(e){ return estPaiementConfirme(e); });
+        actifs.slice(0, 10).forEach(function(e){ if (e.id) loadSlotPhotosAsync(e.id); });
+      }
+    }, 2000);
+  }
+}
+
 function loadData(){
   // Guard : si Firebase pas encore prêt, réessayer dans 300ms
-  if(typeof window.fbCollection !== "function" || typeof window.fbGetDocs !== "function" || !window.db){
+  if(typeof window.fbCollection !== 'function' || typeof window.fbGetDocs !== 'function' || !window.db){
     setTimeout(loadData, 300);
     return;
   }
-  setSyncing(true);
-  var q=window.fbQuery(window.fbCollection(window.db,"etablissements"),window.fbOrderBy("id"));
-  window.fbGetDocs(q).then(function(snapshot){
-    var firebaseData=[];
-    snapshot.forEach(function(d){firebaseData.push(Object.assign({_docId:d.id},d.data()));});
 
-    if(firebaseData.length > 0){
-      // ── Dédoublonnage par id (évite les cartes identiques si Firebase a des doublons) ──
+  // ── ÉTAPE 1 : Affichage immédiat depuis le cache si disponible ──
+  var cached = _cacheRead();
+  if (cached && cached.length > 0) {
+    _applyEtabs(cached, true);
+    setSyncing(false); // masquer le spinner — l'UI est déjà peuplée
+  } else {
+    setSyncing(true);
+  }
+
+  // ── ÉTAPE 2 : Requête Firebase toujours lancée (source de vérité) ──
+  var q = window.fbQuery(window.fbCollection(window.db, 'etablissements'), window.fbOrderBy('id'));
+  window.fbGetDocs(q).then(function(snapshot){
+    var firebaseData = [];
+    snapshot.forEach(function(d){ firebaseData.push(Object.assign({ _docId: d.id }, d.data())); });
+
+    if (firebaseData.length > 0) {
       var _seenIds = {};
       firebaseData = firebaseData.filter(function(e){
-        if(!e.id || _seenIds[e.id]) return false;
+        if (!e.id || _seenIds[e.id]) return false;
         _seenIds[e.id] = true;
         return true;
       });
-      // ── Firebase est la source de vérité unique ──
-      // Les defaults servent UNIQUEMENT si Firebase est vide (première utilisation)
-      etablissements = firebaseData;
+      _cacheWrite(firebaseData); // ✅ Mettre à jour le cache avec les données fraîches
+      _applyEtabs(firebaseData, false);
     } else {
-      // Firebase vide → fallback données locales
-      etablissements = getDefaults();
+      // Firebase vide → fallback données locales (pas mis en cache)
+      _applyEtabs(getDefaults(), false);
     }
+    setSyncing(false);
 
-    document.getElementById("errorBanner").innerHTML="";
-    rebuildPaiements();
-    etablissements.forEach(function(e){ applyDynamicStatus(e); });
-    setSyncing(false);if(typeof invalidateScoreCache==='function')invalidateScoreCache();renderStats();renderAll();renderHome();renderPayments();updateSyncTime();if(typeof i18n!=="undefined")i18n.applyTranslations();
-    if(isAdmin && (_currentAdmTab==='overview'||window._currentAdmTab==='overview') && typeof renderAdmOverview==='function'){ renderAdmOverview(); }
-    // Photos en arrière-plan (délai pour ne pas bloquer le rendu)
-    setTimeout(loadAllPhotoProfiles, 1500);
-    loadPaiementsFromFirebase();
-    if (typeof window._subscribeAllEtabs === "function") { window._subscribeAllEtabs(); }
-    // Précharger photos slot — limité aux 10 premiers actifs pour éviter le flood Firebase
-    setTimeout(function(){
-      if(typeof loadSlotPhotosAsync === 'function' && etablissements && etablissements.length){
-        var actifs = etablissements.filter(function(e){ return estPaiementConfirme(e); });
-        /* Bug2-FIX: max 10 chargements simultanés — sinon 50+ requêtes Firebase en même temps */
-        actifs.slice(0, 10).forEach(function(e){ if(e.id) loadSlotPhotosAsync(e.id); });
-      }
-    }, 2000);
   }).catch(function(err){
-    console.error("Firebase loadData:",err);
-    etablissements=getDefaults();
-    var eb=document.getElementById("errorBanner");
-    if(eb) eb.innerHTML="";
-    rebuildPaiements();
-    etablissements.forEach(function(e){ applyDynamicStatus(e); });
-    setSyncing(false);renderStats();renderAll();renderHome();renderPayments();updateSyncTime();if(typeof i18n!=="undefined")i18n.applyTranslations();
+    console.error('Firebase loadData:', err);
+    // Si le cache avait déjà peuplé l'UI, pas besoin de fallback
+    if (!cached || !cached.length) {
+      _applyEtabs(getDefaults(), false);
+    }
+    var eb = document.getElementById('errorBanner');
+    if (eb) eb.innerHTML = '';
+    setSyncing(false);
+    renderStats(); renderAll(); renderHome(); renderPayments(); updateSyncTime();
+    if (typeof i18n !== 'undefined') i18n.applyTranslations();
   });
 }
 
 function updateField(id,fields){
+  _cacheInvalidate(); // ✅ L'admin modifie → cache invalidé immédiatement
   setSyncing(true);
   var e=etablissements.find(function(x){return x.id===id;});
   if(!e){showToast("Erreur: etablissement introuvable");setSyncing(false);return;}
@@ -44626,9 +44677,10 @@ window.ambiQrCloseModal = function() {
 function qrGenerateCode(url) {
   var container = document.getElementById('qrModalCanvas');
   if (!container) return;
-  container.innerHTML = '';
-  function tryGenerate() {
-    if (typeof QRCode === 'undefined') { setTimeout(tryGenerate, 200); return; }
+  container.innerHTML = '<div style="font-size:0.7rem;color:var(--muted);padding:0.5rem;text-align:center;">⏳ Génération…</div>';
+
+  function doGenerate() {
+    container.innerHTML = '';
     try {
       new QRCode(container, {
         text: url, width: 220, height: 220,
@@ -44639,7 +44691,20 @@ function qrGenerateCode(url) {
       container.innerHTML = '<div style="font-size:0.7rem;color:var(--red);padding:0.5rem;">Erreur génération QR</div>';
     }
   }
-  tryGenerate();
+
+  // Chargement dynamique : QRCode.js uniquement au premier usage du modal
+  if (typeof QRCode !== 'undefined') {
+    doGenerate();
+  } else {
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    s.crossOrigin = 'anonymous';
+    s.onload = doGenerate;
+    s.onerror = function() {
+      container.innerHTML = '<div style="font-size:0.7rem;color:var(--red);padding:0.5rem;">Erreur chargement QR</div>';
+    };
+    document.head.appendChild(s);
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────
