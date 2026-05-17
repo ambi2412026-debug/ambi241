@@ -44535,72 +44535,171 @@ function qrNotifyAdmin(etabId, direction) {
    ───────────────────────────────────────────────────────────── */
 window.ambiQrDownload = function(format) {
   if (!_qrCurrentEtabObj) return;
-  var etab = _qrCurrentEtabObj;
+  var etab    = _qrCurrentEtabObj;
+  var voteUrl = qrGetVoteUrl(_qrCurrentEtabId);
+
   var cfgs = {
-    a4:     { w: 794, h: 1123, qrSize: 420, label: 'A4' },
-    a5:     { w: 559, h:  794, qrSize: 300, label: 'A5' },
-    square: { w: 400, h:  400, qrSize: 280, label: 'Carré' }
+    a4:     { w: 794,  h: 1123, qrSize: 420, label: 'A4' },
+    a5:     { w: 559,  h:  794, qrSize: 300, label: 'A5' },
+    square: { w: 400,  h:  400, qrSize: 280, label: 'Carré' }
   };
   var cfg = cfgs[format] || cfgs.a4;
-  var canvas = document.createElement('canvas');
-  canvas.width = cfg.w; canvas.height = cfg.h;
-  var ctx = canvas.getContext('2d');
 
-  var grad = ctx.createLinearGradient(0, 0, cfg.w, cfg.h);
-  grad.addColorStop(0, '#1a0a28'); grad.addColorStop(0.5, '#230d35'); grad.addColorStop(1, '#2c1040');
-  ctx.fillStyle = grad; ctx.fillRect(0, 0, cfg.w, cfg.h);
-
-  ctx.globalAlpha = 0.12;
-  ctx.fillStyle = '#ff2d9b'; ctx.beginPath(); ctx.arc(0, 0, cfg.w * 0.55, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#00e5ff'; ctx.beginPath(); ctx.arc(cfg.w, cfg.h, cfg.w * 0.45, 0, Math.PI * 2); ctx.fill();
-  ctx.globalAlpha = 1;
-
-  var yOff = format === 'square' ? 20 : 50;
-  ctx.font = 'bold ' + Math.round(cfg.w * 0.09) + 'px Syne,Arial';
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#ff2d9b'; ctx.fillText('AMBI', cfg.w / 2 - cfg.w * 0.08, yOff + cfg.w * 0.09);
-  ctx.fillStyle = '#00e5ff'; ctx.fillText('241',  cfg.w / 2 + cfg.w * 0.06, yOff + cfg.w * 0.09);
-  var logoBottom = yOff + cfg.w * 0.095;
-
-  var qrEl = document.querySelector('#qrModalCanvas img') || document.querySelector('#qrModalCanvas canvas');
-
-  if (format !== 'square') {
-    ctx.font = 'bold ' + Math.round(cfg.w * 0.055) + 'px Syne,Arial';
-    ctx.fillStyle = '#fff0f8';
-    var nomY = logoBottom + 60;
-    ctx.fillText(etab.nom || 'Établissement', cfg.w / 2, nomY);
-    ctx.font = Math.round(cfg.w * 0.032) + 'px DM Sans,Arial';
-    ctx.fillStyle = '#b088c0';
-    ctx.fillText((etab.type || '') + (etab.quartier ? ' • ' + etab.quartier : ''), cfg.w / 2, nomY + 38);
-
-    var qrX = (cfg.w - cfg.qrSize) / 2, qrY = nomY + 75, pad = 18;
-    ctx.fillStyle = '#ffffff'; _roundRect(ctx, qrX - pad, qrY - pad, cfg.qrSize + pad * 2, cfg.qrSize + pad * 2, 22); ctx.fill();
-    if (qrEl) { try { ctx.drawImage(qrEl, qrX, qrY, cfg.qrSize, cfg.qrSize); } catch(e){} }
-
-    var qrBottom = qrY + cfg.qrSize + pad + 40;
-    ctx.font = 'bold ' + Math.round(cfg.w * 0.038) + 'px Syne,Arial'; ctx.fillStyle = '#00e5ff';
-    ctx.fillText('📲 Scannez pour voter', cfg.w / 2, qrBottom);
-    ctx.font = Math.round(cfg.w * 0.028) + 'px DM Sans,Arial'; ctx.fillStyle = '#b088c0';
-    ctx.fillText('et aider cet établissement à progresser !', cfg.w / 2, qrBottom + 36);
-
-    ctx.strokeStyle = 'rgba(255,45,155,0.4)'; ctx.lineWidth = 3;
-    _roundRect(ctx, 20, 20, cfg.w - 40, cfg.h - 40, 24); ctx.stroke();
-
-    ctx.font = Math.round(cfg.w * 0.024) + 'px DM Sans,Arial'; ctx.fillStyle = 'rgba(176,136,192,0.55)';
-    ctx.fillText('ambi241.com • Libreville, Gabon', cfg.w / 2, cfg.h - 28);
-  } else {
-    var qrXSq = (cfg.w - cfg.qrSize) / 2, qrYSq = logoBottom + 25;
-    ctx.fillStyle = '#ffffff'; _roundRect(ctx, qrXSq - 14, qrYSq - 14, cfg.qrSize + 28, cfg.qrSize + 28, 16); ctx.fill();
-    if (qrEl) { try { ctx.drawImage(qrEl, qrXSq, qrYSq, cfg.qrSize, cfg.qrSize); } catch(e){} }
-    ctx.font = 'bold ' + Math.round(cfg.w * 0.055) + 'px Syne,Arial'; ctx.fillStyle = '#fff0f8';
-    ctx.fillText(etab.nom || '—', cfg.w / 2, qrYSq + cfg.qrSize + 45);
+  if (typeof QRCode === 'undefined') {
+    if (typeof showToast === 'function') showToast('⏳ QR en cours de chargement, réessayez...');
+    return;
   }
 
-  var a = document.createElement('a');
-  a.download = 'ambi241_qr_' + (etab.nom || 'etablissement').replace(/[^a-z0-9]/gi, '_').toLowerCase() + '_' + format + '.png';
-  a.href = canvas.toDataURL('image/png', 0.96);
-  a.click();
-  if (typeof showToast === 'function') showToast('📥 QR ' + cfg.label + ' téléchargé !');
+  /* ── 1. Générer un QR code frais dans un canvas hors-écran ── */
+  var tempDiv = document.createElement('div');
+  tempDiv.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:' + cfg.qrSize + 'px;height:' + cfg.qrSize + 'px;overflow:hidden;visibility:hidden;';
+  document.body.appendChild(tempDiv);
+
+  try {
+    new QRCode(tempDiv, {
+      text:         voteUrl,
+      width:        cfg.qrSize,
+      height:       cfg.qrSize,
+      colorDark:    '#000000',
+      colorLight:   '#ffffff',
+      correctLevel: QRCode.CorrectLevel.H
+    });
+  } catch(e) {
+    document.body.removeChild(tempDiv);
+    if (typeof showToast === 'function') showToast('❌ Erreur génération QR');
+    return;
+  }
+
+  /* ── 2. Attendre que le QR soit rendu puis dessiner le poster ── */
+  function _buildPoster() {
+    var qrEl = tempDiv.querySelector('canvas') || tempDiv.querySelector('img');
+
+    /* Si l'img n'est pas encore chargée, attendre encore */
+    if (qrEl && qrEl.tagName === 'IMG' && !qrEl.complete) {
+      qrEl.onload = function() { _drawAndSave(qrEl); };
+      qrEl.onerror = function() { _drawAndSave(null); };
+      return;
+    }
+    _drawAndSave(qrEl);
+  }
+
+  function _drawAndSave(qrEl) {
+    /* Si c'est un <img>, le convertir en canvas intermédiaire pour éviter
+       les problèmes CORS et les échecs silencieux de drawImage */
+    var qrSource = qrEl;
+    if (qrEl && qrEl.tagName === 'IMG') {
+      try {
+        var tmpC = document.createElement('canvas');
+        tmpC.width  = cfg.qrSize;
+        tmpC.height = cfg.qrSize;
+        tmpC.getContext('2d').drawImage(qrEl, 0, 0, cfg.qrSize, cfg.qrSize);
+        qrSource = tmpC;
+      } catch(e) { qrSource = null; }
+    }
+
+    /* ── 3. Dessiner le poster final ── */
+    var canvas = document.createElement('canvas');
+    canvas.width  = cfg.w;
+    canvas.height = cfg.h;
+    var ctx = canvas.getContext('2d');
+
+    /* Fond dégradé */
+    var grad = ctx.createLinearGradient(0, 0, cfg.w, cfg.h);
+    grad.addColorStop(0, '#1a0a28');
+    grad.addColorStop(0.5, '#230d35');
+    grad.addColorStop(1, '#2c1040');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, cfg.w, cfg.h);
+
+    /* Blobs décoratifs */
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = '#ff2d9b';
+    ctx.beginPath(); ctx.arc(0, 0, cfg.w * 0.55, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#00e5ff';
+    ctx.beginPath(); ctx.arc(cfg.w, cfg.h, cfg.w * 0.45, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    var yOff = format === 'square' ? 20 : 50;
+    ctx.textAlign = 'center';
+
+    /* Logo AMBI241 */
+    ctx.font = 'bold ' + Math.round(cfg.w * 0.09) + 'px Arial';
+    ctx.fillStyle = '#ff2d9b'; ctx.fillText('AMBI', cfg.w / 2 - cfg.w * 0.08, yOff + cfg.w * 0.09);
+    ctx.fillStyle = '#00e5ff'; ctx.fillText('241',  cfg.w / 2 + cfg.w * 0.06, yOff + cfg.w * 0.09);
+    var logoBottom = yOff + cfg.w * 0.095;
+
+    if (format !== 'square') {
+      /* Nom et type */
+      ctx.font = 'bold ' + Math.round(cfg.w * 0.055) + 'px Arial';
+      ctx.fillStyle = '#fff0f8';
+      var nomY = logoBottom + 60;
+      ctx.fillText(etab.nom || 'Établissement', cfg.w / 2, nomY);
+      ctx.font = Math.round(cfg.w * 0.032) + 'px Arial';
+      ctx.fillStyle = '#b088c0';
+      ctx.fillText((etab.type || '') + (etab.quartier ? ' • ' + etab.quartier : ''), cfg.w / 2, nomY + 38);
+
+      /* Fond blanc arrondi pour le QR */
+      var qrX = (cfg.w - cfg.qrSize) / 2, qrY = nomY + 75, pad = 18;
+      ctx.fillStyle = '#ffffff';
+      _roundRect(ctx, qrX - pad, qrY - pad, cfg.qrSize + pad * 2, cfg.qrSize + pad * 2, 22);
+      ctx.fill();
+
+      /* QR code */
+      if (qrSource) {
+        try { ctx.drawImage(qrSource, qrX, qrY, cfg.qrSize, cfg.qrSize); }
+        catch(e) { /* silent */ }
+      }
+
+      /* Texte sous le QR */
+      var qrBottom = qrY + cfg.qrSize + pad + 40;
+      ctx.font = 'bold ' + Math.round(cfg.w * 0.038) + 'px Arial';
+      ctx.fillStyle = '#00e5ff';
+      ctx.fillText('Scannez pour voter', cfg.w / 2, qrBottom);
+      ctx.font = Math.round(cfg.w * 0.028) + 'px Arial';
+      ctx.fillStyle = '#b088c0';
+      ctx.fillText('et aider cet établissement à progresser !', cfg.w / 2, qrBottom + 36);
+
+      /* Bordure rose */
+      ctx.strokeStyle = 'rgba(255,45,155,0.4)'; ctx.lineWidth = 3;
+      _roundRect(ctx, 20, 20, cfg.w - 40, cfg.h - 40, 24); ctx.stroke();
+
+      /* Footer */
+      ctx.font = Math.round(cfg.w * 0.024) + 'px Arial';
+      ctx.fillStyle = 'rgba(176,136,192,0.55)';
+      ctx.fillText('ambi241.com • Libreville, Gabon', cfg.w / 2, cfg.h - 28);
+
+    } else {
+      /* Format carré */
+      var qrXSq = (cfg.w - cfg.qrSize) / 2, qrYSq = logoBottom + 25;
+      ctx.fillStyle = '#ffffff';
+      _roundRect(ctx, qrXSq - 14, qrYSq - 14, cfg.qrSize + 28, cfg.qrSize + 28, 16);
+      ctx.fill();
+      if (qrSource) {
+        try { ctx.drawImage(qrSource, qrXSq, qrYSq, cfg.qrSize, cfg.qrSize); }
+        catch(e) { /* silent */ }
+      }
+      ctx.font = 'bold ' + Math.round(cfg.w * 0.055) + 'px Arial';
+      ctx.fillStyle = '#fff0f8';
+      ctx.fillText(etab.nom || '—', cfg.w / 2, qrYSq + cfg.qrSize + 45);
+    }
+
+    /* ── 4. Déclencher le téléchargement ── */
+    try {
+      var a = document.createElement('a');
+      a.download = 'ambi241_qr_' + (etab.nom || 'etablissement').replace(/[^a-z0-9]/gi, '_').toLowerCase() + '_' + format + '.png';
+      a.href = canvas.toDataURL('image/png', 0.96);
+      a.click();
+      if (typeof showToast === 'function') showToast('📥 QR ' + cfg.label + ' téléchargé !');
+    } catch(e) {
+      if (typeof showToast === 'function') showToast('❌ Erreur export : ' + e.message);
+    }
+
+    /* Nettoyer le div temporaire */
+    try { document.body.removeChild(tempDiv); } catch(e2) {}
+  }
+
+  /* Laisser 350 ms au moteur pour rendre le QR avant de dessiner */
+  setTimeout(_buildPoster, 350);
 };
 
 function _roundRect(ctx, x, y, w, h, r) {
