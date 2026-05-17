@@ -8514,10 +8514,10 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 
     <div class="soc-tab" onclick="socSwitchTab('amis')">
-      👤 Amis <span class="soc-tab-badge" id="tabBadgeFriends">3</span>
+      👤 Amis <span class="soc-tab-badge" id="tabBadgeFriends" style="display:none;">0</span>
     </div>
     <div class="soc-tab" onclick="socSwitchTab('demandes')">
-      📨 Demandes <span class="soc-tab-badge" id="tabBadgeReq">2</span>
+      📨 Demandes <span class="soc-tab-badge" id="tabBadgeReq" style="display:none;">0</span>
     </div>
     <div class="soc-tab" onclick="socSwitchTab('communautes')">🏘️ Communautés</div>
     <div class="soc-tab" onclick="socSwitchTab('projets')">🎯 Projets</div>
@@ -38404,30 +38404,51 @@ function _socLoadFriendships(meUID, allUsers){
   }).catch(function(){});
 
   /* ── 1. Listener temps réel : sous-collection friends ── */
+  var _friendsFirstLoad = true;
   var u1 = window.fbOnSnapshot(
     window.fbCollection(window.db,'users',meUID,'friends'),
     function(snap){
-      snap.forEach(function(d){
-        // Ignorer si déjà dans la liste
-        if(_friends.find(function(f){ return f.uid===d.id; })) return;
-        var data = d.data();
-        var pseudo = data.pseudo || data.name || data.email || d.id;
-        _friends.push({
-          uid: d.id,
-          name: pseudo,
-          avatar: data.avatarEmoji || data.avatar || '👤',
-          etab: data.etab || data.ville || 'Libreville',
-          status: 'online',
-          mutualFriends: 0,
-          tag: data.tag || null
+      if(_friendsFirstLoad){
+        // Premier chargement : reconstruire proprement depuis Firebase
+        _friendsFirstLoad = false;
+        _friends = [];
+        snap.forEach(function(d){
+          var data = d.data();
+          var pseudo = data.pseudo || data.name || data.email || d.id;
+          _friends.push({
+            uid: d.id,
+            name: pseudo,
+            avatar: data.avatarEmoji || data.avatar || '👤',
+            etab: data.etab || data.ville || 'Libreville',
+            status: 'online',
+            mutualFriends: 0,
+            tag: data.tag || null
+          });
         });
-      });
-      // Gérer les suppressions (docChange type='removed')
-      snap.docChanges && snap.docChanges().forEach(function(change){
-        if(change.type === 'removed'){
-          _friends = _friends.filter(function(f){ return f.uid !== change.doc.id; });
-        }
-      });
+      } else {
+        // Mises à jour incrémentales
+        snap.docChanges && snap.docChanges().forEach(function(change){
+          if(change.type === 'added'){
+            var d = change.doc;
+            var data = d.data();
+            if(!_friends.find(function(f){ return f.uid===d.id; })){
+              var pseudo = data.pseudo || data.name || data.email || d.id;
+              _friends.push({
+                uid: d.id,
+                name: pseudo,
+                avatar: data.avatarEmoji || data.avatar || '👤',
+                etab: data.etab || data.ville || 'Libreville',
+                status: 'online',
+                mutualFriends: 0,
+                tag: data.tag || null
+              });
+            }
+          }
+          if(change.type === 'removed'){
+            _friends = _friends.filter(function(f){ return f.uid !== change.doc.id; });
+          }
+        });
+      }
       renderFriends();
       updateBadges();
     },
@@ -38562,12 +38583,17 @@ function _socInitialsAvatar(initials){
       // Stopper les listeners de l'éventuel utilisateur précédent
       if(typeof _socStopFriendListeners === 'function') _socStopFriendListeners();
       if(typeof _dmInboxUnsub !== 'undefined' && typeof _dmInboxUnsub === 'function'){ _dmInboxUnsub(); _dmInboxUnsub = null; }
+      // Réinitialiser toutes les listes pour éviter les résidus d'un autre utilisateur
+      _friends = []; _requestsIn = []; _requestsOut = []; _blocked = []; _suggestions = [];
+      renderFriends(); renderRequests(); renderBlocked(); updateBadges();
       setTimeout(_socLoadMembresFirebase, 800);
     } else if(!uid && _prevUID){
-      // Déconnexion : stopper tous les listeners
+      // Déconnexion : stopper tous les listeners et vider les listes
       _prevUID = null;
       if(typeof _socStopFriendListeners === 'function') _socStopFriendListeners();
       if(typeof _dmInboxUnsub !== 'undefined' && typeof _dmInboxUnsub === 'function'){ _dmInboxUnsub(); _dmInboxUnsub = null; }
+      _friends = []; _requestsIn = []; _requestsOut = []; _blocked = []; _suggestions = [];
+      renderFriends(); renderRequests(); renderBlocked(); updateBadges();
     }
   }, 500);
   // Aussi au cas où l'utilisateur est déjà connecté au chargement
@@ -39674,9 +39700,8 @@ window.executeConfirm = function(){
 function updateBadges(){
   var bf = document.getElementById('tabBadgeFriends');
   var br = document.getElementById('tabBadgeReq');
-  if(bf) bf.textContent = _friends.length;
-  if(br) br.textContent = _requestsIn.length;
-  if(br) br.style.display = _requestsIn.length?'':'none';
+  if(bf){ bf.textContent = _friends.length; bf.style.display = _friends.length ? '' : 'none'; }
+  if(br){ br.textContent = _requestsIn.length; br.style.display = _requestsIn.length ? '' : 'none'; }
 }
 
 function socToast(msg){
@@ -43073,9 +43098,6 @@ console.log('[AMBI241] ✅ Patch v4 — Firebase admin retry + performance mobil
   <div class="qr-cam-status" id="ambiQrCamStatus">Pointez la caméra vers le QR Code AMBI241</div>
   <button class="qr-cam-torch" id="ambiQrTorchBtn" style="display:none" onclick="ambiQrToggleTorch()">🔦 Lampe torche</button>
 </div>
-
-</body> dans index.html
-     ═══════════════════════════════════════════════════════════════════ -->
 
 <!-- ── STYLES ── -->
 <style>
