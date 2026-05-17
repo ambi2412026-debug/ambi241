@@ -44674,5 +44674,463 @@ console.log('[AMBI241] ✅ QR Code Vote System chargé');
 })();
 </script>
 
+<!-- ═══════════════════════════════════════════════════════════════════
+     AMBI241 — SONNERIES RÉELLES + ÉCOUTE FIRESTORE EN TEMPS RÉEL
+     Branché sur le système pushNotif() existant
+     ═══════════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+'use strict';
+
+/* ════════════════════════════════════════════════════════════════════
+   1. SONNERIES — Web Audio API (aucun fichier externe requis)
+      Génère les sons directement dans le navigateur
+   ════════════════════════════════════════════════════════════════════ */
+var AmbiSon = {
+  _ctx: null,
+  ctx: function(){
+    if(!this._ctx){
+      try{ this._ctx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
+    }
+    // Reprendre si suspendu (politique autoplay navigateur)
+    if(this._ctx && this._ctx.state==='suspended'){
+      try{ this._ctx.resume(); }catch(e){}
+    }
+    return this._ctx;
+  },
+
+  // 💬 Message / SMS — 3 notes montantes (style messagerie)
+  message: function(){
+    var c=this.ctx(); if(!c) return;
+    var t=c.currentTime;
+    [660,880,1100].forEach(function(freq,i){
+      var o=c.createOscillator(), g=c.createGain();
+      o.connect(g); g.connect(c.destination);
+      o.type='sine'; o.frequency.value=freq;
+      var s=t+i*0.11;
+      g.gain.setValueAtTime(0,s);
+      g.gain.linearRampToValueAtTime(0.28,s+0.02);
+      g.gain.exponentialRampToValueAtTime(0.001,s+0.2);
+      o.start(s); o.stop(s+0.22);
+    });
+  },
+
+  // 🔔 Ding — commentaire / forum (note pure + décroissance)
+  ding: function(){
+    var c=this.ctx(); if(!c) return;
+    var t=c.currentTime;
+    var o=c.createOscillator(), g=c.createGain();
+    o.connect(g); g.connect(c.destination);
+    o.type='sine';
+    o.frequency.setValueAtTime(1320,t);
+    o.frequency.exponentialRampToValueAtTime(880,t+0.4);
+    g.gain.setValueAtTime(0.38,t);
+    g.gain.exponentialRampToValueAtTime(0.001,t+0.6);
+    o.start(t); o.stop(t+0.65);
+  },
+
+  // ❤️ Pop — like / réaction (court et doux)
+  pop: function(){
+    var c=this.ctx(); if(!c) return;
+    var t=c.currentTime;
+    var o=c.createOscillator(), g=c.createGain();
+    o.connect(g); g.connect(c.destination);
+    o.type='triangle';
+    o.frequency.setValueAtTime(700,t);
+    o.frequency.exponentialRampToValueAtTime(1400,t+0.07);
+    g.gain.setValueAtTime(0.3,t);
+    g.gain.exponentialRampToValueAtTime(0.001,t+0.18);
+    o.start(t); o.stop(t+0.2);
+  },
+
+  // 👥 Ami — deux notes (style invitation)
+  ami: function(){
+    var c=this.ctx(); if(!c) return;
+    var t=c.currentTime;
+    [[880,0],[1100,0.15]].forEach(function(pair){
+      var o=c.createOscillator(), g=c.createGain();
+      o.connect(g); g.connect(c.destination);
+      o.type='sine'; o.frequency.value=pair[0];
+      var s=t+pair[1];
+      g.gain.setValueAtTime(0,s);
+      g.gain.linearRampToValueAtTime(0.32,s+0.03);
+      g.gain.exponentialRampToValueAtTime(0.001,s+0.25);
+      o.start(s); o.stop(s+0.28);
+    });
+  },
+
+  // Joue selon le type de notif
+  jouer: function(type){
+    try{
+      var t=(type||'').toLowerCase();
+      if(t.indexOf('message')!==-1||t.indexOf('sms')!==-1||t.indexOf('msg')!==-1) return this.message();
+      if(t.indexOf('comment')!==-1||t.indexOf('forum')!==-1||t.indexOf('avis')!==-1) return this.ding();
+      if(t.indexOf('like')!==-1||t.indexOf('reaction')!==-1||t.indexOf('vote')!==-1) return this.pop();
+      if(t.indexOf('ami')!==-1||t.indexOf('friend')!==-1||t.indexOf('request')!==-1) return this.ami();
+      this.ding(); // défaut
+    }catch(e){}
+  }
+};
+
+// Exposer globalement pour tests depuis la console
+window.AmbiSon = AmbiSon;
+
+/* ════════════════════════════════════════════════════════════════════
+   2. BRANCHER LA SONNERIE sur le système pushNotif() EXISTANT
+      On intercepte showNotifToast (déjà appelé à chaque notif visible)
+   ════════════════════════════════════════════════════════════════════ */
+var _origShowNotifToast = window.showNotifToast;
+window.showNotifToast = function(msg, notif){
+  // Jouer le son selon le type
+  var type = notif ? (notif.key||notif.type||notif.channel||'') : '';
+  AmbiSon.jouer(type);
+  // Appeler l'original
+  if(typeof _origShowNotifToast === 'function') _origShowNotifToast(msg, notif);
+};
+
+/* ════════════════════════════════════════════════════════════════════
+   3. NOTIFICATION NATIVE DU NAVIGATEUR (fonctionne app en arrière-plan)
+      Remplace la notification basique existante par une version enrichie
+   ════════════════════════════════════════════════════════════════════ */
+var _origPushNotif = window.pushNotif;
+window.pushNotif = function(opts){
+  // Appeler l'original d'abord
+  if(typeof _origPushNotif === 'function') _origPushNotif(opts);
+
+  // Si l'app est en arrière-plan → envoyer notification native enrichie
+  if(document.visibilityState !== 'visible'
+     && typeof Notification !== 'undefined'
+     && Notification.permission === 'granted'){
+    try{
+      var icons = {
+        message:'💬', sms:'💬', comment:'💬', forum:'🔔',
+        ami:'👥', friend:'👥', like:'❤️', vote:'⭐', default:'🎵'
+      };
+      var type = (opts.key||opts.type||'').toLowerCase();
+      var iconKey = Object.keys(icons).find(function(k){ return type.indexOf(k)!==-1; }) || 'default';
+
+      // Utiliser le Service Worker si disponible (meilleur support mobile)
+      if(navigator.serviceWorker && navigator.serviceWorker.controller){
+        navigator.serviceWorker.ready.then(function(reg){
+          reg.showNotification('AMBI241 — ' + (opts.title||''), {
+            body:     opts.msg || '',
+            icon:     '/icon-192.png',
+            badge:    '/badge-72.png',
+            tag:      opts.key || 'ambi-notif',
+            renotify: true,
+            vibrate:  [200, 100, 200, 100, 400],
+            silent:   false,
+            data:     { type: type, key: opts.key }
+          });
+        }).catch(function(){});
+      } else {
+        // Fallback notification simple
+        new Notification('AMBI241 — ' + (opts.title||''), {
+          body: opts.msg||'',
+          icon: '/icon-192.png',
+          tag:  opts.key||'ambi-notif',
+          silent: false
+        });
+      }
+    }catch(ex){}
+  }
+};
+
+/* ════════════════════════════════════════════════════════════════════
+   4. ÉCOUTE FIRESTORE EN TEMPS RÉEL (messages, commentaires, forum)
+      Déclenche pushNotif() automatiquement à chaque nouveau document
+   ════════════════════════════════════════════════════════════════════ */
+var _ambiListeners = [];  // pour désabonner au logout
+var _ambiListenedUid = null;
+
+function ambiStartListeners(uid){
+  if(!uid || _ambiListenedUid === uid) return;
+  if(!window.db || !window.fbCollection || !window.fbQuery ||
+     !window.fbWhere || !window.fbOrderBy || !window.fbLimit || !window.fbOnSnapshot) return;
+
+  _ambiListenedUid = uid;
+  ambiStopListeners(); // sécurité : arrêter les anciens
+
+  var db = window.db;
+  var now = Date.now();
+
+  /* ── Listener 1 : Messages privés reçus ── */
+  try{
+    var qMsg = window.fbQuery(
+      window.fbCollection(db, 'messages'),
+      window.fbWhere('recipientId', '==', uid),
+      window.fbWhere('read', '==', false),
+      window.fbOrderBy('createdAt', 'desc'),
+      window.fbLimit(1)
+    );
+    var unsubMsg = window.fbOnSnapshot(qMsg, function(snap){
+      snap.docChanges().forEach(function(change){
+        if(change.type !== 'added') return;
+        var d = change.doc.data();
+        if((d.createdAt && d.createdAt > now) || !d.createdAt){
+          AmbiSon.message();
+          if(typeof window.pushNotif === 'function'){
+            window.pushNotif({
+              targetRole: 'all',
+              key: 'message_recu',
+              icon: '💬',
+              title: 'Message de ' + (d.senderName || 'quelqu\'un'),
+              msg: d.text ? d.text.substring(0,80) : 'Nouveau message',
+              channel: 'push',
+              fromAdmin: false
+            });
+          }
+        }
+      });
+    }, function(){});
+    _ambiListeners.push(unsubMsg);
+  }catch(e){}
+
+  /* ── Listener 2 : Commentaires sur vos publications ── */
+  try{
+    var qCom = window.fbQuery(
+      window.fbCollection(db, 'commentaires'),
+      window.fbWhere('auteurDuPostId', '==', uid),
+      window.fbOrderBy('createdAt', 'desc'),
+      window.fbLimit(1)
+    );
+    var unsubCom = window.fbOnSnapshot(qCom, function(snap){
+      snap.docChanges().forEach(function(change){
+        if(change.type !== 'added') return;
+        var d = change.doc.data();
+        if(d.auteurId === uid) return; // ne pas notifier ses propres commentaires
+        if((d.createdAt && d.createdAt > now) || !d.createdAt){
+          AmbiSon.ding();
+          if(typeof window.pushNotif === 'function'){
+            window.pushNotif({
+              targetRole: 'all',
+              key: 'commentaire_recu',
+              icon: '💬',
+              title: (d.auteurNom||'Un membre') + ' a commenté',
+              msg: d.texte ? d.texte.substring(0,80) : 'Nouveau commentaire',
+              channel: 'push',
+              fromAdmin: false
+            });
+          }
+        }
+      });
+    }, function(){});
+    _ambiListeners.push(unsubCom);
+  }catch(e){}
+
+  /* ── Listener 3 : Demandes d'amis reçues ── */
+  try{
+    var qAmi = window.fbQuery(
+      window.fbCollection(db, 'friendships'),
+      window.fbWhere('recipientId', '==', uid),
+      window.fbWhere('status', '==', 'pending'),
+      window.fbOrderBy('createdAt', 'desc'),
+      window.fbLimit(1)
+    );
+    var unsubAmi = window.fbOnSnapshot(qAmi, function(snap){
+      snap.docChanges().forEach(function(change){
+        if(change.type !== 'added') return;
+        var d = change.doc.data();
+        if((d.createdAt && d.createdAt > now) || !d.createdAt){
+          AmbiSon.ami();
+          if(typeof window.pushNotif === 'function'){
+            window.pushNotif({
+              targetRole: 'all',
+              key: 'demande_ami',
+              icon: '👥',
+              title: (d.senderName||'Un membre') + ' veut se connecter',
+              msg: 'Nouvelle demande d\'ami sur AMBI241',
+              channel: 'push',
+              fromAdmin: false
+            });
+          }
+        }
+      });
+    }, function(){});
+    _ambiListeners.push(unsubAmi);
+  }catch(e){}
+
+  /* ── Listener 4 : Publications du forum (nouvelles demandes) ── */
+  try{
+    var qForum = window.fbQuery(
+      window.fbCollection(db, 'publications'),
+      window.fbOrderBy('timestamp', 'desc'),
+      window.fbLimit(1)
+    );
+    var unsubForum = window.fbOnSnapshot(qForum, function(snap){
+      snap.docChanges().forEach(function(change){
+        if(change.type !== 'added') return;
+        var d = change.doc.data();
+        if(d.authorUid === uid) return; // pas ses propres publications
+        if((d.timestamp && d.timestamp > now) || !d.timestamp){
+          AmbiSon.ding();
+          if(typeof window.pushNotif === 'function'){
+            window.pushNotif({
+              targetRole: 'membre',
+              key: 'forum_nouvelle_pub',
+              icon: '🔔',
+              title: (d.author||'Un membre') + ' a publié',
+              msg: d.text ? d.text.substring(0,80) : 'Nouvelle publication',
+              channel: 'push',
+              fromAdmin: false
+            });
+          }
+        }
+      });
+    }, function(){});
+    _ambiListeners.push(unsubForum);
+  }catch(e){}
+
+  console.log('[AMBI241] 🔔 Listeners temps réel actifs pour:', uid);
+}
+
+function ambiStopListeners(){
+  _ambiListeners.forEach(function(unsub){ try{ unsub(); }catch(e){} });
+  _ambiListeners = [];
+  _ambiListenedUid = null;
+}
+window.ambiStopListeners = ambiStopListeners;
+
+/* ════════════════════════════════════════════════════════════════════
+   5. DÉMARRAGE AUTOMATIQUE au login Firebase
+      On surveille window.currentUserUID pour démarrer les listeners
+   ════════════════════════════════════════════════════════════════════ */
+var _ambiCheckInterval = setInterval(function(){
+  var uid = window.currentUserUID;
+  if(uid && uid !== _ambiListenedUid){
+    // Attendre que Firebase soit prêt
+    if(window.db && window.fbOnSnapshot){
+      clearInterval(_ambiCheckInterval);
+      ambiStartListeners(uid);
+    }
+  }
+}, 1200);
+
+// Arrêter les listeners au logout
+var _origLogout = window.logoutUser || window.handleLogout;
+if(typeof _origLogout === 'function'){
+  window.logoutUser = window.handleLogout = function(){
+    ambiStopListeners();
+    _origLogout.apply(this, arguments);
+  };
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   6. PERMISSION NAVIGATEUR — Demande non-intrusive après 4 secondes
+      S'appuie sur requestPushPermission() qui existe déjà dans votre app
+   ════════════════════════════════════════════════════════════════════ */
+function ambiDemanderPermission(){
+  if(typeof Notification === 'undefined') return;
+  if(Notification.permission !== 'default') return; // déjà accordée ou refusée
+  if(localStorage.getItem('ambi_push_dismissed_v2')) return;
+
+  // Ne demander que si l'user est connecté
+  if(!window.currentUserUID) return;
+
+  // Afficher un mini prompt AMBI241 avant le prompt natif
+  var existing = document.getElementById('ambi-perm-banner');
+  if(existing) return;
+
+  var banner = document.createElement('div');
+  banner.id = 'ambi-perm-banner';
+  banner.style.cssText = [
+    'position:fixed',
+    'bottom:calc(54px + env(safe-area-inset-bottom,0px) + 10px)',
+    'left:10px','right:10px',
+    'background:rgba(26,10,40,0.97)',
+    'border:1px solid rgba(255,45,155,0.45)',
+    'border-radius:18px',
+    'padding:14px 16px',
+    'z-index:99999',
+    'box-shadow:0 8px 32px rgba(0,0,0,0.65)',
+    'backdrop-filter:blur(20px)',
+    'display:flex','gap:12px','align-items:flex-start',
+    'animation:fadeIn 0.35s ease'
+  ].join(';');
+
+  banner.innerHTML = [
+    '<div style="font-size:2rem;line-height:1;flex-shrink:0">🔔</div>',
+    '<div style="flex:1">',
+      '<div style="font-family:\'Syne\',sans-serif;font-size:0.88rem;font-weight:800;color:#fff0f8;margin-bottom:4px">',
+        'Activez les sonneries AMBI241',
+      '</div>',
+      '<div style="font-size:0.72rem;color:#b088c0;line-height:1.4;margin-bottom:10px">',
+        'Recevez une sonnerie pour vos messages, commentaires et demandes — même app fermée.',
+      '</div>',
+      '<div style="display:flex;gap:8px">',
+        '<button id="ambi-perm-oui" style="flex:1;padding:0.48rem;border-radius:10px;border:none;',
+          'background:linear-gradient(135deg,#ff2d9b,#cc44ff);color:#fff;',
+          'font-family:\'DM Sans\',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer">',
+          '✅ Activer',
+        '</button>',
+        '<button id="ambi-perm-non" style="flex:1;padding:0.48rem;border-radius:10px;',
+          'border:1px solid rgba(255,255,255,0.12);background:transparent;color:#b088c0;',
+          'font-family:\'DM Sans\',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer">',
+          'Plus tard',
+        '</button>',
+      '</div>',
+    '</div>'
+  ].join('');
+
+  document.body.appendChild(banner);
+
+  document.getElementById('ambi-perm-oui').onclick = function(){
+    banner.remove();
+    Notification.requestPermission().then(function(r){
+      if(r === 'granted'){
+        AmbiSon.ding();
+        if(typeof showNotifToast === 'function')
+          showNotifToast('✅ Sonneries activées !', {key:'perm_ok',icon:'🔔',title:'Sonneries activées',msg:'Vous recevrez des sonneries même hors de l\'application.'});
+      }
+    }).catch(function(){});
+  };
+
+  document.getElementById('ambi-perm-non').onclick = function(){
+    banner.remove();
+    localStorage.setItem('ambi_push_dismissed_v2', '1');
+  };
+}
+
+// Déclencher la demande 4s après que l'user soit connecté
+var _ambiPermTimer = setInterval(function(){
+  if(window.currentUserUID){
+    clearInterval(_ambiPermTimer);
+    setTimeout(ambiDemanderPermission, 4000);
+  }
+}, 1500);
+
+/* ════════════════════════════════════════════════════════════════════
+   7. BADGE APP (compteur rouge sur l'icône PWA — Android Chrome)
+   ════════════════════════════════════════════════════════════════════ */
+function ambiMajBadge(){
+  try{
+    var unread = 0;
+    if(typeof loadNotifs === 'function'){
+      unread = loadNotifs().filter(function(n){ return n.unread; }).length;
+    }
+    if('setAppBadge' in navigator){
+      if(unread > 0) navigator.setAppBadge(unread).catch(function(){});
+      else           navigator.clearAppBadge().catch(function(){});
+    }
+  }catch(e){}
+}
+
+// Mettre à jour le badge quand le panneau de notifs change
+var _origRenderNotifBadge = window.renderNotifBadge;
+window.renderNotifBadge = function(){
+  if(typeof _origRenderNotifBadge === 'function') _origRenderNotifBadge();
+  ambiMajBadge();
+};
+
+// Remettre le badge à 0 quand l'user revient sur l'app
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'visible') ambiMajBadge();
+});
+
+console.log('[AMBI241] ✅ Sonneries réelles + Listeners Firestore initialisés');
+
+})();
+</script>
+
 </body>
 </html>
