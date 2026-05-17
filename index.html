@@ -6198,7 +6198,7 @@ if (document.readyState === 'loading') {
 <div id="user-profile-modal" class="user-profile-modal">
   <div class="profile-card-wrap">
     <div class="profile-header">
-      <button class="profile-close-btn" onclick="closeUserProfile()">✕</button>
+      <button class="profile-close-btn" onclick="closeMyProfileModal()">✕</button>
     </div>
     <div class="profile-photo-section">
       <div style="text-align:center;">
@@ -11146,10 +11146,6 @@ var etablissements=[];
 // ── PHOTOS GALERIE LOCALE (permanentes — max 5) — déclaré tôt car utilisé dans buildCard ──
 var MAX_SLOT=5;
 var SLOT_EXPIRE_MS = Number.MAX_SAFE_INTEGER; // Permanent : photos restent jusqu'à suppression manuelle
-function loadSlotPhotos(eid){
-  var stored=lsGetJSON("ambi241_slot_photos", {});
-  return (stored[eid]||[]);
-}
 // ── PAIEMENTS : chargés depuis Firebase, pas de base hardcodée fictive ──
 var _paiementsBase=[];  // sera alimenté exclusivement par Firebase + établissements réels
 var _paiementsFirebase=[]; // chargés depuis Firebase
@@ -29831,11 +29827,11 @@ window.tdbLoadMoreHistory         = tdbLoadMoreHistory;
 // Si l'app tourne en local (file://), définissez manuellement l'URL ici :
 (function() {
   var saved = localStorage.getItem('ambi241_app_url');
-  var auto  = (window.location.protocol === 'http:' || window.location.protocol === 'https:')
+  var proto = window.location.protocol;
+  var auto  = (proto === 'http:' || proto === 'https:')
               ? window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/').replace(/\/$/, '') + '/'
-              : null;
+              : window.location.href.split('?')[0].replace(/\/[^\/]*$/, '/'); // fallback file://
   window.AMBI241_APP_URL = saved || auto || null;
-  // Warning silencieux (console uniquement, jamais affiché à l'écran)
   if (!window.AMBI241_APP_URL) {
     console.warn('AMBI241: URL non configurée - liens WhatsApp chauffeur désactivés');
   }
@@ -31911,7 +31907,7 @@ window.taxiProMembers = {
   }
 };
 
-function openUserProfile(userId) {
+function openMyProfileModal(userId) {
   const user = window.userProfiles[userId];
   if (!user) return;
   
@@ -32020,7 +32016,7 @@ function openUserProfile(userId) {
     
   }
 
-function closeUserProfile() {
+function closeMyProfileModal() {
   document.getElementById('user-profile-modal').classList.remove('open');
 }
 
@@ -32150,7 +32146,7 @@ function removeGalleryPhoto(index) {
     if (currentUser && currentUser.idPhotos) {
       currentUser.idPhotos.splice(index, 1);
       alert('✅ Photo supprimee');
-      openUserProfile(currentUser.id);
+      openMyProfileModal(currentUser.id);
     }
   }
 }
@@ -32448,58 +32444,6 @@ console.log('✅ Système de réinitialisation mot de passe chargé');
 // ════════════════════════════════════════════════════════════════
 // REDIRECTION WHATSAPP - Clic sur nom chauffeur
 // ════════════════════════════════════════════════════════════════
-
-function contactChauffeurWhatsApp(phoneNumber, chauffeurName) {
-  if (!phoneNumber) {
-    alert('❌ Numéro WhatsApp non disponible');
-    return;
-  }
-  
-  // Nettoyer le numéro (enlever espaces, tirets, etc.)
-  let cleaned = phoneNumber.replace(/[^0-9+]/g, '');
-  
-  // Ajouter +241 si le numéro commence par 0 ou 1 (Gabon)
-  if (cleaned.startsWith('0') || cleaned.startsWith('1')) {
-    cleaned = '+241' + cleaned.substring(1);
-  } else if (!cleaned.startsWith('+')) {
-    cleaned = '+241' + cleaned;
-  }
-  
-  // Message par défaut
-  const message = `Bonjour ${chauffeurName}, je souhaite vous contacter!`;
-  const encodedMessage = encodeURIComponent(message);
-  
-  // Construire l'URL WhatsApp
-  const whatsappUrl = `https://wa.me/${cleaned}?text=${encodedMessage}`;
-  
-  // Ouvrir dans une nouvelle fenêtre
-  window.open(whatsappUrl, '_blank', 'width=500,height=600');
-  
-  console.log('✅ Redirection WhatsApp:', whatsappUrl);
-}
-
-// Alternative: Appel direct
-function callChauffeur(phoneNumber) {
-  if (!phoneNumber) {
-    alert('❌ Numéro non disponible');
-    return;
-  }
-  
-  let cleaned = phoneNumber.replace(/[^0-9+]/g, '');
-  if (!cleaned.startsWith('+')) {
-    if (cleaned.startsWith('0') || cleaned.startsWith('1')) {
-      cleaned = '+241' + cleaned.substring(1);
-    } else {
-      cleaned = '+241' + cleaned;
-    }
-  }
-  
-  window.location.href = 'tel:' + cleaned;
-}
-
-console.log('✅ WhatsApp contact system loaded');
-
-
 
 // ════════════════════════════════════════════════════════════════════════
 // SYSTÈME DE COMMANDES & FLUX WHATSAPP COMPLET
@@ -35138,93 +35082,6 @@ window.renderAdmEtabl = function(){
 var _admPubList   = [];
 var _admPubFilter = 'all';
 var _admPubSearch = '';
-
-window.renderAdmContent = function() {
-  var panel = document.getElementById('adminContentPanel');
-  if (!panel) return;
-
-  var CK = 'ambi241_content_v1';
-  var saved = {};
-  try { saved = JSON.parse(localStorage.getItem(CK) || '{}'); } catch(e) {}
-
-  function g(k, def) { return saved[k] !== undefined ? saved[k] : def; }
-
-  function field(label, id, val, type) {
-    var safe = String(val || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-    var inp = type === 'textarea'
-      ? '<textarea id="cc_' + id + '" rows="2" style="width:100%;background:#2c1040;border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff0f8;padding:0.45rem;font-size:0.78rem;font-family:DM Sans,sans-serif;resize:vertical;">' + safe + '</textarea>'
-      : '<input id="cc_' + id + '" type="text" value="' + safe + '" style="width:100%;background:#2c1040;border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff0f8;padding:0.42rem 0.6rem;font-size:0.78rem;">';
-    return '<div style="margin-bottom:0.55rem;"><div style="font-size:0.62rem;color:#b088c0;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.2rem;">' + label + '</div>' + inp + '</div>';
-  }
-
-  function tog(label, id, val) {
-    var on = val ? 'checked' : '';
-    var bg = val ? 'background:#00ffaa;' : '';
-    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid rgba(255,255,255,0.04);margin-bottom:0.3rem;">'
-      + '<span style="font-size:0.78rem;color:#fff0f8;">' + label + '</span>'
-      + '<label class="notif-toggle"><input type="checkbox" id="cc_' + id + '" ' + on + '>'
-      + '<span class="notif-toggle-slider" style="' + bg + '"></span></label></div>';
-  }
-
-  function section(title, color, body) {
-    return '<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:0.9rem;margin-bottom:0.9rem;">'
-      + '<div style="font-family:Syne,sans-serif;font-weight:800;color:' + color + ';font-size:0.82rem;margin-bottom:0.7rem;">' + title + '</div>'
-      + body + '</div>';
-  }
-
-  var h = '';
-
-  // Header
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">'
-     + '<div style="font-family:Syne,sans-serif;font-weight:800;color:#ff2d9b;font-size:0.95rem;">📋 Gestion du Contenu</div>'
-     + '<button onclick="window._admContentSave()" style="padding:0.42rem 0.9rem;border-radius:10px;border:none;background:linear-gradient(135deg,#00ffaa,#00e5ff);color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;">💾 Sauver</button>'
-     + '</div>';
-
-  // 1. Accueil
-  h += section('🏠 Page d\'accueil', '#ff2d9b',
-    field('Titre principal',   'hero_title',    g('hero_title',    'Trouvez l\'ambiance à Libreville'), 'text') +
-    field('Sous-titre',        'hero_subtitle', g('hero_subtitle', 'Bars, Restaurants, Clubs — en temps réel'), 'text') +
-    field('Bouton CTA',        'hero_cta',      g('hero_cta',      'Explorer maintenant'), 'text') +
-    field('Message bienvenue', 'welcome_msg',   g('welcome_msg',   ''), 'textarea')
-  );
-
-  // 2. Bannière
-  h += section('📢 Bannière Flash', '#ffd700',
-    tog('Bannière active', 'banner_active', g('banner_active', false)) +
-    field('Texte bannière', 'banner_text', g('banner_text', ''), 'text')
-  );
-
-  // 3. Annonce
-  h += section('📣 Annonce Admin', '#00e5ff',
-    tog('Annonce visible', 'annonce_active', g('annonce_active', false)) +
-    field('Titre annonce', 'annonce_titre', g('annonce_titre', ''), 'text') +
-    field('Corps du message', 'annonce_texte', g('annonce_texte', ''), 'textarea')
-  );
-
-  // 4. Identité
-  h += section('🎨 Identité App', '#cc44ff',
-    field('Nom de l\'app',   'appname',     g('appname',     'AMBI241'), 'text') +
-    field('Pied de page',    'footer_text', g('footer_text', '© 2026 AMBI241'), 'text')
-  );
-
-  // 5. Contact
-  h += section('📞 Contact & Réseaux', '#00ffaa',
-    field('Email',     'contact_email',     g('contact_email', 'ambi2412026@gmail.com'), 'text') +
-    field('WhatsApp',  'contact_whatsapp',  g('contact_whatsapp', ''), 'text') +
-    field('Instagram', 'reseaux_instagram', g('reseaux_instagram', ''), 'text') +
-    field('Facebook',  'reseaux_facebook',  g('reseaux_facebook', ''), 'text') +
-    field('TikTok',    'reseaux_tiktok',    g('reseaux_tiktok', ''), 'text')
-  );
-
-  // 6. Publications
-  h += '<div style="background:rgba(204,68,255,0.05);border:1px solid rgba(204,68,255,0.25);border-radius:14px;padding:0.9rem;margin-bottom:0.9rem;">'
-     + '<div style="font-family:Syne,sans-serif;font-weight:800;color:#cc44ff;font-size:0.82rem;margin-bottom:0.6rem;">📝 Publications membres</div>'
-     + '<div id="admPubSub" style="font-size:0.75rem;color:#b088c0;margin-bottom:0.5rem;">Cliquez pour charger</div>'
-     + '<button onclick="window._loadAdmPubs()" style="width:100%;padding:0.4rem;border-radius:8px;border:1px solid rgba(204,68,255,0.3);background:rgba(204,68,255,0.06);color:#cc44ff;font-size:0.75rem;cursor:pointer;font-family:DM Sans,sans-serif;">↻ Charger les publications</button>'
-     + '</div>';
-
-  panel.innerHTML = h;
-};
 
 window._admContentSave = function() {
   var CK = 'ambi241_content_v1';
