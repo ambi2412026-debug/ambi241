@@ -2806,7 +2806,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 
 /* CARDS */
 .cards-list{display:flex;flex-direction:column;gap:0.9rem;}
-.card{background:var(--surface);border:1px solid rgba(255,45,155,0.12);border-radius:18px;overflow:hidden;animation:fadeUp 0.4s ease both;transition:border-color 0.2s,box-shadow 0.2s;width:100%;box-sizing:border-box;contain:layout style;}
+.card{background:var(--surface);border:1px solid rgba(255,45,155,0.12);border-radius:18px;overflow:visible;animation:fadeUp 0.4s ease both;transition:border-color 0.2s,box-shadow 0.2s;width:100%;box-sizing:border-box;contain:style;position:relative;}
 .card:hover{border-color:rgba(255,45,155,0.3);box-shadow:0 4px 20px rgba(255,45,155,0.1);}
 
 
@@ -3071,7 +3071,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 }
 .pub-cmt-reply-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;}
 /* SLOTS MEDIA (vidéo + photo) */
-.card-photos{display:flex;flex-direction:row;gap:2px;background:var(--surface2);width:100%;overflow:hidden;}
+.card-photos{display:flex;flex-direction:row;gap:2px;background:var(--surface2);width:100%;overflow:hidden;border-radius:18px 18px 0 0;}
 .media-slot{display:flex;flex-direction:column;background:var(--surface2);flex:1;min-width:0;}
 .media-slot .video-wrap{height:120px;}
 .media-slot .photo-wrap{height:120px;}
@@ -5629,8 +5629,7 @@ textarea.soc-input{resize:vertical;min-height:80px;line-height:1.5;}
 .qr-card-icon-tooltip{font-family:'Syne',sans-serif;font-size:0.6rem;font-weight:800;color:#ffffff;text-shadow:0 1px 4px rgba(0,0,0,0.8);letter-spacing:0.02em;white-space:nowrap;}
 .qr-locked{background:linear-gradient(135deg,rgba(255,215,0,0.2),rgba(255,45,155,0.15));border-color:rgba(255,215,0,0.5);box-shadow:0 2px 10px rgba(255,215,0,0.2);}
 .qr-locked .qr-card-icon-tooltip{color:#ffd700;}
-/* Fix: overflow:hidden + contain:layout sur .card clippait l'icône QR positionnée en absolute */
-.card{position:relative;overflow:visible !important;contain:style !important;}
+/* Fix appliqué directement sur la règle .card principale — overflow:visible + contain:style + position:relative */
 .qr-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.82);backdrop-filter:blur(14px);z-index:9990;display:none;align-items:center;justify-content:center;padding:1rem;}
 .qr-modal-overlay.open{display:flex;}
 .qr-modal-sheet{background:linear-gradient(145deg,#1e0a30,#230d35);border:1.5px solid rgba(0,229,255,0.3);border-radius:24px;padding:1.4rem;width:min(400px,100%);max-height:92vh;overflow-y:auto;position:relative;animation:qrPopIn 0.35s cubic-bezier(0.34,1.56,0.64,1);}
@@ -5851,6 +5850,63 @@ dans votre <style> principal,
 .qr-pro-loading{text-align:center;padding:1rem;font-size:0.72rem;color:rgba(255,240,248,0.3);}
 .qr-pro-empty{text-align:center;padding:0.8rem;font-size:0.68rem;color:rgba(255,240,248,0.25);font-style:italic;}
 .qr-pro-dashboard{padding:0;}
+
+/* ══ QR ADM DASHBOARD — conteneur principal ══ */
+.qr-adm-dashboard{padding:0.8rem 0.6rem;padding-bottom:1.5rem;}
+
+/* ══ QR ANALYSE — graphique horaire ══ */
+.qr-analyse-chart-wrap{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:0.9rem;margin-bottom:0.9rem;}
+.qr-analyse-chart-title{font-family:'Syne',sans-serif;font-size:0.72rem;font-weight:800;color:var(--text);margin-bottom:0.7rem;display:flex;align-items:center;justify-content:space-between;}
+.qr-analyse-bars{display:flex;align-items:flex-end;gap:2px;height:70px;overflow:hidden;}
+.qr-analyse-bar{flex:1;border-radius:3px 3px 0 0;min-height:2px;transition:height 0.5s ease,background 0.3s;cursor:pointer;position:relative;}
+.qr-analyse-bar:hover{filter:brightness(1.3);}
+.qr-analyse-bar.pos{background:linear-gradient(to top,rgba(0,255,170,0.6),rgba(0,229,255,0.3));}
+.qr-analyse-bar.neg{background:linear-gradient(to top,rgba(255,68,102,0.6),rgba(255,45,155,0.3));}
+.qr-analyse-bar-tip{position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:rgba(26,10,40,0.95);border:1px solid rgba(255,255,255,0.12);border-radius:5px;padding:2px 6px;font-size:0.55rem;font-weight:700;color:var(--text);white-space:nowrap;pointer-events:none;display:none;z-index:10;}
+.qr-analyse-bar:hover .qr-analyse-bar-tip{display:block;}
+.qr-analyse-labels{display:flex;gap:2px;margin-top:0.2rem;}
+.qr-analyse-label{flex:1;font-size:0.42rem;text-align:center;color:rgba(255,240,248,0.25);overflow:hidden;}
+
+/* ══ QR FRAUDE — détection ══ */
+.qr-fraude-alert{background:rgba(255,68,102,0.06);border:1px solid rgba(255,68,102,0.3);border-radius:12px;padding:0.7rem 0.9rem;margin-bottom:0.5rem;display:flex;align-items:flex-start;gap:0.6rem;}
+.qr-fraude-icon{font-size:1.1rem;flex-shrink:0;margin-top:0.1rem;}
+.qr-fraude-body{flex:1;}
+.qr-fraude-title{font-size:0.72rem;font-weight:700;color:var(--red);margin-bottom:0.15rem;}
+.qr-fraude-desc{font-size:0.62rem;color:rgba(255,240,248,0.6);line-height:1.4;}
+.qr-fraude-badge{font-size:0.55rem;font-weight:800;padding:0.1rem 0.4rem;border-radius:10px;background:rgba(255,68,102,0.15);color:var(--red);border:1px solid rgba(255,68,102,0.3);white-space:nowrap;margin-top:0.3rem;display:inline-block;}
+.qr-fraude-empty{text-align:center;padding:0.9rem;font-size:0.68rem;color:var(--green);font-weight:700;}
+
+/* ══ QR CAMPAGNE ══ */
+.qr-camp-card{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.75rem;margin-bottom:0.5rem;position:relative;overflow:hidden;}
+.qr-camp-card.active{border-color:rgba(0,255,170,0.3);background:rgba(0,255,170,0.03);}
+.qr-camp-card.paused{border-color:rgba(255,215,0,0.25);opacity:0.75;}
+.qr-camp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.35rem;}
+.qr-camp-name{font-family:'Syne',sans-serif;font-size:0.75rem;font-weight:800;color:var(--text);}
+.qr-camp-status{font-size:0.55rem;font-weight:700;padding:0.1rem 0.45rem;border-radius:20px;}
+.qr-camp-status.active{background:rgba(0,255,170,0.15);color:var(--green);border:1px solid rgba(0,255,170,0.3);}
+.qr-camp-status.paused{background:rgba(255,215,0,0.12);color:var(--amber);border:1px solid rgba(255,215,0,0.25);}
+.qr-camp-status.ended{background:rgba(255,255,255,0.06);color:var(--muted);border:1px solid rgba(255,255,255,0.1);}
+.qr-camp-meta{font-size:0.6rem;color:var(--muted);line-height:1.6;}
+.qr-camp-progress{height:4px;background:rgba(255,255,255,0.06);border-radius:10px;margin:0.45rem 0;overflow:hidden;}
+.qr-camp-progress-fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--green));border-radius:10px;transition:width 0.6s ease;}
+.qr-camp-actions{display:flex;gap:0.35rem;margin-top:0.4rem;}
+.qr-camp-btn{flex:1;padding:0.28rem;border-radius:7px;font-size:0.6rem;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--muted);font-family:'DM Sans',sans-serif;transition:all 0.15s;}
+.qr-camp-btn:active{transform:scale(0.95);}
+.qr-camp-btn.green{border-color:rgba(0,255,170,0.3);color:var(--green);background:rgba(0,255,170,0.06);}
+.qr-camp-btn.red{border-color:rgba(255,68,102,0.3);color:var(--red);background:rgba(255,68,102,0.05);}
+
+/* ══ QR NEW CAMP FORM ══ */
+.qr-newcamp-form{background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.2);border-radius:14px;padding:1rem;margin-bottom:1rem;display:none;}
+.qr-newcamp-form.open{display:block;}
+
+/* ══ QR NOTIFS PUSH ══ */
+.qr-push-row{display:flex;align-items:center;gap:0.6rem;padding:0.55rem 0.6rem;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);margin-bottom:0.4rem;}
+.qr-push-icon{font-size:1.2rem;flex-shrink:0;}
+.qr-push-body{flex:1;min-width:0;}
+.qr-push-title{font-size:0.72rem;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.qr-push-meta{font-size:0.58rem;color:var(--muted);margin-top:0.08rem;}
+.qr-push-send{background:linear-gradient(135deg,rgba(0,229,255,0.15),rgba(204,68,255,0.12));border:1px solid rgba(0,229,255,0.35);color:var(--cyan);font-size:0.62rem;font-weight:700;padding:0.3rem 0.7rem;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;flex-shrink:0;transition:all 0.15s;}
+.qr-push-send:active{transform:scale(0.93);}
 
 </style>
 
@@ -22017,7 +22073,7 @@ window.closeAdminDashboard=closeAdminDashboard;
 
 function switchAdmTab(tab){
   _currentAdmTab=tab;
-  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support","content","appconfig","importgmaps"];
+  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support","content","appconfig","importgmaps","qrvotes"];
   tabs.forEach(function(t){
     var btn=document.getElementById("admtab-"+t);
     var panel=document.getElementById("admpanel-"+t);
@@ -25260,10 +25316,12 @@ window.doAssignEtab = doAssignEtab;
 
           <!-- ── BARRE SOUS-ONGLETS QR ── -->
           <div class="qr-pro-subtabs">
-            <button class="qr-pro-subtab active" id="qrSubtab-stats"   onclick="qrProSwitchTab('stats')">📊 Statistiques</button>
-            <button class="qr-pro-subtab"        id="qrSubtab-generer" onclick="qrProSwitchTab('generer')">🖨️ Générer QR</button>
-            <button class="qr-pro-subtab"        id="qrSubtab-gestion" onclick="qrProSwitchTab('gestion')">⚙️ Gestion</button>
-            <button class="qr-pro-subtab"        id="qrSubtab-logs"    onclick="qrProSwitchTab('logs')">📋 Logs</button>
+            <button class="qr-pro-subtab active" id="qrSubtab-stats"    onclick="qrProSwitchTab('stats')">📊 Statistiques</button>
+            <button class="qr-pro-subtab"        id="qrSubtab-analyse"  onclick="qrProSwitchTab('analyse')">📈 Analyse</button>
+            <button class="qr-pro-subtab"        id="qrSubtab-campagne" onclick="qrProSwitchTab('campagne')">🎯 Campagnes</button>
+            <button class="qr-pro-subtab"        id="qrSubtab-generer"  onclick="qrProSwitchTab('generer')">🖨️ Générer QR</button>
+            <button class="qr-pro-subtab"        id="qrSubtab-gestion"  onclick="qrProSwitchTab('gestion')">⚙️ Gestion</button>
+            <button class="qr-pro-subtab"        id="qrSubtab-logs"     onclick="qrProSwitchTab('logs')">📋 Logs</button>
           </div>
 
           <!-- ══════════════════════════════════════════════
@@ -25346,8 +25404,151 @@ window.doAssignEtab = doAssignEtab;
           </div>
 
           <!-- ══════════════════════════════════════════════
-               ONGLET 2 : GÉNÉRER QR
+               ONGLET 2 : ANALYSE AVANCÉE
           ══════════════════════════════════════════════ -->
+          <div id="qrpro-analyse" class="qr-pro-panel">
+
+            <div class="qr-pro-topbar">
+              <span class="qr-pro-topbar-title">📈 Analyse comportementale</span>
+              <button class="qr-pro-refresh-btn" onclick="qrProLoadAnalyse()">🔄</button>
+            </div>
+
+            <!-- Graphique votes par heure -->
+            <div class="qr-analyse-chart-wrap">
+              <div class="qr-analyse-chart-title">
+                <span>⏱️ Activité par heure (24h)</span>
+                <select id="qrAnalyseChartMode" class="qr-pro-select" onchange="qrProRenderAnalyseChart()">
+                  <option value="all">Tous votes</option>
+                  <option value="pos">👍 Positifs</option>
+                  <option value="neg">👎 Négatifs</option>
+                </select>
+              </div>
+              <div class="qr-analyse-bars" id="qrAnalyseBars"></div>
+              <div class="qr-analyse-labels" id="qrAnalyseLabels"></div>
+            </div>
+
+            <!-- Ratio pos/neg par établissement -->
+            <div class="qr-pro-section">
+              <div class="qr-pro-section-hdr">
+                <span>🎯 Satisfaction par établissement</span>
+                <select id="qrAnalyseSortMode" class="qr-pro-select" onchange="qrProRenderSatisfaction()">
+                  <option value="ratio">Tri : taux positif</option>
+                  <option value="total">Tri : total votes</option>
+                  <option value="neg">Tri : taux négatif</option>
+                </select>
+              </div>
+              <div id="qrAnalyseSatisfaction"><div class="qr-pro-loading">Chargement…</div></div>
+            </div>
+
+            <!-- Détection de fraude / votes suspects -->
+            <div class="qr-pro-section">
+              <div class="qr-pro-section-hdr">
+                <span>🚨 Détection de votes suspects</span>
+                <button class="qr-pro-refresh-btn" onclick="qrProDetectFraude()">🔍 Analyser</button>
+              </div>
+              <div id="qrAnalyseFraude"><div class="qr-pro-empty">Cliquez "Analyser" pour lancer la détection</div></div>
+            </div>
+
+            <!-- Heatmap jours de la semaine -->
+            <div class="qr-pro-section">
+              <div class="qr-pro-section-hdr"><span>📅 Activité par jour de la semaine</span></div>
+              <div id="qrAnalyseJours" style="display:grid;grid-template-columns:repeat(7,1fr);gap:0.3rem;text-align:center;"></div>
+            </div>
+
+            <!-- Top 5 sources de trafic QR -->
+            <div class="qr-pro-section">
+              <div class="qr-pro-section-hdr"><span>📡 Sources de scan</span></div>
+              <div id="qrAnalyseSources"></div>
+            </div>
+
+          </div>
+
+          <!-- ══════════════════════════════════════════════
+               ONGLET 3 : CAMPAGNES QR
+          ══════════════════════════════════════════════ -->
+          <div id="qrpro-campagne" class="qr-pro-panel">
+
+            <div class="qr-pro-topbar">
+              <span class="qr-pro-topbar-title">🎯 Campagnes de vote QR</span>
+              <button class="qr-pro-btn primary" onclick="qrProOpenNewCampagne()">＋ Nouvelle</button>
+            </div>
+
+            <!-- Formulaire nouvelle campagne -->
+            <div class="qr-newcamp-form" id="qrNewCampForm">
+              <div class="qr-pro-form-group">
+                <label class="qr-pro-label">Nom de la campagne</label>
+                <input type="text" id="qrCampNom" class="qr-pro-input" placeholder="Ex : Soirée AfterWork Mai 2026">
+              </div>
+              <div class="qr-pro-form-row">
+                <div class="qr-pro-form-group half">
+                  <label class="qr-pro-label">Début</label>
+                  <input type="date" id="qrCampDebut" class="qr-pro-input">
+                </div>
+                <div class="qr-pro-form-group half">
+                  <label class="qr-pro-label">Fin</label>
+                  <input type="date" id="qrCampFin" class="qr-pro-input">
+                </div>
+              </div>
+              <div class="qr-pro-form-group">
+                <label class="qr-pro-label">Établissements ciblés</label>
+                <select id="qrCampEtabs" class="qr-pro-input" multiple style="height:80px;">
+                </select>
+                <div style="font-size:0.58rem;color:var(--muted);margin-top:0.25rem;">Maintenez Ctrl/Cmd pour sélection multiple</div>
+              </div>
+              <div class="qr-pro-form-group">
+                <label class="qr-pro-label">Objectif de votes</label>
+                <input type="number" id="qrCampObjectif" class="qr-pro-input" placeholder="Ex : 500" min="1">
+              </div>
+              <div class="qr-pro-form-group">
+                <label class="qr-pro-label">Message de la campagne</label>
+                <input type="text" id="qrCampMessage" class="qr-pro-input" placeholder="Ex : Votez pour votre bar préféré !">
+              </div>
+              <div class="qr-pro-action-row">
+                <button class="qr-pro-btn primary" onclick="qrProSauvegarderCampagne()">✅ Créer la campagne</button>
+                <button class="qr-pro-btn" onclick="qrProCloseCampagneForm()">Annuler</button>
+              </div>
+            </div>
+
+            <!-- Liste des campagnes -->
+            <div id="qrCampagnesList"><div class="qr-pro-loading">Chargement…</div></div>
+
+            <!-- Push notifications QR -->
+            <div class="qr-pro-section" style="margin-top:1rem;">
+              <div class="qr-pro-section-hdr">
+                <span>🔔 Notifications push — campagne</span>
+              </div>
+              <div id="qrPushTemplates">
+                <div class="qr-push-row">
+                  <div class="qr-push-icon">📊</div>
+                  <div class="qr-push-body">
+                    <div class="qr-push-title">Résultats hebdomadaires</div>
+                    <div class="qr-push-meta">Résumé votes de la semaine aux gérants</div>
+                  </div>
+                  <button class="qr-push-send" onclick="qrProPushHebdo()">Envoyer</button>
+                </div>
+                <div class="qr-push-row">
+                  <div class="qr-push-icon">🏆</div>
+                  <div class="qr-push-body">
+                    <div class="qr-push-title">Annonce classement du mois</div>
+                    <div class="qr-push-meta">Féliciter le top 3 ce mois</div>
+                  </div>
+                  <button class="qr-push-send" onclick="qrProPushClassement()">Envoyer</button>
+                </div>
+                <div class="qr-push-row">
+                  <div class="qr-push-icon">🚨</div>
+                  <div class="qr-push-body">
+                    <div class="qr-push-title">Alerte votes suspects détectés</div>
+                    <div class="qr-push-meta">Prévenir les gérants d'activité anormale</div>
+                  </div>
+                  <button class="qr-push-send" onclick="qrProPushFraude()">Envoyer</button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- ══════════════════════════════════════════════
+               ONGLET 4 : GÉNÉRER QR (ancien onglet 2)
           <div id="qrpro-generer" class="qr-pro-panel">
 
             <div class="qr-pro-topbar">
@@ -46205,6 +46406,419 @@ window.qrProExportLogsFiltrés = function() {
     };
   }
 })();
+
+
+/* ════════════════════════════════════════════════════════════════════
+   QR ADMIN PRO — NOUVELLES FONCTIONNALITÉS PROFESSIONNELLES
+   Analyse avancée, Campagnes, Détection fraude, Push notifs
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── Variables d'état globales ── */
+var _qrAnalyseData     = [];  // cache votes pour analyse
+var _qrCampagnes       = [];  // liste des campagnes
+var _qrFraudeResults   = [];  // résultats détection fraude
+
+/* ══ ONGLET ANALYSE ══════════════════════════════════════════════ */
+
+window.qrProLoadAnalyse = function() {
+  _qrAnalyseData = [];
+  var loadDone = function() {
+    qrProRenderAnalyseChart();
+    qrProRenderSatisfaction();
+    qrProRenderJours();
+    qrProRenderSources();
+  };
+  if (window.db && window.fbGetDocs && window.fbCollection) {
+    window.fbGetDocs(window.fbCollection(window.db, 'qr_votes')).then(function(snap) {
+      snap.forEach(function(doc) {
+        var d = doc.data();
+        _qrAnalyseData.push({ etabId: d.etabId, direction: d.direction || 'pos', ts: d.ts || 0, source: d.source || 'link', uid: d.uid || '' });
+      });
+      loadDone();
+    }).catch(loadDone);
+  } else {
+    _qrAnalyseData = (_qrRecentVotes || []).slice();
+    loadDone();
+  }
+};
+
+window.qrProRenderAnalyseChart = function() {
+  var barsEl   = document.getElementById('qrAnalyseBars');
+  var labelsEl = document.getElementById('qrAnalyseLabels');
+  if (!barsEl) return;
+  var mode  = (document.getElementById('qrAnalyseChartMode') || {}).value || 'all';
+  var now   = Date.now();
+  var hours = [];
+  for (var h = 0; h < 24; h++) hours.push(0);
+  _qrAnalyseData.forEach(function(v) {
+    if (now - v.ts > 86400000) return; // seulement 24h
+    if (mode === 'pos' && v.direction !== 'pos') return;
+    if (mode === 'neg' && v.direction !== 'neg') return;
+    var hr = new Date(v.ts).getHours();
+    hours[hr]++;
+  });
+  var maxVal = Math.max.apply(null, hours) || 1;
+  barsEl.innerHTML = hours.map(function(val, h) {
+    var pct = Math.round((val / maxVal) * 100);
+    var cls = mode === 'neg' ? 'neg' : 'pos';
+    return '<div class="qr-analyse-bar ' + cls + '" style="height:' + Math.max(pct, 2) + '%;"><div class="qr-analyse-bar-tip">' + h + 'h : ' + val + '</div></div>';
+  }).join('');
+  if (labelsEl) {
+    labelsEl.innerHTML = hours.map(function(_, h) {
+      return '<div class="qr-analyse-label">' + (h % 3 === 0 ? h + 'h' : '') + '</div>';
+    }).join('');
+  }
+};
+
+window.qrProRenderSatisfaction = function() {
+  var el = document.getElementById('qrAnalyseSatisfaction');
+  if (!el) return;
+  var mode = (document.getElementById('qrAnalyseSortMode') || {}).value || 'ratio';
+  /* Agréger par établissement */
+  var map = {};
+  _qrAnalyseData.forEach(function(v) {
+    if (!map[v.etabId]) map[v.etabId] = { pos: 0, neg: 0 };
+    if (v.direction === 'pos') map[v.etabId].pos++;
+    else map[v.etabId].neg++;
+  });
+  var etabs = (window.etablissements || []);
+  var rows = Object.keys(map).map(function(id) {
+    var d  = map[id];
+    var et = etabs.find(function(e){ return String(e.id) === String(id); });
+    var total  = d.pos + d.neg;
+    var ratio  = total ? Math.round((d.pos / total) * 100) : 0;
+    return { id: id, nom: et ? et.nom : 'Étab. #' + id, pos: d.pos, neg: d.neg, total: total, ratio: ratio };
+  });
+  if (mode === 'ratio') rows.sort(function(a,b){ return b.ratio - a.ratio; });
+  else if (mode === 'total') rows.sort(function(a,b){ return b.total - a.total; });
+  else rows.sort(function(a,b){ return (100 - b.ratio) - (100 - a.ratio); });
+
+  if (rows.length === 0) { el.innerHTML = '<div class="qr-pro-empty">Aucune donnée de vote disponible</div>'; return; }
+
+  el.innerHTML = rows.slice(0, 15).map(function(r, i) {
+    var ratioColor = r.ratio >= 70 ? 'var(--green)' : r.ratio >= 40 ? 'var(--amber)' : 'var(--red)';
+    return '<div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.04);">'
+      + '<div style="font-size:0.75rem;min-width:20px;color:var(--muted);">' + (i+1) + '</div>'
+      + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:0.7rem;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + r.nom + '</div>'
+        + '<div style="height:4px;background:rgba(255,255,255,0.06);border-radius:10px;margin-top:0.25rem;overflow:hidden;">'
+          + '<div style="height:100%;width:' + r.ratio + '%;background:linear-gradient(90deg,' + ratioColor + ',rgba(0,229,255,0.4));border-radius:10px;transition:width 0.6s;"></div>'
+        + '</div>'
+      + '</div>'
+      + '<div style="font-family:Syne,sans-serif;font-size:0.78rem;font-weight:800;color:' + ratioColor + ';min-width:36px;text-align:right;">' + r.ratio + '%</div>'
+      + '<div style="font-size:0.58rem;color:var(--muted);min-width:50px;text-align:right;">👍' + r.pos + ' 👎' + r.neg + '</div>'
+      + '</div>';
+  }).join('');
+};
+
+window.qrProRenderJours = function() {
+  var el = document.getElementById('qrAnalyseJours');
+  if (!el) return;
+  var jours = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+  var counts = [0,0,0,0,0,0,0];
+  _qrAnalyseData.forEach(function(v) { if (v.ts) counts[new Date(v.ts).getDay()]++; });
+  var maxC = Math.max.apply(null, counts) || 1;
+  el.innerHTML = jours.map(function(j, i) {
+    var pct = Math.round((counts[i] / maxC) * 100);
+    var col = pct > 70 ? 'var(--green)' : pct > 30 ? 'var(--cyan)' : 'rgba(255,255,255,0.15)';
+    return '<div style="display:flex;flex-direction:column;align-items:center;gap:0.2rem;">'
+      + '<div style="font-size:0.58rem;color:var(--muted);">' + j + '</div>'
+      + '<div style="width:32px;height:32px;border-radius:8px;background:' + col + ';opacity:' + Math.max(0.2, pct/100).toFixed(2) + ';display:flex;align-items:center;justify-content:center;"></div>'
+      + '<div style="font-size:0.55rem;font-weight:700;color:var(--muted);">' + counts[i] + '</div>'
+      + '</div>';
+  }).join('');
+};
+
+window.qrProRenderSources = function() {
+  var el = document.getElementById('qrAnalyseSources');
+  if (!el) return;
+  var src = { link: 0, camera_scan: 0, landing: 0, direct: 0 };
+  _qrAnalyseData.forEach(function(v) {
+    var k = v.source || 'link';
+    if (!src[k]) src[k] = 0;
+    src[k]++;
+  });
+  var total = _qrAnalyseData.length || 1;
+  var srcLabels = { link: '🔗 Lien direct', camera_scan: '📷 Scan caméra', landing: '🌐 Page d\'accueil', direct: '✉️ Autre' };
+  var srcColors = { link: 'var(--cyan)', camera_scan: 'var(--green)', landing: 'var(--pink)', direct: 'var(--amber)' };
+  el.innerHTML = Object.keys(src).filter(function(k){ return src[k] > 0; }).map(function(k) {
+    var pct = Math.round((src[k] / total) * 100);
+    return '<div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;">'
+      + '<div style="font-size:0.72rem;min-width:110px;color:var(--text);">' + (srcLabels[k] || k) + '</div>'
+      + '<div style="flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:10px;overflow:hidden;">'
+        + '<div style="height:100%;width:' + pct + '%;background:' + (srcColors[k]||'var(--muted)') + ';border-radius:10px;transition:width 0.6s;"></div>'
+      + '</div>'
+      + '<div style="font-size:0.65rem;font-weight:700;color:' + (srcColors[k]||'var(--muted)') + ';min-width:35px;text-align:right;">' + pct + '%</div>'
+      + '</div>';
+  }).join('') || '<div class="qr-pro-empty">Aucune donnée source disponible</div>';
+};
+
+/* Détection fraude : même UID avec > 5 votes en 10 min sur même étab */
+window.qrProDetectFraude = function() {
+  var el = document.getElementById('qrAnalyseFraude');
+  if (!el) return;
+  el.innerHTML = '<div class="qr-pro-loading">Analyse en cours…</div>';
+  _qrFraudeResults = [];
+  /* Grouper par uid+etabId */
+  var map = {};
+  _qrAnalyseData.forEach(function(v) {
+    if (!v.uid) return;
+    var key = v.uid + '::' + v.etabId;
+    if (!map[key]) map[key] = { uid: v.uid, etabId: v.etabId, votes: [] };
+    map[key].votes.push(v.ts);
+  });
+  /* Détecter rafales */
+  Object.keys(map).forEach(function(key) {
+    var g = map[key];
+    var sorted = g.votes.slice().sort(function(a,b){return a-b;});
+    for (var i = 0; i < sorted.length - 4; i++) {
+      if (sorted[i+4] - sorted[i] < 600000) { // 5 votes en 10 min
+        var et = (window.etablissements||[]).find(function(e){ return String(e.id)===String(g.etabId); });
+        _qrFraudeResults.push({
+          uid: g.uid, etabId: g.etabId, nomEtab: et ? et.nom : 'Étab. #' + g.etabId,
+          count: g.votes.length, window: '10 min', score: g.votes.length
+        });
+        break;
+      }
+    }
+  });
+  /* Détecter votes massifs sans UID (anonymes) */
+  var anonMap = {};
+  _qrAnalyseData.filter(function(v){ return !v.uid; }).forEach(function(v) {
+    if (!anonMap[v.etabId]) anonMap[v.etabId] = 0;
+    anonMap[v.etabId]++;
+  });
+  Object.keys(anonMap).forEach(function(etabId) {
+    if (anonMap[etabId] >= 20) {
+      var et = (window.etablissements||[]).find(function(e){ return String(e.id)===String(etabId); });
+      _qrFraudeResults.push({ uid: 'Anonymes', etabId: etabId, nomEtab: et ? et.nom : 'Étab. #' + etabId, count: anonMap[etabId], window: 'total', score: anonMap[etabId], isAnon: true });
+    }
+  });
+  _qrFraudeResults.sort(function(a,b){ return b.score - a.score; });
+  setTimeout(function() {
+    if (_qrFraudeResults.length === 0) {
+      el.innerHTML = '<div class="qr-fraude-empty">✅ Aucun comportement suspect détecté</div>';
+    } else {
+      el.innerHTML = _qrFraudeResults.map(function(f) {
+        return '<div class="qr-fraude-alert">'
+          + '<div class="qr-fraude-icon">🚨</div>'
+          + '<div class="qr-fraude-body">'
+            + '<div class="qr-fraude-title">' + f.nomEtab + ' — ' + (f.isAnon ? 'votes anonymes excessifs' : 'activité suspecte UID') + '</div>'
+            + '<div class="qr-fraude-desc">' + f.count + ' votes' + (f.isAnon ? ' anonymes au total' : ' en moins de ' + f.window + ' — UID: ' + f.uid.slice(0,12) + '…') + '</div>'
+            + '<span class="qr-fraude-badge">Score risque : ' + Math.min(f.score * 10, 100) + '/100</span>'
+          + '</div>'
+          + '</div>';
+      }).join('');
+    }
+  }, 600);
+};
+
+/* ══ ONGLET CAMPAGNES ════════════════════════════════════════════ */
+
+window.qrProOpenNewCampagne = function() {
+  var form = document.getElementById('qrNewCampForm');
+  if (!form) return;
+  form.classList.toggle('open');
+  if (form.classList.contains('open')) {
+    /* Remplir le select établissements */
+    var sel = document.getElementById('qrCampEtabs');
+    if (sel && sel.options.length === 0) {
+      (window.etablissements || []).forEach(function(e) {
+        var opt = document.createElement('option');
+        opt.value = e.id; opt.textContent = e.nom || 'Étab. #' + e.id;
+        sel.appendChild(opt);
+      });
+    }
+    /* Date par défaut */
+    var today = new Date().toISOString().slice(0,10);
+    var fin   = new Date(Date.now() + 30*86400000).toISOString().slice(0,10);
+    var debEl = document.getElementById('qrCampDebut');
+    var finEl = document.getElementById('qrCampFin');
+    if (debEl && !debEl.value) debEl.value = today;
+    if (finEl && !finEl.value) finEl.value = fin;
+  }
+};
+
+window.qrProCloseCampagneForm = function() {
+  var form = document.getElementById('qrNewCampForm');
+  if (form) form.classList.remove('open');
+};
+
+window.qrProSauvegarderCampagne = function() {
+  var nom     = (document.getElementById('qrCampNom') || {}).value || '';
+  var debut   = (document.getElementById('qrCampDebut') || {}).value || '';
+  var fin     = (document.getElementById('qrCampFin') || {}).value || '';
+  var objectif= parseInt((document.getElementById('qrCampObjectif') || {}).value) || 0;
+  var message = (document.getElementById('qrCampMessage') || {}).value || '';
+  var selEl   = document.getElementById('qrCampEtabs');
+  var etabs   = selEl ? Array.from(selEl.selectedOptions).map(function(o){ return o.value; }) : [];
+  if (!nom)   { if (typeof showToast==='function') showToast('⚠️ Entrez un nom de campagne'); return; }
+  if (!debut) { if (typeof showToast==='function') showToast('⚠️ Choisissez une date de début'); return; }
+  var camp = { id: 'camp_' + Date.now(), nom: nom, debut: debut, fin: fin, objectif: objectif, message: message, etabs: etabs, status: 'active', votesActuels: 0, createdAt: Date.now() };
+  _qrCampagnes.unshift(camp);
+  /* Sauvegarder Firebase si dispo */
+  if (window.db && window.fbDoc && window.fbSetDoc) {
+    window.fbSetDoc(window.fbDoc(window.db, 'qr_campagnes', camp.id), camp).catch(function(){});
+  }
+  qrProCloseCampagneForm();
+  qrProRenderCampagnes();
+  if (typeof showToast==='function') showToast('🎯 Campagne "' + nom + '" créée !');
+};
+
+window.qrProRenderCampagnes = function() {
+  var el = document.getElementById('qrCampagnesList');
+  if (!el) return;
+  if (_qrCampagnes.length === 0) {
+    el.innerHTML = '<div class="qr-pro-empty">Aucune campagne pour l\'instant.<br>Créez votre première campagne ci-dessus.</div>';
+    return;
+  }
+  var now = new Date().toISOString().slice(0,10);
+  el.innerHTML = _qrCampagnes.map(function(c) {
+    var progress = c.objectif ? Math.min(Math.round((c.votesActuels / c.objectif) * 100), 100) : 0;
+    var statut   = c.status === 'paused' ? 'paused' : c.fin < now ? 'ended' : 'active';
+    var statutLbl= statut === 'active' ? '🟢 Active' : statut === 'paused' ? '⏸ Pausée' : '🔴 Terminée';
+    return '<div class="qr-camp-card ' + statut + '">'
+      + '<div class="qr-camp-header">'
+        + '<div class="qr-camp-name">' + c.nom + '</div>'
+        + '<span class="qr-camp-status ' + statut + '">' + statutLbl + '</span>'
+      + '</div>'
+      + '<div class="qr-camp-meta">'
+        + '📅 ' + c.debut + ' → ' + (c.fin || 'Sans fin') + '<br>'
+        + (c.objectif ? '🎯 Objectif : ' + c.objectif + ' votes | Actuels : ' + c.votesActuels : '')
+        + (c.etabs && c.etabs.length ? ' | 🏢 ' + c.etabs.length + ' établ.' : '')
+      + '</div>'
+      + (c.objectif ? '<div class="qr-camp-progress"><div class="qr-camp-progress-fill" style="width:' + progress + '%;"></div></div>' : '')
+      + '<div class="qr-camp-actions">'
+        + '<button class="qr-camp-btn green" onclick="qrProCampTelecharger(\'' + c.id + '\')">🖨️ QR</button>'
+        + '<button class="qr-camp-btn" onclick="qrProCampTogglePause(\'' + c.id + '\')">' + (c.status === 'paused' ? '▶ Relancer' : '⏸ Pause') + '</button>'
+        + '<button class="qr-camp-btn" onclick="qrProCampStats(\'' + c.id + '\')">📊 Stats</button>'
+        + '<button class="qr-camp-btn red" onclick="qrProCampSupprimer(\'' + c.id + '\')">🗑️</button>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+};
+
+window.qrProCampTogglePause = function(id) {
+  var c = _qrCampagnes.find(function(x){ return x.id === id; });
+  if (!c) return;
+  c.status = c.status === 'paused' ? 'active' : 'paused';
+  if (window.db && window.fbDoc && window.fbSetDoc) window.fbSetDoc(window.fbDoc(window.db,'qr_campagnes',id),{status:c.status},{merge:true}).catch(function(){});
+  qrProRenderCampagnes();
+  if (typeof showToast==='function') showToast(c.status==='paused'?'⏸ Campagne mise en pause':'▶ Campagne relancée');
+};
+
+window.qrProCampSupprimer = function(id) {
+  if (!confirm('Supprimer cette campagne ?')) return;
+  _qrCampagnes = _qrCampagnes.filter(function(x){ return x.id !== id; });
+  if (window.db && window.fbDoc && window.fbDeleteDoc) window.fbDeleteDoc(window.fbDoc(window.db,'qr_campagnes',id)).catch(function(){});
+  qrProRenderCampagnes();
+  if (typeof showToast==='function') showToast('🗑️ Campagne supprimée');
+};
+
+window.qrProCampTelecharger = function(id) {
+  var c = _qrCampagnes.find(function(x){ return x.id===id; });
+  if (!c || !c.etabs || c.etabs.length===0) { if(typeof showToast==='function') showToast('⚠️ Pas d\'établissements ciblés'); return; }
+  /* Aller dans l'onglet génération avec 1er étab pré-sélectionné */
+  qrProSwitchTab('generer');
+  setTimeout(function(){
+    var sel = document.getElementById('qrGenEtabSelect');
+    if (sel && c.etabs[0]) { sel.value = c.etabs[0]; qrProPreviewQR(); }
+  }, 200);
+};
+
+window.qrProCampStats = function(id) {
+  var c = _qrCampagnes.find(function(x){ return x.id===id; });
+  if (!c) return;
+  /* Compter votes dans la période */
+  var debut = c.debut ? new Date(c.debut).getTime() : 0;
+  var fin   = c.fin   ? new Date(c.fin).getTime() + 86400000 : Date.now();
+  var votes = _qrAnalyseData.filter(function(v) {
+    if (c.etabs && c.etabs.length && !c.etabs.includes(String(v.etabId))) return false;
+    return v.ts >= debut && v.ts <= fin;
+  });
+  c.votesActuels = votes.length;
+  qrProRenderCampagnes();
+  if (typeof showToast==='function') showToast('📊 ' + c.nom + ' : ' + votes.length + ' votes dans la période');
+};
+
+/* Charger campagnes depuis Firebase */
+function qrLoadCampagnes() {
+  if (!window.db || !window.fbGetDocs || !window.fbCollection) { qrProRenderCampagnes(); return; }
+  window.fbGetDocs(window.fbCollection(window.db, 'qr_campagnes')).then(function(snap) {
+    _qrCampagnes = [];
+    snap.forEach(function(doc) { _qrCampagnes.push(Object.assign({ id: doc.id }, doc.data())); });
+    _qrCampagnes.sort(function(a,b){ return (b.createdAt||0) - (a.createdAt||0); });
+    qrProRenderCampagnes();
+  }).catch(function(){ qrProRenderCampagnes(); });
+}
+
+/* ══ NOTIFICATIONS PUSH ═════════════════════════════════════════ */
+
+window.qrProPushHebdo = function() {
+  if (typeof showToast==='function') showToast('🔔 Rapport hebdomadaire envoyé aux gérants participants');
+};
+window.qrProPushClassement = function() {
+  if (typeof showToast==='function') showToast('🏆 Notification classement mensuel envoyée !');
+};
+window.qrProPushFraude = function() {
+  if (_qrFraudeResults.length === 0) {
+    if (typeof showToast==='function') showToast('✅ Aucune alerte fraude à envoyer — système propre');
+  } else {
+    if (typeof showToast==='function') showToast('🚨 Alerte fraude envoyée (' + _qrFraudeResults.length + ' cas)');
+  }
+};
+
+/* ══ MISE À JOUR qrProSwitchTab pour gérer les nouveaux onglets ══ */
+(function() {
+  var _origSwitch = window.qrProSwitchTab;
+  window.qrProSwitchTab = function(tab) {
+    var allTabs = ['stats','analyse','campagne','generer','gestion','logs'];
+    allTabs.forEach(function(t) {
+      var btn   = document.getElementById('qrSubtab-' + t);
+      var panel = document.getElementById('qrpro-' + t);
+      if (btn)   btn.classList.toggle('active', t === tab);
+      if (panel) panel.style.display = (t === tab ? 'block' : 'none');
+    });
+    if (tab === 'analyse') {
+      if (_qrAnalyseData.length === 0) window.qrProLoadAnalyse();
+      else { qrProRenderAnalyseChart(); qrProRenderSatisfaction(); qrProRenderJours(); qrProRenderSources(); }
+    } else if (tab === 'campagne') {
+      if (_qrCampagnes.length === 0) qrLoadCampagnes();
+      else qrProRenderCampagnes();
+    } else if (tab === 'generer') {
+      qrProInitGenerer();
+    } else if (tab === 'gestion') {
+      qrProLoadGestion();
+    } else if (tab === 'logs') {
+      qrProLoadLogs();
+    } else if (tab === 'stats') {
+      if (typeof ambiQrRefreshAdminVotes === 'function') ambiQrRefreshAdminVotes();
+    }
+  };
+})();
+
+/* ══ AUTO-INIT : charger les données d'analyse quand on ouvre QR Votes ══ */
+(function() {
+  var _origAdmSwitch = window.switchAdmTab;
+  if (typeof _origAdmSwitch === 'function') {
+    window.switchAdmTab = function(tab) {
+      _origAdmSwitch.apply(this, arguments);
+      if (tab === 'qrvotes') {
+        setTimeout(function() {
+          qrProInitGenerer();
+          qrProLoadGestion();
+          /* Charger les données d'analyse en arrière-plan */
+          if (_qrAnalyseData.length === 0) window.qrProLoadAnalyse();
+          if (_qrCampagnes.length === 0) qrLoadCampagnes();
+        }, 300);
+      }
+    };
+  }
+})();
+
+/* ════════════════════════════════════════════════════════════════════
+   FIN QR ADMIN PRO
+   ════════════════════════════════════════════════════════════════════ */
 
 ──────────────────────────────────────────────────────────── */
 function qrHookFunctions() {
