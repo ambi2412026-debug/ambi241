@@ -9214,7 +9214,7 @@ window._uploadUserPhoto = function(type, preselectedFile) {
 
     if (window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL &&
         window.db && window.fbDoc && window.fbUpdateDoc) {
-      var fileName = 'users/' + uid + '/' + type + '_' + Date.now() + '.jpg';
+      var fileName = 'users/' + uid + '/' + type + '_' + _cryptoId(12) + '.jpg';
       var storageRef = window.fbRef(window.fbStorage, fileName);
       if (typeof showUploadProgress === 'function') showUploadProgress(30, 'Upload...');
       window.fbUploadBytes(storageRef, file).then(function() {
@@ -9429,7 +9429,7 @@ window._uploadDriverPhoto = function(contactIndex) {
     }
 
     if (window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL) {
-      var storRef = window.fbRef(window.fbStorage,'taxi/drivers/driver_'+Date.now()+'_'+contactIndex+'.jpg');
+      var storRef = window.fbRef(window.fbStorage,'taxi/drivers/driver_'+_cryptoId(12)+'_'+contactIndex+'.jpg');
       if(typeof showUploadProgress==='function') showUploadProgress(30,'Upload...');
       window.fbUploadBytes(storRef, file).then(function(){
         if(typeof showUploadProgress==='function') showUploadProgress(80,'Finalisation...');
@@ -9487,6 +9487,12 @@ onAuthStateChanged(auth, function(user) {
   if (user) {
     window.currentUserEmail = user.email;
     window.currentUserUID   = user.uid;
+    // ── Vérifier l'expiration du token au login ──────────────
+    user.getIdToken(false).catch(function(err){
+      if(err.code === 'auth/user-token-expired' || err.code === 'auth/invalid-user-token'){
+        _handleSessionExpired();
+      }
+    });
     // Récupérer le pseudo depuis Firestore pour l'afficher dans le header
     getDoc(doc(db, "users", user.uid)).then(function(snap) {
       var pseudo = snap.exists() ? (snap.data().pseudo || user.email) : user.email;
@@ -9497,7 +9503,11 @@ onAuthStateChanged(auth, function(user) {
       if(qba) qba.textContent = (pseudo||"?")[0].toUpperCase();
       // ── Enregistrer la session de connexion ──
       _logUserSession(user.uid, user.email, pseudo);
-    }).catch(function() {
+    }).catch(function(err) {
+      // Détecter une session expirée via erreur Firestore
+      if(err && (err.code === 'auth/user-token-expired' || err.code === 'permission-denied')){
+        _handleSessionExpired(); return;
+      }
       window.currentUserPseudo = user.email;
       updateHeaderUser(user.email);
       _logUserSession(user.uid, user.email, user.email);
@@ -9536,6 +9546,34 @@ onAuthStateChanged(auth, function(user) {
   // loadData() fait déjà renderAll() — inutile de le rappeler ici
   // if (typeof renderAll === "function") { renderAll(); renderHome(); }
 });
+
+/* ── Gestion session expirée Firebase ─────────────────────────────
+   Appelé quand le token Firebase est invalide / expiré.
+   Déconnecte proprement l'utilisateur et redirige vers la connexion. */
+function _handleSessionExpired(){
+  if(window._sessionExpiredHandled) return;
+  window._sessionExpiredHandled = true;
+  // Réinitialiser l'état admin
+  isAdmin = false; isSuperAdmin = false;
+  window.currentUserEmail = ""; window.currentUserUID = null; window.currentUserPseudo = "";
+  // Déconnexion Firebase silencieuse
+  if(window.fbSignOut && window.auth){
+    window.fbSignOut(window.auth).catch(function(){});
+  }
+  // Afficher un message clair et rediriger vers la connexion
+  showToast("⏱️ Session expirée — veuillez vous reconnecter");
+  setTimeout(function(){
+    window._sessionExpiredHandled = false;
+    if(typeof updateNavLabels === "function") updateNavLabels();
+    if(typeof updatePayVis === "function") updatePayVis();
+    if(typeof renderAll === "function") renderAll();
+    // Ouvrir le modal de connexion automatiquement
+    var overlay = document.getElementById('userOverlay');
+    if(overlay){ overlay.classList.add('show'); }
+    if(typeof switchUserTab === 'function') switchUserTab('connexion');
+  }, 1200);
+}
+window._handleSessionExpired = _handleSessionExpired;
 
 // ── Enregistrement de session de connexion ──────────────────────
 function _logUserSession(uid, email, pseudo){
@@ -9780,6 +9818,157 @@ function lsDel(key){
   try{ localStorage.removeItem(key); }catch(e){}
   delete _memFallback[key];
 }
+
+/* ══════════════════════════════════════════════════════════════
+   🎯 GESTIONNAIRE CENTRALISÉ D'ÉVÉNEMENTS
+   Remplace les addEventListener isolés sans removeEventListener.
+   Usage : EventMgr.on(el, 'click', fn, 'monContexte')
+           EventMgr.off('monContexte')  ← supprime tous les listeners du contexte
+   ══════════════════════════════════════════════════════════════ */
+var EventMgr = (function(){
+  // Map : contexte → [{el, type, fn, opts}]
+  var _reg = {};
+
+  function on(el, type, fn, ctx, opts){
+    if(!el || typeof fn !== 'function') return;
+    ctx = ctx || '__global';
+    if(!_reg[ctx]) _reg[ctx] = [];
+    el.addEventListener(type, fn, opts || false);
+    _reg[ctx].push({ el: el, type: type, fn: fn, opts: opts || false });
+  }
+
+  function off(ctx){
+    if(!ctx){ ctx = '__global'; }
+    var list = _reg[ctx];
+    if(!list) return;
+    list.forEach(function(item){
+      try{ item.el.removeEventListener(item.type, item.fn, item.opts); }catch(e){}
+    });
+    delete _reg[ctx];
+  }
+
+  function offAll(){
+    Object.keys(_reg).forEach(off);
+  }
+
+  /* Raccourci one-shot : s'auto-supprime après 1 appel */
+  function once(el, type, fn, ctx){
+    var wrapper = function(e){
+      fn(e);
+      off(ctx || '__once_' + type);
+    };
+    on(el, type, wrapper, ctx || '__once_' + type);
+  }
+
+  return { on: on, off: off, offAll: offAll, once: once };
+})();
+window.EventMgr = EventMgr;
+
+/* ══════════════════════════════════════════════════════════════
+   📶 GESTION OFFLINE — File d'attente d'écritures Firestore
+   Détecte navigator.onLine, met en file d'attente les écritures
+   quand hors ligne, les rejoue dès le retour de connexion.
+   ══════════════════════════════════════════════════════════════ */
+var OfflineQueue = (function(){
+  var QUEUE_KEY = 'ambi241_offline_queue';
+  var _flushing = false;
+  var _isOnline = navigator.onLine;
+
+  /* ── Lire / écrire la file dans localStorage ── */
+  function _load(){
+    try{ return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); }catch(e){ return []; }
+  }
+  function _save(q){
+    try{ localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }catch(e){}
+  }
+
+  /* ── Ajouter une écriture en file ── */
+  function enqueue(op){
+    /* op = { path: 'collection/docId', data: {...}, type: 'set'|'update'|'add' } */
+    var q = _load();
+    q.push({ op: op, ts: Date.now(), id: _cryptoId ? _cryptoId(8) : Math.random().toString(36).slice(2) });
+    _save(q);
+  }
+
+  /* ── Rejouer toutes les opérations en attente ── */
+  function flush(){
+    if(_flushing || !navigator.onLine) return;
+    if(!window.db || !window.fbSetDoc || !window.fbUpdateDoc || !window.fbAddDoc) return;
+    var q = _load();
+    if(!q.length) return;
+    _flushing = true;
+    var promises = q.map(function(item){
+      try{
+        var parts  = item.op.path.split('/');
+        var isDoc  = parts.length % 2 === 0;
+        if(!isDoc){ return window.fbAddDoc(window.fbCollection(window.db, parts[0]), item.op.data); }
+        var docRef = window.fbDoc(window.db, parts.slice(0,-1).join('/'), parts[parts.length-1]);
+        if(item.op.type === 'update') return window.fbUpdateDoc(docRef, item.op.data);
+        return window.fbSetDoc(docRef, item.op.data, { merge: true });
+      }catch(e){ return Promise.resolve(); }
+    });
+    Promise.allSettled(promises).then(function(results){
+      // Retirer seulement les opérations qui ont réussi
+      var remaining = q.filter(function(item, i){ return results[i] && results[i].status === 'rejected'; });
+      _save(remaining);
+      _flushing = false;
+      if(remaining.length){ showToast && showToast('⚠️ '+remaining.length+' opération(s) hors-ligne non synchronisée(s)'); }
+      else if(q.length > 0){ showToast && showToast('✅ '+q.length+' opération(s) synchronisée(s) après retour en ligne'); }
+    });
+  }
+
+  /* ── Écriture intelligente : direct si online, file si offline ── */
+  function write(path, data, type){
+    if(navigator.onLine && window.db){
+      try{
+        var parts = path.split('/');
+        var isDoc = parts.length % 2 === 0;
+        if(!isDoc) return window.fbAddDoc(window.fbCollection(window.db, parts[0]), data);
+        var docRef = window.fbDoc(window.db, parts.slice(0,-1).join('/'), parts[parts.length-1]);
+        if(type === 'update') return window.fbUpdateDoc(docRef, data);
+        return window.fbSetDoc(docRef, data, { merge: true });
+      }catch(e){ /* fall through to queue */ }
+    }
+    // Hors ligne : mettre en file
+    enqueue({ path: path, data: data, type: type || 'set' });
+    showToast && showToast('📴 Hors ligne — opération sauvegardée, sera synchronisée dès reconnexion');
+    return Promise.resolve();
+  }
+
+  /* ── Bannière état réseau ── */
+  function _updateBanner(online){
+    _isOnline = online;
+    var b = document.getElementById('ambiOfflineBanner');
+    if(!b){
+      b = document.createElement('div');
+      b.id = 'ambiOfflineBanner';
+      b.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#333;color:#fff;text-align:center;font-size:0.8rem;font-weight:700;padding:0.45rem;font-family:DM Sans,sans-serif;transition:all 0.3s;';
+      document.body.appendChild(b);
+    }
+    if(online){
+      b.style.background = 'var(--green, #00ffaa)';
+      b.style.color = '#001a0e';
+      b.textContent = '✅ Connexion rétablie';
+      b.style.display = 'block';
+      setTimeout(function(){ b.style.display = 'none'; }, 3000);
+      flush(); // rejouer la file
+    } else {
+      b.style.background = 'var(--red, #ff4466)';
+      b.style.color = '#fff';
+      b.textContent = '📴 Hors ligne — les modifications seront synchronisées à la reconnexion';
+      b.style.display = 'block';
+    }
+  }
+
+  /* ── Écouter les events réseau ── */
+  window.addEventListener('online',  function(){ _updateBanner(true);  });
+  window.addEventListener('offline', function(){ _updateBanner(false); });
+  // Vérification initiale
+  if(!navigator.onLine) setTimeout(function(){ _updateBanner(false); }, 1500);
+
+  return { enqueue: enqueue, flush: flush, write: write };
+})();
+window.OfflineQueue = OfflineQueue;
 function lsGetJSON(key,def){ try{ var v=lsGet(key); return v?JSON.parse(v):(def!==undefined?def:null); }catch(e){ return def!==undefined?def:null; } }
 function lsSetJSON(key,obj){ try{ lsSet(key,JSON.stringify(obj)); }catch(e){} }
 
@@ -10103,7 +10292,7 @@ function _gphotoEnqueue(e) {
             }, 0);
           }
         });
-        // En attendant la résolution, afficher le fallback temporairement
+        // Afficher le fallback SVG pendant le chargement asynchrone des photos admin
         e._gphoto_urls = [];
         e._fallback_svg = generateFallbackPhoto(e.type, e.nom);
         return;
@@ -10271,7 +10460,7 @@ function _showPhotoChoiceModal(eid, etab) {
     // Essayer Firebase Storage d'abord
     if (window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL) {
       var docId = etab._docId || ("etab_" + String(eid).padStart(3, "0"));
-      var path = "etablissements/" + docId + "/photo_profile_" + Date.now() + ".jpg";
+      var path = "etablissements/" + docId + "/photo_profile_" + _cryptoId(12) + ".jpg";
       var storageRef = window.fbRef(window.fbStorage, path);
       showUploadProgress(35, "Upload...");
       window.fbUploadBytes(storageRef, file).then(function() {
@@ -10911,6 +11100,71 @@ var VISIT_KEY="ambi241_visits";
 var isAdmin=false;
 var isSuperAdmin=false;  // Premier admin / propriétaire de l'app
 var currentUserEmail="";
+
+/* ══════════════════════════════════════════════════════════════
+   🔐 SÉCURITÉ — Vérification Firebase custom claims
+   Chaque action sensible appelle _verifyAdminClaim() au lieu
+   de lire la variable globale isAdmin (contournable en console).
+   ══════════════════════════════════════════════════════════════ */
+/**
+ * Vérifie via Firebase que l'utilisateur courant a bien le claim admin=true.
+ * Retourne une Promise<boolean>.
+ * @param {boolean} forceRefresh - Si true, force un nouveau token (défaut: false).
+ */
+function _verifyAdminClaim(forceRefresh){
+  if(!window.auth || !window.auth.currentUser) return Promise.resolve(false);
+  return window.auth.currentUser.getIdTokenResult(!!forceRefresh).then(function(result){
+    return result.claims && result.claims.admin === true;
+  }).catch(function(){ return false; });
+}
+window._verifyAdminClaim = _verifyAdminClaim;
+
+/**
+ * Wrapper pour les actions sensibles admin.
+ * Vérifie les claims, execute fn() si autorisé, sinon affiche "Accès refusé".
+ * @param {Function} fn - Fonction à exécuter si admin confirmé
+ * @param {boolean} forceRefresh - Forcer rechargement token
+ */
+function _withAdminGuard(fn, forceRefresh){
+  _verifyAdminClaim(forceRefresh).then(function(claimOk){
+    // Accepte : claim Firebase OU mode PIN local (isAdmin) — double vérif
+    if(claimOk || isAdmin){
+      fn();
+    } else {
+      showToast("🔒 Accès refusé — vérification admin échouée");
+      // Forcer déconnexion du mode admin si la session a expiré
+      if(isAdmin){ isAdmin=false; isSuperAdmin=false; renderStats&&renderStats(); renderAll&&renderAll(); }
+    }
+  });
+}
+window._withAdminGuard = _withAdminGuard;
+
+/* ══════════════════════════════════════════════════════════════
+   🔑 SÉCURITÉ — Génération d'IDs cryptographiquement sûrs
+   Remplace Date.now() pour les tokens de commande / noms de fichiers.
+   ══════════════════════════════════════════════════════════════ */
+/**
+ * Génère un identifiant aléatoire sécurisé (base36).
+ * @param {number} [len=16] - Longueur souhaitée
+ * @returns {string}
+ */
+function _cryptoId(len){
+  len = len || 16;
+  var arr = new Uint32Array(Math.ceil(len / 5) + 1);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, function(n){ return n.toString(36); }).join('').slice(0, len);
+}
+window._cryptoId = _cryptoId;
+
+/**
+ * Génère un token de commande préfixé, sécurisé.
+ * @param {string} [prefix='ORD'] - Préfixe du token
+ * @returns {string} Ex: "ORD-k7f2m9x4a1bc3e5d"
+ */
+function _cryptoOrderToken(prefix){
+  return (prefix || 'ORD') + '-' + _cryptoId(16);
+}
+window._cryptoOrderToken = _cryptoOrderToken;
 var currentType="all";
 
 // 🔐 SÉCURITÉ PAIEMENTS
@@ -13477,8 +13731,8 @@ function registerUser(){
         });
       }
 
-      var photoPromise = _uploadRegPhoto(_regPhotoB64, 'users/'+uid+'/profile_'+Date.now()+'.jpg', 'photoURL');
-      var idPromise    = _regIdB64 ? _uploadRegPhoto(_regIdB64, 'users/'+uid+'/identity_'+Date.now()+'.jpg', 'photoIdentityURL') : Promise.resolve({});
+      var photoPromise = _uploadRegPhoto(_regPhotoB64, 'users/'+uid+'/profile_'+_cryptoId(12)+'.jpg', 'photoURL');
+      var idPromise    = _regIdB64 ? _uploadRegPhoto(_regIdB64, 'users/'+uid+'/identity_'+_cryptoId(12)+'.jpg', 'photoIdentityURL') : Promise.resolve({});
 
       return Promise.all([photoPromise, idPromise]).then(function(results){
         var photoData = Object.assign({}, results[0], results[1]);
@@ -13526,6 +13780,18 @@ function registerUser(){
 }
 
 function loginUser(){
+  // ── RATE LIMITING connexion Firebase ──────────────────────────
+  var _rlKey    = 'ambi241_login_lockuntil';
+  var _rlCnt    = 'ambi241_login_attempts';
+  var _lockUntil = parseInt(lsGet(_rlKey)||'0');
+  if(_lockUntil > Date.now()){
+    var _remMin = Math.ceil((_lockUntil - Date.now()) / 60000);
+    var msg2 = document.getElementById('loginMsg');
+    if(msg2){ msg2.style.display='block'; msg2.style.color='var(--red)';
+      msg2.textContent='🔒 Trop de tentatives — réessayez dans '+_remMin+' min'; }
+    return;
+  }
+  // ─────────────────────────────────────────────────────────────
   var identifier=(document.getElementById("loginIdentifier")||{value:''}).value.trim();
   var pwd=document.getElementById("loginPwd").value;
   var msg=document.getElementById("loginMsg");
@@ -13557,6 +13823,9 @@ function loginUser(){
         return setTimeout(function(){ _tryLogin(attempts+1); }, 100);
       }
       window.fbSignIn(window.auth,email,pwd).then(function(result){
+        // ── Succès : reset compteur tentatives ──
+        lsSet('ambi241_login_attempts','0');
+        lsSet('ambi241_login_lockuntil','0');
         var user=result.user;
         msg.style.display="block";msg.style.color="var(--green)";
         msg.textContent="Connexion réussie ! Bienvenue !";
@@ -13570,6 +13839,14 @@ function loginUser(){
         setTimeout(function(){ checkPendingUserNotifications(user.uid, email); }, 1200);
         setTimeout(function(){closeUserModal();},1500);
       }).catch(function(err){
+        // ── Échec : incrémenter compteur de tentatives ──
+        var _attempts = parseInt(lsGet('ambi241_login_attempts')||'0') + 1;
+        lsSet('ambi241_login_attempts', String(_attempts));
+        if(_attempts >= 5){
+          var _lockTs = Date.now() + (15 * 60 * 1000); // 15 min
+          lsSet('ambi241_login_lockuntil', String(_lockTs));
+          lsSet('ambi241_login_attempts','0');
+        }
         if(btn){btn.disabled=false;btn.textContent="🔒 Se connecter";}
         msg.style.display="block";msg.style.color="var(--red)";
         if(err.code==="auth/user-not-found"||err.code==="auth/wrong-password"||err.code==="auth/invalid-credential")
@@ -17362,6 +17639,8 @@ function switchSection(name,btn){
   requestAnimationFrame(function(){
     SECS.forEach(function(s){document.getElementById("sec-"+s).classList.toggle("section-hidden",s!==name);});
   });
+  // ── LAZY LOADING : initialiser le module de la section si pas encore fait ──
+  _lazyInitSection(name);
   // Effacer le badge Discussions quand on arrive sur la section
   if(name === "publications" && window.markDiscBadge){ window.markDiscBadge(false); }
   // Discussions redirigées vers Social
@@ -17381,6 +17660,46 @@ function switchSection(name,btn){
     if(name !== 'social' && fabMenu){ fabMenu.classList.remove('open'); }
   }
   window.scrollTo(0,0);
+}
+
+/* ── Lazy loading des modules par section ──────────────────────
+   Chaque section n'est initialisée qu'au premier accès.
+   Évite de charger toute la logique taxi/social/etc au démarrage. */
+var _lazyInitDone = {};
+function _lazyInitSection(name){
+  if(_lazyInitDone[name]) return;
+  _lazyInitDone[name] = true;
+  switch(name){
+    case 'taxi':
+      // Initialiser le module taxi uniquement à l'ouverture de l'onglet
+      if(typeof window.taxiProInit === 'function') setTimeout(window.taxiProInit, 100);
+      if(typeof window.initTaxiSection === 'function') setTimeout(window.initTaxiSection, 100);
+      break;
+    case 'social':
+      // Charger les publications sociales au premier accès
+      if(typeof window.loadSocialFeed === 'function') setTimeout(window.loadSocialFeed, 150);
+      if(typeof window._initSocialSection === 'function') setTimeout(window._initSocialSection, 150);
+      break;
+    case 'profil':
+      // Synchroniser le profil utilisateur au premier accès
+      if(typeof window._syncProfilSection === 'function') setTimeout(window._syncProfilSection, 100);
+      break;
+    case 'paiements':
+      // Charger le dashboard paiements au premier accès
+      if(typeof window.updatePayVis === 'function') setTimeout(window.updatePayVis, 100);
+      if(typeof window.renderPayments === 'function') setTimeout(window.renderPayments, 200);
+      break;
+    case 'classement':
+      // Charger le classement au premier accès
+      if(typeof window.renderClassement === 'function') setTimeout(window.renderClassement, 100);
+      break;
+    case 'contacts':
+      // Contacts rarement visités — defer
+      if(typeof window.renderContacts === 'function') setTimeout(window.renderContacts, 100);
+      break;
+    default:
+      break;
+  }
 }
 
 /* ══ NAVIGATION PROFIL / CONNEXION ══════════════════════════════
@@ -18161,7 +18480,7 @@ function onPermPhotoSelected(inp){
   // Essayer Firebase Storage en priorité
   if(window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL){
     var docId = etab._docId || ("etab_"+String(eid).padStart(3,"0"));
-    var path = "etablissements/"+docId+"/"+type+"_"+Date.now()+".jpg";
+    var path = "etablissements/"+docId+"/"+type+"_"+_cryptoId(12)+".jpg";
     var storageRef = window.fbRef(window.fbStorage, path);
     showUploadProgress(30, "Upload...");
     window.fbUploadBytes(storageRef, file).then(function(){
@@ -18469,7 +18788,7 @@ function saveSlotPhoto(eid, file_or_dataUrl){
 
     // Tenter Firebase Storage pour un vrai URL permanent
     if(file_or_dataUrl instanceof File && window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL){
-      var path = "slotPhotos/"+eidStr+"/"+Date.now()+"_"+Math.random().toString(36).slice(2)+".jpg";
+      var path = "slotPhotos/"+eidStr+"/"+_cryptoId(16)+".jpg";
       var storRef = window.fbRef(window.fbStorage, path);
       showUploadProgress && showUploadProgress(20,"Photo soirée...");
       window.fbUploadBytes(storRef, file_or_dataUrl)
@@ -18850,7 +19169,7 @@ function saveGaleriePhotoFirebase(eid, file, callback){
   if(window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL){
     var etab = etablissements.find(function(x){ return String(x.id)===eidStr; });
     var docId = (etab && etab._docId) || ("etab_"+String(eid).padStart(3,"0"));
-    var path = "etablissements/"+docId+"/galerie/"+Date.now()+"_"+Math.random().toString(36).slice(2)+".jpg";
+    var path = "etablissements/"+docId+"/galerie/"+_cryptoId(16)+".jpg";
     var storageRef = window.fbRef(window.fbStorage, path);
     showUploadProgress(20, "Galerie...");
     window.fbUploadBytes(storageRef, file).then(function(){
@@ -19081,7 +19400,7 @@ function _onGalerieAvatarSelected(inp){
 
   // Firebase Storage en priorité, sinon base64
   if(window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL){
-    var path = "users/"+uid+"/avatar_"+Date.now()+".jpg";
+    var path = "users/"+uid+"/avatar_"+_cryptoId(12)+".jpg";
     var storageRef = window.fbRef(window.fbStorage, path);
     window.fbUploadBytes(storageRef, file).then(function(){
       return window.fbGetDownloadURL(storageRef);
@@ -28788,7 +29107,7 @@ function uploadDriverPhoto(idx, input) {
 
   // Firebase Storage en priorité
   if (window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL) {
-    var storRef = window.fbRef(window.fbStorage,'taxi/drivers/driver_'+Date.now()+'_'+idx+'.jpg');
+    var storRef = window.fbRef(window.fbStorage,'taxi/drivers/driver_'+_cryptoId(12)+'_'+idx+'.jpg');
     if(typeof showUploadProgress==='function') showUploadProgress(30,'Upload...');
     window.fbUploadBytes(storRef, file).then(function(){
       if(typeof showUploadProgress==='function') showUploadProgress(80,'Finalisation...');
@@ -31313,7 +31632,7 @@ function taxiProSubmitOrder() {
   if(!taxiProState.selectedDriver)   { taxiProShowToast('⚠️ Sélectionnez un chauffeur'); return; }
 
   const driver = getTaxiProDrivers().find(d => d.id === taxiProState.selectedDriver);
-  const orderId = 'ORD-' + Date.now();
+  const orderId = _cryptoOrderToken('ORD');
   const vehicleLabels = { sedan:'Berline', minibus:'Minibus', suv:'SUV', van:'Van' };
 
   const clientData = {
@@ -32122,7 +32441,7 @@ function uploadGalleryPhoto(event) {
   }
 
   if(window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL){
-    var storRef = window.fbRef(window.fbStorage,'users/'+uid+'/gallery_'+Date.now()+'.jpg');
+    var storRef = window.fbRef(window.fbStorage,'users/'+uid+'/gallery_'+_cryptoId(12)+'.jpg');
     if(typeof showUploadProgress==='function') showUploadProgress(30,'Upload...');
     window.fbUploadBytes(storRef, file).then(function(){
       if(typeof showUploadProgress==='function') showUploadProgress(80,'Finalisation...');
@@ -32230,7 +32549,7 @@ function uploadTaxiProDoc(docType) {
     }
 
     if(window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL){
-      var storRef = window.fbRef(window.fbStorage,'users/'+uid+'/docs/'+docType+'_'+Date.now()+'.jpg');
+      var storRef = window.fbRef(window.fbStorage,'users/'+uid+'/docs/'+docType+'_'+_cryptoId(12)+'.jpg');
       if(typeof showUploadProgress==='function') showUploadProgress(30,'Upload...');
       window.fbUploadBytes(storRef, file).then(function(){
         if(typeof showUploadProgress==='function') showUploadProgress(80,'Finalisation...');
