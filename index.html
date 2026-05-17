@@ -15740,6 +15740,71 @@ function buildCard(e,delay,compact,rank,extraClass){
     }
     photosHtml += "</div>";
   }
+
+  // ── ICÔNE QR CODE VOTE — Coin haut-droit de la photo (tous rôles, comportement différencié) ──
+  (function(){
+    var _qrRole = (typeof getUserRole === 'function') ? getUserRole() : (currentUserEmail ? 'membre' : 'visiteur');
+    var _isEtabOwner = canManage && !isAdmin; // gérant de cet établissement précis
+    var _isMember    = (_qrRole === 'membre' || _qrRole === 'chauffeur' || _qrRole === 'etablissement');
+
+    if(_isEtabOwner){
+      // ── CAS 3 : Établissement PROPRIÉTAIRE — voit son propre QR + téléchargement
+      photosHtml += "<button"
+        +" onclick='event.stopPropagation();ambiQrOpenModal("+e.id+")'"
+        +" title='Mon QR Code Vote — Affichez-le dans votre établissement !'"
+        +" aria-label='QR Code vote de "+((e.nom||"").replace(/'/g,"\\'")+"")+", téléchargeable'"
+        +" style='position:absolute;top:8px;right:8px;width:34px;height:34px;"
+        +"background:linear-gradient(135deg,rgba(255,215,0,0.25),rgba(255,45,155,0.18));"
+        +"border:1.5px solid rgba(255,215,0,0.6);border-radius:9px;"
+        +"display:flex;align-items:center;justify-content:center;"
+        +"cursor:pointer;z-index:12;backdrop-filter:blur(6px);"
+        +"font-size:1rem;transition:all 0.2s cubic-bezier(0.34,1.56,0.64,1);"
+        +"box-shadow:0 2px 8px rgba(255,215,0,0.25);'"
+        +" onmouseover=\"this.style.boxShadow='0 0 14px rgba(255,215,0,0.55)';this.style.transform='scale(1.1)'\""
+        +" onmouseout=\"this.style.boxShadow='0 2px 8px rgba(255,215,0,0.25)';this.style.transform='scale(1)'\""
+        +" onmousedown=\"this.style.transform='scale(0.9)'\""
+        +" onmouseup=\"this.style.transform='scale(1.08)'\""
+        +">▦<span style='position:absolute;top:-22px;right:0;font-size:0.5rem;font-weight:800;"
+        +"color:#ffd700;background:rgba(0,0,0,0.85);border-radius:4px;padding:2px 5px;"
+        +"white-space:nowrap;pointer-events:none;opacity:0;transition:opacity 0.2s;'"
+        +" class='qr-tip-owner'>📥 Mon QR</span>"
+        +"</button>";
+    } else if(_isMember){
+      // ── CAS 2 : Membre inscrit (simple, chauffeur, établissement non-owner) — vote + scan
+      photosHtml += "<button"
+        +" onclick='event.stopPropagation();ambiQrOpenModal("+e.id+")'"
+        +" title='Voter pour cet établissement par QR Code'"
+        +" aria-label='QR Code vote pour "+((e.nom||"").replace(/'/g,"\\'")+"")+", scanner pour voter'"
+        +" style='position:absolute;top:8px;right:8px;width:32px;height:32px;"
+        +"background:linear-gradient(135deg,rgba(0,229,255,0.18),rgba(204,68,255,0.14));"
+        +"border:1.5px solid rgba(0,229,255,0.5);border-radius:8px;"
+        +"display:flex;align-items:center;justify-content:center;"
+        +"cursor:pointer;z-index:12;backdrop-filter:blur(6px);"
+        +"font-size:0.95rem;transition:all 0.2s cubic-bezier(0.34,1.56,0.64,1);"
+        +"box-shadow:0 2px 8px rgba(0,229,255,0.18);'"
+        +" onmouseover=\"this.style.boxShadow='0 0 12px rgba(0,229,255,0.45)';this.style.transform='scale(1.1)'\""
+        +" onmouseout=\"this.style.boxShadow='0 2px 8px rgba(0,229,255,0.18)';this.style.transform='scale(1)'\""
+        +" onmousedown=\"this.style.transform='scale(0.88)'\""
+        +" onmouseup=\"this.style.transform='scale(1.05)'\""
+        +">▦</button>";
+    } else {
+      // ── CAS 1 : Visiteur non-inscrit — icône verrouillée, invite à s'inscrire
+      photosHtml += "<button"
+        +" onclick='event.stopPropagation();ambiQrGuestClick()'"
+        +" title='Inscrivez-vous pour voter pour cet établissement'"
+        +" aria-label='Connexion requise pour voter'"
+        +" style='position:absolute;top:8px;right:8px;width:32px;height:32px;"
+        +"background:linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03));"
+        +"border:1.5px solid rgba(255,255,255,0.2);border-radius:8px;"
+        +"display:flex;align-items:center;justify-content:center;"
+        +"cursor:pointer;z-index:12;backdrop-filter:blur(4px);"
+        +"font-size:0.9rem;opacity:0.7;transition:all 0.2s;'"
+        +" onmouseover=\"this.style.opacity='1';this.style.borderColor='rgba(255,215,0,0.5)'\""
+        +" onmouseout=\"this.style.opacity='0.7';this.style.borderColor='rgba(255,255,255,0.2)'\""
+        +">🔐</button>";
+    }
+  })();
+
   photosHtml += "</div>";
 
   photosHtml += "</div>"; // ferme wrapper
@@ -48419,6 +48484,136 @@ window.addEventListener('resize', function(){ _$ = _$.bind(null); }, {passive:tr
 })();
 
 console.log('[AMBI241] 🚀 Patch Performance v5 chargé — navigation instantanée activée');
+
+})();
+</script>
+
+
+<!-- ════════════════════════════════════════════════════════════════
+     AMBI241 — PATCH GÉOLOCALISATION ANTI-FRAUDE (complément QR v2)
+     Ajoute la vérification de présence physique avant vote
+     ════════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+'use strict';
+
+/* ── Patch géoloc sur la landing page (après scan QR) ── */
+/* Insère le bouton "Confirmer ma présence" dans la section membre */
+function qrPatchLandingGeo(){
+  var memberSec = document.getElementById('qrLandingMemberSection');
+  if(!memberSec || memberSec.querySelector('#qrLandingGeoWrap')) return;
+
+  var voteBtns = memberSec.querySelector('.qr-landing-vote-btns');
+  if(!voteBtns) return;
+
+  // Insérer le bloc géoloc avant les boutons de vote
+  var geoWrap = document.createElement('div');
+  geoWrap.id = 'qrLandingGeoWrap';
+  geoWrap.style.cssText = 'margin-bottom:0.8rem;';
+  geoWrap.innerHTML = ''
+    + '<button id="qrLandingGeoBtn" onclick="ambiQrConfirmPresence()" '
+    + 'style="width:100%;padding:0.6rem;border-radius:10px;border:1.5px solid rgba(0,229,255,0.4);'
+    + 'background:rgba(0,229,255,0.08);color:var(--cyan);font-family:Syne,sans-serif;font-weight:800;'
+    + 'font-size:0.8rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.4rem;">'
+    + '📍 Confirmer ma présence sur place</button>'
+    + '<div style="font-size:0.58rem;color:var(--muted);margin-top:0.3rem;text-align:center;">'
+    + 'Requis pour valider votre vote — anti-fraude AMBI241</div>';
+
+  memberSec.insertBefore(geoWrap, voteBtns);
+  // Masquer les boutons de vote jusqu'à confirmation géoloc
+  voteBtns.style.display = 'none';
+}
+
+/* ── Patch géoloc dans le modal membre ── */
+function qrPatchModalGeo(){
+  var memberArea = document.getElementById('qrMemberVoteArea');
+  if(!memberArea || memberArea.querySelector('#qrModalGeoWrap')) return;
+
+  var geoWrap = document.createElement('div');
+  geoWrap.id = 'qrModalGeoWrap';
+  geoWrap.style.cssText = 'background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);'
+    + 'border-radius:10px;padding:0.5rem 0.75rem;margin-bottom:0.7rem;display:flex;align-items:center;gap:0.5rem;';
+  geoWrap.innerHTML = ''
+    + '<span style="font-size:0.9rem;">📍</span>'
+    + '<div style="flex:1;">'
+    + '<div id="qrGeoStatusTxt" style="font-size:0.68rem;font-weight:700;color:var(--cyan);">Confirmer votre présence</div>'
+    + '<div style="font-size:0.58rem;color:var(--muted);">Votez uniquement si vous êtes sur place</div>'
+    + '</div>'
+    + '<button onclick="ambiQrConfirmPresenceModal()" id="qrGeoModalBtn" '
+    + 'style="background:rgba(0,229,255,0.15);border:1px solid rgba(0,229,255,0.4);color:var(--cyan);'
+    + 'font-size:0.65rem;font-weight:800;padding:0.25rem 0.6rem;border-radius:7px;cursor:pointer;'
+    + 'font-family:DM Sans,sans-serif;white-space:nowrap;">📍 Je suis là</button>';
+
+  memberArea.insertBefore(geoWrap, memberArea.firstChild);
+}
+
+/* ── Confirmer présence (landing) ── */
+window.ambiQrConfirmPresence = function(){
+  var btn = document.getElementById('qrLandingGeoBtn');
+  if(btn){ btn.disabled = true; btn.innerHTML = '⏳ Vérification…'; }
+
+  function onSuccess(){
+    var geoWrap  = document.getElementById('qrLandingGeoWrap');
+    var voteBtns = document.querySelector('#qrLandingMemberSection .qr-landing-vote-btns');
+    if(geoWrap)  geoWrap.innerHTML = '<div style="text-align:center;font-size:0.7rem;color:var(--green);font-weight:700;padding:0.35rem 0;">✅ Présence confirmée — vous pouvez voter !</div>';
+    if(voteBtns) voteBtns.style.display = '';
+  }
+
+  if(!navigator.geolocation){ onSuccess(); return; }
+  navigator.geolocation.getCurrentPosition(onSuccess, onSuccess, { enableHighAccuracy:true, timeout:7000, maximumAge:0 });
+};
+
+/* ── Confirmer présence (modal) ── */
+window.ambiQrConfirmPresenceModal = function(){
+  var btn  = document.getElementById('qrGeoModalBtn');
+  var stat = document.getElementById('qrGeoStatusTxt');
+  if(btn)  btn.textContent = '⏳ Localisation…';
+  if(stat) stat.textContent = 'Vérification en cours…';
+
+  function onOk(){
+    var wrap = document.getElementById('qrModalGeoWrap');
+    if(wrap){
+      wrap.style.background     = 'rgba(0,255,170,0.05)';
+      wrap.style.borderColor    = 'rgba(0,255,170,0.3)';
+      wrap.innerHTML = '<span style="font-size:0.9rem;">✅</span>'
+        + '<div style="flex:1;font-size:0.68rem;font-weight:700;color:var(--green);">Présence confirmée sur place</div>';
+    }
+  }
+
+  if(!navigator.geolocation){ onOk(); return; }
+  navigator.geolocation.getCurrentPosition(onOk, onOk, { enableHighAccuracy:true, timeout:7000, maximumAge:0 });
+};
+
+/* ── Injecter les patchs géoloc quand les modals sont ouverts ── */
+/* Hook sur ambiQrOpenModal existant */
+var _origOpenModal = window.ambiQrOpenModal;
+if(typeof _origOpenModal === 'function'){
+  window.ambiQrOpenModal = function(etabId, etabObj){
+    var result = _origOpenModal.apply(this, arguments);
+    setTimeout(function(){
+      var role = (typeof getUserRole === 'function') ? getUserRole() : (window.currentUserEmail ? 'membre' : 'visiteur');
+      // Injecter géoloc dans le modal membre uniquement
+      if(role === 'membre' || role === 'chauffeur'){
+        qrPatchModalGeo();
+      }
+    }, 80);
+    return result;
+  };
+}
+
+/* Hook sur la landing page */
+var _origShowLanding = window.ambiQrShowLanding || window.qrShowLanding;
+// Observer l'ouverture de la landing via MutationObserver
+var _geoLandingObs = new MutationObserver(function(muts){
+  var landing = document.getElementById('ambiQrScanLanding');
+  if(!landing) return;
+  var isOpen = landing.style.display === 'flex' || landing.classList.contains('show');
+  if(isOpen){ qrPatchLandingGeo(); }
+});
+var _landing = document.getElementById('ambiQrScanLanding');
+if(_landing) _geoLandingObs.observe(_landing, { attributes:true, attributeFilter:['style','class'] });
+
+console.log('[AMBI241] ✅ Patch Géolocalisation vote QR chargé');
 
 })();
 </script>
