@@ -24,9 +24,8 @@
 <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com">
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
 <!-- QR Code Vote System — bibliothèque QRCode.js -->
-<!-- PERF: QRCode.js chargé dynamiquement au premier usage (voir qrGenerateCode) -->
-<!-- PERF: Cormorant Garamond supprimé (6 variantes inutiles), Syne réduit à 700+800 -->
-<!-- PERF: Playfair Display supprimé — remplacé par Georgia (police système, 0 KB réseau) -->
+<!-- PERF: QRCode.js chargé dynamiquement au premier usage du modal QR -->
+<!-- PERF: Playfair Display supprimé — Georgia système, 0 KB réseau -->
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap"
       rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"></noscript>
@@ -11973,11 +11972,11 @@ function triggerPhotoPermUpload(){
 /* ─────────────────────────────────────────────────────────────
    PERF — Cache localStorage établissements
    • Affichage immédiat depuis le cache (< 5 ms)
-   • Requête Firebase toujours lancée en arrière-plan
-   • Cache valide 5 min — invalidé immédiatement par updateField()
+   • Firebase toujours interrogé en arrière-plan (source de vérité)
+   • Cache valide 5 min — invalidé par updateField()
    ───────────────────────────────────────────────────────────── */
 var ETABS_CACHE_KEY = 'ambi241_etabs_v2';
-var ETABS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+var ETABS_CACHE_TTL = 5 * 60 * 1000;
 
 function _cacheRead() {
   try {
@@ -11985,99 +11984,81 @@ function _cacheRead() {
     if (!raw) return null;
     var obj = JSON.parse(raw);
     if (!obj || !Array.isArray(obj.data) || !obj.ts) return null;
-    if (Date.now() - obj.ts > ETABS_CACHE_TTL) return null; // expiré
-    return obj.data;
+    if (Date.now() - obj.ts > ETABS_CACHE_TTL) return null;
+    return obj.data.length > 0 ? obj.data : null;
   } catch(e) { return null; }
 }
 
 function _cacheWrite(data) {
-  try {
-    localStorage.setItem(ETABS_CACHE_KEY, JSON.stringify({ data: data, ts: Date.now() }));
-  } catch(e) { /* quota dépassé — ignorer silencieusement */ }
+  try { localStorage.setItem(ETABS_CACHE_KEY, JSON.stringify({ data: data, ts: Date.now() })); } catch(e) {}
 }
 
 function _cacheInvalidate() {
   try { localStorage.removeItem(ETABS_CACHE_KEY); } catch(e) {}
 }
 
-function _applyEtabs(data, fromCache) {
+function _applyAndRender(data, isBackground) {
   etablissements = data;
   rebuildPaiements();
   etablissements.forEach(function(e){ applyDynamicStatus(e); });
   if (typeof invalidateScoreCache === 'function') invalidateScoreCache();
   renderStats(); renderAll(); renderHome(); renderPayments(); updateSyncTime();
   if (typeof i18n !== 'undefined') i18n.applyTranslations();
-  if (isAdmin && (_currentAdmTab === 'overview' || window._currentAdmTab === 'overview') && typeof renderAdmOverview === 'function') {
-    renderAdmOverview();
-  }
-  if (!fromCache) {
-    // Actions secondaires uniquement après la vraie réponse Firebase
-    document.getElementById('errorBanner').innerHTML = '';
+  if (isAdmin && (_currentAdmTab === 'overview' || window._currentAdmTab === 'overview') && typeof renderAdmOverview === 'function') renderAdmOverview();
+  if (!isBackground) {
+    var eb = document.getElementById('errorBanner'); if (eb) eb.innerHTML = '';
     setTimeout(loadAllPhotoProfiles, 1500);
     loadPaiementsFromFirebase();
     if (typeof window._subscribeAllEtabs === 'function') window._subscribeAllEtabs();
     setTimeout(function(){
-      if (typeof loadSlotPhotosAsync === 'function' && etablissements && etablissements.length) {
-        var actifs = etablissements.filter(function(e){ return estPaiementConfirme(e); });
-        actifs.slice(0, 10).forEach(function(e){ if (e.id) loadSlotPhotosAsync(e.id); });
+      if (typeof loadSlotPhotosAsync === 'function' && etablissements.length) {
+        etablissements.filter(function(e){ return estPaiementConfirme(e); })
+          .slice(0, 10).forEach(function(e){ if (e.id) loadSlotPhotosAsync(e.id); });
       }
     }, 2000);
   }
 }
 
 function loadData(){
-  // Guard : si Firebase pas encore prêt, réessayer dans 300ms
   if(typeof window.fbCollection !== 'function' || typeof window.fbGetDocs !== 'function' || !window.db){
-    setTimeout(loadData, 300);
-    return;
+    setTimeout(loadData, 300); return;
   }
 
-  // ── ÉTAPE 1 : Affichage immédiat depuis le cache si disponible ──
+  // ── ÉTAPE 1 : Cache → affichage immédiat, pas de spinner ──
   var cached = _cacheRead();
-  if (cached && cached.length > 0) {
-    _applyEtabs(cached, true);
-    setSyncing(false); // masquer le spinner — l'UI est déjà peuplée
+  if (cached) {
+    _applyAndRender(cached, true);
+    setSyncing(false);
   } else {
     setSyncing(true);
   }
 
-  // ── ÉTAPE 2 : Requête Firebase toujours lancée (source de vérité) ──
+  // ── ÉTAPE 2 : Firebase en arrière-plan (toujours) ──
   var q = window.fbQuery(window.fbCollection(window.db, 'etablissements'), window.fbOrderBy('id'));
   window.fbGetDocs(q).then(function(snapshot){
     var firebaseData = [];
     snapshot.forEach(function(d){ firebaseData.push(Object.assign({ _docId: d.id }, d.data())); });
-
     if (firebaseData.length > 0) {
-      var _seenIds = {};
-      firebaseData = firebaseData.filter(function(e){
-        if (!e.id || _seenIds[e.id]) return false;
-        _seenIds[e.id] = true;
-        return true;
-      });
-      _cacheWrite(firebaseData); // ✅ Mettre à jour le cache avec les données fraîches
-      _applyEtabs(firebaseData, false);
+      var seen = {};
+      firebaseData = firebaseData.filter(function(e){ if(!e.id||seen[e.id]) return false; seen[e.id]=true; return true; });
+      _cacheWrite(firebaseData);
+      _applyAndRender(firebaseData, false);
     } else {
-      // Firebase vide → fallback données locales (pas mis en cache)
-      _applyEtabs(getDefaults(), false);
+      if (!cached) _applyAndRender(getDefaults(), false);
     }
     setSyncing(false);
-
   }).catch(function(err){
     console.error('Firebase loadData:', err);
-    // Si le cache avait déjà peuplé l'UI, pas besoin de fallback
-    if (!cached || !cached.length) {
-      _applyEtabs(getDefaults(), false);
-    }
-    var eb = document.getElementById('errorBanner');
-    if (eb) eb.innerHTML = '';
+    if (!cached) { _applyAndRender(getDefaults(), false); }
+    var eb = document.getElementById('errorBanner'); if (eb) eb.innerHTML = '';
     setSyncing(false);
-    renderStats(); renderAll(); renderHome(); renderPayments(); updateSyncTime();
+    if (!cached) { renderStats(); renderAll(); renderHome(); renderPayments(); updateSyncTime(); }
     if (typeof i18n !== 'undefined') i18n.applyTranslations();
   });
 }
 
 function updateField(id,fields){
-  _cacheInvalidate(); // ✅ L'admin modifie → cache invalidé immédiatement
+  _cacheInvalidate();
   setSyncing(true);
   var e=etablissements.find(function(x){return x.id===id;});
   if(!e){showToast("Erreur: etablissement introuvable");setSyncing(false);return;}
@@ -20014,22 +19995,28 @@ function _startApp(){
     renderStats(); renderAll(); renderHome(); updateSyncTime();
   }
 }
-// ── Démarrage : afficher un skeleton léger au lieu des 65 hardcodés ──
-// Firebase chargera les vraies données en <2s — pas besoin de pré-remplir
-etablissements = [];
-rebuildPaiements();
+// ── Démarrage : utiliser le cache immédiatement si disponible ──
+var _bootCache = _cacheRead();
+if (_bootCache && _bootCache.length > 0) {
+  // Cache disponible → affichage immédiat, pas de spinner
+  etablissements = _bootCache;
+  rebuildPaiements();
+  renderStats(); renderHome(); renderPayments();
+} else {
+  // Première visite → spinner le temps de Firebase
+  etablissements = [];
+  rebuildPaiements();
+  (function(){
+    var ml = document.getElementById("mainList");
+    if(ml) ml.innerHTML = '<div style="text-align:center;padding:3rem 1rem;color:var(--muted);">'
+      +'<div style="font-size:2rem;margin-bottom:0.8rem;">⏳</div>'
+      +'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;color:var(--cyan);">Chargement des lieux...</div>'
+      +'<div style="font-size:0.72rem;margin-top:0.4rem;">Connexion à Firebase en cours</div>'
+      +'</div>';
+  })();
+  renderStats(); renderHome(); renderPayments();
+}
 loadSuperAdmin();
-// Afficher un indicateur de chargement plutôt que les faux 65 lieux
-(function(){
-  var ml = document.getElementById("mainList");
-  if(ml) ml.innerHTML = '<div style="text-align:center;padding:3rem 1rem;color:var(--muted);">'
-    +'<div style="font-size:2rem;margin-bottom:0.8rem;">⏳</div>'
-    +'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;color:var(--cyan);">Chargement des lieux...</div>'
-    +'<div style="font-size:0.72rem;margin-top:0.4rem;">Connexion à Firebase en cours</div>'
-    +'</div>';
-})();
-renderStats(); renderHome(); renderPayments();
-setTimeout(initMeteo, 500);
 
 _startApp();
 updatePayVis();
@@ -44677,34 +44664,22 @@ window.ambiQrCloseModal = function() {
 function qrGenerateCode(url) {
   var container = document.getElementById('qrModalCanvas');
   if (!container) return;
-  container.innerHTML = '<div style="font-size:0.7rem;color:var(--muted);padding:0.5rem;text-align:center;">⏳ Génération…</div>';
-
+  container.innerHTML = '<div style="font-size:0.7rem;color:var(--muted);padding:0.5rem;text-align:center;">⏳</div>';
   function doGenerate() {
     container.innerHTML = '';
     try {
-      new QRCode(container, {
-        text: url, width: 220, height: 220,
-        colorDark: '#000000', colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.H
-      });
+      new QRCode(container, { text: url, width: 220, height: 220, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
     } catch(e) {
       container.innerHTML = '<div style="font-size:0.7rem;color:var(--red);padding:0.5rem;">Erreur génération QR</div>';
     }
   }
-
-  // Chargement dynamique : QRCode.js uniquement au premier usage du modal
-  if (typeof QRCode !== 'undefined') {
-    doGenerate();
-  } else {
-    var s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
-    s.crossOrigin = 'anonymous';
-    s.onload = doGenerate;
-    s.onerror = function() {
-      container.innerHTML = '<div style="font-size:0.7rem;color:var(--red);padding:0.5rem;">Erreur chargement QR</div>';
-    };
-    document.head.appendChild(s);
-  }
+  if (typeof QRCode !== 'undefined') { doGenerate(); return; }
+  var s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+  s.crossOrigin = 'anonymous';
+  s.onload = doGenerate;
+  s.onerror = function() { container.innerHTML = '<div style="font-size:0.7rem;color:var(--red);padding:0.5rem;">Erreur chargement QR</div>'; };
+  document.head.appendChild(s);
 }
 
 /* ─────────────────────────────────────────────────────────────
