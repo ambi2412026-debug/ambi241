@@ -9059,7 +9059,7 @@ window.openPhotoViewer = openPhotoViewer;
 window.closePhotoViewer = closePhotoViewer;
 </script>
 
- onclick="if(event.target===this)closeInvit()">
+<div id="invitOverlay" class="overlay" onclick="if(event.target===this)closeInvit()">
   <div class="modal" style="text-align:center;position:relative;">
     <button class="modal-close" onclick="closeInvit()">&#10005;</button>
     <div style="font-size:3rem;margin-bottom:0.6rem;">&#127914;</div>
@@ -20557,7 +20557,7 @@ function admSendNotif2(){
 }
 window.admSendNotif2 = admSendNotif2;
 
-
+function admSendUrgentNotif(){
   var title = (document.getElementById("admUrgentTitle").value||"").trim();
   var msg   = (document.getElementById("admUrgentMsg").value||"").trim();
   if(!title||!msg){ showToast("Titre et message requis pour l'alerte urgente"); return; }
@@ -24580,7 +24580,7 @@ window.doAssignEtab = doAssignEtab;
 
     </div><!-- /adm-content -->
   </div><!-- /adminDashPanel -->
-</div><!-- /adminDashOverlay --></div>
+</div><!-- /adminDashOverlay -->
 
 <style>
 /* ── ADMIN DASHBOARD ── */
@@ -26576,7 +26576,7 @@ window.doAssignEtab = doAssignEtab;
       btn.style.transform='scale(1.25)';
       setTimeout(function(){ btn.style.transform=''; },200);
     }
-    if(typeof showToast==='function') showToast(isLiked ? '💔 Like retiré' : '❤️ J'aime !');
+    if(typeof showToast==='function') showToast(isLiked ? '💔 Like retiré' : "❤️ J'aime !");
 
     /* Firebase : compteur + collection userLikes */
     var pubRef  = window.fbDoc(window.db,'publications',id);
@@ -26620,8 +26620,6 @@ window.doAssignEtab = doAssignEtab;
       try{ navigator.clipboard.writeText(url); }catch(e){}
       if(typeof showToast==='function') showToast('📋 Lien copié dans le presse-papier !');
     }
-  };
-
   };
 
   // ══════════════════════════════════════════════════════════════
@@ -34174,7 +34172,7 @@ function _buildMonetRevenu(){
         +'<div><div style="font-size:0.78rem;font-weight:700;color:var(--text);">'+escHtml(p.nom||'—')+'</div>'
         +'<div style="font-size:0.6rem;color:var(--muted);">'+escHtml(p.mode||'')+(p.date?' · '+escHtml(p.date):'')+'</div></div>'
         +'<div style="text-align:right;">'
-        +'<div style="font-family:Syne,sans-serif;font-size:0.85rem;font-weight:800;color:'+(isOk?'var(--green)':'var(--amber)');'+';">'+((p.montant||0).toLocaleString('fr-FR'))+' XAF</div>'
+        +'<div style="font-family:Syne,sans-serif;font-size:0.85rem;font-weight:800;color:'+(isOk?'var(--green)':'var(--amber)')+';">'+((p.montant||0).toLocaleString('fr-FR'))+' XAF</div>'
         +'<div style="font-size:0.58rem;background:'+(isOk?'rgba(0,255,170,0.1)':'rgba(255,215,0,0.1)')+';color:'+(isOk?'var(--green)':'var(--amber)')+';padding:0.06rem 0.4rem;border-radius:5px;">'+escHtml(p.statut||'—')+'</div>'
         +'</div></div>';
     });
@@ -35364,17 +35362,17 @@ function _renderAppConfigUI(){
   html += '<div style="background:linear-gradient(135deg,rgba(255,68,102,0.1),rgba(204,68,255,0.06));border:1.5px solid rgba(255,68,102,0.35);border-radius:16px;padding:1.1rem;margin-bottom:1rem;">';
   html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">';
   html += '<div><div style="font-family:Syne,sans-serif;font-weight:800;color:var(--red);font-size:0.9rem;">🔧 Mode Maintenance</div><div style="font-size:0.68rem;color:var(--muted);margin-top:0.1rem;">Affiche un message de maintenance à tous les visiteurs</div></div>';
-  html += '<label style="position:relative;width:44px;height:24px;flex-shrink:0;"><input type="checkbox" id="cfgMaintenance" '+(c.maintenance?'checked':'')+' onchange="_admSaveAppCfgField('maintenance',this.checked)" style="opacity:0;width:0;height:0;"><span style="position:absolute;inset:0;background:'+(c.maintenance?'var(--red)':'rgba(255,255,255,0.1)')+';border-radius:24px;cursor:pointer;transition:.25s;"><span style="position:absolute;width:16px;height:16px;left:'+(c.maintenance?'24px':'4px')+';top:4px;background:#fff;border-radius:50%;transition:.25s;display:block;"></span></span></label>';
+  html += '<label style="position:relative;width:44px;height:24px;flex-shrink:0;"><input type="checkbox" id="cfgMaintenance" '+(c.maintenance?'checked':'')+' onchange="_admSaveAppCfgField(\'maintenance\',this.checked)" style="opacity:0;width:0;height:0;"><span style="position:absolute;inset:0;background:'+(c.maintenance?'var(--red)':'rgba(255,255,255,0.1)')+';border-radius:24px;cursor:pointer;transition:.25s;"><span style="position:absolute;width:16px;height:16px;left:'+(c.maintenance?'24px':'4px')+';top:4px;background:#fff;border-radius:50%;transition:.25s;display:block;"></span></span></label>';
   html += '</div>';
   html += '<input id="cfgMaintMsg" type="text" placeholder="Message de maintenance..." value="'+_escHtmlLocal(c.maintenance_msg||'')+'" maxlength="120" style="width:100%;background:var(--surface2);border:1px solid rgba(255,68,102,0.25);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.82rem;">';
-  html += '<button onclick="_admSaveAppCfgField('maintenance_msg',document.getElementById('cfgMaintMsg').value)" style="margin-top:0.5rem;width:100%;padding:0.45rem;border-radius:8px;border:1px solid rgba(255,68,102,0.4);background:rgba(255,68,102,0.1);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;">Enregistrer le message</button>';
+  html += '<button onclick="_admSaveAppCfgField(\'maintenance_msg\',document.getElementById(\'cfgMaintMsg\').value)" style="margin-top:0.5rem;width:100%;padding:0.45rem;border-radius:8px;border:1px solid rgba(255,68,102,0.4);background:rgba(255,68,102,0.1);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;">Enregistrer le message</button>';
   html += '</div>';
 
   // ── Bannière globale
   html += '<div style="background:rgba(255,215,0,0.06);border:1.5px solid rgba(255,215,0,0.3);border-radius:16px;padding:1.1rem;margin-bottom:1rem;">';
   html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;">';
-  html += '<div><div style="font-family:Syne,sans-serif;font-weight:800;color:var(--amber);font-size:0.9rem;">📢 Bannière globale</div><div style="font-size:0.68rem;color:var(--muted);">Bandeau affiché en haut de l'app pour tous</div></div>';
-  html += '<label style="position:relative;width:44px;height:24px;flex-shrink:0;"><input type="checkbox" id="cfgBanner" '+(c.banner_active?'checked':'')+' onchange="_admSaveAppCfgField('banner_active',this.checked)" style="opacity:0;width:0;height:0;"><span style="position:absolute;inset:0;background:'+(c.banner_active?'var(--amber)':'rgba(255,255,255,0.1)')+';border-radius:24px;cursor:pointer;transition:.25s;"><span style="position:absolute;width:16px;height:16px;left:'+(c.banner_active?'24px':'4px')+';top:4px;background:#fff;border-radius:50%;transition:.25s;display:block;"></span></span></label>';
+  html += '<div><div style="font-family:Syne,sans-serif;font-weight:800;color:var(--amber);font-size:0.9rem;">📢 Bannière globale</div><div style="font-size:0.68rem;color:var(--muted);">Bandeau affiché en haut de l\'app pour tous</div></div>';
+  html += '<label style="position:relative;width:44px;height:24px;flex-shrink:0;"><input type="checkbox" id="cfgBanner" '+(c.banner_active?'checked':'')+' onchange="_admSaveAppCfgField(\'banner_active\',this.checked)" style="opacity:0;width:0;height:0;"><span style="position:absolute;inset:0;background:'+(c.banner_active?'var(--amber)':'rgba(255,255,255,0.1)')+';border-radius:24px;cursor:pointer;transition:.25s;"><span style="position:absolute;width:16px;height:16px;left:'+(c.banner_active?'24px':'4px')+';top:4px;background:#fff;border-radius:50%;transition:.25s;display:block;"></span></span></label>';
   html += '</div>';
   html += '<input id="cfgBannerMsg" type="text" placeholder="Ex: 🎉 Soirée spéciale ce soir à Yoka Lounge !" value="'+_escHtmlLocal(c.banner_msg||'')+'" maxlength="120" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.82rem;margin-bottom:0.5rem;">';
   html += '<input id="cfgBannerLink" type="url" placeholder="Lien optionnel (https://...)" value="'+_escHtmlLocal(c.banner_link||'')+'" maxlength="200" style="width:100%;background:var(--surface2);border:1px solid rgba(255,215,0,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.82rem;">';
@@ -35388,16 +35386,16 @@ function _renderAppConfigUI(){
   html += '<div><label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Publications / jour (max)</label><input id="cfgMaxPubs" type="number" min="1" max="50" value="'+(c.max_pubs_per_day||5)+'" style="width:100%;background:var(--surface2);border:1px solid rgba(0,229,255,0.2);border-radius:8px;color:var(--cyan);padding:0.5rem;font-size:0.9rem;text-align:center;font-weight:700;"></div>';
   html += '<div><label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Photos par publication</label><input id="cfgMaxPhotos" type="number" min="1" max="10" value="'+(c.max_photos_per_pub||5)+'" style="width:100%;background:var(--surface2);border:1px solid rgba(0,229,255,0.2);border-radius:8px;color:var(--cyan);padding:0.5rem;font-size:0.9rem;text-align:center;font-weight:700;"></div>';
   html += '</div>';
-  html += '<div style="margin-bottom:0.7rem;"><label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Message d'accueil (page d'accueil)</label><input id="cfgWelcome" type="text" maxlength="100" value="'+_escHtmlLocal(c.welcome_msg||'')+'" placeholder="Ex: Trouvez l'ambiance en temps réel 🌙" style="width:100%;background:var(--surface2);border:1px solid rgba(0,229,255,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.82rem;"></div>';
+  html += '<div style="margin-bottom:0.7rem;"><label style="font-size:0.68rem;color:var(--muted);display:block;margin-bottom:0.25rem;">Message d\'accueil (page d\'accueil)</label><input id="cfgWelcome" type="text" maxlength="100" value="'+_escHtmlLocal(c.welcome_msg||'')+'" placeholder="Ex: Trouvez l\'ambiance en temps réel 🌙" style="width:100%;background:var(--surface2);border:1px solid rgba(0,229,255,0.2);border-radius:8px;color:var(--text);padding:0.5rem;font-size:0.82rem;"></div>';
   html += '<button onclick="_admSaveLimits()" style="width:100%;padding:0.5rem;border-radius:8px;border:none;background:linear-gradient(135deg,var(--cyan),var(--purple));color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;">💾 Enregistrer les limites</button>';
   html += '</div>';
 
   // ── Accès & Sécurité
   html += '<div style="background:rgba(204,68,255,0.05);border:1.5px solid rgba(204,68,255,0.25);border-radius:16px;padding:1.1rem;margin-bottom:1rem;">';
   html += '<div style="font-family:Syne,sans-serif;font-weight:800;color:var(--purple);font-size:0.9rem;margin-bottom:0.8rem;">🔐 Accès & Sécurité</div>';
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.7rem;"><div><div style="font-size:0.78rem;color:var(--text);font-weight:600;">Inscription publique</div><div style="font-size:0.65rem;color:var(--muted);">Permettre aux nouveaux utilisateurs de s'inscrire</div></div><label style="position:relative;width:44px;height:24px;flex-shrink:0;"><input type="checkbox" '+(c.registration_open!==false?'checked':'')+' onchange="_admSaveAppCfgField('registration_open',this.checked)" style="opacity:0;width:0;height:0;"><span style="position:absolute;inset:0;background:'+(c.registration_open!==false?'var(--green)':'rgba(255,255,255,0.1)')+';border-radius:24px;cursor:pointer;transition:.25s;"><span style="position:absolute;width:16px;height:16px;left:'+(c.registration_open!==false?'24px':'4px')+';top:4px;background:#fff;border-radius:50%;transition:.25s;display:block;"></span></span></label></div>';
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.7rem;"><div><div style="font-size:0.78rem;color:var(--text);font-weight:600;">Modération des publications</div><div style="font-size:0.65rem;color:var(--muted);">Publier en attente d'approbation admin</div></div><label style="position:relative;width:44px;height:24px;flex-shrink:0;"><input type="checkbox" '+(c.pub_moderation?'checked':'')+' onchange="_admSaveAppCfgField('pub_moderation',this.checked)" style="opacity:0;width:0;height:0;"><span style="position:absolute;inset:0;background:'+(c.pub_moderation?'var(--pink)':'rgba(255,255,255,0.1)')+';border-radius:24px;cursor:pointer;transition:.25s;"><span style="position:absolute;width:16px;height:16px;left:'+(c.pub_moderation?'24px':'4px')+';top:4px;background:#fff;border-radius:50%;transition:.25s;display:block;"></span></span></label></div>';
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;"><div><div style="font-size:0.78rem;color:var(--text);font-weight:600;">Commentaires activés</div><div style="font-size:0.65rem;color:var(--muted);">Autoriser les commentaires sur les publications</div></div><label style="position:relative;width:44px;height:24px;flex-shrink:0;"><input type="checkbox" '+(c.comments_enabled!==false?'checked':'')+' onchange="_admSaveAppCfgField('comments_enabled',this.checked)" style="opacity:0;width:0;height:0;"><span style="position:absolute;inset:0;background:'+(c.comments_enabled!==false?'var(--green)':'rgba(255,255,255,0.1)')+';border-radius:24px;cursor:pointer;transition:.25s;"><span style="position:absolute;width:16px;height:16px;left:'+(c.comments_enabled!==false?'24px':'4px')+';top:4px;background:#fff;border-radius:50%;transition:.25s;display:block;"></span></span></label></div>';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.7rem;"><div><div style="font-size:0.78rem;color:var(--text);font-weight:600;">Inscription publique</div><div style="font-size:0.65rem;color:var(--muted);">Permettre aux nouveaux utilisateurs de s\'inscrire</div></div><label style="position:relative;width:44px;height:24px;flex-shrink:0;"><input type="checkbox" '+(c.registration_open!==false?'checked':'')+' onchange="_admSaveAppCfgField(\'registration_open\',this.checked)" style="opacity:0;width:0;height:0;"><span style="position:absolute;inset:0;background:'+(c.registration_open!==false?'var(--green)':'rgba(255,255,255,0.1)')+';border-radius:24px;cursor:pointer;transition:.25s;"><span style="position:absolute;width:16px;height:16px;left:'+(c.registration_open!==false?'24px':'4px')+';top:4px;background:#fff;border-radius:50%;transition:.25s;display:block;"></span></span></label></div>';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.7rem;"><div><div style="font-size:0.78rem;color:var(--text);font-weight:600;">Modération des publications</div><div style="font-size:0.65rem;color:var(--muted);">Publier en attente d\'approbation admin</div></div><label style="position:relative;width:44px;height:24px;flex-shrink:0;"><input type="checkbox" '+(c.pub_moderation?'checked':'')+' onchange="_admSaveAppCfgField(\'pub_moderation\',this.checked)" style="opacity:0;width:0;height:0;"><span style="position:absolute;inset:0;background:'+(c.pub_moderation?'var(--pink)':'rgba(255,255,255,0.1)')+';border-radius:24px;cursor:pointer;transition:.25s;"><span style="position:absolute;width:16px;height:16px;left:'+(c.pub_moderation?'24px':'4px')+';top:4px;background:#fff;border-radius:50%;transition:.25s;display:block;"></span></span></label></div>';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;"><div><div style="font-size:0.78rem;color:var(--text);font-weight:600;">Commentaires activés</div><div style="font-size:0.65rem;color:var(--muted);">Autoriser les commentaires sur les publications</div></div><label style="position:relative;width:44px;height:24px;flex-shrink:0;"><input type="checkbox" '+(c.comments_enabled!==false?'checked':'')+' onchange="_admSaveAppCfgField(\'comments_enabled\',this.checked)" style="opacity:0;width:0;height:0;"><span style="position:absolute;inset:0;background:'+(c.comments_enabled!==false?'var(--green)':'rgba(255,255,255,0.1)')+';border-radius:24px;cursor:pointer;transition:.25s;"><span style="position:absolute;width:16px;height:16px;left:'+(c.comments_enabled!==false?'24px':'4px')+';top:4px;background:#fff;border-radius:50%;transition:.25s;display:block;"></span></span></label></div>';
   html += '</div>';
 
   // ── Actions rapides
@@ -35456,8 +35454,7 @@ window.admExportUsers = function(){
       var d=doc.data();
       rows.push([d.email||'',d.pseudo||'',d.role||'',d.createdAt||''].map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(','));
     });
-    var blob = new Blob([rows.join('
-')], {type:'text/csv'});
+    var blob = new Blob([rows.join('\n')], {type:'text/csv'});
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'ambi241_membres_'+new Date().toISOString().slice(0,10)+'.csv';
@@ -35480,8 +35477,7 @@ window.admClearPubCache = function(){
 
 window.admBanUser = function(uid, pseudo, banned){
   var action = banned ? 'débannir' : 'bannir';
-  if(!confirm((banned?'Débannir':'Bannir')+' '+pseudo+' ?
-'+(banned?'L'utilisateur retrouvera accès à l'app.':'Cet utilisateur ne pourra plus publier ni commenter.'))) return;
+  if(!confirm((banned?'Débannir':'Bannir')+' '+pseudo+' ?\n'+(banned?"L'utilisateur retrouvera accès à l'app.":"Cet utilisateur ne pourra plus publier ni commenter."))) return;
   if(!window.db){ showToast('Firebase requis'); return; }
   window.fbSetDoc(window.fbDoc(window.db,'users',uid), {banned: !banned, bannedAt: !banned ? new Date().toISOString() : null, bannedBy: window.currentUserEmail||'admin'}, {merge:true})
     .then(function(){
@@ -35533,7 +35529,7 @@ function _checkGlobalBanner(){
         bannerEl.style.cssText='position:fixed;top:0;left:0;right:0;z-index:500;background:linear-gradient(90deg,rgba(255,215,0,0.95),rgba(255,45,155,0.85));color:#000;font-size:0.78rem;font-weight:700;padding:0.45rem 1rem;text-align:center;cursor:pointer;display:flex;align-items:center;justify-content:space-between;';
         document.body.appendChild(bannerEl);
       }
-      bannerEl.innerHTML='<span>📢 '+_escHtmlLocal(cfg.banner_msg)+'</span><button onclick="this.parentElement.style.display='none'" style="background:none;border:none;color:#000;font-size:1rem;cursor:pointer;padding:0 0.3rem;line-height:1;">✕</button>';
+      bannerEl.innerHTML='<span>📢 '+_escHtmlLocal(cfg.banner_msg)+'</span><button onclick="this.parentElement.style.display=\'none\'" style="background:none;border:none;color:#000;font-size:1rem;cursor:pointer;padding:0 0.3rem;line-height:1;">✕</button>';
       if(cfg.banner_link) bannerEl.querySelector('span').onclick=function(){ window.open(cfg.banner_link,'_blank'); };
     } else {
       if(bannerEl) bannerEl.style.display='none';
@@ -36736,8 +36732,8 @@ window.renderAdmContent = function() {
      + '<div style="font-family:Syne,sans-serif;font-weight:800;color:#ff2d9b;font-size:0.95rem;">&#128203; Gestion du Contenu</div>'
      + '<button onclick="window._admContentSave()" style="padding:0.42rem 0.9rem;border-radius:10px;border:none;background:linear-gradient(135deg,#00ffaa,#00e5ff);color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;">&#128190; Sauver</button>'
      + '</div>';
-  h += section('&#127968; Page d'accueil', '#ff2d9b',
-    field('Titre principal',   'hero_title',    g('hero_title',    'Trouvez l'ambiance à Libreville'), 'text') +
+  h += section('&#127968; Page d\'accueil', '#ff2d9b',
+    field('Titre principal',   'hero_title',    g('hero_title',    'Trouvez l\'ambiance à Libreville'), 'text') +
     field('Sous-titre',        'hero_subtitle', g('hero_subtitle', 'Bars, Restaurants, Clubs — en temps réel'), 'text') +
     field('Bouton CTA',        'hero_cta',      g('hero_cta',      'Explorer maintenant'), 'text') +
     field('Message bienvenue', 'welcome_msg',   g('welcome_msg',   ''), 'textarea')
@@ -36752,7 +36748,7 @@ window.renderAdmContent = function() {
     field('Corps du message',   'annonce_texte', g('annonce_texte', ''), 'textarea')
   );
   h += section('&#127912; Identité App', '#cc44ff',
-    field('Nom de l'app',  'appname',     g('appname',     'AMBI241'), 'text') +
+    field('Nom de l\'app',  'appname',     g('appname',     'AMBI241'), 'text') +
     field('Pied de page',   'footer_text', g('footer_text', '© 2026 AMBI241'), 'text')
   );
   h += section('&#128222; Contact &amp; Réseaux', '#00ffaa',
@@ -40046,7 +40042,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
         window.fbUpdateDoc(window.fbDoc(window.db,'publications',pubId),{likes:newN}).catch(function(){});
       } catch(e){}
     }
-    if(typeof window.showToast==='function') window.showToast(active ? '❤️ J'aime !' : '💔 Retrait du like');
+    if(typeof window.showToast==='function') window.showToast(active ? "❤️ J'aime !" : '💔 Retrait du like');
   };
 
   /* ── Réaction emoji ── */
@@ -40092,7 +40088,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
         snap.forEach(function(d){
           var c = d.data();
           var cl = (c.pseudo||c.auteur||'?')[0].toUpperCase();
-          var ct = c.createdAt && c.createdAt.toDate ? c.createdAt.toDate().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : 'À l'instant';
+          var ct = c.createdAt && c.createdAt.toDate ? c.createdAt.toDate().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : "À l'instant";
           html += '<div class="socpub-comment">'
             +'<div class="socpub-comment-avatar">'+cl+'</div>'
             +'<div class="socpub-comment-body">'
@@ -40741,6 +40737,8 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
   console.log('[AMBI241] ✅ Social Publications Panel — chargé');
 })();
+
+</script>
 
 <!-- ══════════════════════════════════════════════════════════════
      IMPORT GOOGLE MAPS — Logique embarquée dans le dashboard admin
