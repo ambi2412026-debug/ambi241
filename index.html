@@ -40760,7 +40760,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     if(submitBtn) { submitBtn.disabled=true; submitBtn.textContent='⏳ Publication…'; }
 
     var pseudo = window.currentUserPseudo || window.currentUserEmail || 'Moi';
-    var uid = window.currentUserUID || ('anon_'+Date.now());
+    var uid = window.currentUserId || ('anon_'+Date.now());
     var letter = (pseudo[0]||'?').toUpperCase();
     var etab = document.getElementById('socPubEtabSelect');
     var etabVal = etab ? etab.value : '';
@@ -44218,7 +44218,7 @@ console.log('[AMBI241] ✅ Patch Ajout Rapide Admin chargé');
       4. Vous recevez une notification pour chaque vote comptabilisé
     </div>
 
-    <div class="qr-dl-section" id="qrDlSection">
+    <div class="qr-dl-section">
       <div class="qr-dl-label">📥 Télécharger pour affichage</div>
       <div class="qr-dl-row">
         <button class="qr-dl-btn" onclick="ambiQrDownload('a4')">
@@ -44237,10 +44237,6 @@ console.log('[AMBI241] ✅ Patch Ajout Rapide Admin chargé');
           <span class="qr-dl-btn-fmt">10×10 cm</span>
         </button>
       </div>
-    </div>
-    <!-- Message affiché aux non-propriétaires à la place du téléchargement -->
-    <div id="qrDlNoAccess" style="display:none;background:rgba(255,45,155,0.07);border:1px solid rgba(255,45,155,0.25);border-radius:12px;padding:0.7rem 1rem;margin-bottom:0.6rem;font-size:0.75rem;color:var(--muted);text-align:center;">
-      🔒 Le téléchargement du QR est réservé à l'établissement et aux administrateurs.
     </div>
 
     <div style="display:flex;gap:0.4rem;align-items:center;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.5rem 0.7rem;margin-bottom:0.5rem;">
@@ -44375,14 +44371,6 @@ window.ambiQrOpenModal = function(etabId) {
   });
 
   qrGenerateCode(voteUrl);
-
-  /* ── Contrôle accès téléchargement QR : propriétaire ou admin uniquement ── */
-  var canDownloadQR = window.isAdmin || (typeof window.isResponsable === 'function' && window.isResponsable(etabId));
-  var dlSection   = document.getElementById('qrDlSection');
-  var dlNoAccess  = document.getElementById('qrDlNoAccess');
-  if (dlSection)  dlSection.style.display  = canDownloadQR ? 'block' : 'none';
-  if (dlNoAccess) dlNoAccess.style.display = canDownloadQR ? 'none'  : 'block';
-
   modal.classList.add('open');
   document.body.style.overflow = 'hidden';
 };
@@ -44547,12 +44535,6 @@ function qrNotifyAdmin(etabId, direction) {
    ───────────────────────────────────────────────────────────── */
 window.ambiQrDownload = function(format) {
   if (!_qrCurrentEtabObj) return;
-  /* Vérification sécurité côté JS : seuls l'établissement propriétaire et l'admin peuvent télécharger */
-  var canDL = window.isAdmin || (typeof window.isResponsable === 'function' && window.isResponsable(_qrCurrentEtabId));
-  if (!canDL) {
-    if (typeof showToast === 'function') showToast('🔒 Réservé à l'établissement et aux administrateurs');
-    return;
-  }
   var etab    = _qrCurrentEtabObj;
   var voteUrl = qrGetVoteUrl(_qrCurrentEtabId);
 
