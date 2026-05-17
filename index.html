@@ -11278,6 +11278,8 @@ function checkSecondaryAdminAccess(){
     var abtn = document.getElementById("adminBtn");
     if(abtn){ abtn.style.background="rgba(255,215,0,0.2)"; abtn.style.borderColor="rgba(255,215,0,0.6)"; abtn.style.color="#ffd700"; }
     renderStats(); renderAll(); renderHome(); updatePayVis(); renderPayments();
+    // ── Afficher le bouton Ajout rapide ──
+    if(typeof window.aqaCheckAdminBtn==='function') window.aqaCheckAdminBtn();
     showToast("🔑 Accès Admin secondaire activé");
   }
 }
@@ -12588,6 +12590,8 @@ function pinPress(k){
         var navSettings = document.getElementById("navAdminSettings");
         if(navSettings) navSettings.style.display = "flex";
         renderStats();renderAll();renderHome();updatePayVis();renderPayments();
+        // ── Afficher le bouton Ajout rapide ──
+        if(typeof window.aqaCheckAdminBtn==='function') window.aqaCheckAdminBtn();
         var t=getTraffic();
         document.getElementById("trafficVal").textContent=t.count+" (total: "+t.total+")";
         document.getElementById("trafficBadge").classList.add("show");
@@ -12631,6 +12635,8 @@ function toggleAdmin(){
     var navSettings = document.getElementById("navAdminSettings");
     if(navSettings) navSettings.style.display = "none";
     renderStats();renderAll();renderHome();updatePayVis();
+    // ── Masquer le bouton Ajout rapide ──
+    if(typeof window.aqaCheckAdminBtn==='function') window.aqaCheckAdminBtn();
     document.getElementById("trafficBadge").classList.remove("show");
     showToast("Mode Admin desactive");
   } else {
@@ -43976,11 +43982,14 @@ function aqaCheckAdminBtn() {
 // Écouter les changements d'état admin
 var _aqaInterval = setInterval(function() {
   aqaCheckAdminBtn();
-  // S'arrêter quand Firebase a répondu
+  // S'arrêter seulement après 60s (au lieu de 5s) une fois Firebase chargé
   if (typeof window.currentUserUID !== 'undefined' && window.currentUserUID) {
-    setTimeout(function() { clearInterval(_aqaInterval); }, 5000);
+    setTimeout(function() { clearInterval(_aqaInterval); }, 60000);
   }
 }, 1200);
+
+// Exposer globalement pour appel depuis les handlers PIN/toggleAdmin
+window.aqaCheckAdminBtn = aqaCheckAdminBtn;
 
 // Vérification initiale
 document.addEventListener('DOMContentLoaded', function() {
