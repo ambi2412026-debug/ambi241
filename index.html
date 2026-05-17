@@ -34,6 +34,9 @@
 <!-- QR Code Vote System — bibliothèque QRCode.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
         crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+<!-- QR Scanner — jsQR (décodage QR via caméra, ~20 Ko) -->
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"
+        crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
 <!-- PERF: Cormorant Garamond supprimé (6 variantes inutiles), Syne réduit à 700+800 -->
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Playfair+Display:wght@600;700;800&display=swap"
       rel="stylesheet" media="print" onload="this.media='all'">
@@ -5656,6 +5659,32 @@ dans votre <style> principal,
   juste après la règle .qr-adm-vote-delta existante (ligne ~5652).
 */
 .qr-adm-live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px rgba(0,255,170,0.6);flex-shrink:0;animation:pulse 1.4s infinite;}
+
+/* ── SCANNER CAMÉRA QR ── */
+.qr-scanner-btn{width:100%;padding:0.75rem;border-radius:14px;border:1.5px solid rgba(0,229,255,0.5);background:linear-gradient(135deg,rgba(0,229,255,0.12),rgba(204,68,255,0.08));color:#00e5ff;font-family:'Syne',sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.5rem;transition:all 0.2s cubic-bezier(0.34,1.56,0.64,1);margin-bottom:0.6rem;box-shadow:0 4px 16px rgba(0,229,255,0.15);}
+.qr-scanner-btn:active{transform:scale(0.96);}
+.qr-scanner-btn.scanning{border-color:rgba(255,45,155,0.6);background:linear-gradient(135deg,rgba(255,45,155,0.12),rgba(204,68,255,0.10));color:#ff2d9b;animation:qrScanPulse 1.4s infinite;}
+@keyframes qrScanPulse{0%,100%{box-shadow:0 4px 16px rgba(255,45,155,0.15)}50%{box-shadow:0 4px 28px rgba(255,45,155,0.45)}}
+.qr-cam-overlay{display:none;position:fixed;inset:0;background:rgba(10,4,20,0.97);z-index:99999;flex-direction:column;align-items:center;justify-content:center;}
+.qr-cam-overlay.active{display:flex;}
+.qr-cam-header{position:absolute;top:0;left:0;right:0;padding:1rem 1.2rem;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(to bottom,rgba(10,4,20,0.95),transparent);}
+.qr-cam-title{font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:#fff0f8;}
+.qr-cam-close{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#fff0f8;width:36px;height:36px;border-radius:10px;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.qr-cam-viewport{position:relative;width:min(320px,88vw);height:min(320px,88vw);border-radius:20px;overflow:hidden;border:2px solid rgba(0,229,255,0.4);box-shadow:0 0 40px rgba(0,229,255,0.2);}
+.qr-cam-video{width:100%;height:100%;object-fit:cover;display:block;}
+.qr-cam-canvas{position:absolute;inset:0;width:100%;height:100%;opacity:0;pointer-events:none;}
+.qr-cam-frame{position:absolute;inset:0;pointer-events:none;}
+.qr-cam-frame::before,.qr-cam-frame::after{content:'';position:absolute;width:40px;height:40px;border-color:#00e5ff;border-style:solid;}
+.qr-cam-frame::before{top:12px;left:12px;border-width:3px 0 0 3px;border-radius:4px 0 0 0;}
+.qr-cam-frame::after{bottom:12px;right:12px;border-width:0 3px 3px 0;border-radius:0 0 4px 0;}
+.qr-cam-scan-line{position:absolute;left:12px;right:12px;height:2px;background:linear-gradient(90deg,transparent,#00e5ff,transparent);border-radius:2px;animation:qrScanLine 2s ease-in-out infinite;}
+@keyframes qrScanLine{0%{top:14px;opacity:0}10%{opacity:1}90%{opacity:1}100%{top:calc(100% - 16px);opacity:0}}
+.qr-cam-status{margin-top:1.2rem;font-family:'DM Sans',sans-serif;font-size:0.82rem;color:rgba(255,240,248,0.65);text-align:center;max-width:280px;line-height:1.5;}
+.qr-cam-status.success{color:#00ffaa;font-weight:700;}
+.qr-cam-status.error{color:#ff4466;}
+.qr-cam-torch{margin-top:0.8rem;background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.3);color:#ffd700;font-size:0.75rem;font-weight:700;padding:0.4rem 1rem;border-radius:20px;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.qr-divider{display:flex;align-items:center;gap:0.6rem;margin:0.6rem 0;font-size:0.62rem;color:rgba(255,240,248,0.35);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;}
+.qr-divider::before,.qr-divider::after{content:'';flex:1;height:1px;background:rgba(255,255,255,0.07);}
 
 </style>
 
@@ -25005,6 +25034,10 @@ window.doAssignEtab = doAssignEtab;
       <div class="qr-adm-kpi-val" id="qrAdmKpiTotal">—</div>
       <div class="qr-adm-kpi-lbl">Votes total</div>
     </div>
+    <div class="qr-adm-kpi" style="border:1px solid rgba(0,229,255,0.2);">
+      <div class="qr-adm-kpi-val" id="qrAdmKpiCam" style="color:#00e5ff;">—</div>
+      <div class="qr-adm-kpi-lbl">📷 Scans cam.</div>
+    </div>
     <div class="qr-adm-kpi">
       <div class="qr-adm-kpi-val" id="qrAdmKpiPos" style="color:#00ffaa;">—</div>
       <div class="qr-adm-kpi-lbl">👍 Positifs</div>
@@ -43023,7 +43056,25 @@ console.log('[AMBI241] ✅ Patch v4 — Firebase admin retry + performance mobil
 
 <!-- ═══════════════════════════════════════════════════════════════════
      PATCH AMBI241 — Ajout Rapide Établissement (Admin Pro)
-     À insérer juste avant </body> dans index.html
+     À insérer juste avant 
+<!-- ══ AMBI241 — QR Scanner Caméra ══ -->
+<div id="ambiQrCamOverlay" class="qr-cam-overlay" role="dialog" aria-modal="true" aria-label="Scanner QR Code">
+  <div class="qr-cam-header">
+    <div class="qr-cam-title">📷 Scanner un QR Vote</div>
+    <button class="qr-cam-close" onclick="ambiQrCloseScanner()" aria-label="Fermer">✕</button>
+  </div>
+  <div class="qr-cam-viewport">
+    <video id="ambiQrVideo" class="qr-cam-video" playsinline autoplay muted></video>
+    <canvas id="ambiQrCanvas" class="qr-cam-canvas"></canvas>
+    <div class="qr-cam-frame">
+      <div class="qr-cam-scan-line"></div>
+    </div>
+  </div>
+  <div class="qr-cam-status" id="ambiQrCamStatus">Pointez la caméra vers le QR Code AMBI241</div>
+  <button class="qr-cam-torch" id="ambiQrTorchBtn" style="display:none" onclick="ambiQrToggleTorch()">🔦 Lampe torche</button>
+</div>
+
+</body> dans index.html
      ═══════════════════════════════════════════════════════════════════ -->
 
 <!-- ── STYLES ── -->
@@ -44270,9 +44321,10 @@ console.log('[AMBI241] ✅ Patch Ajout Rapide Admin chargé');
             👎 Déçu…
           </button>
         </div>
-        <div style="text-align:center;font-size:0.62rem;color:rgba(255,240,248,0.4);margin-top:0.3rem;">
-          📷 Ou scannez le QR code avec votre appareil photo
-        </div>
+        <div class="qr-divider">ou scanner un QR code</div>
+        <button class="qr-scanner-btn" id="qrScannerOpenBtn" onclick="ambiQrOpenScanner()">
+          📷 Scanner le QR d'un établissement
+        </button>
       </div>
       <div id="qrMemberAlreadyVoted" style="display:none;text-align:center;padding:0.7rem 0;">
         <div class="qr-already-voted">✅ Vote enregistré ce mois · Merci !</div>
@@ -44529,8 +44581,8 @@ function qrGetVoteUrl(etabId) {
   return QR_BASE_URL + '?ambi_vote=' + etabId;
 }
 
-window.ambiQrOpenModal = function(etabId) {
-  var etab = (window.etablissements || []).find(function(e){ return String(e.id) === String(etabId); });
+window.ambiQrOpenModal = function(etabId, etabObj) {
+  var etab = etabObj || (window.etablissements || []).find(function(e){ return String(e.id) === String(etabId); });
   if (!etab) { if (typeof showToast === 'function') showToast('Établissement introuvable'); return; }
 
   _qrCurrentEtabId  = etabId;
@@ -44811,7 +44863,7 @@ function qrRecordVote(etabId, direction, callback) {
     uid       : window.currentUserUID || 'anon',
     pseudo    : window.currentUserPseudo || window.currentUserEmail || 'Anonyme',
     ts        : Date.now(),
-    source    : 'qr_code',
+    source    : window._qrScanVote ? 'camera_scan' : 'qr_code',
     monthKey  : monthKey
   };
 
@@ -44828,10 +44880,11 @@ function qrRecordVote(etabId, direction, callback) {
   _qrVoteCache[etabId].myVote = direction;
 
   /* Ajouter aux votes récents (dashboard admin) */
-  _qrRecentVotes.unshift({ etabId: etabId, direction: direction, ts: Date.now(), uid: voteData.pseudo });
+  _qrRecentVotes.unshift({ etabId: etabId, direction: direction, ts: Date.now(), uid: voteData.pseudo, source: voteData.source });
   if (_qrRecentVotes.length > 20) _qrRecentVotes.pop();
   qrRenderRecentVotes();
 
+  window._qrScanVote = false; /* flag consommé */
   callback(true);
 }
 
@@ -45133,6 +45186,24 @@ function qrLoadAdminVotes() {
     if (kpiPos)   kpiPos.textContent   = posGlobal > 0 ? Math.round(posGlobal / totalGlobal * 100) + '%' : '—';
     if (kpiEtabs) kpiEtabs.textContent = votes.length;
 
+    /* KPI scans caméra — requête séparée sur qr_votes */
+    var kpiCam = document.getElementById('qrAdmKpiCam');
+    if (kpiCam && window.fbGetDocs && window.fbCollection && window.fbQuery && window.fbWhere) {
+      var qCam = window.fbQuery(
+        window.fbCollection(window.db, 'qr_votes'),
+        window.fbWhere('source', '==', 'camera_scan')
+      );
+      window.fbGetDocs(qCam).then(function(s) {
+        if (kpiCam) kpiCam.textContent = s.size;
+      }).catch(function() {
+        /* Fallback: compter depuis _qrRecentVotes en mémoire */
+        if (kpiCam) kpiCam.textContent = _qrRecentVotes.filter(function(v){ return v.source === 'camera_scan'; }).length + '+';
+      });
+    } else if (kpiCam) {
+      /* Fallback sans fbQuery/fbWhere: mémoire session */
+      kpiCam.textContent = _qrRecentVotes.filter(function(v){ return v.source === 'camera_scan'; }).length + '+';
+    }
+
     /* Classement */
     var ranks = ['🥇', '🥈', '🥉'];
     var rankClasses = ['gold', 'silver', 'bronze'];
@@ -45175,10 +45246,11 @@ function qrRenderRecentVotes() {
     var nom  = etab ? etab.nom : 'Étab. #' + v.etabId;
     var ago  = Math.round((Date.now() - v.ts) / 60000);
     var agoStr = ago < 1 ? 'maintenant' : ago + ' min';
+    var camBadge = v.source === 'camera_scan' ? ' <span style="font-size:0.55rem;background:rgba(0,229,255,0.15);border:1px solid rgba(0,229,255,0.3);color:#00e5ff;border-radius:6px;padding:0.05rem 0.3rem;font-weight:700;">📷 Scan</span>' : '';
     html += '<div class="qr-adm-recent-item">'
       + '<div class="qr-adm-recent-dir">' + (v.direction === 'pos' ? '👍' : '👎') + '</div>'
       + '<div class="qr-adm-recent-info">'
-        + '<div class="qr-adm-recent-etab">' + nom + '</div>'
+        + '<div class="qr-adm-recent-etab">' + nom + camBadge + '</div>'
         + '<div class="qr-adm-recent-user">' + (v.uid || 'Anonyme') + '</div>'
       + '</div>'
       + '<div class="qr-adm-recent-time">' + agoStr + '</div>'
@@ -45283,6 +45355,161 @@ new MutationObserver(function(mutations) {
     _qrReinjectTimer = setTimeout(qrInjectCardIcons, 250);
   }
 }).observe(document.body, { childList: true, subtree: true });
+
+
+/* ════════════════════════════════════════════════════════════════════
+   SCANNER CAMÉRA — AMBI241 QR Vote
+   getUserMedia + jsQR → décode QR codes → vote automatique
+   ════════════════════════════════════════════════════════════════════ */
+var _qrScanStream  = null;
+var _qrScanRAF     = null;
+var _qrTorchOn     = false;
+var _qrScanSuccess = false;
+
+window.ambiQrOpenScanner = function() {
+  var overlay = document.getElementById('ambiQrCamOverlay');
+  if (!overlay) return;
+
+  if (typeof jsQR === 'undefined') {
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    qrSetCamStatus('⚠️ Bibliothèque scanner en chargement, réessayez dans 2s.', 'error');
+    return;
+  }
+
+  _qrScanSuccess = false;
+  overlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
+
+  var btn = document.getElementById('qrScannerOpenBtn');
+  if (btn) { btn.classList.add('scanning'); btn.innerHTML = '⏹ Arrêter le scanner'; btn.onclick = window.ambiQrCloseScanner; }
+
+  qrSetCamStatus('Démarrage de la caméra…');
+  qrStartCamera();
+};
+
+window.ambiQrCloseScanner = function() {
+  var overlay = document.getElementById('ambiQrCamOverlay');
+  if (overlay) overlay.classList.remove('active');
+  document.body.style.overflow = '';
+
+  if (_qrScanRAF)    { cancelAnimationFrame(_qrScanRAF); _qrScanRAF = null; }
+  if (_qrScanStream) { _qrScanStream.getTracks().forEach(function(t){ t.stop(); }); _qrScanStream = null; }
+  _qrTorchOn = false;
+
+  var btn = document.getElementById('qrScannerOpenBtn');
+  if (btn) { btn.classList.remove('scanning'); btn.innerHTML = '📷 Scanner le QR d\'un établissement'; btn.onclick = window.ambiQrOpenScanner; }
+
+  var torch = document.getElementById('ambiQrTorchBtn');
+  if (torch) torch.style.display = 'none';
+};
+
+function qrStartCamera() {
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } })
+    .then(function(stream) {
+      _qrScanStream = stream;
+      var video = document.getElementById('ambiQrVideo');
+      if (!video) return;
+      video.srcObject = stream;
+      video.play();
+      video.addEventListener('loadedmetadata', function() {
+        qrSetCamStatus('Pointez vers le QR Code AMBI241');
+        var track = stream.getVideoTracks()[0];
+        if (track && track.getCapabilities && track.getCapabilities().torch) {
+          var tb = document.getElementById('ambiQrTorchBtn');
+          if (tb) tb.style.display = 'inline-block';
+        }
+        qrScanFrame(video);
+      }, { once: true });
+    })
+    .catch(function(err) {
+      var msg = '❌ Accès caméra refusé.';
+      if (err.name === 'NotFoundError')    msg = '❌ Aucune caméra détectée sur cet appareil.';
+      if (err.name === 'NotAllowedError')  msg = '❌ Permission caméra refusée. Autorisez-la dans les réglages du navigateur.';
+      if (err.name === 'NotReadableError') msg = '❌ Caméra déjà utilisée par une autre app.';
+      qrSetCamStatus(msg, 'error');
+    });
+}
+
+function qrScanFrame(video) {
+  if (!_qrScanStream || _qrScanSuccess) return;
+  var canvas = document.getElementById('ambiQrCanvas');
+  if (!canvas || !video.videoWidth) { _qrScanRAF = requestAnimationFrame(function(){ qrScanFrame(video); }); return; }
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  var ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  var code = null;
+  try { code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' }); } catch(e){}
+  if (code && code.data) { qrHandleScanResult(code.data); }
+  else { _qrScanRAF = requestAnimationFrame(function(){ qrScanFrame(video); }); }
+}
+
+function qrHandleScanResult(url) {
+  _qrScanSuccess = true;
+  if (_qrScanRAF) { cancelAnimationFrame(_qrScanRAF); _qrScanRAF = null; }
+  if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
+  qrSetCamStatus('✅ QR Code détecté !', 'success');
+
+  var etabId = qrExtractEtabIdFromUrl(url);
+  if (!etabId) {
+    qrSetCamStatus('⚠️ QR Code non reconnu. Scannez un QR AMBI241.', 'error');
+    setTimeout(function() {
+      _qrScanSuccess = false;
+      var video = document.getElementById('ambiQrVideo');
+      if (video && _qrScanStream) qrScanFrame(video);
+    }, 2500);
+    return;
+  }
+
+  setTimeout(function() {
+    window.ambiQrCloseScanner();
+    window._qrScanVote = true; /* flag: vote déclenché par scan caméra */
+    if (!qrIsGuest()) {
+      var etab = (window.etablissements || []).find(function(e){ return String(e.id) === String(etabId); });
+      if (etab) { ambiQrOpenModal(etabId, etab); }
+      else { window.location.href = url; }
+    } else { window.location.href = url; }
+  }, 800);
+}
+
+function qrExtractEtabIdFromUrl(url) {
+  try {
+    var parsed = new URL(url);
+    var etabId = parsed.searchParams.get('etab') || parsed.searchParams.get('vote') || parsed.searchParams.get('id');
+    if (etabId) return etabId;
+    if (parsed.origin === window.location.origin) {
+      var hash = parsed.hash.replace('#','');
+      if (hash && hash.startsWith('etab-')) return hash.replace('etab-','');
+    }
+    return null;
+  } catch(e) { return null; }
+}
+
+window.ambiQrToggleTorch = function() {
+  if (!_qrScanStream) return;
+  var track = _qrScanStream.getVideoTracks()[0];
+  if (!track) return;
+  _qrTorchOn = !_qrTorchOn;
+  track.applyConstraints({ advanced: [{ torch: _qrTorchOn }] }).catch(function(){});
+  var btn = document.getElementById('ambiQrTorchBtn');
+  if (btn) btn.textContent = _qrTorchOn ? '🔦 Torche ON' : '🔦 Lampe torche';
+};
+
+function qrSetCamStatus(msg, type) {
+  var el = document.getElementById('ambiQrCamStatus');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'qr-cam-status' + (type ? ' ' + type : '');
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    var ov = document.getElementById('ambiQrCamOverlay');
+    if (ov && ov.classList.contains('active')) window.ambiQrCloseScanner();
+  }
+});
 
 console.log('[AMBI241] ✅ QR Code Vote System v2 chargé — rôles: guest/member/owner/admin');
 
