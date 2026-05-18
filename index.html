@@ -44532,43 +44532,31 @@ window.ambiQrCopyLink = function() {
 /* ─────────────────────────────────────────────────────────────
    9. ICÔNE QR SUR LES CARTES ÉTABLISSEMENTS
    ───────────────────────────────────────────────────────────── */
-var QR_SVG = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><rect x="0.5" y="0.5" width="5" height="5" rx="1" stroke="#00e5ff" stroke-width="1.2"/><rect x="7.5" y="0.5" width="5" height="5" rx="1" stroke="#00e5ff" stroke-width="1.2"/><rect x="0.5" y="7.5" width="5" height="5" rx="1" stroke="#00e5ff" stroke-width="1.2"/><rect x="7.5" y="7.5" width="5" height="5" rx="1" stroke="#00e5ff" stroke-width="1.2"/><rect x="2" y="2" width="2" height="2" rx="0.3" fill="#00e5ff"/><rect x="9" y="2" width="2" height="2" rx="0.3" fill="#00e5ff"/><rect x="2" y="9" width="2" height="2" rx="0.3" fill="#00e5ff"/><rect x="9" y="9" width="2" height="2" rx="0.3" fill="#00e5ff"/></svg>';
-
-/* Injecte le bouton QR dans UNE seule carte (cardEl déjà résolu) */
-function qrInjectSingleCard(cardEl, etab) {
-  if (cardEl.querySelector('.qr-card-icon')) return; /* déjà injecté */
-  var isMember = !!(window.currentUserUID);
-  var btn = document.createElement('button');
-  btn.className = 'qr-card-icon' + (isMember ? '' : ' qr-locked');
-  btn.setAttribute('title', isMember ? 'Voir le QR Code vote' : 'Inscription requise pour voter');
-  btn.setAttribute('aria-label', 'QR Code de vote — ' + (etab.nom || ''));
-  btn.innerHTML = isMember
-    ? QR_SVG + '<span style="font-size:0.7rem;font-weight:800;color:#00e5ff;letter-spacing:0.02em;">QR Vote</span>'
-    : '<span style="font-size:0.7rem;font-weight:800;color:#00e5ff;">🔐 Membres</span>';
-  btn.addEventListener('click', function(e) {
-    e.stopPropagation();
-    if (!isMember) {
-      if (typeof showToast === 'function') showToast('🔐 Inscrivez-vous pour voter !');
-      var loginBtn = document.querySelector('[onclick*="openLogin"],[onclick*="showLogin"],#loginBtn,.auth-login-btn');
-      if (loginBtn) setTimeout(function() { loginBtn.click(); }, 500);
-      return;
-    }
-    ambiQrOpenModal(etab.id);
-  });
-  cardEl.style.position = 'relative';
-  /* Suspension de l'Observer le temps de l'injection pour éviter la cascade */
-  _qrObserverPaused = true;
-  cardEl.appendChild(btn);
-  _qrObserverPaused = false;
-}
-
-/* Parcourt tous les établissements et injecte uniquement les cartes manquantes */
 function qrInjectCardIcons() {
-  var etabs = window.etablissements || [];
-  for (var i = 0; i < etabs.length; i++) {
-    var cardEl = document.getElementById('card-etab-' + etabs[i].id);
-    if (cardEl) qrInjectSingleCard(cardEl, etabs[i]);
-  }
+  (window.etablissements || []).forEach(function(etab) {
+    var cardEl = document.getElementById('card-etab-' + etab.id);
+    if (!cardEl || cardEl.querySelector('.qr-card-icon')) return;
+    var isMember = !!(window.currentUserUID);
+    var btn = document.createElement('button');
+    btn.className = 'qr-card-icon' + (isMember ? '' : ' qr-locked');
+    btn.setAttribute('title', isMember ? 'Voir le QR Code vote' : 'Inscription requise pour voter');
+    btn.setAttribute('aria-label', 'QR Code de vote — ' + (etab.nom || ''));
+    btn.innerHTML = (isMember
+      ? '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><rect x="0.5" y="0.5" width="5" height="5" rx="1" stroke="#00e5ff" stroke-width="1.2"/><rect x="7.5" y="0.5" width="5" height="5" rx="1" stroke="#00e5ff" stroke-width="1.2"/><rect x="0.5" y="7.5" width="5" height="5" rx="1" stroke="#00e5ff" stroke-width="1.2"/><rect x="7.5" y="7.5" width="5" height="5" rx="1" stroke="#00e5ff" stroke-width="1.2"/><rect x="2" y="2" width="2" height="2" rx="0.3" fill="#00e5ff"/><rect x="9" y="2" width="2" height="2" rx="0.3" fill="#00e5ff"/><rect x="2" y="9" width="2" height="2" rx="0.3" fill="#00e5ff"/><rect x="9" y="9" width="2" height="2" rx="0.3" fill="#00e5ff"/></svg><span style="font-size:0.7rem;font-weight:800;color:#00e5ff;letter-spacing:0.02em;">QR Vote</span>'
+      : '<span style="font-size:0.7rem;font-weight:800;color:#00e5ff;">🔐 Membres</span>');
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (!isMember) {
+        if (typeof showToast === 'function') showToast('🔐 Inscrivez-vous pour voter !');
+        var loginBtn = document.querySelector('[onclick*="openLogin"],[onclick*="showLogin"],#loginBtn,.auth-login-btn');
+        if (loginBtn) setTimeout(function() { loginBtn.click(); }, 500);
+        return;
+      }
+      ambiQrOpenModal(etab.id);
+    });
+    cardEl.style.position = 'relative';
+    cardEl.appendChild(btn);
+  });
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -44672,35 +44660,19 @@ if (document.readyState === 'loading') {
 
 /* Observer DOM pour re-injecter après renderAll dynamique */
 var _qrReinjectTimer = null;
-var _qrObserverPaused = false;
 new MutationObserver(function(mutations) {
-  if (_qrObserverPaused) return; /* ignore nos propres injections */
-  var newCards = [];
-  for (var i = 0; i < mutations.length; i++) {
-    var added = mutations[i].addedNodes;
-    for (var j = 0; j < added.length; j++) {
-      var n = added[j];
-      if (n.nodeType !== 1) continue;
-      /* Carte directe */
-      if (n.id && n.id.indexOf('card-etab-') === 0) {
-        newCards.push(n);
-      } else if (typeof n.className === 'string' && n.className.indexOf('card') !== -1
-                 && n.id && n.id.indexOf('card-etab-') === 0) {
-        newCards.push(n);
-      }
-    }
-  }
-  if (newCards.length === 0) return; /* rien d'intéressant */
-  /* Injecter uniquement les nouvelles cartes détectées, avec un léger délai */
-  clearTimeout(_qrReinjectTimer);
-  _qrReinjectTimer = setTimeout(function() {
-    var etabMap = {};
-    (window.etablissements || []).forEach(function(e) { etabMap[e.id] = e; });
-    newCards.forEach(function(cardEl) {
-      var id = cardEl.id.replace('card-etab-', '');
-      if (etabMap[id]) qrInjectSingleCard(cardEl, etabMap[id]);
+  var hasCard = mutations.some(function(m) {
+    return Array.from(m.addedNodes).some(function(n) {
+      return n.nodeType === 1 && (
+        (n.id && n.id.indexOf('card-etab-') !== -1) ||
+        (typeof n.className === 'string' && n.className.indexOf('card') !== -1)
+      );
     });
-  }, 150);
+  });
+  if (hasCard) {
+    clearTimeout(_qrReinjectTimer);
+    _qrReinjectTimer = setTimeout(qrInjectCardIcons, 250);
+  }
 }).observe(document.body, { childList: true, subtree: true });
 
 console.log('[AMBI241] ✅ QR Code Vote System chargé');
