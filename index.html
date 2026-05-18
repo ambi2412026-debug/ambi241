@@ -54,7 +54,8 @@ html{overflow-x:hidden;max-width:100vw;scrollbar-gutter:stable;overflow-y:scroll
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;padding-bottom:calc(var(--nav-h) + var(--player-h));padding-top:var(--header-actual-h, 116px);max-width:100%;width:100%;}
 /* PERF — scroll natif fluide + overscroll contenu pour navigation sans rebond bloquant */
-html,body{overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;}
+html{-webkit-overflow-scrolling:touch;}
+body{overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;}
 body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(255,45,155,0.12) 0%,transparent 50%),radial-gradient(ellipse at 90% 30%,rgba(0,229,255,0.10) 0%,transparent 50%),radial-gradient(ellipse at 50% 90%,rgba(204,68,255,0.08) 0%,transparent 50%);pointer-events:none;z-index:0;}
 
 @media (prefers-reduced-motion: reduce) {
@@ -85,7 +86,20 @@ header *[aria-hidden="true"], .bottom-nav *[aria-hidden="true"] {
   pointer-events: none !important;
 }
 
-main, section { contain: layout style paint; }
+main, section { contain: layout style; }
+
+/* ── GUARD SCROLL GLOBAL ──
+   Si aucun overlay/modal n'est ouvert, forcer le scroll sur html et body.
+   Évite le piège overflow:hidden résiduel après crash JS ou fermeture brutale.
+   Les overlays actifs (.show, .open) remettent overflow:hidden via JS normalement. */
+html:not(.modal-open), body:not(.modal-open) {
+  overflow-x: hidden;
+}
+/* Quand un overlay fullscreen est actif, bloquer le scroll page arrière-plan */
+body.overlay-open {
+  overflow: hidden !important;
+  touch-action: none;
+}
 
 .soc-tabs, .socpub-filter-row, .igm-steps, .header-guide-bar,
 .demo-nav-profil, .af-filter-row {
@@ -241,7 +255,7 @@ main, section { contain: layout style paint; }
 
 .notif-panel{display:none;position:fixed;top:0;left:0;right:0;z-index:1000;background:rgba(10,2,20,0.7);backdrop-filter:blur(6px);}
 .notif-panel.open{display:block;}
-.notif-panel-inner{position:absolute;top:0;left:0;right:0;max-height:88vh;background:linear-gradient(180deg,var(--surface2) 0%,var(--surface) 100%);border-bottom:1px solid rgba(255,45,155,0.15);border-radius:0 0 24px 24px;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(255,45,155,0.1);animation:ambiPanelSlideDown 0.3s cubic-bezier(.175,.885,.32,1.275);display:flex;flex-direction:column;}
+.notif-panel-inner{position:absolute;top:0;left:0;right:0;max-height:88vh;background:linear-gradient(180deg,var(--surface2) 0%,var(--surface) 100%);border-bottom:1px solid rgba(255,45,155,0.15);border-radius:0 0 24px 24px;overflow-x:hidden;overflow-y:hidden;box-shadow:0 16px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(255,45,155,0.1);animation:ambiPanelSlideDown 0.3s cubic-bezier(.175,.885,.32,1.275);display:flex;flex-direction:column;}
 @keyframes ambiPanelSlideDown{from{opacity:0;transform:translateY(-16px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
 .notif-panel-head{padding:1rem 1rem 0.8rem;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:linear-gradient(135deg,rgba(255,45,155,0.08),rgba(204,68,255,0.05));}
 .notif-panel-head-left{display:flex;align-items:center;gap:0.75rem;}
@@ -18161,6 +18175,7 @@ function switchSection(name,btn){
   /* FIX CRITIQUE: Toujours libérer l'overflow — évite les pages noires bloquées
      (modaux non fermés proprement laissent overflow:hidden sur le body) */
   document.body.style.overflow = '';
+  document.body.classList.remove('overlay-open');
   /* PERF: Désactiver les animations pendant le changement pour réactivité */
   document.body.classList.add('switching');
   
@@ -21837,7 +21852,7 @@ function ambiShowNotifOnboarding(){
 
   /* Afficher le modal */
   var overlay = document.getElementById('notifOnboardOverlay');
-  if(overlay){ overlay.classList.add('show'); document.body.style.overflow='hidden'; }
+  if(overlay){ overlay.classList.add('show'); document.body.classList.add('overlay-open'); document.body.style.overflow='hidden'; }
 
   /* Jouer un son de démo discret */
   setTimeout(function(){
@@ -21929,7 +21944,7 @@ window.ambiOnboardSkip = ambiOnboardSkip;
 
 function _nobClose(){
   var overlay = document.getElementById('notifOnboardOverlay');
-  if(overlay){ overlay.classList.remove('show'); document.body.style.overflow=''; }
+  if(overlay){ overlay.classList.remove('show'); document.body.classList.remove('overlay-open'); document.body.style.overflow=''; }
 }
 
 /* ── Réinitialiser l'onboarding (depuis les paramètres) ── */
@@ -32524,6 +32539,7 @@ function taxiProOpenCommandModal() {
   // Afficher
   modal.style.display = 'flex';
   taxiProRenderDriversList();
+  document.body.classList.add('overlay-open');
   document.body.style.overflow = 'hidden';
 }
 
@@ -32531,7 +32547,8 @@ function taxiProCloseCommandModal() {
   const modal = document.getElementById('taxiProCommandModal');
   if(modal) {
     modal.style.display = 'none';
-    document.body.style.overflow = 'auto';
+    document.body.classList.remove('overlay-open');
+    document.body.style.overflow = '';
   }
 }
 
@@ -47995,7 +48012,7 @@ document.addEventListener('visibilitychange', function(){
 }
 
 .card,.etab-card,.socpub-card,.dm-bubble,.notif-item{
-  contain:layout style paint;
+  contain:layout style;
   will-change:auto; 
 }
 .card:hover,.etab-card:hover{will-change:transform,box-shadow;}
@@ -49058,7 +49075,36 @@ if (document.readyState === 'loading') {
 })();
 </script>
 
-<!-- ══ FIX HEADER HEIGHT — recalcule padding-top body selon hauteur réelle du header ══ -->
+<!-- ══ RESET SCROLL AU CHARGEMENT — sécurité overflow:hidden résiduel ══ -->
+<script>
+(function(){
+  /* Réinitialiser overflow dès que le DOM est prêt, avant tout autre script */
+  function _resetBodyScroll(){
+    document.body.style.overflow = '';
+    document.body.classList.remove('overlay-open');
+    document.documentElement.style.overflow = '';
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', _resetBodyScroll);
+  } else {
+    _resetBodyScroll();
+  }
+  /* Aussi sur visibilitychange : quand on revient sur l'onglet/app */
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible'){
+      /* Ne réinitialiser que si aucun overlay .show ou .open n'est présent dans le DOM */
+      var anyOpen = document.querySelector(
+        '.overlay.show, [id$="Overlay"].show, [id$="Modal"].open, ' +
+        '#taxiProCommandModal[style*="flex"], #ambiIncomingCall.show'
+      );
+      if(!anyOpen){
+        _resetBodyScroll();
+      }
+    }
+  });
+  window._resetBodyScroll = _resetBodyScroll;
+})();
+</script>
 <script>
 (function(){
   function _recalcHeaderPad(){
