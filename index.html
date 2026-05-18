@@ -12823,18 +12823,20 @@ function _loadDataFromFirebase(silent){
     etablissements.forEach(function(e){ applyDynamicStatus(e); });
     setSyncing(false);if(typeof invalidateScoreCache==='function')invalidateScoreCache();renderStats();renderAll();renderHome();renderPayments();updateSyncTime();if(typeof i18n!=="undefined")i18n.applyTranslations();
     if(isAdmin && (_currentAdmTab==='overview'||window._currentAdmTab==='overview') && typeof renderAdmOverview==='function'){ renderAdmOverview(); }
-    // Photos en arrière-plan (délai pour ne pas bloquer le rendu)
-    setTimeout(loadAllPhotoProfiles, 1500);
-    loadPaiementsFromFirebase();
-    if (typeof window._subscribeAllEtabs === "function") { window._subscribeAllEtabs(); }
-    // Précharger photos slot — limité aux 10 premiers actifs pour éviter le flood Firebase
+    // PERF FIX : décaler toutes les opérations lourdes post-Firebase
+    // pour ne pas geler l'UI juste après le premier rendu des données
+    setTimeout(loadPaiementsFromFirebase, 1000);
+    setTimeout(loadAllPhotoProfiles, 6000);   // photos profil : 6s (pas critique)
+    setTimeout(function(){
+      if (typeof window._subscribeAllEtabs === "function") window._subscribeAllEtabs();
+    }, 2000);
+    // Précharger photos slot — uniquement 5 actifs, décalé à 12s
     setTimeout(function(){
       if(typeof loadSlotPhotosAsync === 'function' && etablissements && etablissements.length){
         var actifs = etablissements.filter(function(e){ return estPaiementConfirme(e); });
-        /* Bug2-FIX: max 10 chargements simultanés — sinon 50+ requêtes Firebase en même temps */
-        actifs.slice(0, 10).forEach(function(e){ if(e.id) loadSlotPhotosAsync(e.id); });
+        actifs.slice(0, 5).forEach(function(e){ if(e.id) loadSlotPhotosAsync(e.id); });
       }
-    }, 2000);
+    }, 12000);
   }).catch(function(err){
     console.error("Firebase loadData:",err);
     etablissements=getDefaults();
@@ -21018,20 +21020,32 @@ function _startApp(){
     renderStats(); renderAll(); renderHome(); updateSyncTime();
   }
 }
-// ── Démarrage : afficher un skeleton léger au lieu des 65 hardcodés ──
-// Firebase chargera les vraies données en <2s — pas besoin de pré-remplir
-etablissements = [];
-rebuildPaiements();
-loadSuperAdmin();
-// Afficher un indicateur de chargement plutôt que les faux 65 lieux
+// ── Démarrage : cache localStorage IMMÉDIAT, Firebase en arrière-plan ──
+// PERF FIX : on restaure le cache avant que Firebase réponde → 0ms de blanc
 (function(){
-  var ml = document.getElementById("mainList");
-  if(ml) ml.innerHTML = '<div style="text-align:center;padding:3rem 1rem;color:var(--muted);">'
-    +'<div style="font-size:2rem;margin-bottom:0.8rem;">⏳</div>'
-    +'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;color:var(--cyan);">Chargement des lieux...</div>'
-    +'<div style="font-size:0.72rem;margin-top:0.4rem;">Connexion à Firebase en cours</div>'
-    +'</div>';
+  var ETAB_CACHE_KEY = 'ambi241_etab_cache_v2';
+  var cacheLoaded = false;
+  try {
+    var _ic = JSON.parse(localStorage.getItem(ETAB_CACHE_KEY) || 'null');
+    if(_ic && _ic.data && _ic.data.length > 0){
+      etablissements = _ic.data;
+      rebuildPaiements();
+      etablissements.forEach(function(e){ if(typeof applyDynamicStatus==='function') applyDynamicStatus(e); });
+      cacheLoaded = true;
+    }
+  } catch(e){}
+  if(!cacheLoaded){
+    etablissements = [];
+    rebuildPaiements();
+    var ml = document.getElementById("mainList");
+    if(ml) ml.innerHTML = '<div style="text-align:center;padding:3rem 1rem;color:var(--muted);">'
+      +'<div style="font-size:2rem;margin-bottom:0.8rem;">⏳</div>'
+      +'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;color:var(--cyan);">Chargement des lieux...</div>'
+      +'<div style="font-size:0.72rem;margin-top:0.4rem;">Connexion à Firebase en cours</div>'
+      +'</div>';
+  }
 })();
+loadSuperAdmin();
 renderStats(); renderHome(); renderPayments();
 setTimeout(initMeteo, 500);
 
@@ -48210,8 +48224,12 @@ window.addEventListener('resize', function(){ _$ = _$.bind(null); }, {passive:tr
     }
 
     /* ── 3. Swap sections via CSS class (pas de forEach dans rAF) ── */
-    if(_prevSection && _prevSection !== name){
-      var prevEl = _getSecEl(_prevSection);
+    /* FIX : _prevSection vaut null au 1er clic → accueil ne jamais caché.
+       On replie sur 'accueil' (section visible par défaut) pour garantir
+       que la section précédente est toujours masquée. */
+    var sectionToHide = _prevSection || 'accueil';
+    if(sectionToHide !== name){
+      var prevEl = _getSecEl(sectionToHide);
       if(prevEl){ prevEl.classList.add('section-hidden'); prevEl.classList.remove('sec-active-now'); }
     }
     var nextEl = _getSecEl(name);
