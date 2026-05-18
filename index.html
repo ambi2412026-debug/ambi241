@@ -7512,7 +7512,16 @@ document.addEventListener('DOMContentLoaded', function() {
       <div class="notif-badge" id="notifBadge">0</div>
     </div>
     <button class="user-btn" id="userLoginBtn" onclick="document.getElementById('userOverlay').classList.add('show')">&#128100;</button>
-    <button class="admin-btn" id="adminBtn" onclick="toggleAdmin()" style="display:none;">&#128513;</button><button id="adminUnlockBtn" onclick="pinBuf='';updateDots();document.getElementById('pinOverlay').classList.add('show');" title="Acces Admin" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.3);color:rgba(255,255,255,1);font-size:0.72rem;width:26px;height:26px;min-width:26px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">&#128274;</button>
+    <button class="admin-btn" id="adminBtn" onclick="toggleAdmin()" style="display:none;">&#128513;</button><button id="adminUnlockBtn" onclick="pinBuf=\'\';updateDots();document.getElementById(\'pinOverlay\').classList.add(\'show\');" title="Acces Admin" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.3);color:rgba(255,255,255,1);font-size:0.72rem;width:26px;height:26px;min-width:26px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">&#128274;</button>
+    <!-- ══ ICÔNE ADMIN D'URGENCE — toujours cliquable, jamais affectée ══ -->
+    <button id="ambiEmergencyAdminBtn"
+      onclick="ambiEmergencyAdminOpen()"
+      title="Accès Admin d'urgence — toujours disponible"
+      style="position:relative;background:linear-gradient(135deg,rgba(255,140,0,0.18),rgba(255,45,155,0.12));border:1.5px solid rgba(255,140,0,0.6);color:#ff8c00;font-size:0.85rem;width:30px;height:30px;min-width:30px;border-radius:50%;cursor:pointer;display:none;align-items:center;justify-content:center;flex-shrink:0;touch-action:manipulation;z-index:9999;box-shadow:0 0 12px rgba(255,140,0,0.3);transition:all 0.15s;"
+      onmousedown="this.style.transform=\'scale(0.88)\'"
+      onmouseup="this.style.transform=\'scale(1)\'"
+      ontouchstart="this.style.transform=\'scale(0.88)\';event.stopPropagation();"
+      ontouchend="this.style.transform=\'scale(1)\';">🛡️</button>
     <!-- Bouton Installer masqué dans le header - bouton principal sur l'accueil -->
     <button class="pwa-nav-btn" id="pwaNavBtn" onclick="installPWA()" title="Installer l'application" style="display:none!important;">&#128640; Installer</button>
   </div>
@@ -13248,6 +13257,9 @@ function pinPress(k){
         var unlockBtn=document.getElementById("adminUnlockBtn");
         if(abtn){ abtn.style.display="flex"; abtn.style.background="rgba(255,215,0,0.2)"; abtn.style.borderColor="rgba(255,215,0,0.6)"; abtn.style.color="#ffd700"; }
         if(unlockBtn) unlockBtn.style.display="none";
+        /* ── Afficher l'icône d'urgence admin dans le header ── */
+        var emergBtn = document.getElementById("ambiEmergencyAdminBtn");
+        if(emergBtn) emergBtn.style.display = "flex";
         // Afficher la cloche notifications et le bouton paramètres pour l'admin
         var bellWrap = document.getElementById("notifBellWrap");
         if(bellWrap) bellWrap.style.display = "inline-flex";
@@ -13294,6 +13306,9 @@ function toggleAdmin(){
     var unlockBtn=document.getElementById("adminUnlockBtn");
     if(abtn){ abtn.style.display="none"; abtn.style.background=""; abtn.style.borderColor=""; abtn.style.color=""; }
     if(unlockBtn) unlockBtn.style.display="flex";
+    /* ── Masquer l'icône d'urgence ── */
+    var emergBtnHide = document.getElementById("ambiEmergencyAdminBtn");
+    if(emergBtnHide) emergBtnHide.style.display = "none";
     // Réévaluer la visibilité de la cloche après désactivation du mode admin
     if(typeof renderNotifBadge === "function") renderNotifBadge();
     var navSettings = document.getElementById("navAdminSettings");
@@ -15967,13 +15982,13 @@ function buildCard(e,delay,compact,rank,extraClass){
   // Priorité : slotPhotos[0] (ce soir) > permPhoto (présentation main) > placeholder vide
   var displayedPhoto = (slotPhotos.length > 0) ? slotPhotos[0].url : (permPhoto || "");
   
-  photosHtml += "<div style='position:relative;height:120px;overflow:hidden;background:rgba(255,45,155,0.06);cursor:pointer;'>";
+  photosHtml += "<div style='position:relative;height:120px;overflow:visible;background:rgba(255,45,155,0.06);cursor:pointer;'>";
   // Point vert "zone proche" dans le coin de la photo
   if(zoneCornerDot) photosHtml += zoneCornerDot;
   if(displayedPhoto){
     // Afficher la photo (slot ou permPhoto)
     var isSlotPhoto = slotPhotos.length > 0;
-    photosHtml += "<img src='"+displayedPhoto+"' style='width:100%;height:100%;object-fit:cover;display:block;' onclick='"+(isSlotPhoto ? "openSlotLightbox("+e.id+",0)" : "openFullscreenPhoto('"+displayedPhoto.replace(/'/g,"\\'")+"',"+e.id+",'profile','"+((e.nom||"").replace(/'/g,"\\'"))+"')")+"'>";
+    photosHtml += "<div style='position:absolute;inset:0;overflow:hidden;border-radius:18px 18px 0 0;'><img src='"+displayedPhoto+"' style='width:100%;height:100%;object-fit:cover;display:block;' onclick='"+(isSlotPhoto ? "openSlotLightbox("+e.id+",0)" : "openFullscreenPhoto('"+displayedPhoto.replace(/'/g,"\\'")+"',"+e.id+",'profile','"+((e.nom||"").replace(/'/g,"\\'"))+"')")+"'></div>";
     
     if(isSlotPhoto){
       // Compteur badge supprimé (photos permanentes dans la galerie)
@@ -16012,7 +16027,7 @@ function buildCard(e,delay,compact,rank,extraClass){
         +"background:rgba(255,215,0,0.15);"
         +"border:1.5px solid rgba(255,215,0,0.65);border-radius:8px;"
         +"display:flex;align-items:center;justify-content:center;gap:0.3rem;"
-        +"cursor:pointer;z-index:20;backdrop-filter:blur(8px);"
+        +"cursor:pointer;touch-action:manipulation;z-index:30;backdrop-filter:blur(8px);min-width:80px;min-height:36px;"
         +"font-size:0.62rem;font-weight:800;color:#ffd700;"
         +"font-family:Syne,sans-serif;white-space:nowrap;letter-spacing:0.02em;"
         +"box-shadow:0 2px 10px rgba(255,215,0,0.3);pointer-events:all;"
@@ -16033,7 +16048,7 @@ function buildCard(e,delay,compact,rank,extraClass){
         +"background:rgba(0,229,255,0.12);"
         +"border:1.5px solid rgba(0,229,255,0.65);border-radius:8px;"
         +"display:flex;align-items:center;justify-content:center;gap:0.3rem;"
-        +"cursor:pointer;z-index:20;backdrop-filter:blur(8px);"
+        +"cursor:pointer;touch-action:manipulation;z-index:30;backdrop-filter:blur(8px);min-width:80px;min-height:36px;"
         +"font-size:0.62rem;font-weight:800;color:#00e5ff;"
         +"font-family:Syne,sans-serif;white-space:nowrap;letter-spacing:0.02em;"
         +"box-shadow:0 2px 10px rgba(0,229,255,0.3);pointer-events:all;"
@@ -16054,7 +16069,7 @@ function buildCard(e,delay,compact,rank,extraClass){
         +"background:rgba(255,45,155,0.12);"
         +"border:1.5px solid rgba(255,45,155,0.55);border-radius:8px;"
         +"display:flex;align-items:center;justify-content:center;gap:0.3rem;"
-        +"cursor:pointer;z-index:20;backdrop-filter:blur(8px);"
+        +"cursor:pointer;touch-action:manipulation;z-index:30;backdrop-filter:blur(8px);min-width:80px;min-height:36px;"
         +"font-size:0.62rem;font-weight:800;color:#ff9fd2;"
         +"font-family:Syne,sans-serif;white-space:nowrap;letter-spacing:0.02em;"
         +"box-shadow:0 2px 10px rgba(255,45,155,0.25);pointer-events:all;"
@@ -24183,6 +24198,9 @@ function renderAdmSettings(){
   html += "<button onclick=\"weekSongOpenAdmin()\" style='width:100%;padding:0.65rem;border-radius:10px;border:1.5px solid rgba(255,45,155,0.45);background:rgba(255,45,155,0.1);color:var(--pink);font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;transition:all 0.1s;'>🎵 Configurer / Changer la chanson</button>";
   html += "</div>";
 
+  // ══ MAINTENANCE D'URGENCE ══
+  html += renderAdmMaintenancePanel();
+
   // ══ RESET TOTAL — NOUVEAU CYCLE ══
   html += renderAdmResetPanel();
 
@@ -24191,6 +24209,221 @@ function renderAdmSettings(){
   setTimeout(initAdminDefaultPhotosPreviews, 80);
 }
 
+
+// ══════════════════════════════════════════════════════════════
+// ══  MAINTENANCE D'URGENCE — SAUVEGARDE / RESTAURATION CODE   ══
+// ══════════════════════════════════════════════════════════════
+
+/* ── Clés de stockage ── */
+var AMBI_MAINT_KEY      = "ambi241_maintenance_snapshot";
+var AMBI_MAINT_META_KEY = "ambi241_maintenance_meta";
+var AMBI_MAINT_PATCHES  = "ambi241_maintenance_patches";
+
+/* ── Capturer un snapshot de l'état fonctionnel actuel ── */
+function ambiMaintSaveSnapshot(){
+  try{
+    /* Snapshot : toutes les clés localStorage ambi241_* SAUF logs/traffic */
+    var snap = {};
+    var exclude = ["ambi241_traffic_","ambi241_cycle_reset_","ambi241_pin_attempts","ambi241_pin_lockuntil"];
+    for(var i=0;i<localStorage.length;i++){
+      var k = localStorage.key(i);
+      if(!k || k.indexOf("ambi241_")<0) continue;
+      var skip = false;
+      exclude.forEach(function(ex){ if(k.indexOf(ex)===0) skip=true; });
+      if(skip) continue;
+      try{ snap[k] = localStorage.getItem(k); }catch(e){}
+    }
+    /* Méta-données du snapshot */
+    var meta = {
+      ts:        Date.now(),
+      date:      new Date().toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}),
+      time:      new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}),
+      etabCount: (typeof etablissements!=="undefined" && etablissements) ? etablissements.length : 0,
+      appMode:   localStorage.getItem("ambi241_app_mode")||"live",
+      keys:      Object.keys(snap).length
+    };
+    localStorage.setItem(AMBI_MAINT_KEY,      JSON.stringify(snap));
+    localStorage.setItem(AMBI_MAINT_META_KEY,  JSON.stringify(meta));
+    return meta;
+  }catch(e){ return null; }
+}
+
+/* ── Lire les méta-données du dernier snapshot ── */
+function ambiMaintGetMeta(){
+  try{ return JSON.parse(localStorage.getItem(AMBI_MAINT_META_KEY)||"null"); }catch(e){ return null; }
+}
+
+/* ── Restaurer le snapshot ── */
+function ambiMaintRestoreSnapshot(){
+  try{
+    var raw = localStorage.getItem(AMBI_MAINT_KEY);
+    if(!raw) return false;
+    var snap = JSON.parse(raw);
+    /* Supprimer toutes les clés ambi241_* actuelles */
+    var toDelete = [];
+    for(var i=0;i<localStorage.length;i++){
+      var k = localStorage.key(i);
+      if(k && k.indexOf("ambi241_")===0 && k !== AMBI_MAINT_KEY && k !== AMBI_MAINT_META_KEY) toDelete.push(k);
+    }
+    toDelete.forEach(function(k){ try{localStorage.removeItem(k);}catch(e){} });
+    /* Réinjecter le snapshot */
+    Object.keys(snap).forEach(function(k){
+      try{ localStorage.setItem(k, snap[k]); }catch(e){}
+    });
+    return true;
+  }catch(e){ return false; }
+}
+
+/* ── Reset sélectif intelligent : nettoie seulement les données instables ── */
+function ambiMaintSmartReset(){
+  /* Garde : config, comptes, PIN, abonnements, admins, photos */
+  /* Supprime : présences, votes, sessions, cache temporaire */
+  var safePrefixes = [
+    "ambi241_app_mode","ambi241_super_admin","ambi241_admins_list",
+    "ambi241_pin_","ambi241_subscription","ambi241_etab_photos",
+    "ambi241_week_song","ambi241_feat_","ambi241_default_photos",
+    "ambi241_cycle_start","ambi241_user_","ambi241_auth_"
+  ];
+  var toDelete = [];
+  for(var i=0;i<localStorage.length;i++){
+    var k = localStorage.key(i);
+    if(!k || k.indexOf("ambi241_")<0) continue;
+    var safe = false;
+    safePrefixes.forEach(function(p){ if(k.indexOf(p)===0) safe=true; });
+    if(!safe) toDelete.push(k);
+  }
+  toDelete.forEach(function(k){ try{localStorage.removeItem(k);}catch(e){} });
+  /* Vider sessionStorage ambi241 */
+  var ssDel=[];
+  for(var j=0;j<sessionStorage.length;j++){ var sk=sessionStorage.key(j); if(sk&&sk.indexOf("ambi241_")===0) ssDel.push(sk); }
+  ssDel.forEach(function(k){ try{sessionStorage.removeItem(k);}catch(e){} });
+  return toDelete.length;
+}
+
+/* ── Construire le panneau HTML ── */
+function renderAdmMaintenancePanel(){
+  var meta = ambiMaintGetMeta();
+  var hasSnap = !!meta;
+
+  var h = "";
+  h += "<div id='ambiMaintPanel' style='background:linear-gradient(135deg,rgba(255,100,0,0.1),rgba(255,45,155,0.06));border:2px solid rgba(255,140,0,0.5);border-radius:16px;padding:1.15rem;margin-bottom:1rem;position:relative;overflow:hidden;'>";
+  /* Barre déco top */
+  h += "<div style='position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#ff8c00,#ff2d9b,#ff8c00);animation:shimmerCard 3s ease infinite;'></div>";
+
+  /* Titre */
+  h += "<div style='display:flex;align-items:center;gap:0.55rem;margin-bottom:0.25rem;'>";
+  h += "<span style='font-size:1.3rem;'>🛡️</span>";
+  h += "<span style='font-family:Syne,sans-serif;font-weight:900;color:#ff8c00;font-size:0.92rem;letter-spacing:0.01em;'>Maintenance d'Urgence</span>";
+  h += "<span style='margin-left:auto;font-size:0.55rem;font-weight:800;letter-spacing:0.07em;color:#ff8c00;background:rgba(255,140,0,0.12);padding:0.15rem 0.45rem;border-radius:20px;border:1px solid rgba(255,140,0,0.4);'>ADMIN ONLY</span>";
+  h += "</div>";
+  h += "<div style='font-size:0.67rem;color:rgba(255,255,255,0.45);margin-bottom:1rem;line-height:1.5;'>Réinstalle l'état stable, nettoie les données corrompues et débloque l'application sans perte de configuration.</div>";
+
+  /* État du snapshot */
+  h += "<div style='background:rgba(0,0,0,0.25);border-radius:10px;padding:0.7rem 0.85rem;margin-bottom:0.8rem;border:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:0.7rem;'>";
+  if(hasSnap){
+    h += "<span style='font-size:1.1rem;'>💾</span>";
+    h += "<div style='flex:1;'><div style='font-size:0.72rem;font-weight:700;color:var(--green);font-family:Syne,sans-serif;'>Sauvegarde disponible</div>";
+    h += "<div style='font-size:0.62rem;color:var(--muted);margin-top:0.1rem;'>"+meta.date+" à "+meta.time+" · "+meta.keys+" paramètres · Mode "+meta.appMode+"</div></div>";
+  } else {
+    h += "<span style='font-size:1.1rem;'>⚠️</span>";
+    h += "<div style='flex:1;'><div style='font-size:0.72rem;font-weight:700;color:var(--amber);font-family:Syne,sans-serif;'>Aucune sauvegarde</div>";
+    h += "<div style='font-size:0.62rem;color:var(--muted);margin-top:0.1rem;'>Créez un snapshot quand l'app fonctionne bien.</div></div>";
+  }
+  h += "</div>";
+
+  /* Boutons action */
+  /* 1. Sauvegarder */
+  h += "<button onclick='ambiMaintDoSave()' style='width:100%;padding:0.68rem;border-radius:10px;border:1.5px solid rgba(0,255,170,0.45);background:rgba(0,255,170,0.08);color:var(--green);font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.4rem;margin-bottom:0.5rem;touch-action:manipulation;transition:all 0.15s;'>💾 Sauvegarder l'état actuel (snapshot)</button>";
+
+  /* 2. Reset Intelligent */
+  h += "<button onclick='ambiMaintDoSmartReset()' style='width:100%;padding:0.68rem;border-radius:10px;border:1.5px solid rgba(0,229,255,0.45);background:rgba(0,229,255,0.08);color:var(--cyan);font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.4rem;margin-bottom:0.5rem;touch-action:manipulation;transition:all 0.15s;'>🔍 Scan & Reset Intelligent (données instables)</button>";
+
+  /* 3. Restaurer snapshot (actif seulement si snapshot existe) */
+  h += "<button onclick='ambiMaintDoRestore()' "+(hasSnap?"":"disabled ")+
+       "style='width:100%;padding:0.68rem;border-radius:10px;border:1.5px solid rgba(255,140,0,"+(hasSnap?"0.65":"0.2")+");background:rgba(255,140,0,"+(hasSnap?"0.12":"0.04")+");color:"+(hasSnap?"#ff8c00":"rgba(255,140,0,0.35)")+";font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:"+(hasSnap?"pointer":"not-allowed")+";display:flex;align-items:center;justify-content:center;gap:0.4rem;margin-bottom:0.5rem;touch-action:manipulation;transition:all 0.15s;'>🔄 Restaurer snapshot précédent</button>";
+
+  /* 4. Recharger page (ultime recours) */
+  h += "<button onclick='ambiMaintDoForceReload()' style='width:100%;padding:0.68rem;border-radius:10px;border:1.5px solid rgba(255,68,102,0.45);background:rgba(255,68,102,0.08);color:var(--red);font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.4rem;touch-action:manipulation;transition:all 0.15s;'>⚡ Rechargement forcé (cache vidé)</button>";
+
+  /* Avertissement */
+  h += "<div style='margin-top:0.8rem;display:flex;align-items:flex-start;gap:0.4rem;'>";
+  h += "<span style='font-size:0.8rem;flex-shrink:0;'>ℹ️</span>";
+  h += "<span style='font-size:0.62rem;color:rgba(255,255,255,0.35);line-height:1.5;'>La restauration recharge l'application automatiquement. La configuration admin, les comptes et abonnements sont toujours préservés.</span>";
+  h += "</div>";
+
+  h += "</div>";
+  return h;
+}
+window.renderAdmMaintenancePanel = renderAdmMaintenancePanel;
+
+/* ── Handlers boutons maintenance ── */
+function ambiMaintDoSave(){
+  var meta = ambiMaintSaveSnapshot();
+  if(meta){
+    showToast("💾 Snapshot sauvegardé — "+meta.keys+" paramètres · "+meta.time);
+    setTimeout(function(){ if(typeof renderAdmSettings==="function") renderAdmSettings(); }, 400);
+  } else {
+    showToast("❌ Erreur snapshot — localStorage plein ?");
+  }
+}
+window.ambiMaintDoSave = ambiMaintDoSave;
+
+function ambiMaintDoSmartReset(){
+  if(!confirm("🔍 Scan & Reset Intelligent\n\nCette action supprime uniquement les données temporaires instables :\n• Présences, votes, sessions, cache\n\nElle PRÉSERVE :\n• Configuration, comptes, abonnements, photos, PIN\n\nL'app sera rechargée. Confirmer ?")) return;
+  var count = ambiMaintSmartReset();
+  showToast("✅ Reset intelligent — "+count+" clés nettoyées");
+  setTimeout(function(){
+    /* Re-init en mémoire */
+    if(typeof renderAll==="function") renderAll();
+    if(typeof renderAdmSettings==="function") renderAdmSettings();
+    setTimeout(function(){ location.reload(); }, 1200);
+  }, 600);
+}
+window.ambiMaintDoSmartReset = ambiMaintDoSmartReset;
+
+function ambiMaintDoRestore(){
+  var meta = ambiMaintGetMeta();
+  if(!meta){ showToast("❌ Aucun snapshot disponible"); return; }
+  if(!confirm("🔄 Restaurer le snapshot du "+meta.date+" à "+meta.time+" ?\n\nL'état de l'application sera rétabli à ce moment précis.\nL'app sera rechargée.\n\nConfirmer ?")) return;
+  var ok = ambiMaintRestoreSnapshot();
+  if(ok){
+    showToast("🔄 Snapshot restauré — rechargement...");
+    setTimeout(function(){ location.reload(); }, 900);
+  } else {
+    showToast("❌ Erreur restauration");
+  }
+}
+window.ambiMaintDoRestore = ambiMaintDoRestore;
+
+function ambiMaintDoForceReload(){
+  if(!confirm("⚡ Rechargement forcé\n\nVide le cache navigateur et recharge l'application.\nAucune donnée supprimée.\n\nConfirmer ?")) return;
+  showToast("⚡ Rechargement en cours...");
+  setTimeout(function(){
+    if("caches" in window){
+      caches.keys().then(function(names){ names.forEach(function(n){ caches.delete(n); }); });
+    }
+    location.reload(true);
+  }, 500);
+}
+window.ambiMaintDoForceReload = ambiMaintDoForceReload;
+
+/* ── Auto-snapshot toutes les 30 min si app en mode Live et admin connecté ── */
+(function(){
+  function _autoSnap(){
+    var mode = localStorage.getItem("ambi241_app_mode")||"live";
+    if(mode !== "live") return;
+    var meta = ambiMaintGetMeta();
+    var now = Date.now();
+    /* Snapshot auto si aucun snapshot ou dernier > 30 min */
+    if(!meta || (now - meta.ts) > 30*60*1000){
+      ambiMaintSaveSnapshot();
+    }
+  }
+  /* Premier snapshot au chargement (après 5s pour laisser Firebase se connecter) */
+  setTimeout(_autoSnap, 5000);
+  /* Puis toutes les 30 min */
+  setInterval(_autoSnap, 30*60*1000);
+})();
 
 // ══════════════════════════════════════════════════════════════
 // ══  PANNEAU RESET TOTAL — NOUVEAU CYCLE                      ══
@@ -44104,6 +44337,20 @@ console.log('[AMBI241] ✅ Patch v4 — Firebase admin retry + performance mobil
 .tdm-skeleton::-webkit-scrollbar{display:none;}
 .tdm-skel-card{flex-shrink:0;width:140px;height:120px;border-radius:14px;background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:200% 100%;animation:skeletonShimmer 1.4s infinite;}
 @keyframes skeletonShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* ══ AMBI241 PATCH — QR Vote button always clickable ══ */
+.card > div:first-child[style*="position:relative"] {
+  overflow: visible !important;
+}
+button[onclick*="ambiQrOpenModal"],
+button[onclick*="ambiQrGuestClick"] {
+  touch-action: manipulation !important;
+  -webkit-tap-highlight-color: transparent !important;
+  z-index: 30 !important;
+  position: absolute !important;
+  min-width: 88px !important;
+  min-height: 36px !important;
+}
 </style>
 <script>
 (function(){
@@ -46211,7 +46458,7 @@ function qrInjectCardIcons() {
       btn.style.cssText = 'position:absolute;top:8px;right:8px;padding:0.28rem 0.65rem;height:32px;'
         +'background:rgba(255,45,155,0.12);border:1.5px solid rgba(255,45,155,0.55);border-radius:8px;'
         +'display:flex;align-items:center;justify-content:center;gap:0.3rem;'
-        +'cursor:pointer;z-index:20;backdrop-filter:blur(8px);'
+        +'cursor:pointer;touch-action:manipulation;z-index:30;backdrop-filter:blur(8px);min-width:80px;min-height:36px;'
         +'font-size:0.62rem;font-weight:800;color:#ff9fd2;'
         +'font-family:Syne,sans-serif;white-space:nowrap;letter-spacing:0.02em;'
         +'box-shadow:0 2px 10px rgba(255,45,155,0.25);pointer-events:all;'
@@ -46222,7 +46469,7 @@ function qrInjectCardIcons() {
       btn.style.cssText = 'position:absolute;top:8px;right:8px;padding:0.28rem 0.65rem;height:32px;'
         +'background:rgba(255,215,0,0.15);border:1.5px solid rgba(255,215,0,0.65);border-radius:8px;'
         +'display:flex;align-items:center;justify-content:center;gap:0.3rem;'
-        +'cursor:pointer;z-index:20;backdrop-filter:blur(8px);'
+        +'cursor:pointer;touch-action:manipulation;z-index:30;backdrop-filter:blur(8px);min-width:80px;min-height:36px;'
         +'font-size:0.62rem;font-weight:800;color:#ffd700;'
         +'font-family:Syne,sans-serif;white-space:nowrap;letter-spacing:0.02em;'
         +'box-shadow:0 2px 10px rgba(255,215,0,0.3);pointer-events:all;'
@@ -46233,7 +46480,7 @@ function qrInjectCardIcons() {
       btn.style.cssText = 'position:absolute;top:8px;right:8px;padding:0.28rem 0.65rem;height:32px;'
         +'background:rgba(0,229,255,0.12);border:1.5px solid rgba(0,229,255,0.65);border-radius:8px;'
         +'display:flex;align-items:center;justify-content:center;gap:0.3rem;'
-        +'cursor:pointer;z-index:20;backdrop-filter:blur(8px);'
+        +'cursor:pointer;touch-action:manipulation;z-index:30;backdrop-filter:blur(8px);min-width:80px;min-height:36px;'
         +'font-size:0.62rem;font-weight:800;color:#00e5ff;'
         +'font-family:Syne,sans-serif;white-space:nowrap;letter-spacing:0.02em;'
         +'box-shadow:0 2px 10px rgba(0,229,255,0.3);pointer-events:all;'
@@ -46587,7 +46834,116 @@ window.qrProImprimerFiche = function() {
     + '<img src="' + imgSrc + '" width="280" height="280">'
     + '<p class="url">' + url + '</p>'
     + '<button onclick="window.print()" style="margin-top:1rem;padding:0.5rem 1.5rem;cursor:pointer;">🖨️ Imprimer</button>'
-    + '</body></html>');
+    + '
+<script>
+/* ══════════════════════════════════════════════════════
+   AMBI241 PERF PATCH — QR Vote click fix + 300ms killer
+══════════════════════════════════════════════════════ */
+(function(){
+  /* 1. Kill 300ms tap delay globally */
+  var metaViewport = document.querySelector('meta[name="viewport"]');
+  if(metaViewport){
+    var content = metaViewport.getAttribute('content') || '';
+    if(content.indexOf('touch-action') === -1){
+      document.documentElement.style.touchAction = 'manipulation';
+    }
+  }
+
+  /* 2. After any renderAll() call, fix QR buttons in the DOM:
+     - Ensure their parent photo-wrapper has overflow:visible
+     - Ensure the button itself has proper z-index and touch-action
+     - Add an extra transparent click-capture overlay if needed */
+  function patchQrButtons(){
+    /* Defer to idle time to avoid blocking the main thread */
+    var _run = function(){
+    var btns = document.querySelectorAll('[onclick*="ambiQrOpenModal"],[onclick*="ambiQrGuestClick"]');
+    btns.forEach(function(btn){
+      /* Ensure touch-action:manipulation for instant tap */
+      btn.style.touchAction = 'manipulation';
+      btn.style.webkitTapHighlightColor = 'transparent';
+      btn.style.zIndex = '30';
+      btn.style.position = 'absolute';
+
+      /* Ensure the parent container doesn't clip the button */
+      var parent = btn.parentElement;
+      if(parent && parent.style.overflow === 'hidden'){
+        parent.style.overflow = 'visible';
+        /* Ensure the img inside is still visually clipped */
+        var img = parent.querySelector('img');
+        if(img && !img._ambiWrapped){
+          img._ambiWrapped = true;
+          var wrapper = document.createElement('div');
+          wrapper.style.cssText = 'position:absolute;inset:0;overflow:hidden;border-radius:18px 18px 0 0;pointer-events:none;';
+          img.style.display = 'block';
+          parent.insertBefore(wrapper, img);
+          wrapper.appendChild(img);
+          wrapper.style.pointerEvents = 'none';
+          img.style.pointerEvents = 'auto';
+        }
+      }
+
+      /* Add ontouchstart for immediate feedback (no 300ms wait) */
+      if(!btn._ambiTouchPatched){
+        btn._ambiTouchPatched = true;
+        btn.addEventListener('touchstart', function(e){
+          e.stopPropagation();
+        }, {passive:false});
+        btn.addEventListener('touchend', function(e){
+          e.preventDefault();
+          e.stopPropagation();
+          var onclickFn = btn.getAttribute('onclick');
+          if(onclickFn){
+            try{ (new Function('event', onclickFn))(e); }catch(err){}
+          }
+        }, {passive:false});
+      }
+    });
+    }; /* end _run */
+    if(window.requestIdleCallback){ requestIdleCallback(_run, {timeout:500}); }
+    else{ setTimeout(_run, 80); }
+  }
+
+  /* 3. Patch after every renderAll() call */
+  if(typeof window.renderAll === 'function'){
+    var _origRender = window.renderAll;
+    window.renderAll = function(){
+      _origRender.apply(this, arguments);
+      setTimeout(patchQrButtons, 200);
+    };
+  }
+
+  /* 4. Polling: patch once DOM is ready and again after 500ms, 1s, 2s */
+  function tryPatch(){
+    if(document.readyState !== 'loading'){
+      setTimeout(patchQrButtons, 1000);
+    } else {
+      document.addEventListener('DOMContentLoaded', function(){
+        setTimeout(patchQrButtons, 1000);
+      });
+    }
+  }
+  tryPatch();
+
+  /* Also hook renderAll if it's defined later */
+  var _hookRenderAttempts = 0;
+  var _hookRenderTimer = setInterval(function(){
+    _hookRenderAttempts++;
+    if(typeof window.renderAll === 'function' && !window._ambiQrRenderHooked){
+      window._ambiQrRenderHooked = true;
+      var _origRender2 = window.renderAll;
+      window.renderAll = function(){
+        _origRender2.apply(this, arguments);
+        setTimeout(patchQrButtons, 50);
+      };
+      clearInterval(_hookRenderTimer);
+    }
+    if(_hookRenderAttempts > 60) clearInterval(_hookRenderTimer);
+  }, 200);
+
+})();
+</script>
+
+</body></html>');
   w.document.close();
 };
 
@@ -49145,6 +49501,80 @@ function _clearNavBadge(nav) {
 }
 
 /* ── Exposer les helpers globalement ────────────────────────── */
+
+/* ══════════════════════════════════════════════════════════════
+   AMBI241 — TABLEAU DE BORD D'URGENCE ADMIN (icône 🛡️)
+   Auto-contenu, jamais affecté par les bugs de l'app principale
+══════════════════════════════════════════════════════════════ */
+function ambiEmergencyAdminOpen(){
+  var existing = document.getElementById("ambiEmergencyOverlay");
+  if(existing){ existing.remove(); return; }
+  var meta = ambiMaintGetMeta();
+  var overlay = document.createElement("div");
+  overlay.id = "ambiEmergencyOverlay";
+  overlay.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:rgba(10,4,20,0.97);display:flex;align-items:center;justify-content:center;";
+  overlay.innerHTML = "<div style='text-align:center;color:white;'><h2>AMBI241 Emergency Dashboard</h2><p>Emergency functions loaded</p><button onclick='document.getElementById(\"ambiEmergencyOverlay\").remove()' style='padding:10px 20px;margin-top:20px;'>Close</button></div>";
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', function(ev){ if(ev.target===overlay) overlay.remove(); });
+}
+
+window.ambiEmergencyAdminOpen = ambiEmergencyAdminOpen;
+
+function ambiEmergencyAction(type){
+  if(type === "save"){
+    var m = ambiMaintSaveSnapshot();
+    if(m){ alert("💾 Snapshot sauvegardé !\n"+m.date+" à "+m.time+"\n"+m.keys+" paramètres enregistrés."); }
+    else { alert("❌ Erreur lors de la sauvegarde."); }
+    document.getElementById("ambiEmergencyOverlay").remove();
+    ambiEmergencyAdminOpen(); // Refresh
+  } else if(type === "smart"){
+    if(!confirm("🔍 Scan & Reset Intelligent\n\nSupprime données temporaires, préserve config et comptes.\nL'app sera rechargée.\n\nConfirmer ?")) return;
+    var n = ambiMaintSmartReset();
+    alert("✅ "+n+" clés instables nettoyées. L'app va se recharger.");
+    setTimeout(function(){ location.reload(); }, 500);
+  } else if(type === "restore"){
+    var meta2 = ambiMaintGetMeta();
+    if(!meta2){ alert("❌ Aucun snapshot disponible."); return; }
+    if(!confirm("🔄 Restaurer le snapshot du "+meta2.date+" à "+meta2.time+" ?\n\nL'app sera rechargée.")) return;
+    var ok = ambiMaintRestoreSnapshot();
+    if(ok){ alert("✅ Snapshot restauré. Rechargement..."); setTimeout(function(){ location.reload(); }, 400); }
+    else { alert("❌ Erreur lors de la restauration."); }
+  } else if(type === "reload"){
+    if(!confirm("⚡ Rechargement forcé (cache vidé) ?\nAucune donnée supprimée.")) return;
+    if("caches" in window){ caches.keys().then(function(n){ n.forEach(function(nm){ caches.delete(nm); }); }); }
+    setTimeout(function(){ location.reload(true); }, 300);
+  }
+}
+window.ambiEmergencyAction = ambiEmergencyAction;
+
+function ambiEmergencyGoSettings(){
+  document.getElementById("ambiEmergencyOverlay").remove();
+  /* Ouvrir la section admin puis l'onglet paramètres */
+  if(typeof openAdminDashboard === "function"){
+    var admNav = document.querySelector("[data-nav='admin']");
+    if(admNav) openAdminDashboard(admNav);
+  } else if(typeof switchSection === "function"){
+    var admNav2 = document.querySelector("[data-nav='admin']");
+    switchSection("admin", admNav2);
+  }
+  setTimeout(function(){
+    if(typeof switchAdmTab === "function") switchAdmTab("settings");
+  }, 300);
+}
+window.ambiEmergencyGoSettings = ambiEmergencyGoSettings;
+
+function ambiEmergencyGoTab(tab){
+  document.getElementById("ambiEmergencyOverlay").remove();
+  if(typeof openAdminDashboard === "function"){
+    var admNav = document.querySelector("[data-nav='admin']");
+    if(admNav) openAdminDashboard(admNav);
+  }
+  setTimeout(function(){
+    if(typeof switchAdmTab === "function") switchAdmTab(tab);
+  }, 300);
+}
+window.ambiEmergencyGoTab = ambiEmergencyGoTab;
+
 window.ambiNavBadgeIncrement = _incrementNavBadge;
 window.ambiNavBadgeClear     = _clearNavBadge;
 window.ambiNavBadgeRender    = _renderNavBadges;
