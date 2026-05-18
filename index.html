@@ -735,13 +735,15 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 /* ══ LECTEUR SEMAINE — structure colonne ══ */
 #weekSongPlayer{
   position:fixed;bottom:54px;left:0;right:0;z-index:145;
-  background:rgba(13,3,20,0.97);
-  backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
+  /* PERF: fond opaque — supprime backdrop-filter coûteux */
+  background:#0d0314;
   border-top:1.5px solid rgba(255,45,155,0.3);
   display:none;flex-direction:column;
   box-shadow:0 -4px 24px rgba(0,0,0,0.7);
   animation:wspSlideUp 0.35s cubic-bezier(0.34,1.56,0.64,1);
   max-width:100vw;box-sizing:border-box;overflow:hidden;
+  /* PERF: couche GPU */
+  will-change:transform;transform:translateZ(0);
 }
 #weekSongPlayer.show{display:flex;}
 @keyframes wspSlideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -1541,7 +1543,12 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 .asm-new-post-cta:active{background:rgba(255,45,155,0.12);}
 
 /* HEADER */
-header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0.96);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,45,155,0.2);padding:0;width:100%;max-width:100vw;box-sizing:border-box;overflow:visible;display:flex;flex-direction:column;}
+header{position:fixed;top:0;left:0;right:0;z-index:100;
+  /* PERF: fond opaque — supprime le repaint backdrop-filter à chaque scroll */
+  background:#0d0014;
+  border-bottom:1px solid rgba(255,45,155,0.2);padding:0;width:100%;max-width:100vw;box-sizing:border-box;overflow:visible;display:flex;flex-direction:column;
+  /* PERF: couche GPU, pas de recalcul lors du scroll du contenu */
+  will-change:transform;transform:translateZ(0);contain:layout style;}
 .header-top{display:flex;align-items:center;justify-content:space-between;padding:0 0.5rem;height:56px;width:100%;}
 .header-guide-bar{display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.28rem 0.5rem;border-top:1px solid rgba(0,229,255,0.12);background:rgba(0,229,255,0.04);flex-wrap:wrap;}
 .header-guide-bar .guide-btn{flex:1;min-width:0;max-width:240px;justify-content:center;font-size:0.78rem;padding:0.3rem 0.8rem;border-radius:10px;text-align:center;}
@@ -2557,6 +2564,83 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .sc-cyan{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.2);}.sc-cyan .val{color:var(--cyan);}
 .sc-purple{background:rgba(204,68,255,0.1);border:1px solid rgba(204,68,255,0.2);}.sc-purple .val{color:var(--purple);}
 
+/* ══════════════════════════════════════════════════════════════
+   ══ BADGES NAVIGATION — Notification par onglet             ══
+   ══════════════════════════════════════════════════════════════ */
+.nav-notif-badge {
+  display: none;
+  position: absolute;
+  top: 3px;
+  right: calc(50% - 20px);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: var(--red);
+  color: #fff;
+  font-size: 0.48rem;
+  font-weight: 900;
+  font-family: 'Syne', sans-serif;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bg);
+  box-shadow: 0 0 8px rgba(255,68,102,0.7), 0 0 0 0 rgba(255,68,102,0.5);
+  z-index: 10;
+  pointer-events: none;
+  line-height: 1;
+}
+.nav-notif-badge.show {
+  display: flex;
+  animation: navBadgePop 0.35s cubic-bezier(0.34,1.56,0.64,1) both,
+             navBadgePulse 2s 0.35s ease-in-out infinite;
+}
+@keyframes navBadgePop {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+@keyframes navBadgePulse {
+  0%,100% { box-shadow: 0 0 8px rgba(255,68,102,0.7), 0 0 0 0 rgba(255,68,102,0.4); }
+  50%     { box-shadow: 0 0 12px rgba(255,68,102,0.9), 0 0 0 5px rgba(255,68,102,0); }
+}
+/* Badge Taxi — positionné en haut à droite du bouton flottant */
+.taxi-notif-badge {
+  top: -4px !important;
+  right: -4px !important;
+  min-width: 18px !important;
+  height: 18px !important;
+  font-size: 0.52rem !important;
+  border-width: 2.5px !important;
+}
+/* Nav item doit être position:relative pour que le badge s'y ancre */
+.nav-item { position: relative; }
+.taxi-btn-main { position: relative; }
+/* ── Effet flash de l'onglet quand il a un badge ── */
+.nav-item.has-badge .nav-icon {
+  animation: navIconFlash 1.8s ease-in-out infinite;
+}
+@keyframes navIconFlash {
+  0%,100% { filter: none; }
+  50%     { filter: drop-shadow(0 0 6px rgba(255,68,102,0.9)); }
+}
+
+/* PERF GLOBAL — supprime le délai 300ms sur tous les éléments interactifs */
+button,
+.fchip,.sort-btn,.view-btn,.filter-btn,.opt-btn,
+.igm-cat-btn,.igm-btn,.soc-fab,.soc-fab-item-btn,
+.cc-btn,.vote-btn,.notif-filter-btn,.hamburger-btn,
+[onclick]{
+  touch-action:manipulation;
+}
+
+/* PERF: réduire les animations sur appareils lents / mode économie d'énergie */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* SEARCH & FILTERS */
 .search-wrap{display:flex;align-items:center;gap:0.5rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,45,155,0.2);border-radius:12px;padding:0.6rem 0.9rem;margin-bottom:0.8rem;transition:border-color 0.2s;}
 .search-wrap:focus-within{border-color:rgba(255,45,155,0.5);}
@@ -3397,13 +3481,25 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   flex-shrink:0;
 }
 /* BOTTOM NAV */
-.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:650;background:rgba(13,0,20,0.97);backdrop-filter:blur(20px);border-top:1px solid rgba(255,45,155,0.15);display:flex;height:54px;padding:0 0.25rem;width:100%;box-sizing:border-box;overflow:hidden;}
-.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.1rem;cursor:pointer;color:var(--muted);font-size:0.52rem;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;padding:0.3rem;transition:color 0.2s,transform 0.15s;border:none;background:none;font-family:'DM Sans',sans-serif;-webkit-tap-highlight-color:transparent;user-select:none;}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:650;
+  /* PERF: fond opaque — supprime le coût de backdrop-filter à chaque frame */
+  background:#0d0014;
+  border-top:1px solid rgba(255,45,155,0.15);display:flex;height:54px;padding:0 0.25rem;width:100%;box-sizing:border-box;overflow:hidden;
+  /* PERF: couche GPU dédiée — pas de repaint lors du scroll */
+  will-change:transform;transform:translateZ(0);contain:layout style;}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.1rem;cursor:pointer;color:var(--muted);font-size:0.52rem;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;padding:0.3rem;
+  /* PERF: transition réduite + suppression du délai 300ms mobile */
+  transition:color 0.15s,transform 0.1s;border:none;background:none;font-family:'DM Sans',sans-serif;-webkit-tap-highlight-color:transparent;user-select:none;
+  touch-action:manipulation;}
 .nav-item:active{transform:scale(0.88);opacity:0.75;}
-.nav-item .nav-icon{font-size:1.1rem;transition:transform 0.2s;}
+.nav-item .nav-icon{font-size:1.1rem;transition:transform 0.15s;}
 .nav-item.active .nav-icon{transform:scale(1.18);}
 .nav-item.active{color:var(--pink);}
 .section-hidden{display:none;}
+/* PERF: éviter le rendu des sections hors-écran au chargement initial */
+.tab-pane:not(.active),[role="tabpanel"]:not([aria-selected="true"]):not(.active){
+  content-visibility:auto;
+}
 .loading-state{text-align:center;padding:3rem 1rem;color:var(--muted);}
 .loading-spin{font-size:2.5rem;animation:spin 1s linear infinite;display:inline-block;}
 .error-state{background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.2);border-radius:12px;padding:1rem;text-align:center;color:#ff6680;font-size:0.82rem;margin-bottom:1rem;}
@@ -5581,22 +5677,31 @@ textarea.soc-input{resize:vertical;min-height:80px;line-height:1.5;}
 /* ── Barre nav bottom (dupliqué ici pour démo) ── */
 .nav-bar{
   position:fixed;bottom:0;left:0;right:0;
-  background:rgba(26,10,40,0.97);backdrop-filter:blur(20px);
+  /* PERF: fond opaque — supprime le repaint du backdrop-filter à chaque frame */
+  background:#1a0a28;
   border-top:1px solid rgba(255,45,155,0.18);
   display:flex;padding:0.3rem 0 0.5rem;z-index:200;
+  /* PERF: promote to GPU layer, évite les repaints lors du scroll */
+  will-change:transform;
+  transform:translateZ(0);
+  contain:layout style;
 }
 .nav-item{
   flex:1;display:flex;flex-direction:column;align-items:center;
   gap:0.15rem;padding:0.3rem 0;cursor:pointer;
   color:var(--muted);font-size:0.55rem;font-weight:700;
   text-transform:uppercase;letter-spacing:0.06em;
-  transition:color 0.2s;
+  transition:color 0.15s;
+  /* PERF: supprime le délai 300ms mobile */
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+  user-select:none;
 }
 .nav-item.active{color:var(--pink);}
 .nav-icon{font-size:1.15rem;line-height:1;}
 .nav-active-dot{
   width:4px;height:4px;border-radius:50%;background:var(--pink);
-  opacity:0;transition:opacity 0.2s;
+  opacity:0;transition:opacity 0.15s;
 }
 .nav-item.active .nav-active-dot{opacity:1;}
 
@@ -9437,12 +9542,36 @@ window.closePhotoViewer = closePhotoViewer;
 </div>
 
 <nav class="bottom-nav">
-  <button class="nav-item active" onclick="switchSection('accueil',this)"><span class="nav-icon">&#127968;</span>Accueil</button>
-  <button class="nav-item" onclick="switchSection('etablissements',this)"><span class="nav-icon">&#128269;</span>Lieux</button>
-  <button class="nav-item" id="navProfilBtn" onclick="navHandleProfil(this)"><span class="nav-icon" id="navProfilIcon">&#128273;</span><span id="navProfilLabel">Connexion</span></button>
-  <button class="nav-item" onclick="switchSection('social',this)"><span class="nav-icon">👥</span>Forum</button>
-  <button class="nav-item" id="navPaiementsBtn" onclick="switchSection('paiements',this)"><span class="nav-icon">&#128179;</span>Paiements</button>
-  <button class="nav-item" id="navAdminSettings" style="display:none;" onclick="openAdminDashboard(this)"><span class="nav-icon">&#9881;</span>Paramètres</button>
+  <button class="nav-item active" data-nav="accueil" onclick="switchSection('accueil',this)">
+    <span class="nav-icon">&#127968;</span>
+    <span class="nav-notif-badge" id="navBadge-accueil"></span>
+    Accueil
+  </button>
+  <button class="nav-item" data-nav="etablissements" onclick="switchSection('etablissements',this)">
+    <span class="nav-icon">&#128269;</span>
+    <span class="nav-notif-badge" id="navBadge-etablissements"></span>
+    Lieux
+  </button>
+  <button class="nav-item" id="navProfilBtn" data-nav="profil" onclick="navHandleProfil(this)">
+    <span class="nav-icon" id="navProfilIcon">&#128273;</span>
+    <span class="nav-notif-badge" id="navBadge-profil"></span>
+    <span id="navProfilLabel">Connexion</span>
+  </button>
+  <button class="nav-item" data-nav="social" onclick="switchSection('social',this)">
+    <span class="nav-icon">👥</span>
+    <span class="nav-notif-badge" id="navBadge-social"></span>
+    Forum
+  </button>
+  <button class="nav-item" id="navPaiementsBtn" data-nav="paiements" onclick="switchSection('paiements',this)">
+    <span class="nav-icon">&#128179;</span>
+    <span class="nav-notif-badge" id="navBadge-paiements"></span>
+    Paiements
+  </button>
+  <button class="nav-item" id="navAdminSettings" data-nav="admin" style="display:none;" onclick="openAdminDashboard(this)">
+    <span class="nav-icon">&#9881;</span>
+    <span class="nav-notif-badge" id="navBadge-admin"></span>
+    Paramètres
+  </button>
 </nav>
 
 
@@ -18194,7 +18323,23 @@ function switchSection(name,btn){
     document.body.style.overflow = '';
   }
   requestAnimationFrame(function(){
-    SECS.forEach(function(s){document.getElementById("sec-"+s).classList.toggle("section-hidden",s!==name);});
+    /* ── BUG FIX CRITIQUE ──────────────────────────────────────────────────
+       SECS est une liste statique définie AVANT que sec-profil soit injecté
+       dynamiquement dans le DOM (via script ligne ~36872).
+       On recalcule la liste RÉELLE des sections à chaque appel pour inclure
+       tous les éléments id="sec-*" présents au moment du clic.
+    ──────────────────────────────────────────────────────────────────────── */
+    var liveSecs = Array.from(document.querySelectorAll('[id^="sec-"]'))
+                       .map(function(el){ return el.id.replace('sec-',''); });
+    /* Si la section demandée n'est pas encore dans le DOM, on attend un tick */
+    if(liveSecs.indexOf(name) === -1){
+      setTimeout(function(){ switchSection(name, null); }, 80);
+      return;
+    }
+    liveSecs.forEach(function(s){
+      var el = document.getElementById("sec-"+s);
+      if(el) el.classList.toggle("section-hidden", s !== name);
+    });
   });
   // ── LAZY LOADING : initialiser le module de la section si pas encore fait ──
   _lazyInitSection(name);
@@ -28973,6 +29118,7 @@ document.addEventListener('keydown',function(e){
     🚕
     <span class="taxi-btn-label">Taxi</span>
     <span class="taxi-badge">PRO</span>
+    <span class="nav-notif-badge taxi-notif-badge" id="navBadge-taxi"></span>
   </button>
 </div>
 
@@ -48643,6 +48789,200 @@ var _landing = document.getElementById('ambiQrScanLanding');
 if(_landing) _geoLandingObs.observe(_landing, { attributes:true, attributeFilter:['style','class'] });
 
 console.log('[AMBI241] ✅ Patch Géolocalisation vote QR chargé');
+
+})();
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════
+     SYSTÈME BADGES NAVIGATION — AMBI241
+     Redirige chaque notification vers l'onglet nav concerné
+     + bouton Taxi si c'est une notif taxi/chauffeur
+     ══════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+'use strict';
+
+/* ── Mapping clé de notif → onglet nav ──────────────────────────
+   Chaque entrée : motifs (substring/regex) → data-nav cible
+   Ordre = priorité (premier match gagne)
+──────────────────────────────────────────────────────────────── */
+var NAV_RULES = [
+  /* Taxi / Chauffeur */
+  { test: /taxi|chauffeur|course|reserv|conducteur|trajet|vtc|moto.?taxi/i, nav: 'taxi' },
+  /* Admin / Paramètres */
+  { test: /admin|paiement.*expire|abonnement|promoted_admin|sub_|new_demande/i, nav: 'admin' },
+  /* Social / Forum */
+  { test: /ami|friend|message|dm|communaut|social|post|like|comment|invitation|forum/i, nav: 'social' },
+  /* Profil */
+  { test: /profil|identit|avatar|welcome|bienvenu|member|compte/i, nav: 'profil' },
+  /* Lieux / Établissements */
+  { test: /etab|lieu|bar|resto|club|soiree|event|ouvert|ferm|ambiance|vote|qr/i, nav: 'etablissements' },
+  /* Paiements */
+  { test: /paiement|facture|xaf|prix|sub_expire|expir|renouvell/i, nav: 'paiements' },
+  /* Par défaut : accueil */
+  { test: /.*/, nav: 'accueil' }
+];
+
+/* ── Compteurs par onglet (persistés en session) ──────────────── */
+var _navBadgeCounts = {};
+try { _navBadgeCounts = JSON.parse(sessionStorage.getItem('ambi_nav_badges') || '{}'); } catch(e) {}
+
+/* ── Persistance session ──────────────────────────────────────── */
+function _saveBadgeCounts() {
+  try { sessionStorage.setItem('ambi_nav_badges', JSON.stringify(_navBadgeCounts)); } catch(e) {}
+}
+
+/* ── Trouver l'onglet cible d'une notif ─────────────────────── */
+function _resolveNav(notif) {
+  var haystack = ((notif.key||'') + ' ' + (notif.title||'') + ' ' + (notif.msg||'')).toLowerCase();
+  for (var i = 0; i < NAV_RULES.length; i++) {
+    if (NAV_RULES[i].test.test(haystack)) return NAV_RULES[i].nav;
+  }
+  return 'accueil';
+}
+
+/* ── Rendre les badges dans le DOM ──────────────────────────── */
+function _renderNavBadges() {
+  Object.keys(_navBadgeCounts).forEach(function(nav) {
+    var count = _navBadgeCounts[nav] || 0;
+    var badge = document.getElementById('navBadge-' + nav);
+    if (!badge) return;
+
+    if (count > 0) {
+      badge.textContent = count > 9 ? '9+' : String(count);
+      if (!badge.classList.contains('show')) {
+        badge.classList.add('show');
+      }
+      /* Ajouter l'effet flash sur l'icône */
+      var navBtn = badge.closest('.nav-item, .taxi-btn-main');
+      if (navBtn) navBtn.classList.add('has-badge');
+    } else {
+      badge.textContent = '';
+      badge.classList.remove('show');
+      var navBtn2 = badge.closest('.nav-item, .taxi-btn-main');
+      if (navBtn2) navBtn2.classList.remove('has-badge');
+    }
+  });
+}
+
+/* ── Incrémenter le badge d'un onglet ───────────────────────── */
+function _incrementNavBadge(nav) {
+  _navBadgeCounts[nav] = (_navBadgeCounts[nav] || 0) + 1;
+  _saveBadgeCounts();
+  _renderNavBadges();
+}
+
+/* ── Effacer le badge quand l'utilisateur ouvre l'onglet ──────
+   Hooke sur switchSection + openTaxiModal
+──────────────────────────────────────────────────────────────── */
+function _clearNavBadge(nav) {
+  if (!nav || !_navBadgeCounts[nav]) return;
+  _navBadgeCounts[nav] = 0;
+  _saveBadgeCounts();
+  _renderNavBadges();
+}
+
+/* ── Exposer les helpers globalement ────────────────────────── */
+window.ambiNavBadgeIncrement = _incrementNavBadge;
+window.ambiNavBadgeClear     = _clearNavBadge;
+window.ambiNavBadgeRender    = _renderNavBadges;
+
+/* ══ HOOK pushNotif ═══════════════════════════════════════════
+   On patche window.pushNotif APRÈS que le module principal
+   l'ait défini, via un MutationObserver / polling léger
+══════════════════════════════════════════════════════════════ */
+function _hookPushNotif() {
+  if (typeof window.pushNotif !== 'function') return false;
+  var _originalPushNotif = window.pushNotif;
+  window.pushNotif = function(opts) {
+    /* Appel original */
+    _originalPushNotif.apply(this, arguments);
+    /* Routage badge nav — uniquement si la notif est pour l'utilisateur courant */
+    var role = (typeof getUserRole === 'function') ? getUserRole() : 'visiteur';
+    var targetRole = opts.targetRole || opts.role || 'all';
+    var isTargeted = (targetRole === 'all') || (targetRole === role);
+    if (!isTargeted) return;
+    /* Incrémenter le badge de l'onglet concerné */
+    var nav = _resolveNav(opts);
+    /* Ne pas badger l'onglet actuellement actif */
+    var activeBtn = document.querySelector('.nav-item.active');
+    var activeNav = activeBtn ? activeBtn.getAttribute('data-nav') : null;
+    if (nav !== activeNav) {
+      _incrementNavBadge(nav);
+    }
+  };
+  return true;
+}
+
+/* ══ HOOK switchSection ═══════════════════════════════════════
+   Efface le badge quand l'utilisateur navigue vers un onglet
+══════════════════════════════════════════════════════════════ */
+function _hookSwitchSection() {
+  if (typeof window.switchSection !== 'function') return false;
+  var _originalSwitch = window.switchSection;
+  window.switchSection = function(name, btn) {
+    _originalSwitch.apply(this, arguments);
+    _clearNavBadge(name);
+  };
+  return true;
+}
+
+/* ══ HOOK openTaxiModal ═══════════════════════════════════════ */
+function _hookTaxiModal() {
+  if (typeof window.openTaxiModal !== 'function') return false;
+  var _origTaxi = window.openTaxiModal;
+  window.openTaxiModal = function() {
+    _origTaxi.apply(this, arguments);
+    _clearNavBadge('taxi');
+  };
+  return true;
+}
+
+/* ══ HOOK ambiShowIncomingCall ════════════════════════════════
+   Appel entrant → badge sur l'onglet Forum (ou taxi si caller
+   est identifié comme chauffeur)
+══════════════════════════════════════════════════════════════ */
+function _hookIncomingCall() {
+  if (typeof window.ambiShowIncomingCall !== 'function') return false;
+  var _origCall = window.ambiShowIncomingCall;
+  window.ambiShowIncomingCall = function(caller) {
+    _origCall.apply(this, arguments);
+    /* Déterminer si c'est un appel taxi ou social */
+    var callerName = (caller && caller.name) ? caller.name.toLowerCase() : '';
+    var nav = (callerName.indexOf('taxi') !== -1 || callerName.indexOf('chauffeur') !== -1 || callerName.indexOf('driver') !== -1)
+      ? 'taxi'
+      : 'social';
+    var activeBtn = document.querySelector('.nav-item.active');
+    var activeNav = activeBtn ? activeBtn.getAttribute('data-nav') : null;
+    if (nav !== activeNav) _incrementNavBadge(nav);
+  };
+  return true;
+}
+
+/* ── Polling pour hooker dès que les fonctions sont prêtes ── */
+var _hookAttempts = 0;
+var _hookTimer = setInterval(function() {
+  _hookAttempts++;
+  var allDone = true;
+  if (!window._ambiHooked_push    && _hookPushNotif())    window._ambiHooked_push    = true; else if (!window._ambiHooked_push)    allDone = false;
+  if (!window._ambiHooked_switch  && _hookSwitchSection()) window._ambiHooked_switch  = true; else if (!window._ambiHooked_switch)  allDone = false;
+  if (!window._ambiHooked_taxi    && _hookTaxiModal())     window._ambiHooked_taxi    = true; else if (!window._ambiHooked_taxi)    allDone = false;
+  if (!window._ambiHooked_call    && _hookIncomingCall())  window._ambiHooked_call    = true; else if (!window._ambiHooked_call)    allDone = false;
+
+  if (allDone || _hookAttempts > 80) {
+    clearInterval(_hookTimer);
+    /* Restaurer les badges de session au rechargement */
+    _renderNavBadges();
+    console.log('[AMBI241] ✅ Système badges nav chargé (' + _hookAttempts + ' tentatives)');
+  }
+}, 150);
+
+/* ── Restaurer les badges persistés dès que le DOM est prêt ─ */
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _renderNavBadges);
+} else {
+  _renderNavBadges();
+}
 
 })();
 </script>
