@@ -46834,116 +46834,8 @@ window.qrProImprimerFiche = function() {
     + '<img src="' + imgSrc + '" width="280" height="280">'
     + '<p class="url">' + url + '</p>'
     + '<button onclick="window.print()" style="margin-top:1rem;padding:0.5rem 1.5rem;cursor:pointer;">🖨️ Imprimer</button>'
-    + '
-<script>
-/* ══════════════════════════════════════════════════════
-   AMBI241 PERF PATCH — QR Vote click fix + 300ms killer
-══════════════════════════════════════════════════════ */
-(function(){
-  /* 1. Kill 300ms tap delay globally */
-  var metaViewport = document.querySelector('meta[name="viewport"]');
-  if(metaViewport){
-    var content = metaViewport.getAttribute('content') || '';
-    if(content.indexOf('touch-action') === -1){
-      document.documentElement.style.touchAction = 'manipulation';
-    }
-  }
-
-  /* 2. After any renderAll() call, fix QR buttons in the DOM:
-     - Ensure their parent photo-wrapper has overflow:visible
-     - Ensure the button itself has proper z-index and touch-action
-     - Add an extra transparent click-capture overlay if needed */
-  function patchQrButtons(){
-    /* Defer to idle time to avoid blocking the main thread */
-    var _run = function(){
-    var btns = document.querySelectorAll('[onclick*="ambiQrOpenModal"],[onclick*="ambiQrGuestClick"]');
-    btns.forEach(function(btn){
-      /* Ensure touch-action:manipulation for instant tap */
-      btn.style.touchAction = 'manipulation';
-      btn.style.webkitTapHighlightColor = 'transparent';
-      btn.style.zIndex = '30';
-      btn.style.position = 'absolute';
-
-      /* Ensure the parent container doesn't clip the button */
-      var parent = btn.parentElement;
-      if(parent && parent.style.overflow === 'hidden'){
-        parent.style.overflow = 'visible';
-        /* Ensure the img inside is still visually clipped */
-        var img = parent.querySelector('img');
-        if(img && !img._ambiWrapped){
-          img._ambiWrapped = true;
-          var wrapper = document.createElement('div');
-          wrapper.style.cssText = 'position:absolute;inset:0;overflow:hidden;border-radius:18px 18px 0 0;pointer-events:none;';
-          img.style.display = 'block';
-          parent.insertBefore(wrapper, img);
-          wrapper.appendChild(img);
-          wrapper.style.pointerEvents = 'none';
-          img.style.pointerEvents = 'auto';
-        }
-      }
-
-      /* Add ontouchstart for immediate feedback (no 300ms wait) */
-      if(!btn._ambiTouchPatched){
-        btn._ambiTouchPatched = true;
-        btn.addEventListener('touchstart', function(e){
-          e.stopPropagation();
-        }, {passive:false});
-        btn.addEventListener('touchend', function(e){
-          e.preventDefault();
-          e.stopPropagation();
-          var onclickFn = btn.getAttribute('onclick');
-          if(onclickFn){
-            try{ (new Function('event', onclickFn))(e); }catch(err){}
-          }
-        }, {passive:false});
-      }
-    });
-    }; /* end _run */
-    if(window.requestIdleCallback){ requestIdleCallback(_run, {timeout:500}); }
-    else{ setTimeout(_run, 80); }
-  }
-
-  /* 3. Patch after every renderAll() call */
-  if(typeof window.renderAll === 'function'){
-    var _origRender = window.renderAll;
-    window.renderAll = function(){
-      _origRender.apply(this, arguments);
-      setTimeout(patchQrButtons, 200);
-    };
-  }
-
-  /* 4. Polling: patch once DOM is ready and again after 500ms, 1s, 2s */
-  function tryPatch(){
-    if(document.readyState !== 'loading'){
-      setTimeout(patchQrButtons, 1000);
-    } else {
-      document.addEventListener('DOMContentLoaded', function(){
-        setTimeout(patchQrButtons, 1000);
-      });
-    }
-  }
-  tryPatch();
-
-  /* Also hook renderAll if it's defined later */
-  var _hookRenderAttempts = 0;
-  var _hookRenderTimer = setInterval(function(){
-    _hookRenderAttempts++;
-    if(typeof window.renderAll === 'function' && !window._ambiQrRenderHooked){
-      window._ambiQrRenderHooked = true;
-      var _origRender2 = window.renderAll;
-      window.renderAll = function(){
-        _origRender2.apply(this, arguments);
-        setTimeout(patchQrButtons, 50);
-      };
-      clearInterval(_hookRenderTimer);
-    }
-    if(_hookRenderAttempts > 60) clearInterval(_hookRenderTimer);
-  }, 200);
-
-})();
-</script>
-
-</body></html>');
+    + '<' + 'script>document.documentElement.style.touchAction="manipulation";<' + '/script>'
+    + '</body></html>');
   w.document.close();
 };
 
@@ -47618,7 +47510,7 @@ window.qrProPushFraude = function() {
    FIN QR ADMIN PRO
    ════════════════════════════════════════════════════════════════════ */
 
-──────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────── */
 function qrHookFunctions() {
   if (window._qrHookDone) return;
   window._qrHookDone = true;
@@ -49087,18 +48979,7 @@ window.addEventListener('resize', function(){ _$ = _$.bind(null); }, {passive:tr
    Log les tâches > 50ms dans la console pour identifier les goulots
    ───────────────────────────────────────────────────────────────────── */
 (function(){
-  if(!('PerformanceObserver' in window)) return;
-  try{
-    var _po = new PerformanceObserver(function(list){
-      list.getEntries().forEach(function(entry){
-        if(entry.duration > 100){
-          console.warn('[AMBI241 PERF] Long task détectée:', Math.round(entry.duration) + 'ms',
-            entry.attribution && entry.attribution[0] ? entry.attribution[0].name : '');
-        }
-      });
-    });
-    _po.observe({entryTypes:['longtask']});
-  }catch(e){}
+  /* Long task observer désactivé — warnings supprimés en production */
 })();
 
 /* ─────────────────────────────────────────────────────────────────────
