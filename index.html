@@ -20,22 +20,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://maps.googleapis.com" crossorigin>
-<!-- PERF: preconnect Firebase (upgrade depuis dns-prefetch) -->
-<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
-<link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
-<link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin>
+<link rel="dns-prefetch" href="https://firestore.googleapis.com">
+<link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com">
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
-<!-- PERF: modulepreload Firebase — browser télécharge les 4 modules dès le parsing du <head>,
-     avant même d'atteindre le <script type="module"> dans le body -->
-<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js">
-<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js">
-<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js">
-<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.1/firebase-storage.js">
 <!-- QR Code Vote System — bibliothèque QRCode.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
-        crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
-<!-- QR Scanner — jsQR (décodage QR via caméra, ~20 Ko) -->
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"
         crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
 <!-- PERF: Cormorant Garamond supprimé (6 variantes inutiles), Syne réduit à 700+800 -->
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Playfair+Display:wght@600;700;800&display=swap"
@@ -2730,49 +2719,8 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .prox-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
 .prox-dot-near{background:var(--green);box-shadow:0 0 8px rgba(0,255,170,0.7);animation:pulse 2s infinite;}
 .prox-dot-far{background:var(--muted);}
-/* Surbrillance carte proche — GPS actif */
-.card-prox-near{
-  border-color:rgba(0,255,170,0.45) !important;
-  box-shadow:0 0 0 1.5px rgba(0,255,170,0.18) inset, 0 4px 18px rgba(0,255,170,0.10);
-  background:linear-gradient(180deg,rgba(0,255,170,0.045) 0%,transparent 60%) !important;
-}
-
-/* Surbrillance carte même quartier/zone — recherche textuelle */
-.card-zone-match{
-  border-color:rgba(0,255,170,0.5) !important;
-  box-shadow:0 0 0 1.5px rgba(0,255,170,0.20) inset, 0 4px 20px rgba(0,255,170,0.12);
-  background:linear-gradient(180deg,rgba(0,255,170,0.055) 0%,transparent 65%) !important;
-}
-/* Badge "Près de toi" affiché sur les cartes zone-match */
-.zone-match-badge{
-  display:inline-flex;align-items:center;gap:0.25rem;
-  background:rgba(0,255,170,0.12);
-  border:1px solid rgba(0,255,170,0.38);
-  color:var(--green);
-  font-size:0.55rem;font-weight:800;
-  padding:0.09rem 0.38rem;border-radius:20px;
-  margin-left:0.35rem;vertical-align:middle;
-  letter-spacing:0.03em;text-transform:uppercase;
-  animation:zone-match-glow 2.5s ease-in-out infinite;
-}
-@keyframes zone-match-glow{
-  0%,100%{box-shadow:0 0 0 rgba(0,255,170,0);}
-  50%{box-shadow:0 0 8px rgba(0,255,170,0.35);}
-}
-/* Indicateur vert dans le coin de la photo */
-.card-zone-match .zone-corner-dot{
-  position:absolute;top:8px;left:8px;
-  width:9px;height:9px;border-radius:50%;
-  background:var(--green);
-  box-shadow:0 0 10px rgba(0,255,170,0.85);
-  animation:pulse 1.8s infinite;
-  z-index:5;
-}
-/* Surbrillance ligne compacte même quartier */
-.zone-match-row{
-  border-left:3px solid rgba(0,255,170,0.6) !important;
-  background:linear-gradient(90deg,rgba(0,255,170,0.055) 0%,transparent 40%) !important;
-}
+/* Surbrillance carte proche */
+.card-prox-near{border-color:rgba(0,255,170,0.28) !important;box-shadow:0 0 0 1px rgba(0,255,170,0.15) inset;}
 /* Badge GPS actif sur le bouton */
 .gps-nearby-btn.geo-method-active{background:linear-gradient(135deg,rgba(0,255,170,0.12),rgba(0,229,255,0.08));border-color:var(--green);color:var(--green);}
 /* Badge méthode */
@@ -5625,10 +5573,7 @@ textarea.soc-input{resize:vertical;min-height:80px;line-height:1.5;}
 /* ════════════════════════════════════════════════════════════════
    QR CODE VOTE SYSTEM — Styles (AMBI241 Patch)
    ════════════════════════════════════════════════════════════════ */
-.qr-card-icon{position:absolute;top:8px;right:8px;width:auto;min-width:32px;height:32px;padding:0 8px;background:linear-gradient(135deg,rgba(0,229,255,0.22),rgba(204,68,255,0.18));border:1.5px solid rgba(0,229,255,0.55);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;z-index:10;transition:all 0.2s cubic-bezier(0.34,1.56,0.64,1);backdrop-filter:blur(8px);font-size:0.95rem;box-shadow:0 2px 10px rgba(0,229,255,0.25);}
-.qr-card-icon-tooltip{font-family:'Syne',sans-serif;font-size:0.6rem;font-weight:800;color:#ffffff;text-shadow:0 1px 4px rgba(0,0,0,0.8);letter-spacing:0.02em;white-space:nowrap;}
-.qr-locked{background:linear-gradient(135deg,rgba(255,215,0,0.2),rgba(255,45,155,0.15));border-color:rgba(255,215,0,0.5);box-shadow:0 2px 10px rgba(255,215,0,0.2);}
-.qr-locked .qr-card-icon-tooltip{color:#ffd700;}
+.qr-card-icon{position:absolute;top:8px;right:8px;width:32px;height:32px;background:linear-gradient(135deg,rgba(0,229,255,0.18),rgba(204,68,255,0.15));border:1.5px solid rgba(0,229,255,0.45);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10;transition:all 0.2s cubic-bezier(0.34,1.56,0.64,1);backdrop-filter:blur(6px);font-size:0.95rem;}
 /* Fix: overflow:hidden + contain:layout sur .card clippait l'icône QR positionnée en absolute */
 .card{position:relative;overflow:visible !important;contain:style !important;}
 .qr-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.82);backdrop-filter:blur(14px);z-index:9990;display:none;align-items:center;justify-content:center;padding:1rem;}
@@ -5694,38 +5639,7 @@ textarea.soc-input{resize:vertical;min-height:80px;line-height:1.5;}
 .qr-adm-vote-fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--green));border-radius:10px;transition:width 0.6s ease;}
 .qr-adm-vote-count{font-family:'Syne',sans-serif;font-size:0.8rem;font-weight:800;color:var(--green);flex-shrink:0;min-width:28px;text-align:right;}
 .qr-adm-vote-delta{font-size:0.6rem;font-weight:700;color:var(--amber);flex-shrink:0;}
-
-/* ── AMBI241 QR PATCH v2 — styles ── */
-dans votre <style> principal,
-  juste après la règle .qr-adm-vote-delta existante (ligne ~5652).
-*/
 .qr-adm-live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px rgba(0,255,170,0.6);flex-shrink:0;animation:pulse 1.4s infinite;}
-
-/* ── SCANNER CAMÉRA QR ── */
-.qr-scanner-btn{width:100%;padding:0.75rem;border-radius:14px;border:1.5px solid rgba(0,229,255,0.5);background:linear-gradient(135deg,rgba(0,229,255,0.12),rgba(204,68,255,0.08));color:#00e5ff;font-family:'Syne',sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.5rem;transition:all 0.2s cubic-bezier(0.34,1.56,0.64,1);margin-bottom:0.6rem;box-shadow:0 4px 16px rgba(0,229,255,0.15);}
-.qr-scanner-btn:active{transform:scale(0.96);}
-.qr-scanner-btn.scanning{border-color:rgba(255,45,155,0.6);background:linear-gradient(135deg,rgba(255,45,155,0.12),rgba(204,68,255,0.10));color:#ff2d9b;animation:qrScanPulse 1.4s infinite;}
-@keyframes qrScanPulse{0%,100%{box-shadow:0 4px 16px rgba(255,45,155,0.15)}50%{box-shadow:0 4px 28px rgba(255,45,155,0.45)}}
-.qr-cam-overlay{display:none;position:fixed;inset:0;background:rgba(10,4,20,0.97);z-index:99999;flex-direction:column;align-items:center;justify-content:center;}
-.qr-cam-overlay.active{display:flex;}
-.qr-cam-header{position:absolute;top:0;left:0;right:0;padding:1rem 1.2rem;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(to bottom,rgba(10,4,20,0.95),transparent);}
-.qr-cam-title{font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:#fff0f8;}
-.qr-cam-close{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#fff0f8;width:36px;height:36px;border-radius:10px;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
-.qr-cam-viewport{position:relative;width:min(320px,88vw);height:min(320px,88vw);border-radius:20px;overflow:hidden;border:2px solid rgba(0,229,255,0.4);box-shadow:0 0 40px rgba(0,229,255,0.2);}
-.qr-cam-video{width:100%;height:100%;object-fit:cover;display:block;}
-.qr-cam-canvas{position:absolute;inset:0;width:100%;height:100%;opacity:0;pointer-events:none;}
-.qr-cam-frame{position:absolute;inset:0;pointer-events:none;}
-.qr-cam-frame::before,.qr-cam-frame::after{content:'';position:absolute;width:40px;height:40px;border-color:#00e5ff;border-style:solid;}
-.qr-cam-frame::before{top:12px;left:12px;border-width:3px 0 0 3px;border-radius:4px 0 0 0;}
-.qr-cam-frame::after{bottom:12px;right:12px;border-width:0 3px 3px 0;border-radius:0 0 4px 0;}
-.qr-cam-scan-line{position:absolute;left:12px;right:12px;height:2px;background:linear-gradient(90deg,transparent,#00e5ff,transparent);border-radius:2px;animation:qrScanLine 2s ease-in-out infinite;}
-@keyframes qrScanLine{0%{top:14px;opacity:0}10%{opacity:1}90%{opacity:1}100%{top:calc(100% - 16px);opacity:0}}
-.qr-cam-status{margin-top:1.2rem;font-family:'DM Sans',sans-serif;font-size:0.82rem;color:rgba(255,240,248,0.65);text-align:center;max-width:280px;line-height:1.5;}
-.qr-cam-status.success{color:#00ffaa;font-weight:700;}
-.qr-cam-status.error{color:#ff4466;}
-.qr-cam-torch{margin-top:0.8rem;background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.3);color:#ffd700;font-size:0.75rem;font-weight:700;padding:0.4rem 1rem;border-radius:20px;cursor:pointer;font-family:'DM Sans',sans-serif;}
-.qr-divider{display:flex;align-items:center;gap:0.6rem;margin:0.6rem 0;font-size:0.62rem;color:rgba(255,240,248,0.35);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;}
-.qr-divider::before,.qr-divider::after{content:'';flex:1;height:1px;background:rgba(255,255,255,0.07);}
 
 </style>
 
@@ -6280,54 +6194,6 @@ if (document.readyState === 'loading') {
 
 </head>
 <body>
-
-<!-- ══ SKELETON CHARGEMENT RAPIDE — visible immédiatement, masqué après DOMContentLoaded ══ -->
-<style>
-#ambi-splash{position:fixed;inset:0;z-index:99998;background:#1a0a28;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity 0.4s ease;}
-#ambi-splash.hide{opacity:0;pointer-events:none;}
-.splash-logo{font-family:'Syne',sans-serif;font-size:2rem;font-weight:900;color:#ff2d9b;letter-spacing:-0.04em;margin-bottom:0.4rem;}
-.splash-logo span{color:#00e5ff;}
-.splash-sub{font-size:0.75rem;color:#b088c0;margin-bottom:2rem;}
-.splash-cats{display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;width:min(320px,88vw);margin-bottom:2rem;}
-.splash-cat{border-radius:18px;padding:1.4rem 1rem;display:flex;flex-direction:column;align-items:center;gap:0.5rem;animation:skPulse 1.4s ease-in-out infinite;}
-.splash-cat:nth-child(1){background:rgba(66,133,244,0.25);animation-delay:0s;}
-.splash-cat:nth-child(2){background:rgba(52,168,83,0.25);animation-delay:0.15s;}
-.splash-cat:nth-child(3){background:rgba(251,188,5,0.25);animation-delay:0.3s;}
-.splash-cat:nth-child(4){background:rgba(155,81,224,0.25);animation-delay:0.45s;}
-.splash-cat-icon{font-size:1.8rem;}
-.splash-cat-label{font-family:'Syne',sans-serif;font-size:0.82rem;font-weight:700;color:rgba(255,255,255,0.6);}
-@keyframes skPulse{0%,100%{opacity:0.7}50%{opacity:1}}
-.splash-bar{width:180px;height:4px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;margin-bottom:0.6rem;}
-.splash-bar-fill{height:100%;background:linear-gradient(90deg,#ff2d9b,#00e5ff);border-radius:4px;animation:splashLoad 2s ease-in-out infinite;}
-@keyframes splashLoad{0%{width:0%;margin-left:0}60%{width:80%}100%{width:100%;margin-left:0}}
-.splash-tip{font-size:0.65rem;color:rgba(176,136,192,0.7);}
-</style>
-<div id="ambi-splash">
-  <div class="splash-logo">AMBI<span>241</span></div>
-  <div class="splash-sub">Ambiance Libreville en Direct</div>
-  <div class="splash-cats">
-    <div class="splash-cat"><div class="splash-cat-icon">🏙️</div><div class="splash-cat-label">Bar Terrasses</div></div>
-    <div class="splash-cat"><div class="splash-cat-icon">🍟</div><div class="splash-cat-label">Snacks</div></div>
-    <div class="splash-cat"><div class="splash-cat-icon">🍽️</div><div class="splash-cat-label">Restos & Pâtisseries</div></div>
-    <div class="splash-cat"><div class="splash-cat-icon">🎵</div><div class="splash-cat-label">Clubs</div></div>
-  </div>
-  <div class="splash-bar"><div class="splash-bar-fill"></div></div>
-  <div class="splash-tip">Chargement des données en direct...</div>
-</div>
-<script>
-// Masquer le splash dès que le DOM est prêt (contenu affiché)
-document.addEventListener('DOMContentLoaded', function() {
-  var splash = document.getElementById('ambi-splash');
-  if (splash) {
-    // Laisser 600ms pour que les premiers render se fassent
-    setTimeout(function() {
-      splash.classList.add('hide');
-      setTimeout(function() { splash.remove(); }, 450);
-    }, 600);
-  }
-});
-</script>
-<!-- ══ FIN SKELETON ══ -->
 
 <div id="user-profile-modal" class="user-profile-modal">
   <div class="profile-card-wrap">
@@ -7064,8 +6930,8 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
     <button class="user-btn" id="userLoginBtn" onclick="document.getElementById('userOverlay').classList.add('show')">&#128100;</button>
     <button class="admin-btn" id="adminBtn" onclick="toggleAdmin()" style="display:none;">&#128513;</button><button id="adminUnlockBtn" onclick="pinBuf='';updateDots();document.getElementById('pinOverlay').classList.add('show');" title="Acces Admin" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.3);color:rgba(255,255,255,1);font-size:0.72rem;width:26px;height:26px;min-width:26px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">&#128274;</button>
-    <!-- Bouton Installer masqué dans le header - bouton principal sur l'accueil -->
-    <button class="pwa-nav-btn" id="pwaNavBtn" onclick="installPWA()" title="Installer l'application" style="display:none!important;">&#128640; Installer</button>
+    <!-- ★ BOUTON INSTALLER PWA ★ -->
+    <button class="pwa-nav-btn" id="pwaNavBtn" onclick="installPWA()" title="Installer l'application">&#128640; Installer</button>
   </div>
   </div>
   <div class="header-guide-bar">
@@ -9217,7 +9083,7 @@ window.closePhotoViewer = closePhotoViewer;
 <!-- ══ FIREBASE SDK (module isolé) ══ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query, where, getDoc, addDoc, onSnapshot, serverTimestamp, limit, increment, arrayUnion, arrayRemove, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query, where, getDoc, addDoc, onSnapshot, serverTimestamp, limit, increment, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
 import { getStorage, ref, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-storage.js";
 
@@ -9234,16 +9100,6 @@ const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
-
-// ── Persistance OFFLINE : données chargées depuis IndexedDB au 2e visite ──
-// Les établissements s'affichent INSTANTANÉMENT, puis se synchronisent en fond
-enableIndexedDbPersistence(db).catch(function(err){
-  // FAILED_PRECONDITION = 2 onglets ouverts → ignoré, pas bloquant
-  // UNIMPLEMENTED = navigateur ne supporte pas → dégradation gracieuse
-  if(err && err.code !== 'failed-precondition' && err.code !== 'unimplemented'){
-    console.warn('[AMBI241] IndexedDB persistence:', err.code);
-  }
-});
 
 // ── Persistance locale : la session survit au refresh ──
 setPersistence(auth, browserLocalPersistence).catch(function(){});
@@ -12401,38 +12257,7 @@ function loadData(){
     setTimeout(loadData, 300);
     return;
   }
-
-  /* ── PERF: Stale-While-Revalidate — charge le cache localStorage IMMÉDIATEMENT,
-     puis Firebase en arrière-plan pour mettre à jour ── */
-  var ETAB_CACHE_KEY = 'ambi241_etab_cache_v2';
-  var ETAB_CACHE_TTL = 5 * 60 * 1000; // 5 minutes — après ça, on force Firebase
-  try {
-    var cached = JSON.parse(localStorage.getItem(ETAB_CACHE_KEY) || 'null');
-    if(cached && cached.data && cached.data.length > 0) {
-      var age = Date.now() - (cached.ts || 0);
-      // Afficher immédiatement depuis le cache
-      etablissements = cached.data;
-      rebuildPaiements();
-      etablissements.forEach(function(e){ applyDynamicStatus(e); });
-      renderStats(); renderAll(); renderHome(); renderPayments();
-      updateSyncTime();
-      if(typeof i18n !== "undefined") i18n.applyTranslations();
-      // Si cache récent, pas besoin de Firebase immédiatement
-      if(age < ETAB_CACHE_TTL) {
-        setSyncing(false);
-        // Quand même syncer Firebase en fond (silencieux)
-        setTimeout(function(){ _loadDataFromFirebase(true); }, 200);
-        return;
-      }
-    }
-  } catch(e) {}
-  // Pas de cache ou cache trop vieux → charger depuis Firebase normalement
-  _loadDataFromFirebase(false);
-}
-
-function _loadDataFromFirebase(silent){
-  if(!silent) setSyncing(true);
-  var ETAB_CACHE_KEY = 'ambi241_etab_cache_v2';
+  setSyncing(true);
   var q=window.fbQuery(window.fbCollection(window.db,"etablissements"),window.fbOrderBy("id"));
   window.fbGetDocs(q).then(function(snapshot){
     var firebaseData=[];
@@ -12447,12 +12272,10 @@ function _loadDataFromFirebase(silent){
         return true;
       });
       // ── Firebase est la source de vérité unique ──
+      // Les defaults servent UNIQUEMENT si Firebase est vide (première utilisation)
       etablissements = firebaseData;
-      // Sauvegarder en cache localStorage pour la prochaine visite
-      try {
-        localStorage.setItem(ETAB_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: firebaseData }));
-      } catch(e) {}
     } else {
+      // Firebase vide → fallback données locales
       etablissements = getDefaults();
     }
 
@@ -14417,11 +14240,6 @@ function filterData(){
     if(isAdmin) return ms&&mt;
     return ms&&mt&&mv;
   });
-
-  // ── Marquer les établissements dont le quartier correspond à la recherche ──
-  data.forEach(function(e){
-    e._zoneMatch = !!(q && q.length >= 2 && e.quartier && e.quartier.toLowerCase().indexOf(q) !== -1);
-  });
   // ── GPS : filtrer par rayon si mode actif ──
   if(typeof _gpsState !== "undefined" && _gpsState.active && _gpsState.lat !== null){
     data = filterByRadius(data);
@@ -15323,11 +15141,10 @@ function buildCompactRow(e, rank){
   var html = "";
 
   // ─ Ligne condensée ─
-  var rowZoneClass = e._zoneMatch ? " zone-match-row" : "";
-  html += "<div class='compact-row"+rowZoneClass+"' id='cr-"+e.id+"' onclick='toggleCompactDetail("+e.id+")'>";
+  html += "<div class='compact-row' id='cr-"+e.id+"' onclick='toggleCompactDetail("+e.id+")'>";
   html += "<div class='cr-rank "+rankCls+"'>"+rank+"</div>";
   html += "<div class='cr-icon'>"+ci.icon+"</div>";
-  html += "<div class='cr-name'>"+escHtml(e.nom)+(e._zoneMatch ? "<span class='zone-match-badge' style='margin-left:0.4rem;'>📍 Proche</span>" : "")+"</div>";
+  html += "<div class='cr-name'>"+escHtml(e.nom)+"</div>";
   if(statLabel) html += "<div class='cr-status "+statCls+"'>"+statLabel+"</div>";
   html += "<div class='cr-score'>⭐ "+note+"</div>";
   html += "<div class='cr-chevron'>▼</div>";
@@ -15410,20 +15227,6 @@ function buildCard(e,delay,compact,rank,extraClass){
   var aff=e.affluence||0;
   var affColor=aff>70?"var(--red)":aff>40?"var(--amber)":"var(--green)";
 
-  // ── Zone match : établissement du même quartier que la recherche ──
-  var isZoneMatch = !!(e._zoneMatch) && !extraClass.indexOf("card-prox-near") > -1;
-  if(isZoneMatch && extraClass.indexOf("card-zone-match") === -1){
-    extraClass = (extraClass ? extraClass+" " : "") + "card-zone-match";
-  }
-  // Badge "📍 Près de toi" affiché dans le nom quand zone match
-  var zoneMatchBadge = isZoneMatch
-    ? "<span class='zone-match-badge'>📍 Proche</span>"
-    : "";
-  // Point vert dans le coin de la photo
-  var zoneCornerDot = isZoneMatch
-    ? "<div class='zone-corner-dot'></div>"
-    : "";
-
   // Bandeau "Mon établissement" si épinglé (membre propriétaire)
   var pinnedBanner = "";
   if(e._isPinned && !isAdmin && currentUserEmail){
@@ -15481,8 +15284,6 @@ function buildCard(e,delay,compact,rank,extraClass){
   var displayedPhoto = (slotPhotos.length > 0) ? slotPhotos[0].url : (permPhoto || "");
   
   photosHtml += "<div style='position:relative;height:120px;overflow:hidden;background:rgba(255,45,155,0.06);cursor:pointer;'>";
-  // Point vert "zone proche" dans le coin de la photo
-  if(zoneCornerDot) photosHtml += zoneCornerDot;
   if(displayedPhoto){
     // Afficher la photo (slot ou permPhoto)
     var isSlotPhoto = slotPhotos.length > 0;
@@ -15954,7 +15755,7 @@ function buildCard(e,delay,compact,rank,extraClass){
     "<div class=\"card-top\">"+
     "<div class=\"card-row1\"><div>"+
     "<div class=\"card-num rank-"+(rank===1?'1':rank===2?'2':rank===3?'3':'other')+"\">N°"+(rank!=null?rank:e.id)+"</div>"+
-    "<div class=\"card-name\"><button class=\"etab-name-order-btn\" onclick=\"window['_etabOrderBtn_'+"+e.id+"] && window['_etabOrderBtn_'+"+e.id+"]()\" title=\"📋 Réserver à "+e.nom.replace(/"/g,'')+"\" style=\"font-family:'Syne',sans-serif;font-size:inherit;font-weight:inherit;\">"+e.nom+" <span class=\"etab-name-order-pulse\">+</span></button> <span onclick=\"openGalerie("+e.id+")\" title=\"Voir la galerie de "+(e.nom||"").replace(/"/g,'')+"\" style=\"cursor:pointer;display:inline-flex;align-items:center;gap:0.35rem;flex-wrap:wrap;transition:color 0.2s;\"><span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span>"+(e._distKm!=null?"<span class=\"dist-badge "+distClass(e._distKm)+"\">"+fmtDist(e._distKm)+"</span>":"")+zoneMatchBadge+"</span></div>"+
+    "<div class=\"card-name\"><button class=\"etab-name-order-btn\" onclick=\"window['_etabOrderBtn_'+"+e.id+"] && window['_etabOrderBtn_'+"+e.id+"]()\" title=\"📋 Réserver à "+e.nom.replace(/"/g,'')+"\" style=\"font-family:'Syne',sans-serif;font-size:inherit;font-weight:inherit;\">"+e.nom+" <span class=\"etab-name-order-pulse\">+</span></button> <span onclick=\"openGalerie("+e.id+")\" title=\"Voir la galerie de "+(e.nom||"").replace(/"/g,'')+"\" style=\"cursor:pointer;display:inline-flex;align-items:center;gap:0.35rem;flex-wrap:wrap;transition:color 0.2s;\"><span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span>"+(e._distKm!=null?"<span class=\"dist-badge "+distClass(e._distKm)+"\">"+fmtDist(e._distKm)+"</span>":"")+"</span></div>"+
     "<span class=\"cat-badge "+ci.badge+"\" style=\"cursor:pointer;\" onclick=\"goToTypeFilter('"+getCategory(e.type)+"')\" title=\"Filtrer par "+ci.label+"\">"+ci.icon+" "+ci.label+"</span>"+
     "<div style=\"font-size:0.7rem;color:var(--cyan);margin-top:0.2rem;cursor:pointer;display:inline-flex;align-items:center;gap:0.2rem;\" onclick=\"goToQuartier('"+e.quartier.replace(/'/g,"")+"')\">&#128205; "+e.quartier+"<span style='font-size:0.55rem;opacity:0.6;'> ›</span></div>"+
     "</div>"+(e.statut ? "<span class=\"status-pill "+sc+"\">"+e.statut+"</span>" : "")+"</div>"+
@@ -17113,45 +16914,19 @@ function renderAllImmediate(){
         html+="</div>";
       }
     } else {
-      // Vérifier s'il y a des zone-match (recherche par quartier)
-      var zoneMatches = data.filter(function(e){ return e._zoneMatch; });
-      var nonZoneMatches = data.filter(function(e){ return !e._zoneMatch; });
-      var hasZoneFilter = zoneMatches.length > 0 && zoneMatches.length < data.length;
-
-      if(hasZoneFilter){
-        // Afficher les proches en premier avec un mini-header
-        var q2 = document.getElementById("searchInput").value.trim();
-        html += "<div class=\"proximity-section-header prox-near\" style='margin-bottom:0.55rem;'>"
-              + "<div class=\"prox-dot prox-dot-near\"></div>"
-              + "&#127381; " + zoneMatches.length + " lieu" + (zoneMatches.length > 1 ? "x" : "") + " dans ce quartier"
-              + "<span style='margin-left:auto;font-size:0.6rem;font-weight:400;color:rgba(0,255,170,0.7);'>"+q2+"</span>"
-              + "</div>";
-        html += "<div class=\"cards-list\">";
-        zoneMatches.forEach(function(e,i){ html += buildCard(e, i*0.02, false, i+1); });
-        html += "</div>";
-        if(nonZoneMatches.length > 0){
-          html += "<div class=\"proximity-section-header prox-far\" style='margin-top:0.55rem;margin-bottom:0.55rem;'>"
-                + "<div class=\"prox-dot prox-dot-far\"></div>"
-                + "&#128205; " + nonZoneMatches.length + " autre" + (nonZoneMatches.length > 1 ? "s" : "") + " lieu" + (nonZoneMatches.length > 1 ? "x" : "")
-                + "</div>";
-          html += "<div class=\"cards-list\">";
-          nonZoneMatches.forEach(function(e,i){ html += buildCard(e, i*0.02, false, zoneMatches.length+i+1); });
-          html += "</div>";
-        }
-      } else {
-        var PAGE = 20;
-        var shown = data.slice(0, PAGE);
-        var rest  = data.length - PAGE;
-        html+="<div class=\"cards-list\">";
-        shown.forEach(function(e,i){html+=buildCard(e,i*0.02,false,i+1);});
-        html+="</div>";
-        if(rest > 0){
-          html += '<div style="text-align:center;padding:1rem 0;">'
-            +'<button onclick="renderAllPaged('+PAGE+','+data.length+')" style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;padding:0.55rem 1.4rem;border-radius:100px;cursor:pointer;">Voir '+rest+' lieux de plus ↓</button>'
-            +'</div>';
-        }
+      var PAGE = 20;
+      var shown = data.slice(0, PAGE);
+      var rest  = data.length - PAGE;
+      html+="<div class=\"cards-list\">";
+      shown.forEach(function(e,i){html+=buildCard(e,i*0.02,false,i+1);});
+      html+="</div>";
+      if(rest > 0){
+        html += '<div style="text-align:center;padding:1rem 0;">'
+          +'<button onclick="renderAllPaged('+PAGE+','+data.length+')" style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;padding:0.55rem 1.4rem;border-radius:100px;cursor:pointer;">Voir '+rest+' lieux de plus ↓</button>'
+          +'</div>';
       }
     }
+  } else {
     if(gpsActive){
       // GPS actif : d'abord une section "Proches de vous" toutes catégories mélangées, puis par catégorie
       data = sortGpsData(data);
@@ -17196,26 +16971,6 @@ function renderAllImmediate(){
       var catHtml="";
       // Compteur global pour numérotation continue entre catégories
       var globalRank=0;
-
-      // ── Zone-match : si recherche par quartier, afficher les proches en tête ──
-      var zmItems = data.filter(function(e){ return e._zoneMatch; });
-      var zmHasPartial = zmItems.length > 0 && zmItems.length < data.length;
-      if(zmHasPartial){
-        var q3 = document.getElementById("searchInput").value.trim();
-        catHtml += "<div class=\"proximity-section-header prox-near\" style='margin-bottom:0.55rem;'>"
-                 + "<div class=\"prox-dot prox-dot-near\"></div>"
-                 + "&#127381; " + zmItems.length + " lieu" + (zmItems.length > 1 ? "x" : "") + " dans ce quartier"
-                 + "<span style='margin-left:auto;font-size:0.6rem;font-weight:400;color:rgba(0,255,170,0.7);'>"+q3+"</span>"
-                 + "</div>";
-        catHtml += "<div class=\"cards-list\">";
-        zmItems.forEach(function(e,i){ globalRank++; catHtml += buildCard(e, i*0.03, false, globalRank); });
-        catHtml += "</div>";
-        catHtml += "<div class=\"proximity-section-header prox-far\" style='margin-top:0.55rem;margin-bottom:0.55rem;'>"
-                 + "<div class=\"prox-dot prox-dot-far\"></div>"
-                 + "Autres lieux contenant cette recherche"
-                 + "</div>";
-      }
-
       CATEGORIES.forEach(function(cat){
         if(groups[cat.key]&&groups[cat.key].length>0){
           // ── Tri par score à l'intérieur de chaque catégorie ──
@@ -25131,52 +24886,10 @@ window.doAssignEtab = doAssignEtab;
 
       <!-- ══ Votes QR Code — Temps Réel ══ -->
       <div id="admpanel-qrvotes" class="adm-panel" style="display:none;">
-        <div id="ambiQrAdminDashboard" class="qr-adm-dashboard">
-  <div class="qr-adm-dashboard-title">
-    <span>📱 Votes QR — Tableau de bord</span>
-    <button class="qr-adm-refresh-btn" onclick="ambiQrRefreshAdminVotes()">🔄 Actualiser</button>
-  </div>
-
-  <!-- KPIs globaux -->
-  <div class="qr-adm-kpi-row">
-    <div class="qr-adm-kpi">
-      <div class="qr-adm-kpi-val" id="qrAdmKpiTotal">—</div>
-      <div class="qr-adm-kpi-lbl">Votes total</div>
-    </div>
-    <div class="qr-adm-kpi" style="border:1px solid rgba(0,229,255,0.2);">
-      <div class="qr-adm-kpi-val" id="qrAdmKpiCam" style="color:#00e5ff;">—</div>
-      <div class="qr-adm-kpi-lbl">📷 Scans cam.</div>
-    </div>
-    <div class="qr-adm-kpi">
-      <div class="qr-adm-kpi-val" id="qrAdmKpiPos" style="color:#00ffaa;">—</div>
-      <div class="qr-adm-kpi-lbl">👍 Positifs</div>
-    </div>
-    <div class="qr-adm-kpi">
-      <div class="qr-adm-kpi-val" id="qrAdmKpiEtabs" style="color:#cc44ff;">—</div>
-      <div class="qr-adm-kpi-lbl">Établissements votés</div>
-    </div>
-  </div>
-
-  <!-- Classement par votes QR -->
-  <div class="qr-adm-section-title">🏆 Classement par votes QR (ce mois)</div>
-  <div id="qrAdminVotesList">
-    <div style="text-align:center;padding:1rem;font-size:0.72rem;color:rgba(255,240,248,0.3);">Chargement…</div>
-  </div>
-
-  <!-- Votes récents en temps réel -->
-  <div class="qr-adm-section-title">⏱ Votes récents (temps réel)</div>
-  <div class="qr-adm-recent-votes" id="qrAdmRecentVotes">
-    <div style="text-align:center;padding:0.5rem;font-size:0.68rem;color:rgba(255,240,248,0.3);">Aucun vote récent</div>
-  </div>
-
-  <!-- Actions admin -->
-  <div class="qr-adm-action-row">
-    <button class="qr-adm-action-btn primary" onclick="ambiQrAdmExportCSV()">📊 Export CSV</button>
-    <button class="qr-adm-action-btn" onclick="ambiQrAdmResetMonth()">🗑 Reset mois</button>
-    <button class="qr-adm-action-btn" onclick="ambiQrAdmForceReclassement()">🔄 Recalc. classement</button>
-  </div>
-</div>
-        Votes QR Code — Temps Réel
+        <div id="qrAdminVotesPanel" class="qr-admin-votes-panel">
+          <div class="qr-admin-votes-title">
+            <div class="qr-adm-live-dot"></div>
+            Votes QR Code — Temps Réel
             <button onclick="ambiQrRefreshAdminVotes()" style="margin-left:auto;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);color:var(--cyan);font-size:0.6rem;font-weight:700;padding:0.18rem 0.5rem;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;">🔄 Actualiser</button>
           </div>
           <div id="qrAdminVotesList">
@@ -28050,8 +27763,9 @@ var _pwaIsStandalone = window.matchMedia('(display-mode: standalone)').matches |
 
 /* Afficher / masquer les boutons navbar et hero */
 function _pwaShowInstallBtns(show){
-  // navBtn header supprimé (répétitif) — seul le bouton hero d'accueil est affiché
+  var navBtn = document.getElementById('pwaNavBtn');
   var heroBtn = document.getElementById('installPwaBtn');
+  if(navBtn){ navBtn.classList.toggle('show', show); }
   if(heroBtn){ heroBtn.style.display = show ? 'inline-flex' : 'none'; }
 }
 
@@ -39558,13 +39272,8 @@ window.openDM = function(uid){
     if(typeof socToast==='function') socToast('🔒 Connectez-vous pour envoyer un message');
     return;
   }
-
-  /* ── FIX : ne plus bloquer si l'ami n'est pas encore dans _friends
-     (liste peut être en cours de chargement Firebase) ── */
   var friend = (_friends||[]).find(function(x){ return x.uid===uid; });
-  // Si introuvable dans _friends, on crée un objet minimal et on continue
-  // Le nom réel sera chargé depuis Firestore si disponible
-  var friendResolved = friend || { uid: uid, name: null, avatar: null };
+  if(!friend){ if(typeof socToast==='function') socToast('⚠️ Ami introuvable'); return; }
 
   if(typeof _dmUnsub==='function'){ _dmUnsub(); _dmUnsub=null; }
 
@@ -39573,22 +39282,9 @@ window.openDM = function(uid){
 
   var avEl=document.getElementById('dmPeerAv');
   var nameEl=document.getElementById('dmPeerName');
-
-  // Affichage provisoire en attendant le chargement du nom
-  if(avEl)   avEl.textContent = friendResolved.avatar || (friendResolved.name ? friendResolved.name[0].toUpperCase() : '?');
-  if(nameEl) nameEl.textContent = friendResolved.name || '…';
-
-  // Charger le nom depuis Firestore si pas dans _friends
-  if(!friend && window.db && window.fbDoc && window.fbGetDoc){
-    window.fbGetDoc(window.fbDoc(window.db,'users',uid)).then(function(snap){
-      if(snap && (typeof snap.exists==='function' ? snap.exists() : snap.exists)){
-        var d = snap.data()||{};
-        var n = d.pseudo||d.displayName||d.nom||d.email||'Membre';
-        if(nameEl) nameEl.textContent = n;
-        if(avEl)   avEl.textContent   = (n[0]||'?').toUpperCase();
-      }
-    }).catch(function(){});
-  }
+  var peerName = friend.name||friend.pseudo||'Inconnu';
+  if(avEl)   avEl.textContent   = friend.avatar || (peerName[0]||'?').toUpperCase();
+  if(nameEl) nameEl.textContent = peerName;
 
   var inp=document.getElementById('dmInput');
   if(inp) inp.value='';
@@ -39648,16 +39344,12 @@ window.dmSend = function(){
   var txt=inp.value.trim(); if(!txt||txt.length>500) return;
   var meUid=window.currentUserUID;
   if(!meUid){ if(typeof socToast==='function') socToast('🔒 Connexion requise'); return; }
-
-  /* ── FIX : vérifier Firebase AVANT d'effacer le texte ── */
-  if(!window.db||!window.fbAddDoc||!window.fbCollection||!window.fbSetDoc||!window.fbDoc||!window.fbServerTimestamp){
-    if(typeof socToast==='function') socToast('⚠️ Firebase non disponible — réessayez dans un instant');
-    return; // texte conservé dans l'input
-  }
-
   var btn=document.getElementById('dmSendBtn'); if(btn) btn.disabled=true;
-  inp.value=''; // effacer seulement si Firebase est OK
-
+  inp.value='';
+  if(!window.db||!window.fbAddDoc||!window.fbCollection||!window.fbSetDoc||!window.fbDoc||!window.fbServerTimestamp){
+    if(typeof socToast==='function') socToast('⚠️ Firebase non disponible');
+    if(btn) btn.disabled=false; return;
+  }
   var ts=window.fbServerTimestamp();
   var msgData={ from:meUid, fromName:window.currentUserPseudo||window.currentUserEmail||'Moi', to:_dmCurrentUid, text:txt, sentAt:ts };
   window.fbAddDoc(window.fbCollection(window.db,'dm_conversations',_dmCurrentConvId,'messages'), msgData)
@@ -39668,10 +39360,7 @@ window.dmSend = function(){
       if(btn) btn.disabled=false;
     }).catch(function(e){
       console.warn('[DM] send error',e);
-      /* ── FIX : restaurer le texte en cas d'erreur ── */
-      if(inp && !inp.value) inp.value=txt;
-      if(typeof socToast==='function') socToast('❌ Erreur envoi : '+(e.message||'réessayez'));
-      if(btn) btn.disabled=false;
+      if(typeof socToast==='function') socToast('❌ Erreur : '+(e.message||'')); if(btn) btn.disabled=false;
     });
 };
 window.dmSend=window.dmSend;
@@ -43190,26 +42879,8 @@ console.log('[AMBI241] ✅ Patch v4 — Firebase admin retry + performance mobil
 
 <!-- ═══════════════════════════════════════════════════════════════════
      PATCH AMBI241 — Ajout Rapide Établissement (Admin Pro)
-     À insérer juste avant 
-<!-- ══ AMBI241 — QR Scanner Caméra ══ -->
-<div id="ambiQrCamOverlay" class="qr-cam-overlay" role="dialog" aria-modal="true" aria-label="Scanner QR Code">
-  <div class="qr-cam-header">
-    <div class="qr-cam-title">📷 Scanner un QR Vote</div>
-    <button class="qr-cam-close" onclick="ambiQrCloseScanner()" aria-label="Fermer">✕</button>
-  </div>
-  <div class="qr-cam-viewport">
-    <video id="ambiQrVideo" class="qr-cam-video" playsinline autoplay muted></video>
-    <canvas id="ambiQrCanvas" class="qr-cam-canvas"></canvas>
-    <div class="qr-cam-frame">
-      <div class="qr-cam-scan-line"></div>
-    </div>
-  </div>
-  <div class="qr-cam-status" id="ambiQrCamStatus">Pointez la caméra vers le QR Code AMBI241</div>
-  <button class="qr-cam-torch" id="ambiQrTorchBtn" style="display:none" onclick="ambiQrToggleTorch()">🔦 Lampe torche</button>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════════════════ -->
-</body>
+     À insérer juste avant </body> dans index.html
+     ═══════════════════════════════════════════════════════════════════ -->
 
 <!-- ── STYLES ── -->
 <style>
@@ -44409,15 +44080,10 @@ console.log('[AMBI241] ✅ Patch Ajout Rapide Admin chargé');
     <div class="qr-etab-info">
       <div class="qr-etab-name" id="qrModalEtabName">—</div>
       <div class="qr-etab-sub" id="qrModalEtabType"></div>
-      <div style="display:flex;align-items:center;gap:0.5rem;justify-content:center;flex-wrap:wrap;margin-top:0.5rem;">
-        <div class="qr-vote-counter" id="qrModalVoteCounter">
-          <div class="qr-adm-live-dot"></div>
-          <span class="qr-vote-counter-num" id="qrModalVoteNum">0</span>
-          <span>votes QR ce mois</span>
-        </div>
-        <div class="qr-ranking-badge" id="qrModalRankingBadge" style="display:none;">
-          🏆 <span id="qrModalRankPos">—</span> au classement
-        </div>
+      <div class="qr-vote-counter" id="qrModalVoteCounter">
+        <div class="qr-adm-live-dot"></div>
+        <span class="qr-vote-counter-num" id="qrModalVoteNum">0</span>
+        <span>votes QR ce mois</span>
       </div>
     </div>
 
@@ -44426,191 +44092,73 @@ console.log('[AMBI241] ✅ Patch Ajout Rapide Admin chargé');
       <div class="qr-center-logo">AMBI<br>241</div>
     </div>
 
-    <!-- ── SECTION A : Visiteur non-inscrit ── -->
-    <div id="qrSectionGuest" class="qr-section-guest">
-      <div class="qr-signup-wall">
-        <div class="qr-signup-wall-icon">🔐</div>
-        <div class="qr-signup-wall-title">Inscription requise pour voter</div>
-        <div class="qr-signup-wall-desc">
-          Rejoignez la communauté AMBI241 gratuitement pour voter et influencer le classement des établissements.
-        </div>
-        <button class="qr-signup-wall-btn" onclick="ambiQrGoToSignup()">
-          ✨ S'inscrire gratuitement
+    <div id="qrModalVoteSection">
+      <div style="font-size:0.62rem;color:var(--muted);text-align:center;margin-bottom:0.5rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Vote rapide sans scanner</div>
+      <div class="qr-vote-strip">
+        <button class="qr-vote-quick-btn qr-vote-pos" id="qrModalVotePosBtn" onclick="ambiQrCastVoteInline('pos')">
+          👍 Top ambiance !
         </button>
-      </div>
-      <div class="qr-instructions" style="font-size:0.65rem;color:rgba(255,240,248,0.5);">
-        📲 Les votes influencent le classement public en temps réel.
-      </div>
-    </div>
-
-    <!-- ── SECTION B : Membre inscrit (vote unique par mois) ── -->
-    <div id="qrSectionMember" class="qr-section-member">
-      <div id="qrMemberVoteArea">
-        <div style="font-size:0.62rem;color:var(--muted,#b088c0);text-align:center;margin-bottom:0.5rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Vote rapide sans scanner</div>
-        <div class="qr-vote-strip">
-          <button class="qr-vote-quick-btn qr-vote-pos" id="qrModalVotePosBtn" onclick="ambiQrCastVoteInline('pos')">
-            👍 Top ambiance !
-          </button>
-          <button class="qr-vote-quick-btn qr-vote-neg" id="qrModalVoteNegBtn" onclick="ambiQrCastVoteInline('neg')">
-            👎 Déçu…
-          </button>
-        </div>
-        <div class="qr-divider">ou scanner un QR code</div>
-        <button class="qr-scanner-btn" id="qrScannerOpenBtn" onclick="ambiQrOpenScanner()">
-          📷 Scanner le QR d'un établissement
+        <button class="qr-vote-quick-btn qr-vote-neg" id="qrModalVoteNegBtn" onclick="ambiQrCastVoteInline('neg')">
+          👎 Déçu…
         </button>
-      </div>
-      <div id="qrMemberAlreadyVoted" style="display:none;text-align:center;padding:0.7rem 0;">
-        <div class="qr-already-voted">✅ Vote enregistré ce mois · Merci !</div>
-        <div style="font-size:0.62rem;color:rgba(255,240,248,0.4);margin-top:0.4rem;">Revenez le mois prochain pour voter à nouveau.</div>
       </div>
       <div id="qrModalVoteConfirm" class="qr-vote-confirm">
         <div class="qr-vote-confirm-icon">🎉</div>
         <div class="qr-vote-confirm-title">Vote enregistré !</div>
         <div class="qr-vote-confirm-msg" id="qrModalVoteConfirmMsg">Merci ! L'établissement a été notifié.</div>
       </div>
-      <div class="qr-instructions" style="margin-top:0.6rem;">
-        📲 <strong>Voter par QR Code :</strong><br>
-        Scannez le code avec l'appareil photo de votre smartphone pour voter directement. Chaque vote améliore la position de l'établissement au classement public.
-      </div>
     </div>
 
-    <!-- ── SECTION C : Propriétaire de l'établissement ── -->
-    <div id="qrSectionOwner" class="qr-section-owner">
+    <div class="qr-instructions">
+      📲 <strong>Comment voter par QR Code :</strong><br>
+      1. Imprimez ce QR et affichez-le dans votre établissement<br>
+      2. Les clients le scannent avec leur smartphone<br>
+      3. Chaque scan-vote améliore votre position au classement<br>
+      4. Vous recevez une notification pour chaque vote comptabilisé
+    </div>
 
-      <!-- Stats pro -->
-      <div class="qr-owner-panel">
-        <div class="qr-owner-panel-title">📊 Mes statistiques de vote</div>
-        <div class="qr-owner-stats">
-          <div class="qr-owner-stat">
-            <div class="qr-owner-stat-val total" id="ownerStatTotal">0</div>
-            <div class="qr-owner-stat-lbl">Total votes</div>
-          </div>
-          <div class="qr-owner-stat">
-            <div class="qr-owner-stat-val pos" id="ownerStatPos">0</div>
-            <div class="qr-owner-stat-lbl">👍 Positifs</div>
-          </div>
-          <div class="qr-owner-stat">
-            <div class="qr-owner-stat-val neg" id="ownerStatNeg">0</div>
-            <div class="qr-owner-stat-lbl">👎 Négatifs</div>
-          </div>
-        </div>
-
-        <!-- Vote du propriétaire pour lui-même -->
-        <button class="qr-owner-vote-self" id="ownerSelfVoteBtn" onclick="ambiQrOwnerSelfVote()">
-          ⭐ Voter pour mon établissement
+    <div class="qr-dl-section">
+      <div class="qr-dl-label">📥 Télécharger pour affichage</div>
+      <div class="qr-dl-row">
+        <button class="qr-dl-btn" onclick="ambiQrDownload('a4')">
+          <span class="qr-dl-btn-icon">📄</span>
+          <span>Format A4</span>
+          <span class="qr-dl-btn-fmt">21×29,7 cm</span>
         </button>
-        <div id="ownerSelfVoteDone" style="display:none;text-align:center;font-size:0.68rem;color:#00ffaa;padding:0.3rem;">
-          ✅ Vote propriétaire enregistré ce mois
-        </div>
-      </div>
-
-      <!-- Vote rapide -->
-      <div id="qrOwnerVoteStrip">
-        <div style="font-size:0.62rem;color:var(--muted,#b088c0);text-align:center;margin-bottom:0.5rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Tester le vote client</div>
-        <div class="qr-vote-strip">
-          <button class="qr-vote-quick-btn qr-vote-pos" id="qrOwnerVotePosBtn" onclick="ambiQrCastVoteInline('pos', true)">
-            👍 Top ambiance !
-          </button>
-          <button class="qr-vote-quick-btn qr-vote-neg" id="qrOwnerVoteNegBtn" onclick="ambiQrCastVoteInline('neg', true)">
-            👎 Déçu…
-          </button>
-        </div>
-      </div>
-
-      <!-- Téléchargement QR -->
-      <div class="qr-dl-section">
-        <div class="qr-dl-label">📥 Télécharger pour affichage dans mon établissement</div>
-        <div class="qr-dl-row">
-          <button class="qr-dl-btn" onclick="ambiQrDownload('a4')">
-            <span class="qr-dl-btn-icon">📄</span>
-            <span>Format A4</span>
-            <span class="qr-dl-btn-fmt">21×29,7 cm</span>
-          </button>
-          <button class="qr-dl-btn" onclick="ambiQrDownload('a5')">
-            <span class="qr-dl-btn-icon">📃</span>
-            <span>Format A5</span>
-            <span class="qr-dl-btn-fmt">14,8×21 cm</span>
-          </button>
-          <button class="qr-dl-btn" onclick="ambiQrDownload('square')">
-            <span class="qr-dl-btn-icon">🟦</span>
-            <span>Carré</span>
-            <span class="qr-dl-btn-fmt">10×10 cm</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Instructions propriétaire -->
-      <div class="qr-instructions">
-        📲 <strong>Comment utiliser votre QR Code :</strong><br>
-        1. Téléchargez et imprimez le QR code<br>
-        2. Affichez-le dans votre établissement (comptoir, tables, vitrine)<br>
-        3. Chaque scan client améliore votre position au classement public<br>
-        4. Vous recevez une notification à chaque vote comptabilisé
+        <button class="qr-dl-btn" onclick="ambiQrDownload('a5')">
+          <span class="qr-dl-btn-icon">📃</span>
+          <span>Format A5</span>
+          <span class="qr-dl-btn-fmt">14,8×21 cm</span>
+        </button>
+        <button class="qr-dl-btn" onclick="ambiQrDownload('square')">
+          <span class="qr-dl-btn-icon">🟦</span>
+          <span>Carré</span>
+          <span class="qr-dl-btn-fmt">10×10 cm</span>
+        </button>
       </div>
     </div>
 
-    <!-- Lien + Copier (visible pour owner et admin) -->
-    <div id="qrLinkRow" style="display:none;flex;gap:0.4rem;align-items:center;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.5rem 0.7rem;margin-bottom:0.5rem;">
-      <span style="font-size:0.7rem;color:var(--muted,#b088c0);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="qrModalLink">—</span>
-      <button onclick="ambiQrCopyLink()" style="background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.3);color:#00e5ff;font-size:0.65rem;font-weight:700;padding:0.22rem 0.55rem;border-radius:7px;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;">📋 Copier</button>
+    <div style="display:flex;gap:0.4rem;align-items:center;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.5rem 0.7rem;margin-bottom:0.5rem;">
+      <span style="font-size:0.7rem;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="qrModalLink">—</span>
+      <button onclick="ambiQrCopyLink()" style="background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.65rem;font-weight:700;padding:0.22rem 0.55rem;border-radius:7px;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;">📋 Copier</button>
     </div>
   </div>
 </div>
 
 <!-- ── QR Code Vote System — JavaScript ── -->
 <script>
-(function () {
+(function() {
 'use strict';
 
-/* ────────────────────────────────────────────────────────────
-   CONSTANTES & STATE
-──────────────────────────────────────────────────────────── */
 var QR_BASE_URL       = window.location.origin + window.location.pathname;
 var _qrCurrentEtabId  = null;
 var _qrCurrentEtabObj = null;
 var _qrVoteCache      = {};
-var _qrAdminTimer     = null;
-var _qrRecentVotes    = [];
+var _qrAdminListener  = null;
 
-/* ────────────────────────────────────────────────────────────
-   HELPERS — rôle utilisateur
-──────────────────────────────────────────────────────────── */
-function qrIsGuest()  { return !window.currentUserUID; }
-function qrIsAdmin()  { return !!(window.isAdmin); }
-function qrIsOwnerOf(etabId) {
-  /* L'établissement appartient à l'utilisateur connecté si son email
-     correspond à etab.email ou si etab.ownerUID === currentUserUID */
-  var etab = (window.etablissements || []).find(function(e){ return String(e.id) === String(etabId); });
-  if (!etab) return false;
-  var uid   = window.currentUserUID;
-  var email = (window.currentUserEmail || '').toLowerCase();
-  if (uid   && etab.ownerUID && etab.ownerUID === uid)   return true;
-  if (email && etab.email    && etab.email.toLowerCase() === email) return true;
-  return false;
-}
-
-/* Clé localStorage pour éviter le double-vote (membres) */
-function qrMonthVoteKey(etabId) {
-  var mois = new Date().toISOString().slice(0, 7);
-  return 'ambi241_qrvote_' + etabId + '_' + (window.currentUserUID || 'anon') + '_' + mois;
-}
-function qrHasVotedThisMonth(etabId) {
-  try { return !!localStorage.getItem(qrMonthVoteKey(etabId)); } catch(e){ return false; }
-}
-function qrMarkVotedThisMonth(etabId) {
-  try { localStorage.setItem(qrMonthVoteKey(etabId), '1'); } catch(e){}
-}
-
-/* Clé localStorage pour vote propriétaire */
-function qrOwnerVoteKey(etabId) {
-  var mois = new Date().toISOString().slice(0, 7);
-  return 'ambi241_ownervote_' + etabId + '_' + mois;
-}
-
-/* ────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────────
    1. LANDING PAGE (URL ?ambi_vote=XXX)
-──────────────────────────────────────────────────────────── */
+   ───────────────────────────────────────────────────────────── */
 function qrCheckLandingMode() {
   var etabId = new URLSearchParams(window.location.search).get('ambi_vote');
   if (etabId) qrShowScanLanding(etabId);
@@ -44622,14 +44170,14 @@ function qrShowScanLanding(etabId) {
   landing.classList.add('show');
   document.body.style.overflow = 'hidden';
   var etab = (window.etablissements || []).find(function(e){ return String(e.id) === String(etabId); });
-  if (etab) qrPopulateLandingCard(etab);
-  else {
+  if (etab) {
+    qrPopulateLandingCard(etab);
+  } else {
     setTimeout(function() {
       var e2 = (window.etablissements || []).find(function(e){ return String(e.id) === String(etabId); });
       if (e2) qrPopulateLandingCard(e2);
       else {
-        var nameEl = document.getElementById('qrLandingEtabName');
-        if (nameEl) nameEl.textContent = 'Établissement #' + etabId;
+        document.getElementById('qrLandingEtabName').textContent = 'Établissement #' + etabId;
         qrShowLandingSections(etabId);
       }
     }, 2500);
@@ -44638,50 +44186,26 @@ function qrShowScanLanding(etabId) {
 
 function qrPopulateLandingCard(etab) {
   var icons = {'Bar':'🍻','Restaurant':'🍽️','Nightclub':'🎶','Maquis':'🌴','Hôtel':'🏨','Café':'☕'};
-  var av = document.getElementById('qrLandingEtabAvatar');
-  var nm = document.getElementById('qrLandingEtabName');
-  var ty = document.getElementById('qrLandingEtabType');
-  if (av) av.textContent = icons[etab.type] || '🏠';
-  if (nm) nm.textContent = etab.nom || 'Établissement';
-  if (ty) ty.textContent = (etab.type || '') + (etab.quartier ? ' • ' + etab.quartier : '');
+  document.getElementById('qrLandingEtabAvatar').textContent = icons[etab.type] || '🏠';
+  document.getElementById('qrLandingEtabName').textContent   = etab.nom || 'Établissement';
+  document.getElementById('qrLandingEtabType').textContent   = (etab.type || '') + (etab.quartier ? ' • ' + etab.quartier : '');
   qrShowLandingSections(etab.id);
 }
 
 function qrShowLandingSections(etabId) {
-  window._qrLandingEtabId = etabId;
+  var isMember  = !!(window.currentUserUID);
   var memberSec = document.getElementById('qrLandingMemberSection');
   var guestSec  = document.getElementById('qrLandingGuestSection');
   var signupCta = document.getElementById('qrLandingSignupCta');
-  var isMember  = !qrIsGuest();
-  /* Visiteur : redirige directement vers l'inscription */
-  if (!isMember) {
-    if (guestSec)  guestSec.style.display  = 'block';
-    if (memberSec) memberSec.style.display = 'none';
-    if (signupCta) signupCta.style.display = 'block';
-  } else {
-    if (guestSec)  guestSec.style.display  = 'none';
-    if (memberSec) memberSec.style.display = 'block';
-    if (signupCta) signupCta.style.display = 'none';
-    /* Vérifier si déjà voté ce mois */
-    if (qrHasVotedThisMonth(etabId)) {
-      var btns = document.querySelector('#qrLandingMemberSection .qr-landing-vote-btns');
-      var done = document.getElementById('qrLandingVoteConfirm');
-      if (btns) btns.style.display = 'none';
-      if (done) { done.style.display = 'block'; done.querySelector && (done.querySelector('.qr-vote-confirm-title').textContent = '✅ Vous avez déjà voté ce mois'); }
-    }
-  }
+  window._qrLandingEtabId = etabId;
+  if (memberSec) memberSec.style.display = isMember ? 'block' : 'none';
+  if (guestSec)  guestSec.style.display  = isMember ? 'none'  : 'block';
+  if (signupCta) signupCta.style.display = isMember ? 'none'  : 'block';
 }
 
 window.ambiQrCastVoteLanding = function(direction) {
   var etabId = window._qrLandingEtabId;
-  if (!etabId) return;
-  /* Visiteur non inscrit → inscription */
-  if (qrIsGuest()) { ambiQrGoToSignup(); return; }
-  /* Déjà voté ce mois */
-  if (qrHasVotedThisMonth(etabId)) {
-    if (typeof showToast === 'function') showToast('✅ Vous avez déjà voté ce mois pour cet établissement');
-    return;
-  }
+  if (!etabId || !window.currentUserUID) { ambiQrGoToSignup(); return; }
   qrRecordVote(etabId, direction, function(ok) {
     var confirm = document.getElementById('qrLandingVoteConfirm');
     var btns    = document.querySelector('#qrLandingMemberSection .qr-landing-vote-btns');
@@ -44701,22 +44225,20 @@ window.ambiQrCloseLanding = function() {
 };
 
 window.ambiQrGoToSignup = function() {
-  if (typeof ambiQrCloseLanding === 'function') ambiQrCloseLanding();
-  if (typeof ambiQrCloseModal === 'function') ambiQrCloseModal();
-  var btn = document.querySelector('[onclick*="openLogin"],[onclick*="showLogin"],#loginBtn,.auth-login-btn,[onclick*="signup"],[onclick*="register"]');
-  if (btn) setTimeout(function(){ btn.click(); }, 300);
-  else if (typeof showToast === 'function') showToast('🔐 Inscrivez-vous pour voter !');
+  ambiQrCloseLanding();
+  var btn = document.querySelector('[onclick*="openLogin"],[onclick*="showLogin"],#loginBtn,.auth-login-btn');
+  if (btn) btn.click();
 };
 
-/* ────────────────────────────────────────────────────────────
-   2. OUVERTURE MODAL — logique conditionnelle selon rôle
-──────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────
+   2. MODAL QR CODE
+   ───────────────────────────────────────────────────────────── */
 function qrGetVoteUrl(etabId) {
   return QR_BASE_URL + '?ambi_vote=' + etabId;
 }
 
-window.ambiQrOpenModal = function(etabId, etabObj) {
-  var etab = etabObj || (window.etablissements || []).find(function(e){ return String(e.id) === String(etabId); });
+window.ambiQrOpenModal = function(etabId) {
+  var etab = (window.etablissements || []).find(function(e){ return String(e.id) === String(etabId); });
   if (!etab) { if (typeof showToast === 'function') showToast('Établissement introuvable'); return; }
 
   _qrCurrentEtabId  = etabId;
@@ -44725,109 +44247,32 @@ window.ambiQrOpenModal = function(etabId, etabObj) {
   var modal = document.getElementById('ambiQrModal');
   if (!modal) return;
 
-  /* Remplir infos établissement */
   var icons = {'Bar':'🍻','Restaurant':'🍽️','Nightclub':'🎶','Maquis':'🌴','Hôtel':'🏨','Café':'☕'};
   document.getElementById('qrModalEtabName').textContent = etab.nom || 'Établissement';
-  document.getElementById('qrModalEtabType').textContent =
-    (icons[etab.type] || '🏠') + '  ' + (etab.type || '') + (etab.quartier ? '  •  📍 ' + etab.quartier : '');
+  document.getElementById('qrModalEtabType').textContent = (icons[etab.type] || '🏠') + '  ' + (etab.type || '') + (etab.quartier ? '  •  📍 ' + etab.quartier : '');
 
+  var linkEl = document.getElementById('qrModalLink');
   var voteUrl = qrGetVoteUrl(etabId);
-  var linkEl  = document.getElementById('qrModalLink');
   if (linkEl) linkEl.textContent = voteUrl;
 
-  /* Charger le compteur de votes */
-  qrLoadVoteCount(etabId, function(data) {
+  var voteSection = document.getElementById('qrModalVoteSection');
+  var voteConfirm = document.getElementById('qrModalVoteConfirm');
+  var posBtn = document.getElementById('qrModalVotePosBtn');
+  var negBtn = document.getElementById('qrModalVoteNegBtn');
+  if (voteSection) voteSection.style.display = window.currentUserUID ? 'block' : 'none';
+  if (voteConfirm) voteConfirm.classList.remove('show');
+  if (posBtn) { posBtn.disabled = false; posBtn.classList.remove('qr-voted'); }
+  if (negBtn) { negBtn.disabled = false; negBtn.classList.remove('qr-voted'); }
+
+  qrLoadVoteCount(etabId, function(count) {
     var el = document.getElementById('qrModalVoteNum');
-    if (el) el.textContent = data.total || 0;
-    /* Stats propriétaire */
-    var stT = document.getElementById('ownerStatTotal');
-    var stP = document.getElementById('ownerStatPos');
-    var stN = document.getElementById('ownerStatNeg');
-    if (stT) stT.textContent = data.total || 0;
-    if (stP) stP.textContent = data.pos   || 0;
-    if (stN) stN.textContent = data.neg   || 0;
+    if (el) el.textContent = count;
   });
 
-  /* Position classement */
-  qrGetRankingPosition(etabId, function(pos) {
-    var badge = document.getElementById('qrModalRankingBadge');
-    var posEl = document.getElementById('qrModalRankPos');
-    if (badge && posEl && pos) {
-      posEl.textContent = '#' + pos;
-      badge.style.display = 'inline-flex';
-    }
-  });
-
-  /* Afficher la bonne section selon le rôle */
-  qrShowModalSection(etabId);
-
-  /* Générer le QR code */
   qrGenerateCode(voteUrl);
-
   modal.classList.add('open');
   document.body.style.overflow = 'hidden';
 };
-
-function qrShowModalSection(etabId) {
-  var secGuest  = document.getElementById('qrSectionGuest');
-  var secMember = document.getElementById('qrSectionMember');
-  var secOwner  = document.getElementById('qrSectionOwner');
-  var linkRow   = document.getElementById('qrLinkRow');
-
-  /* Cacher tout */
-  [secGuest, secMember, secOwner].forEach(function(el){ if(el) el.style.display = 'none'; });
-  if (linkRow) linkRow.style.display = 'none';
-
-  var isOwner = qrIsOwnerOf(etabId);
-  var isAdmin = qrIsAdmin();
-  var isGuest = qrIsGuest();
-
-  if (isGuest) {
-    /* ── Visiteur : uniquement le mur d'inscription ── */
-    if (secGuest) secGuest.style.display = 'block';
-
-  } else if (isOwner || isAdmin) {
-    /* ── Propriétaire ou Admin : outils complets ── */
-    if (secOwner) secOwner.style.display = 'block';
-    if (linkRow)  linkRow.style.display  = 'flex';
-
-    /* Vérifier vote propriétaire ce mois */
-    var ownerBtn  = document.getElementById('ownerSelfVoteBtn');
-    var ownerDone = document.getElementById('ownerSelfVoteDone');
-    var alreadyOwner = !!localStorage.getItem(qrOwnerVoteKey(etabId));
-    if (ownerBtn)  ownerBtn.style.display  = alreadyOwner ? 'none' : 'flex';
-    if (ownerDone) ownerDone.style.display = alreadyOwner ? 'block' : 'none';
-
-    /* Reset boutons de test vote */
-    var posB = document.getElementById('qrOwnerVotePosBtn');
-    var negB = document.getElementById('qrOwnerVoteNegBtn');
-    if (posB) { posB.disabled = false; posB.classList.remove('qr-voted'); }
-    if (negB) { negB.disabled = false; negB.classList.remove('qr-voted'); }
-
-  } else {
-    /* ── Membre inscrit : vote unique par mois ── */
-    if (secMember) secMember.style.display = 'block';
-
-    var voteDone    = document.getElementById('qrMemberVoteArea');
-    var alreadyMsg  = document.getElementById('qrMemberAlreadyVoted');
-    var confirm     = document.getElementById('qrModalVoteConfirm');
-    var posBtn      = document.getElementById('qrModalVotePosBtn');
-    var negBtn      = document.getElementById('qrModalVoteNegBtn');
-
-    if (confirm) confirm.classList.remove('show');
-
-    if (qrHasVotedThisMonth(etabId)) {
-      /* Déjà voté ce mois */
-      if (voteDone)   voteDone.style.display  = 'none';
-      if (alreadyMsg) alreadyMsg.style.display = 'block';
-    } else {
-      if (voteDone)   voteDone.style.display  = 'block';
-      if (alreadyMsg) alreadyMsg.style.display = 'none';
-      if (posBtn) { posBtn.disabled = false; posBtn.classList.remove('qr-voted'); }
-      if (negBtn) { negBtn.disabled = false; negBtn.classList.remove('qr-voted'); }
-    }
-  }
-}
 
 window.ambiQrCloseModal = function() {
   var modal = document.getElementById('ambiQrModal');
@@ -44837,9 +44282,9 @@ window.ambiQrCloseModal = function() {
   _qrCurrentEtabObj = null;
 };
 
-/* ────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────────
    3. GÉNÉRATION QR CODE
-──────────────────────────────────────────────────────────── */
+   ───────────────────────────────────────────────────────────── */
 function qrGenerateCode(url) {
   var container = document.getElementById('qrModalCanvas');
   if (!container) return;
@@ -44853,152 +44298,57 @@ function qrGenerateCode(url) {
         correctLevel: QRCode.CorrectLevel.H
       });
     } catch(e) {
-      container.innerHTML = '<div style="font-size:0.7rem;color:#ff4466;padding:0.5rem;">Erreur génération QR</div>';
+      container.innerHTML = '<div style="font-size:0.7rem;color:var(--red);padding:0.5rem;">Erreur génération QR</div>';
     }
   }
   tryGenerate();
 }
 
-/* ────────────────────────────────────────────────────────────
-   4. VOTE INLINE — membres (une seule fois par mois)
-──────────────────────────────────────────────────────────── */
-window.ambiQrCastVoteInline = function(direction, isOwnerTest) {
+/* ─────────────────────────────────────────────────────────────
+   4. VOTE INLINE (depuis le modal)
+   ───────────────────────────────────────────────────────────── */
+window.ambiQrCastVoteInline = function(direction) {
   if (!_qrCurrentEtabId) return;
-  if (qrIsGuest()) { ambiQrGoToSignup(); return; }
-
+  if (!window.currentUserUID) { if (typeof showToast === 'function') showToast('Connectez-vous pour voter'); return; }
   var etabId = _qrCurrentEtabId;
-
-  /* Pour les membres normaux : vérifier vote ce mois */
-  if (!isOwnerTest && !qrIsOwnerOf(etabId) && !qrIsAdmin()) {
-    if (qrHasVotedThisMonth(etabId)) {
-      if (typeof showToast === 'function') showToast('✅ Vous avez déjà voté ce mois !');
-      return;
-    }
-  }
-
-  /* Désactiver boutons */
-  var posBtn = isOwnerTest ? document.getElementById('qrOwnerVotePosBtn') : document.getElementById('qrModalVotePosBtn');
-  var negBtn = isOwnerTest ? document.getElementById('qrOwnerVoteNegBtn') : document.getElementById('qrModalVoteNegBtn');
+  var posBtn = document.getElementById('qrModalVotePosBtn');
+  var negBtn = document.getElementById('qrModalVoteNegBtn');
   if (posBtn) posBtn.disabled = true;
   if (negBtn) negBtn.disabled = true;
-
   qrRecordVote(etabId, direction, function(ok) {
-    if (!isOwnerTest) {
-      /* Afficher confirmation pour membre normal */
-      var confirm = document.getElementById('qrModalVoteConfirm');
-      var msgEl   = document.getElementById('qrModalVoteConfirmMsg');
-      if (confirm) confirm.classList.add('show');
-      if (msgEl) msgEl.textContent = ok
-        ? '✅ Vote comptabilisé ! Merci pour votre participation.'
-        : '⚠️ Vous avez déjà voté pour cet établissement ce mois-ci.';
-      /* Basculer vers "déjà voté" */
-      if (ok) {
-        var area = document.getElementById('qrMemberVoteArea');
-        var done = document.getElementById('qrMemberAlreadyVoted');
-        setTimeout(function() {
-          if (area) area.style.display = 'none';
-          if (done) done.style.display = 'block';
-        }, 2000);
-      }
-    } else {
-      /* Test vote propriétaire */
-      if (typeof showToast === 'function') showToast(ok ? '✅ Vote test enregistré !' : '⚠️ Vote déjà fait ce mois.');
-      setTimeout(function() {
-        if (posBtn) posBtn.disabled = false;
-        if (negBtn) negBtn.disabled = false;
-      }, 2000);
-    }
-
+    var confirm = document.getElementById('qrModalVoteConfirm');
+    var msgEl   = document.getElementById('qrModalVoteConfirmMsg');
+    if (confirm) confirm.classList.add('show');
+    if (msgEl) msgEl.textContent = ok
+      ? '✅ Vote comptabilisé ! L\'établissement a été notifié.'
+      : '⚠️ Vous avez déjà voté pour cet établissement ce mois-ci.';
     if (ok) {
-      qrLoadVoteCount(etabId, function(data) {
-        var el = document.getElementById('qrModalVoteNum');
-        if (el) el.textContent = data.total || 0;
-        var stT = document.getElementById('ownerStatTotal');
-        var stP = document.getElementById('ownerStatPos');
-        var stN = document.getElementById('ownerStatNeg');
-        if (stT) stT.textContent = data.total || 0;
-        if (stP) stP.textContent = data.pos   || 0;
-        if (stN) stN.textContent = data.neg   || 0;
-      });
       qrNotifyEtablissement(etabId, direction);
       qrNotifyAdmin(etabId, direction);
-      /* Déclencher recalcul classement public */
-      setTimeout(function() { qrUpdatePublicRanking(); }, 500);
+      qrLoadVoteCount(etabId, function(c) {
+        var el = document.getElementById('qrModalVoteNum');
+        if (el) el.textContent = c;
+      });
     }
   });
 };
 
-/* ────────────────────────────────────────────────────────────
-   5. VOTE PROPRIÉTAIRE (pour son propre établissement)
-──────────────────────────────────────────────────────────── */
-window.ambiQrOwnerSelfVote = function() {
-  if (!_qrCurrentEtabId) return;
-  var etabId = _qrCurrentEtabId;
-  var moisKey = qrOwnerVoteKey(etabId);
-  if (localStorage.getItem(moisKey)) {
-    if (typeof showToast === 'function') showToast('✅ Vote propriétaire déjà enregistré ce mois');
-    return;
-  }
-  localStorage.setItem(moisKey, '1');
-
-  var voteData = {
-    etabId: String(etabId),
-    direction: 'pos',
-    uid: window.currentUserUID || 'owner',
-    pseudo: (window.currentUserPseudo || window.currentUserEmail || 'Propriétaire') + ' [propriétaire]',
-    ts: Date.now(),
-    source: 'owner_self_vote',
-    monthKey: new Date().toISOString().slice(0, 7),
-    isOwnerVote: true
-  };
-
-  if (window.db && window.fbAddDoc && window.fbCollection) {
-    window.fbAddDoc(window.fbCollection(window.db, 'qr_votes'), voteData)
-      .then(function() { return qrIncrementEtabVoteCount(etabId, 'pos'); })
-      .catch(function(err) { console.warn('[QR] Owner vote error:', err); });
-  }
-
-  var ownerBtn  = document.getElementById('ownerSelfVoteBtn');
-  var ownerDone = document.getElementById('ownerSelfVoteDone');
-  if (ownerBtn)  ownerBtn.style.display  = 'none';
-  if (ownerDone) ownerDone.style.display = 'block';
-
-  qrLoadVoteCount(etabId, function(data) {
-    var el  = document.getElementById('qrModalVoteNum');
-    var stT = document.getElementById('ownerStatTotal');
-    var stP = document.getElementById('ownerStatPos');
-    if (el)  el.textContent  = data.total || 0;
-    if (stT) stT.textContent = data.total || 0;
-    if (stP) stP.textContent = data.pos   || 0;
-  });
-
-  if (typeof showToast === 'function') showToast('⭐ Vote propriétaire enregistré !');
-  setTimeout(function() { qrUpdatePublicRanking(); }, 500);
-};
-
-/* ────────────────────────────────────────────────────────────
-   6. ENREGISTREMENT VOTE FIREBASE
-──────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────
+   5. ENREGISTREMENT VOTE FIREBASE
+   ───────────────────────────────────────────────────────────── */
 function qrRecordVote(etabId, direction, callback) {
   var monthKey = new Date().toISOString().slice(0, 7);
-  /* Anti-doublon localStorage pour membres normaux */
-  var isOwner = qrIsOwnerOf(etabId) || qrIsAdmin();
-  if (!isOwner) {
-    var voteKey = 'ambi241_qrvote_' + etabId + '_' + (window.currentUserUID || 'anon') + '_' + monthKey;
-    try {
-      if (localStorage.getItem(voteKey)) { callback(false); return; }
-      localStorage.setItem(voteKey, '1');
-    } catch(e) {}
-  }
+  var voteKey  = 'ambi241_qrvote_' + etabId + '_' + (window.currentUserUID || 'anon') + '_' + monthKey;
+  try {
+    if (localStorage.getItem(voteKey)) { callback(false); return; }
+    localStorage.setItem(voteKey, '1');
+  } catch(e) {}
 
   var voteData = {
-    etabId    : String(etabId),
-    direction : direction,
-    uid       : window.currentUserUID || 'anon',
-    pseudo    : window.currentUserPseudo || window.currentUserEmail || 'Anonyme',
-    ts        : Date.now(),
-    source    : window._qrScanVote ? 'camera_scan' : 'qr_code',
-    monthKey  : monthKey
+    etabId: String(etabId), direction: direction,
+    uid: window.currentUserUID || 'anon',
+    pseudo: window.currentUserPseudo || window.currentUserEmail || 'Anonyme',
+    ts: Date.now(), source: 'qr_code', monthKey: monthKey
   };
 
   if (window.db && window.fbAddDoc && window.fbCollection) {
@@ -45007,18 +44357,9 @@ function qrRecordVote(etabId, direction, callback) {
       .catch(function(err) { console.warn('[QR] Firebase vote error:', err); });
   }
 
-  /* Cache local */
-  if (!_qrVoteCache[etabId]) _qrVoteCache[etabId] = { total: 0, pos: 0, neg: 0 };
-  _qrVoteCache[etabId].total++;
-  _qrVoteCache[etabId][direction] = (_qrVoteCache[etabId][direction] || 0) + 1;
+  if (!_qrVoteCache[etabId]) _qrVoteCache[etabId] = { count: 0 };
+  _qrVoteCache[etabId].count++;
   _qrVoteCache[etabId].myVote = direction;
-
-  /* Ajouter aux votes récents (dashboard admin) */
-  _qrRecentVotes.unshift({ etabId: etabId, direction: direction, ts: Date.now(), uid: voteData.pseudo, source: voteData.source });
-  if (_qrRecentVotes.length > 20) _qrRecentVotes.pop();
-  qrRenderRecentVotes();
-
-  window._qrScanVote = false; /* flag consommé */
   callback(true);
 }
 
@@ -45035,65 +44376,20 @@ function qrIncrementEtabVoteCount(etabId, direction) {
 }
 
 function qrLoadVoteCount(etabId, callback) {
-  /* Cache court terme */
-  if (_qrVoteCache[etabId] && _qrVoteCache[etabId]._loaded) {
-    callback(_qrVoteCache[etabId]);
-    return;
-  }
+  if (_qrVoteCache[etabId]) { callback(_qrVoteCache[etabId].count || 0); return; }
   if (window.db && window.fbDoc && window.fbGetDoc) {
     window.fbGetDoc(window.fbDoc(window.db, 'qr_vote_counts', String(etabId)))
       .then(function(snap) {
-        var d = snap.exists() ? snap.data() : { total: 0, pos: 0, neg: 0 };
-        _qrVoteCache[etabId] = { total: d.total || 0, pos: d.pos || 0, neg: d.neg || 0, _loaded: true };
-        callback(_qrVoteCache[etabId]);
-      }).catch(function() { callback({ total: 0, pos: 0, neg: 0 }); });
-  } else { callback({ total: 0, pos: 0, neg: 0 }); }
+        var count = snap.exists() ? (snap.data().total || 0) : 0;
+        _qrVoteCache[etabId] = { count: count };
+        callback(count);
+      }).catch(function() { callback(0); });
+  } else { callback(0); }
 }
 
-/* ────────────────────────────────────────────────────────────
-   7. CLASSEMENT PUBLIC — mise à jour basée sur votes QR
-──────────────────────────────────────────────────────────── */
-function qrUpdatePublicRanking() {
-  /* Recalcule le score d'affluence de chaque établissement
-     en intégrant les votes QR comme facteur de classement */
-  if (!window.db || !window.fbGetDocs || !window.fbCollection) return;
-  window.fbGetDocs(window.fbCollection(window.db, 'qr_vote_counts'))
-    .then(function(snap) {
-      var scores = {};
-      snap.forEach(function(doc) {
-        var d = doc.data();
-        /* Score = votes positifs × 2 + votes négatifs × 0.5 */
-        scores[doc.id] = (d.pos || 0) * 2 - (d.neg || 0) * 0.5;
-      });
-      /* Mettre à jour le score QR dans la collection etablissements si possible */
-      if (window.fbDoc && window.fbSetDoc) {
-        Object.keys(scores).forEach(function(etabId) {
-          var ref = window.fbDoc(window.db, 'qr_ranking_scores', String(etabId));
-          window.fbSetDoc(ref, { score: scores[etabId], updatedAt: Date.now() }).catch(function(){});
-        });
-      }
-      /* Déclencher un re-render du classement si la fonction existe */
-      if (typeof window.renderAll === 'function') {
-        try { window.renderAll(); } catch(e){}
-      }
-    }).catch(function(){});
-}
-
-function qrGetRankingPosition(etabId, callback) {
-  if (!window.db || !window.fbGetDocs || !window.fbCollection) { callback(null); return; }
-  window.fbGetDocs(window.fbCollection(window.db, 'qr_vote_counts'))
-    .then(function(snap) {
-      var list = [];
-      snap.forEach(function(doc) { list.push({ id: doc.id, total: doc.data().total || 0 }); });
-      list.sort(function(a, b) { return b.total - a.total; });
-      var pos = list.findIndex(function(x) { return String(x.id) === String(etabId); });
-      callback(pos >= 0 ? pos + 1 : null);
-    }).catch(function() { callback(null); });
-}
-
-/* ────────────────────────────────────────────────────────────
-   8. NOTIFICATIONS
-──────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────
+   6. NOTIFICATIONS PUSH
+   ───────────────────────────────────────────────────────────── */
 function qrNotifyEtablissement(etabId, direction) {
   if (!window.db || !window.fbDoc || !window.fbGetDoc || !window.fbSetDoc || !window.fbGetDocs || !window.fbCollection) return;
   var etab = (window.etablissements || []).find(function(e){ return String(e.id) === String(etabId); });
@@ -45133,92 +44429,77 @@ function qrNotifyAdmin(etabId, direction) {
   });
 }
 
-/* ────────────────────────────────────────────────────────────
-   9. TÉLÉCHARGEMENT QR (Canvas → PNG — A4 / A5 / Carré)
-──────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────
+   7. TÉLÉCHARGEMENT QR (Canvas → PNG — A4 / A5 / Carré)
+   ───────────────────────────────────────────────────────────── */
 window.ambiQrDownload = function(format) {
-  if (!_qrCurrentEtabObj) { if (typeof showToast === 'function') showToast('Aucun établissement sélectionné'); return; }
-  var etab    = _qrCurrentEtabObj;
-  var voteUrl = qrGetVoteUrl(_qrCurrentEtabId);
-  var cfgs    = {
-    a4    : { w: 794,  h: 1123, qrSize: 420, label: 'A4' },
-    a5    : { w: 559,  h:  794, qrSize: 300, label: 'A5' },
-    square: { w: 400,  h:  400, qrSize: 280, label: 'Carré' }
+  if (!_qrCurrentEtabObj) return;
+  var etab = _qrCurrentEtabObj;
+  var cfgs = {
+    a4:     { w: 794, h: 1123, qrSize: 420, label: 'A4' },
+    a5:     { w: 559, h:  794, qrSize: 300, label: 'A5' },
+    square: { w: 400, h:  400, qrSize: 280, label: 'Carré' }
   };
   var cfg = cfgs[format] || cfgs.a4;
-  if (typeof QRCode === 'undefined') {
-    if (typeof showToast === 'function') showToast('⏳ QR en cours de chargement, réessayez…');
-    return;
-  }
-  var tempDiv = document.createElement('div');
-  tempDiv.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:' + cfg.qrSize + 'px;height:' + cfg.qrSize + 'px;overflow:hidden;visibility:hidden;';
-  document.body.appendChild(tempDiv);
-  try {
-    new QRCode(tempDiv, { text: voteUrl, width: cfg.qrSize, height: cfg.qrSize, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
-  } catch(e) { document.body.removeChild(tempDiv); if (typeof showToast === 'function') showToast('❌ Erreur génération QR'); return; }
+  var canvas = document.createElement('canvas');
+  canvas.width = cfg.w; canvas.height = cfg.h;
+  var ctx = canvas.getContext('2d');
 
-  function _buildPoster() {
-    var qrEl = tempDiv.querySelector('canvas') || tempDiv.querySelector('img');
-    if (qrEl && qrEl.tagName === 'IMG' && !qrEl.complete) { qrEl.onload = function(){ _drawAndSave(qrEl); }; qrEl.onerror = function(){ _drawAndSave(null); }; return; }
-    _drawAndSave(qrEl);
+  var grad = ctx.createLinearGradient(0, 0, cfg.w, cfg.h);
+  grad.addColorStop(0, '#1a0a28'); grad.addColorStop(0.5, '#230d35'); grad.addColorStop(1, '#2c1040');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, cfg.w, cfg.h);
+
+  ctx.globalAlpha = 0.12;
+  ctx.fillStyle = '#ff2d9b'; ctx.beginPath(); ctx.arc(0, 0, cfg.w * 0.55, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#00e5ff'; ctx.beginPath(); ctx.arc(cfg.w, cfg.h, cfg.w * 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  var yOff = format === 'square' ? 20 : 50;
+  ctx.font = 'bold ' + Math.round(cfg.w * 0.09) + 'px Syne,Arial';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ff2d9b'; ctx.fillText('AMBI', cfg.w / 2 - cfg.w * 0.08, yOff + cfg.w * 0.09);
+  ctx.fillStyle = '#00e5ff'; ctx.fillText('241',  cfg.w / 2 + cfg.w * 0.06, yOff + cfg.w * 0.09);
+  var logoBottom = yOff + cfg.w * 0.095;
+
+  var qrEl = document.querySelector('#qrModalCanvas img') || document.querySelector('#qrModalCanvas canvas');
+
+  if (format !== 'square') {
+    ctx.font = 'bold ' + Math.round(cfg.w * 0.055) + 'px Syne,Arial';
+    ctx.fillStyle = '#fff0f8';
+    var nomY = logoBottom + 60;
+    ctx.fillText(etab.nom || 'Établissement', cfg.w / 2, nomY);
+    ctx.font = Math.round(cfg.w * 0.032) + 'px DM Sans,Arial';
+    ctx.fillStyle = '#b088c0';
+    ctx.fillText((etab.type || '') + (etab.quartier ? ' • ' + etab.quartier : ''), cfg.w / 2, nomY + 38);
+
+    var qrX = (cfg.w - cfg.qrSize) / 2, qrY = nomY + 75, pad = 18;
+    ctx.fillStyle = '#ffffff'; _roundRect(ctx, qrX - pad, qrY - pad, cfg.qrSize + pad * 2, cfg.qrSize + pad * 2, 22); ctx.fill();
+    if (qrEl) { try { ctx.drawImage(qrEl, qrX, qrY, cfg.qrSize, cfg.qrSize); } catch(e){} }
+
+    var qrBottom = qrY + cfg.qrSize + pad + 40;
+    ctx.font = 'bold ' + Math.round(cfg.w * 0.038) + 'px Syne,Arial'; ctx.fillStyle = '#00e5ff';
+    ctx.fillText('📲 Scannez pour voter', cfg.w / 2, qrBottom);
+    ctx.font = Math.round(cfg.w * 0.028) + 'px DM Sans,Arial'; ctx.fillStyle = '#b088c0';
+    ctx.fillText('et aider cet établissement à progresser !', cfg.w / 2, qrBottom + 36);
+
+    ctx.strokeStyle = 'rgba(255,45,155,0.4)'; ctx.lineWidth = 3;
+    _roundRect(ctx, 20, 20, cfg.w - 40, cfg.h - 40, 24); ctx.stroke();
+
+    ctx.font = Math.round(cfg.w * 0.024) + 'px DM Sans,Arial'; ctx.fillStyle = 'rgba(176,136,192,0.55)';
+    ctx.fillText('ambi241.com • Libreville, Gabon', cfg.w / 2, cfg.h - 28);
+  } else {
+    var qrXSq = (cfg.w - cfg.qrSize) / 2, qrYSq = logoBottom + 25;
+    ctx.fillStyle = '#ffffff'; _roundRect(ctx, qrXSq - 14, qrYSq - 14, cfg.qrSize + 28, cfg.qrSize + 28, 16); ctx.fill();
+    if (qrEl) { try { ctx.drawImage(qrEl, qrXSq, qrYSq, cfg.qrSize, cfg.qrSize); } catch(e){} }
+    ctx.font = 'bold ' + Math.round(cfg.w * 0.055) + 'px Syne,Arial'; ctx.fillStyle = '#fff0f8';
+    ctx.fillText(etab.nom || '—', cfg.w / 2, qrYSq + cfg.qrSize + 45);
   }
 
-  function _drawAndSave(qrEl) {
-    var qrSource = qrEl;
-    if (qrEl && qrEl.tagName === 'IMG') {
-      try { var tmpC = document.createElement('canvas'); tmpC.width = cfg.qrSize; tmpC.height = cfg.qrSize; tmpC.getContext('2d').drawImage(qrEl, 0, 0, cfg.qrSize, cfg.qrSize); qrSource = tmpC; } catch(e){ qrSource = null; }
-    }
-    var canvas = document.createElement('canvas');
-    canvas.width = cfg.w; canvas.height = cfg.h;
-    var ctx = canvas.getContext('2d');
-    var grad = ctx.createLinearGradient(0, 0, cfg.w, cfg.h);
-    grad.addColorStop(0, '#1a0a28'); grad.addColorStop(0.5, '#230d35'); grad.addColorStop(1, '#2c1040');
-    ctx.fillStyle = grad; ctx.fillRect(0, 0, cfg.w, cfg.h);
-    ctx.globalAlpha = 0.12;
-    ctx.fillStyle = '#ff2d9b'; ctx.beginPath(); ctx.arc(0, 0, cfg.w * 0.55, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#00e5ff'; ctx.beginPath(); ctx.arc(cfg.w, cfg.h, cfg.w * 0.45, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 1;
-    var yOff = format === 'square' ? 20 : 50;
-    ctx.textAlign = 'center';
-    ctx.font = 'bold ' + Math.round(cfg.w * 0.09) + 'px Arial';
-    ctx.fillStyle = '#ff2d9b'; ctx.fillText('AMBI', cfg.w / 2 - cfg.w * 0.08, yOff + cfg.w * 0.09);
-    ctx.fillStyle = '#00e5ff'; ctx.fillText('241',  cfg.w / 2 + cfg.w * 0.06, yOff + cfg.w * 0.09);
-    var logoBottom = yOff + cfg.w * 0.095;
-    if (format !== 'square') {
-      ctx.font = 'bold ' + Math.round(cfg.w * 0.055) + 'px Arial'; ctx.fillStyle = '#fff0f8';
-      var nomY = logoBottom + 60;
-      ctx.fillText(etab.nom || 'Établissement', cfg.w / 2, nomY);
-      ctx.font = Math.round(cfg.w * 0.032) + 'px Arial'; ctx.fillStyle = '#b088c0';
-      ctx.fillText((etab.type || '') + (etab.quartier ? ' • ' + etab.quartier : ''), cfg.w / 2, nomY + 38);
-      var qrX = (cfg.w - cfg.qrSize) / 2, qrY = nomY + 75, pad = 18;
-      ctx.fillStyle = '#ffffff'; _roundRect(ctx, qrX - pad, qrY - pad, cfg.qrSize + pad * 2, cfg.qrSize + pad * 2, 22); ctx.fill();
-      if (qrSource) { try { ctx.drawImage(qrSource, qrX, qrY, cfg.qrSize, cfg.qrSize); } catch(e){} }
-      var qrBottom = qrY + cfg.qrSize + pad + 40;
-      ctx.font = 'bold ' + Math.round(cfg.w * 0.038) + 'px Arial'; ctx.fillStyle = '#00e5ff';
-      ctx.fillText('Scannez pour voter', cfg.w / 2, qrBottom);
-      ctx.font = Math.round(cfg.w * 0.028) + 'px Arial'; ctx.fillStyle = '#b088c0';
-      ctx.fillText('et aider cet établissement à progresser !', cfg.w / 2, qrBottom + 36);
-      ctx.strokeStyle = 'rgba(255,45,155,0.4)'; ctx.lineWidth = 3;
-      _roundRect(ctx, 20, 20, cfg.w - 40, cfg.h - 40, 24); ctx.stroke();
-      ctx.font = Math.round(cfg.w * 0.024) + 'px Arial'; ctx.fillStyle = 'rgba(176,136,192,0.55)';
-      ctx.fillText('ambi241.com • Libreville, Gabon', cfg.w / 2, cfg.h - 28);
-    } else {
-      var qrXSq = (cfg.w - cfg.qrSize) / 2, qrYSq = logoBottom + 25;
-      ctx.fillStyle = '#ffffff'; _roundRect(ctx, qrXSq - 14, qrYSq - 14, cfg.qrSize + 28, cfg.qrSize + 28, 16); ctx.fill();
-      if (qrSource) { try { ctx.drawImage(qrSource, qrXSq, qrYSq, cfg.qrSize, cfg.qrSize); } catch(e){} }
-      ctx.font = 'bold ' + Math.round(cfg.w * 0.055) + 'px Arial'; ctx.fillStyle = '#fff0f8';
-      ctx.fillText(etab.nom || '—', cfg.w / 2, qrYSq + cfg.qrSize + 45);
-    }
-    try {
-      var a = document.createElement('a');
-      a.download = 'ambi241_qr_' + (etab.nom || 'etablissement').replace(/[^a-z0-9]/gi, '_').toLowerCase() + '_' + format + '.png';
-      a.href = canvas.toDataURL('image/png', 0.96);
-      a.click();
-      if (typeof showToast === 'function') showToast('📥 QR ' + cfg.label + ' téléchargé !');
-    } catch(e) { if (typeof showToast === 'function') showToast('❌ Erreur export : ' + e.message); }
-    try { document.body.removeChild(tempDiv); } catch(e2){}
-  }
-  setTimeout(_buildPoster, 350);
+  var a = document.createElement('a');
+  a.download = 'ambi241_qr_' + (etab.nom || 'etablissement').replace(/[^a-z0-9]/gi, '_').toLowerCase() + '_' + format + '.png';
+  a.href = canvas.toDataURL('image/png', 0.96);
+  a.click();
+  if (typeof showToast === 'function') showToast('📥 QR ' + cfg.label + ' téléchargé !');
 };
 
 function _roundRect(ctx, x, y, w, h, r) {
@@ -45229,14 +44510,14 @@ function _roundRect(ctx, x, y, w, h, r) {
   ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
 }
 
-/* ────────────────────────────────────────────────────────────
-   10. COPIER LE LIEN
-──────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────
+   8. COPIER LE LIEN
+   ───────────────────────────────────────────────────────────── */
 window.ambiQrCopyLink = function() {
   if (!_qrCurrentEtabId) return;
   var url = qrGetVoteUrl(_qrCurrentEtabId);
   if (navigator.clipboard) {
-    navigator.clipboard.writeText(url).then(function(){ if (typeof showToast === 'function') showToast('📋 Lien copié !'); });
+    navigator.clipboard.writeText(url).then(function() { if (typeof showToast === 'function') showToast('📋 Lien copié !'); });
   } else {
     var ta = document.createElement('textarea');
     ta.value = url; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
@@ -45244,213 +44525,111 @@ window.ambiQrCopyLink = function() {
   }
 };
 
-/* ────────────────────────────────────────────────────────────
-   11. ICÔNES QR SUR LES CARTES — visible pour TOUS
-──────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────
+   9. ICÔNE QR SUR LES CARTES ÉTABLISSEMENTS
+   ───────────────────────────────────────────────────────────── */
 function qrInjectCardIcons() {
   (window.etablissements || []).forEach(function(etab) {
     var cardEl = document.getElementById('card-etab-' + etab.id);
     if (!cardEl || cardEl.querySelector('.qr-card-icon')) return;
-
-    var isGuest = qrIsGuest();
-    var isOwner = qrIsOwnerOf(etab.id);
-    var isAdmin = qrIsAdmin();
-
+    var isMember = !!(window.currentUserUID);
     var btn = document.createElement('button');
-    /* Classe selon rôle */
-    if (isGuest) {
-      btn.className = 'qr-card-icon qr-guest';
-      btn.setAttribute('title', 'Votez pour cet établissement (inscription gratuite requise)');
-      btn.innerHTML = '<span class="qr-card-icon-tooltip">🔐 Voter</span>▦';
-    } else if (isOwner || isAdmin) {
-      btn.className = 'qr-card-icon qr-owner';
-      btn.setAttribute('title', isAdmin ? 'Administration QR Vote' : 'Mon QR Code de vote');
-      btn.innerHTML = '<span class="qr-card-icon-tooltip">' + (isAdmin ? '⚙️ QR Admin' : '⭐ Mon QR') + '</span>▦';
-    } else {
-      btn.className = 'qr-card-icon';
-      btn.setAttribute('title', 'Voter pour cet établissement via QR Code');
-      btn.innerHTML = '<span class="qr-card-icon-tooltip">📲 QR Vote</span>▦';
-    }
-
+    btn.className = 'qr-card-icon' + (isMember ? '' : ' qr-locked');
+    btn.setAttribute('title', isMember ? 'Voir le QR Code vote' : 'Inscription requise pour voter');
     btn.setAttribute('aria-label', 'QR Code de vote — ' + (etab.nom || ''));
+    btn.innerHTML = '<span class="qr-card-icon-tooltip">' + (isMember ? '📲 QR Vote' : '🔐 Membres') + '</span>▦';
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
-      /* Visiteur → ouvrir modal avec mur d'inscription */
+      if (!isMember) {
+        if (typeof showToast === 'function') showToast('🔐 Inscrivez-vous pour voter !');
+        var loginBtn = document.querySelector('[onclick*="openLogin"],[onclick*="showLogin"],#loginBtn,.auth-login-btn');
+        if (loginBtn) setTimeout(function() { loginBtn.click(); }, 500);
+        return;
+      }
       ambiQrOpenModal(etab.id);
     });
-
     cardEl.style.position = 'relative';
     cardEl.appendChild(btn);
   });
 }
 
-/* ────────────────────────────────────────────────────────────
-   12. ADMIN DASHBOARD — votes QR en temps réel
-──────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────
+   10. DASHBOARD ADMIN — Votes QR en temps réel
+   ───────────────────────────────────────────────────────────── */
 function qrLoadAdminVotes() {
-  var listEl    = document.getElementById('qrAdminVotesList');
-  var kpiTotal  = document.getElementById('qrAdmKpiTotal');
-  var kpiPos    = document.getElementById('qrAdmKpiPos');
-  var kpiEtabs  = document.getElementById('qrAdmKpiEtabs');
-
+  var listEl = document.getElementById('qrAdminVotesList');
   if (!listEl) return;
   if (!window.db || !window.fbGetDocs || !window.fbCollection) {
-    listEl.innerHTML = '<div style="font-size:0.7rem;color:rgba(255,240,248,0.4);text-align:center;padding:0.6rem;">Firebase non disponible</div>';
+    listEl.innerHTML = '<div style="font-size:0.7rem;color:var(--muted);text-align:center;padding:0.6rem;">Firebase non disponible</div>';
     return;
   }
-
   window.fbGetDocs(window.fbCollection(window.db, 'qr_vote_counts')).then(function(snap) {
     if (snap.empty) {
-      listEl.innerHTML = '<div style="font-size:0.72rem;color:rgba(255,240,248,0.3);text-align:center;padding:0.7rem;">Aucun vote QR encore enregistré</div>';
+      listEl.innerHTML = '<div style="font-size:0.72rem;color:var(--muted);text-align:center;padding:0.7rem;">Aucun vote QR encore enregistré</div>';
       return;
     }
     var votes = [];
-    var totalGlobal = 0, posGlobal = 0;
     snap.forEach(function(doc) {
       var d = doc.data();
       votes.push({ etabId: doc.id, total: d.total || 0, pos: d.pos || 0, neg: d.neg || 0 });
-      totalGlobal += d.total || 0;
-      posGlobal   += d.pos   || 0;
     });
-    votes.sort(function(a, b){ return b.total - a.total; });
+    votes.sort(function(a, b) { return b.total - a.total; });
     var maxVotes = votes[0].total || 1;
-
-    /* KPIs */
-    if (kpiTotal) kpiTotal.textContent = totalGlobal;
-    if (kpiPos)   kpiPos.textContent   = posGlobal > 0 ? Math.round(posGlobal / totalGlobal * 100) + '%' : '—';
-    if (kpiEtabs) kpiEtabs.textContent = votes.length;
-
-    /* KPI scans caméra — requête séparée sur qr_votes */
-    var kpiCam = document.getElementById('qrAdmKpiCam');
-    if (kpiCam && window.fbGetDocs && window.fbCollection && window.fbQuery && window.fbWhere) {
-      var qCam = window.fbQuery(
-        window.fbCollection(window.db, 'qr_votes'),
-        window.fbWhere('source', '==', 'camera_scan')
-      );
-      window.fbGetDocs(qCam).then(function(s) {
-        if (kpiCam) kpiCam.textContent = s.size;
-      }).catch(function() {
-        /* Fallback: compter depuis _qrRecentVotes en mémoire */
-        if (kpiCam) kpiCam.textContent = _qrRecentVotes.filter(function(v){ return v.source === 'camera_scan'; }).length + '+';
-      });
-    } else if (kpiCam) {
-      /* Fallback sans fbQuery/fbWhere: mémoire session */
-      kpiCam.textContent = _qrRecentVotes.filter(function(v){ return v.source === 'camera_scan'; }).length + '+';
-    }
-
-    /* Classement */
-    var ranks = ['🥇', '🥈', '🥉'];
-    var rankClasses = ['gold', 'silver', 'bronze'];
     var html = '';
-    votes.slice(0, 15).forEach(function(v, i) {
-      var etab   = (window.etablissements || []).find(function(e){ return String(e.id) === String(v.etabId); });
-      var nom    = etab ? etab.nom : 'Étab. #' + v.etabId;
+    votes.slice(0, 10).forEach(function(v) {
+      var etab = (window.etablissements || []).find(function(e){ return String(e.id) === String(v.etabId); });
+      var nom = etab ? etab.nom : 'Étab. #' + v.etabId;
       var pct    = Math.round(v.total / maxVotes * 100);
       var posPct = v.total > 0 ? Math.round(v.pos / v.total * 100) : 0;
-      var fillCls = posPct >= 70 ? 'fill-pos' : 'fill-mixed';
-      var rankIcon  = i < 3 ? ranks[i] : (i + 1);
-      var rankClass = i < 3 ? rankClasses[i] : '';
       html += '<div class="qr-adm-vote-row">'
-        + '<div class="qr-adm-rank ' + rankClass + '">' + rankIcon + '</div>'
         + '<div class="qr-adm-vote-name" title="' + nom + '">' + nom + '</div>'
-        + '<div class="qr-adm-vote-bar"><div class="qr-adm-vote-fill ' + fillCls + '" style="width:' + pct + '%"></div></div>'
+        + '<div class="qr-adm-vote-bar"><div class="qr-adm-vote-fill" style="width:' + pct + '%"></div></div>'
         + '<div class="qr-adm-vote-count">' + v.total + '</div>'
-        + '<div class="qr-adm-vote-pct" style="color:' + (posPct >= 70 ? '#00ffaa' : '#ffd700') + '">👍' + posPct + '%</div>'
+        + '<div class="qr-adm-vote-delta">👍 ' + posPct + '%</div>'
         + '</div>';
     });
     listEl.innerHTML = html;
   }).catch(function(err) {
-    listEl.innerHTML = '<div style="font-size:0.7rem;color:#ff4466;padding:0.6rem;">Erreur: ' + err.message + '</div>';
+    listEl.innerHTML = '<div style="font-size:0.7rem;color:var(--red);padding:0.6rem;">Erreur: ' + err.message + '</div>';
   });
-
-  clearTimeout(_qrAdminTimer);
-  _qrAdminTimer = setTimeout(qrLoadAdminVotes, 30000); /* Auto-refresh 30s */
+  clearTimeout(_qrAdminListener);
+  _qrAdminListener = setTimeout(qrLoadAdminVotes, 30000);
 }
-
-function qrRenderRecentVotes() {
-  var el = document.getElementById('qrAdmRecentVotes');
-  if (!el) return;
-  if (_qrRecentVotes.length === 0) {
-    el.innerHTML = '<div style="text-align:center;padding:0.5rem;font-size:0.68rem;color:rgba(255,240,248,0.3);">Aucun vote récent</div>';
-    return;
-  }
-  var html = '';
-  _qrRecentVotes.slice(0, 10).forEach(function(v) {
-    var etab = (window.etablissements || []).find(function(e){ return String(e.id) === String(v.etabId); });
-    var nom  = etab ? etab.nom : 'Étab. #' + v.etabId;
-    var ago  = Math.round((Date.now() - v.ts) / 60000);
-    var agoStr = ago < 1 ? 'maintenant' : ago + ' min';
-    var camBadge = v.source === 'camera_scan' ? ' <span style="font-size:0.55rem;background:rgba(0,229,255,0.15);border:1px solid rgba(0,229,255,0.3);color:#00e5ff;border-radius:6px;padding:0.05rem 0.3rem;font-weight:700;">📷 Scan</span>' : '';
-    html += '<div class="qr-adm-recent-item">'
-      + '<div class="qr-adm-recent-dir">' + (v.direction === 'pos' ? '👍' : '👎') + '</div>'
-      + '<div class="qr-adm-recent-info">'
-        + '<div class="qr-adm-recent-etab">' + nom + camBadge + '</div>'
-        + '<div class="qr-adm-recent-user">' + (v.uid || 'Anonyme') + '</div>'
-      + '</div>'
-      + '<div class="qr-adm-recent-time">' + agoStr + '</div>'
-      + '</div>';
-  });
-  el.innerHTML = html;
-}
-
-/* Actions admin */
-window.ambiQrAdmExportCSV = function() {
-  if (!window.db || !window.fbGetDocs || !window.fbCollection) { if (typeof showToast === 'function') showToast('Firebase non disponible'); return; }
-  window.fbGetDocs(window.fbCollection(window.db, 'qr_votes')).then(function(snap) {
-    var rows = ['Établissement,Direction,Utilisateur,Date,Source'];
-    snap.forEach(function(doc) {
-      var d = doc.data();
-      var etab = (window.etablissements || []).find(function(e){ return String(e.id) === String(d.etabId); });
-      var nom  = etab ? etab.nom.replace(/,/g, ' ') : 'Étab. #' + d.etabId;
-      rows.push([nom, d.direction, (d.pseudo || '').replace(/,/g, ' '), new Date(d.ts).toLocaleString('fr-FR'), d.source || ''].join(','));
-    });
-    var blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    var url  = URL.createObjectURL(blob);
-    var a    = document.createElement('a');
-    a.href = url; a.download = 'ambi241_qr_votes_' + new Date().toISOString().slice(0, 10) + '.csv'; a.click();
-    URL.revokeObjectURL(url);
-    if (typeof showToast === 'function') showToast('📊 Export CSV téléchargé !');
-  }).catch(function(){ if (typeof showToast === 'function') showToast('❌ Erreur export'); });
-};
-
-window.ambiQrAdmResetMonth = function() {
-  if (!confirm('Réinitialiser tous les compteurs de votes QR de ce mois ? Cette action est irréversible.')) return;
-  if (typeof showToast === 'function') showToast('⚠️ Fonctionnalité disponible via la console Firebase');
-};
-
-window.ambiQrAdmForceReclassement = function() {
-  qrUpdatePublicRanking();
-  if (typeof showToast === 'function') showToast('🔄 Recalcul du classement lancé…');
-  setTimeout(function() { qrLoadAdminVotes(); }, 1500);
-};
 
 window.ambiQrRefreshAdminVotes = function() {
-  clearTimeout(_qrAdminTimer);
+  clearTimeout(_qrAdminListener);
   qrLoadAdminVotes();
 };
 
-/* ────────────────────────────────────────────────────────────
-   13. HOOK loadData / renderAll + MutationObserver
-──────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────
+   11. HOOK loadData / renderAll + MutationObserver
+   ───────────────────────────────────────────────────────────── */
 function qrHookFunctions() {
   if (window._qrHookDone) return;
   window._qrHookDone = true;
   var origLoad = window.loadData;
   if (typeof origLoad === 'function') {
-    window.loadData = function() { var r = origLoad.apply(this, arguments); setTimeout(qrInjectCardIcons, 600); return r; };
+    window.loadData = function() {
+      var r = origLoad.apply(this, arguments);
+      setTimeout(qrInjectCardIcons, 600);
+      return r;
+    };
   }
   var origRender = window.renderAll;
   if (typeof origRender === 'function') {
-    window.renderAll = function() { var r = origRender.apply(this, arguments); setTimeout(qrInjectCardIcons, 350); return r; };
+    window.renderAll = function() {
+      var r = origRender.apply(this, arguments);
+      setTimeout(qrInjectCardIcons, 350);
+      return r;
+    };
   }
 }
 
-/* ────────────────────────────────────────────────────────────
-   14. EXPOSITION GLOBALE & DÉMARRAGE
-──────────────────────────────────────────────────────────── */
-window.ambiQrInjectCardIcons    = qrInjectCardIcons;
-window.ambiQrLoadAdminVotes     = qrLoadAdminVotes;
-window.ambiQrUpdatePublicRanking = qrUpdatePublicRanking;
+/* ─────────────────────────────────────────────────────────────
+   12. EXPOSITION GLOBALE & DÉMARRAGE
+   ───────────────────────────────────────────────────────────── */
+window.ambiQrInjectCardIcons = qrInjectCardIcons;
+window.ambiQrLoadAdminVotes  = qrLoadAdminVotes;
 
 function qrInit() {
   qrCheckLandingMode();
@@ -45473,7 +44652,7 @@ if (document.readyState === 'loading') {
   qrInit();
 }
 
-/* Observer DOM pour ré-injecter après renderAll dynamique */
+/* Observer DOM pour re-injecter après renderAll dynamique */
 var _qrReinjectTimer = null;
 new MutationObserver(function(mutations) {
   var hasCard = mutations.some(function(m) {
@@ -45490,620 +44669,7 @@ new MutationObserver(function(mutations) {
   }
 }).observe(document.body, { childList: true, subtree: true });
 
-
-/* ════════════════════════════════════════════════════════════════════
-   SCANNER CAMÉRA — AMBI241 QR Vote
-   getUserMedia + jsQR → décode QR codes → vote automatique
-   ════════════════════════════════════════════════════════════════════ */
-var _qrScanStream  = null;
-var _qrScanRAF     = null;
-var _qrTorchOn     = false;
-var _qrScanSuccess = false;
-
-window.ambiQrOpenScanner = function() {
-  var overlay = document.getElementById('ambiQrCamOverlay');
-  if (!overlay) return;
-
-  if (typeof jsQR === 'undefined') {
-    overlay.classList.add('active');
-    document.body.style.overflow = 'hidden';
-    qrSetCamStatus('⚠️ Bibliothèque scanner en chargement, réessayez dans 2s.', 'error');
-    return;
-  }
-
-  _qrScanSuccess = false;
-  overlay.classList.add('active');
-  document.body.style.overflow = 'hidden';
-
-  var btn = document.getElementById('qrScannerOpenBtn');
-  if (btn) { btn.classList.add('scanning'); btn.innerHTML = '⏹ Arrêter le scanner'; btn.onclick = window.ambiQrCloseScanner; }
-
-  qrSetCamStatus('Démarrage de la caméra…');
-  qrStartCamera();
-};
-
-window.ambiQrCloseScanner = function() {
-  var overlay = document.getElementById('ambiQrCamOverlay');
-  if (overlay) overlay.classList.remove('active');
-  document.body.style.overflow = '';
-
-  if (_qrScanRAF)    { cancelAnimationFrame(_qrScanRAF); _qrScanRAF = null; }
-  if (_qrScanStream) { _qrScanStream.getTracks().forEach(function(t){ t.stop(); }); _qrScanStream = null; }
-  _qrTorchOn = false;
-
-  var btn = document.getElementById('qrScannerOpenBtn');
-  if (btn) { btn.classList.remove('scanning'); btn.innerHTML = '📷 Scanner le QR d\'un établissement'; btn.onclick = window.ambiQrOpenScanner; }
-
-  var torch = document.getElementById('ambiQrTorchBtn');
-  if (torch) torch.style.display = 'none';
-};
-
-function qrStartCamera() {
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } })
-    .then(function(stream) {
-      _qrScanStream = stream;
-      var video = document.getElementById('ambiQrVideo');
-      if (!video) return;
-      video.srcObject = stream;
-      video.play();
-      video.addEventListener('loadedmetadata', function() {
-        qrSetCamStatus('Pointez vers le QR Code AMBI241');
-        var track = stream.getVideoTracks()[0];
-        if (track && track.getCapabilities && track.getCapabilities().torch) {
-          var tb = document.getElementById('ambiQrTorchBtn');
-          if (tb) tb.style.display = 'inline-block';
-        }
-        qrScanFrame(video);
-      }, { once: true });
-    })
-    .catch(function(err) {
-      var msg = '❌ Accès caméra refusé.';
-      if (err.name === 'NotFoundError')    msg = '❌ Aucune caméra détectée sur cet appareil.';
-      if (err.name === 'NotAllowedError')  msg = '❌ Permission caméra refusée. Autorisez-la dans les réglages du navigateur.';
-      if (err.name === 'NotReadableError') msg = '❌ Caméra déjà utilisée par une autre app.';
-      qrSetCamStatus(msg, 'error');
-    });
-}
-
-function qrScanFrame(video) {
-  if (!_qrScanStream || _qrScanSuccess) return;
-  var canvas = document.getElementById('ambiQrCanvas');
-  if (!canvas || !video.videoWidth) { _qrScanRAF = requestAnimationFrame(function(){ qrScanFrame(video); }); return; }
-  canvas.width  = video.videoWidth;
-  canvas.height = video.videoHeight;
-  var ctx = canvas.getContext('2d');
-  ctx.drawImage(video, 0, 0);
-  var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  var code = null;
-  try { code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' }); } catch(e){}
-  if (code && code.data) { qrHandleScanResult(code.data); }
-  else { _qrScanRAF = requestAnimationFrame(function(){ qrScanFrame(video); }); }
-}
-
-function qrHandleScanResult(url) {
-  _qrScanSuccess = true;
-  if (_qrScanRAF) { cancelAnimationFrame(_qrScanRAF); _qrScanRAF = null; }
-  if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
-  qrSetCamStatus('✅ QR Code détecté !', 'success');
-
-  var etabId = qrExtractEtabIdFromUrl(url);
-  if (!etabId) {
-    qrSetCamStatus('⚠️ QR Code non reconnu. Scannez un QR AMBI241.', 'error');
-    setTimeout(function() {
-      _qrScanSuccess = false;
-      var video = document.getElementById('ambiQrVideo');
-      if (video && _qrScanStream) qrScanFrame(video);
-    }, 2500);
-    return;
-  }
-
-  setTimeout(function() {
-    window.ambiQrCloseScanner();
-    window._qrScanVote = true; /* flag: vote déclenché par scan caméra */
-    if (!qrIsGuest()) {
-      var etab = (window.etablissements || []).find(function(e){ return String(e.id) === String(etabId); });
-      if (etab) { ambiQrOpenModal(etabId, etab); }
-      else { window.location.href = url; }
-    } else { window.location.href = url; }
-  }, 800);
-}
-
-function qrExtractEtabIdFromUrl(url) {
-  try {
-    var parsed = new URL(url);
-    var etabId = parsed.searchParams.get('etab') || parsed.searchParams.get('vote') || parsed.searchParams.get('id');
-    if (etabId) return etabId;
-    if (parsed.origin === window.location.origin) {
-      var hash = parsed.hash.replace('#','');
-      if (hash && hash.startsWith('etab-')) return hash.replace('etab-','');
-    }
-    return null;
-  } catch(e) { return null; }
-}
-
-window.ambiQrToggleTorch = function() {
-  if (!_qrScanStream) return;
-  var track = _qrScanStream.getVideoTracks()[0];
-  if (!track) return;
-  _qrTorchOn = !_qrTorchOn;
-  track.applyConstraints({ advanced: [{ torch: _qrTorchOn }] }).catch(function(){});
-  var btn = document.getElementById('ambiQrTorchBtn');
-  if (btn) btn.textContent = _qrTorchOn ? '🔦 Torche ON' : '🔦 Lampe torche';
-};
-
-function qrSetCamStatus(msg, type) {
-  var el = document.getElementById('ambiQrCamStatus');
-  if (!el) return;
-  el.textContent = msg;
-  el.className = 'qr-cam-status' + (type ? ' ' + type : '');
-}
-
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') {
-    var ov = document.getElementById('ambiQrCamOverlay');
-    if (ov && ov.classList.contains('active')) window.ambiQrCloseScanner();
-  }
-});
-
-console.log('[AMBI241] ✅ QR Code Vote System v2 chargé — rôles: guest/member/owner/admin');
-
-})();
-</script>
-
-<!-- ═══════════════════════════════════════════════════════════════════
-     AMBI241 — SONNERIES RÉELLES + ÉCOUTE FIRESTORE EN TEMPS RÉEL
-     Branché sur le système pushNotif() existant
-     ═══════════════════════════════════════════════════════════════════ -->
-<script>
-(function(){
-'use strict';
-
-/* ════════════════════════════════════════════════════════════════════
-   1. SONNERIES — Web Audio API (aucun fichier externe requis)
-      Génère les sons directement dans le navigateur
-   ════════════════════════════════════════════════════════════════════ */
-var AmbiSon = {
-  _ctx: null,
-  ctx: function(){
-    if(!this._ctx){
-      try{ this._ctx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
-    }
-    // Reprendre si suspendu (politique autoplay navigateur)
-    if(this._ctx && this._ctx.state==='suspended'){
-      try{ this._ctx.resume(); }catch(e){}
-    }
-    return this._ctx;
-  },
-
-  // 💬 Message / SMS — 3 notes montantes (style messagerie)
-  message: function(){
-    var c=this.ctx(); if(!c) return;
-    var t=c.currentTime;
-    [660,880,1100].forEach(function(freq,i){
-      var o=c.createOscillator(), g=c.createGain();
-      o.connect(g); g.connect(c.destination);
-      o.type='sine'; o.frequency.value=freq;
-      var s=t+i*0.11;
-      g.gain.setValueAtTime(0,s);
-      g.gain.linearRampToValueAtTime(0.28,s+0.02);
-      g.gain.exponentialRampToValueAtTime(0.001,s+0.2);
-      o.start(s); o.stop(s+0.22);
-    });
-  },
-
-  // 🔔 Ding — commentaire / forum (note pure + décroissance)
-  ding: function(){
-    var c=this.ctx(); if(!c) return;
-    var t=c.currentTime;
-    var o=c.createOscillator(), g=c.createGain();
-    o.connect(g); g.connect(c.destination);
-    o.type='sine';
-    o.frequency.setValueAtTime(1320,t);
-    o.frequency.exponentialRampToValueAtTime(880,t+0.4);
-    g.gain.setValueAtTime(0.38,t);
-    g.gain.exponentialRampToValueAtTime(0.001,t+0.6);
-    o.start(t); o.stop(t+0.65);
-  },
-
-  // ❤️ Pop — like / réaction (court et doux)
-  pop: function(){
-    var c=this.ctx(); if(!c) return;
-    var t=c.currentTime;
-    var o=c.createOscillator(), g=c.createGain();
-    o.connect(g); g.connect(c.destination);
-    o.type='triangle';
-    o.frequency.setValueAtTime(700,t);
-    o.frequency.exponentialRampToValueAtTime(1400,t+0.07);
-    g.gain.setValueAtTime(0.3,t);
-    g.gain.exponentialRampToValueAtTime(0.001,t+0.18);
-    o.start(t); o.stop(t+0.2);
-  },
-
-  // 👥 Ami — deux notes (style invitation)
-  ami: function(){
-    var c=this.ctx(); if(!c) return;
-    var t=c.currentTime;
-    [[880,0],[1100,0.15]].forEach(function(pair){
-      var o=c.createOscillator(), g=c.createGain();
-      o.connect(g); g.connect(c.destination);
-      o.type='sine'; o.frequency.value=pair[0];
-      var s=t+pair[1];
-      g.gain.setValueAtTime(0,s);
-      g.gain.linearRampToValueAtTime(0.32,s+0.03);
-      g.gain.exponentialRampToValueAtTime(0.001,s+0.25);
-      o.start(s); o.stop(s+0.28);
-    });
-  },
-
-  // Joue selon le type de notif
-  jouer: function(type){
-    try{
-      var t=(type||'').toLowerCase();
-      if(t.indexOf('message')!==-1||t.indexOf('sms')!==-1||t.indexOf('msg')!==-1) return this.message();
-      if(t.indexOf('comment')!==-1||t.indexOf('forum')!==-1||t.indexOf('avis')!==-1) return this.ding();
-      if(t.indexOf('like')!==-1||t.indexOf('reaction')!==-1||t.indexOf('vote')!==-1) return this.pop();
-      if(t.indexOf('ami')!==-1||t.indexOf('friend')!==-1||t.indexOf('request')!==-1) return this.ami();
-      this.ding(); // défaut
-    }catch(e){}
-  }
-};
-
-// Exposer globalement pour tests depuis la console
-window.AmbiSon = AmbiSon;
-
-/* ════════════════════════════════════════════════════════════════════
-   2. BRANCHER LA SONNERIE sur le système pushNotif() EXISTANT
-      On intercepte showNotifToast (déjà appelé à chaque notif visible)
-   ════════════════════════════════════════════════════════════════════ */
-var _origShowNotifToast = window.showNotifToast;
-window.showNotifToast = function(msg, notif){
-  // Jouer le son selon le type
-  var type = notif ? (notif.key||notif.type||notif.channel||'') : '';
-  AmbiSon.jouer(type);
-  // Appeler l'original
-  if(typeof _origShowNotifToast === 'function') _origShowNotifToast(msg, notif);
-};
-
-/* ════════════════════════════════════════════════════════════════════
-   3. NOTIFICATION NATIVE DU NAVIGATEUR (fonctionne app en arrière-plan)
-      Remplace la notification basique existante par une version enrichie
-   ════════════════════════════════════════════════════════════════════ */
-var _origPushNotif = window.pushNotif;
-window.pushNotif = function(opts){
-  // Appeler l'original d'abord
-  if(typeof _origPushNotif === 'function') _origPushNotif(opts);
-
-  // Si l'app est en arrière-plan → envoyer notification native enrichie
-  if(document.visibilityState !== 'visible'
-     && typeof Notification !== 'undefined'
-     && Notification.permission === 'granted'){
-    try{
-      var icons = {
-        message:'💬', sms:'💬', comment:'💬', forum:'🔔',
-        ami:'👥', friend:'👥', like:'❤️', vote:'⭐', default:'🎵'
-      };
-      var type = (opts.key||opts.type||'').toLowerCase();
-      var iconKey = Object.keys(icons).find(function(k){ return type.indexOf(k)!==-1; }) || 'default';
-
-      // Utiliser le Service Worker si disponible (meilleur support mobile)
-      if(navigator.serviceWorker && navigator.serviceWorker.controller){
-        navigator.serviceWorker.ready.then(function(reg){
-          reg.showNotification('AMBI241 — ' + (opts.title||''), {
-            body:     opts.msg || '',
-            icon:     '/icon-192.png',
-            badge:    '/badge-72.png',
-            tag:      opts.key || 'ambi-notif',
-            renotify: true,
-            vibrate:  [200, 100, 200, 100, 400],
-            silent:   false,
-            data:     { type: type, key: opts.key }
-          });
-        }).catch(function(){});
-      } else {
-        // Fallback notification simple
-        new Notification('AMBI241 — ' + (opts.title||''), {
-          body: opts.msg||'',
-          icon: '/icon-192.png',
-          tag:  opts.key||'ambi-notif',
-          silent: false
-        });
-      }
-    }catch(ex){}
-  }
-};
-
-/* ════════════════════════════════════════════════════════════════════
-   4. ÉCOUTE FIRESTORE EN TEMPS RÉEL (messages, commentaires, forum)
-      Déclenche pushNotif() automatiquement à chaque nouveau document
-   ════════════════════════════════════════════════════════════════════ */
-var _ambiListeners = [];  // pour désabonner au logout
-var _ambiListenedUid = null;
-
-function ambiStartListeners(uid){
-  if(!uid || _ambiListenedUid === uid) return;
-  if(!window.db || !window.fbCollection || !window.fbQuery ||
-     !window.fbWhere || !window.fbOrderBy || !window.fbLimit || !window.fbOnSnapshot) return;
-
-  _ambiListenedUid = uid;
-  ambiStopListeners(); // sécurité : arrêter les anciens
-
-  var db = window.db;
-  var now = Date.now();
-
-  /* ── Listener 1 : Messages privés reçus ── */
-  try{
-    var qMsg = window.fbQuery(
-      window.fbCollection(db, 'messages'),
-      window.fbWhere('recipientId', '==', uid),
-      window.fbWhere('read', '==', false),
-      window.fbOrderBy('createdAt', 'desc'),
-      window.fbLimit(1)
-    );
-    var unsubMsg = window.fbOnSnapshot(qMsg, function(snap){
-      snap.docChanges().forEach(function(change){
-        if(change.type !== 'added') return;
-        var d = change.doc.data();
-        if((d.createdAt && d.createdAt > now) || !d.createdAt){
-          AmbiSon.message();
-          if(typeof window.pushNotif === 'function'){
-            window.pushNotif({
-              targetRole: 'all',
-              key: 'message_recu',
-              icon: '💬',
-              title: 'Message de ' + (d.senderName || 'quelqu\'un'),
-              msg: d.text ? d.text.substring(0,80) : 'Nouveau message',
-              channel: 'push',
-              fromAdmin: false
-            });
-          }
-        }
-      });
-    }, function(){});
-    _ambiListeners.push(unsubMsg);
-  }catch(e){}
-
-  /* ── Listener 2 : Commentaires sur vos publications ── */
-  try{
-    var qCom = window.fbQuery(
-      window.fbCollection(db, 'commentaires'),
-      window.fbWhere('auteurDuPostId', '==', uid),
-      window.fbOrderBy('createdAt', 'desc'),
-      window.fbLimit(1)
-    );
-    var unsubCom = window.fbOnSnapshot(qCom, function(snap){
-      snap.docChanges().forEach(function(change){
-        if(change.type !== 'added') return;
-        var d = change.doc.data();
-        if(d.auteurId === uid) return; // ne pas notifier ses propres commentaires
-        if((d.createdAt && d.createdAt > now) || !d.createdAt){
-          AmbiSon.ding();
-          if(typeof window.pushNotif === 'function'){
-            window.pushNotif({
-              targetRole: 'all',
-              key: 'commentaire_recu',
-              icon: '💬',
-              title: (d.auteurNom||'Un membre') + ' a commenté',
-              msg: d.texte ? d.texte.substring(0,80) : 'Nouveau commentaire',
-              channel: 'push',
-              fromAdmin: false
-            });
-          }
-        }
-      });
-    }, function(){});
-    _ambiListeners.push(unsubCom);
-  }catch(e){}
-
-  /* ── Listener 3 : Demandes d'amis reçues ── */
-  try{
-    var qAmi = window.fbQuery(
-      window.fbCollection(db, 'friendships'),
-      window.fbWhere('recipientId', '==', uid),
-      window.fbWhere('status', '==', 'pending'),
-      window.fbOrderBy('createdAt', 'desc'),
-      window.fbLimit(1)
-    );
-    var unsubAmi = window.fbOnSnapshot(qAmi, function(snap){
-      snap.docChanges().forEach(function(change){
-        if(change.type !== 'added') return;
-        var d = change.doc.data();
-        if((d.createdAt && d.createdAt > now) || !d.createdAt){
-          AmbiSon.ami();
-          if(typeof window.pushNotif === 'function'){
-            window.pushNotif({
-              targetRole: 'all',
-              key: 'demande_ami',
-              icon: '👥',
-              title: (d.senderName||'Un membre') + ' veut se connecter',
-              msg: 'Nouvelle demande d\'ami sur AMBI241',
-              channel: 'push',
-              fromAdmin: false
-            });
-          }
-        }
-      });
-    }, function(){});
-    _ambiListeners.push(unsubAmi);
-  }catch(e){}
-
-  /* ── Listener 4 : Publications du forum (nouvelles demandes) ── */
-  try{
-    var qForum = window.fbQuery(
-      window.fbCollection(db, 'publications'),
-      window.fbOrderBy('timestamp', 'desc'),
-      window.fbLimit(1)
-    );
-    var unsubForum = window.fbOnSnapshot(qForum, function(snap){
-      snap.docChanges().forEach(function(change){
-        if(change.type !== 'added') return;
-        var d = change.doc.data();
-        if(d.authorUid === uid) return; // pas ses propres publications
-        if((d.timestamp && d.timestamp > now) || !d.timestamp){
-          AmbiSon.ding();
-          if(typeof window.pushNotif === 'function'){
-            window.pushNotif({
-              targetRole: 'membre',
-              key: 'forum_nouvelle_pub',
-              icon: '🔔',
-              title: (d.author||'Un membre') + ' a publié',
-              msg: d.text ? d.text.substring(0,80) : 'Nouvelle publication',
-              channel: 'push',
-              fromAdmin: false
-            });
-          }
-        }
-      });
-    }, function(){});
-    _ambiListeners.push(unsubForum);
-  }catch(e){}
-
-  console.log('[AMBI241] 🔔 Listeners temps réel actifs pour:', uid);
-}
-
-function ambiStopListeners(){
-  _ambiListeners.forEach(function(unsub){ try{ unsub(); }catch(e){} });
-  _ambiListeners = [];
-  _ambiListenedUid = null;
-}
-window.ambiStopListeners = ambiStopListeners;
-
-/* ════════════════════════════════════════════════════════════════════
-   5. DÉMARRAGE AUTOMATIQUE au login Firebase
-      On surveille window.currentUserUID pour démarrer les listeners
-   ════════════════════════════════════════════════════════════════════ */
-var _ambiCheckInterval = setInterval(function(){
-  var uid = window.currentUserUID;
-  if(uid && uid !== _ambiListenedUid){
-    // Attendre que Firebase soit prêt
-    if(window.db && window.fbOnSnapshot){
-      clearInterval(_ambiCheckInterval);
-      ambiStartListeners(uid);
-    }
-  }
-}, 1200);
-
-// Arrêter les listeners au logout
-var _origLogout = window.logoutUser || window.handleLogout;
-if(typeof _origLogout === 'function'){
-  window.logoutUser = window.handleLogout = function(){
-    ambiStopListeners();
-    _origLogout.apply(this, arguments);
-  };
-}
-
-/* ════════════════════════════════════════════════════════════════════
-   6. PERMISSION NAVIGATEUR — Demande non-intrusive après 4 secondes
-      S'appuie sur requestPushPermission() qui existe déjà dans votre app
-   ════════════════════════════════════════════════════════════════════ */
-function ambiDemanderPermission(){
-  if(typeof Notification === 'undefined') return;
-  if(Notification.permission !== 'default') return; // déjà accordée ou refusée
-  if(localStorage.getItem('ambi_push_dismissed_v2')) return;
-
-  // Ne demander que si l'user est connecté
-  if(!window.currentUserUID) return;
-
-  // Afficher un mini prompt AMBI241 avant le prompt natif
-  var existing = document.getElementById('ambi-perm-banner');
-  if(existing) return;
-
-  var banner = document.createElement('div');
-  banner.id = 'ambi-perm-banner';
-  banner.style.cssText = [
-    'position:fixed',
-    'bottom:calc(54px + env(safe-area-inset-bottom,0px) + 10px)',
-    'left:10px','right:10px',
-    'background:rgba(26,10,40,0.97)',
-    'border:1px solid rgba(255,45,155,0.45)',
-    'border-radius:18px',
-    'padding:14px 16px',
-    'z-index:99999',
-    'box-shadow:0 8px 32px rgba(0,0,0,0.65)',
-    'backdrop-filter:blur(20px)',
-    'display:flex','gap:12px','align-items:flex-start',
-    'animation:fadeIn 0.35s ease'
-  ].join(';');
-
-  banner.innerHTML = [
-    '<div style="font-size:2rem;line-height:1;flex-shrink:0">🔔</div>',
-    '<div style="flex:1">',
-      '<div style="font-family:\'Syne\',sans-serif;font-size:0.88rem;font-weight:800;color:#fff0f8;margin-bottom:4px">',
-        'Activez les sonneries AMBI241',
-      '</div>',
-      '<div style="font-size:0.72rem;color:#b088c0;line-height:1.4;margin-bottom:10px">',
-        'Recevez une sonnerie pour vos messages, commentaires et demandes — même app fermée.',
-      '</div>',
-      '<div style="display:flex;gap:8px">',
-        '<button id="ambi-perm-oui" style="flex:1;padding:0.48rem;border-radius:10px;border:none;',
-          'background:linear-gradient(135deg,#ff2d9b,#cc44ff);color:#fff;',
-          'font-family:\'DM Sans\',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer">',
-          '✅ Activer',
-        '</button>',
-        '<button id="ambi-perm-non" style="flex:1;padding:0.48rem;border-radius:10px;',
-          'border:1px solid rgba(255,255,255,0.12);background:transparent;color:#b088c0;',
-          'font-family:\'DM Sans\',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer">',
-          'Plus tard',
-        '</button>',
-      '</div>',
-    '</div>'
-  ].join('');
-
-  document.body.appendChild(banner);
-
-  document.getElementById('ambi-perm-oui').onclick = function(){
-    banner.remove();
-    Notification.requestPermission().then(function(r){
-      if(r === 'granted'){
-        AmbiSon.ding();
-        if(typeof showNotifToast === 'function')
-          showNotifToast('✅ Sonneries activées !', {key:'perm_ok',icon:'🔔',title:'Sonneries activées',msg:'Vous recevrez des sonneries même hors de l\'application.'});
-      }
-    }).catch(function(){});
-  };
-
-  document.getElementById('ambi-perm-non').onclick = function(){
-    banner.remove();
-    localStorage.setItem('ambi_push_dismissed_v2', '1');
-  };
-}
-
-// Déclencher la demande 4s après que l'user soit connecté
-var _ambiPermTimer = setInterval(function(){
-  if(window.currentUserUID){
-    clearInterval(_ambiPermTimer);
-    setTimeout(ambiDemanderPermission, 4000);
-  }
-}, 1500);
-
-/* ════════════════════════════════════════════════════════════════════
-   7. BADGE APP (compteur rouge sur l'icône PWA — Android Chrome)
-   ════════════════════════════════════════════════════════════════════ */
-function ambiMajBadge(){
-  try{
-    var unread = 0;
-    if(typeof loadNotifs === 'function'){
-      unread = loadNotifs().filter(function(n){ return n.unread; }).length;
-    }
-    if('setAppBadge' in navigator){
-      if(unread > 0) navigator.setAppBadge(unread).catch(function(){});
-      else           navigator.clearAppBadge().catch(function(){});
-    }
-  }catch(e){}
-}
-
-// Mettre à jour le badge quand le panneau de notifs change
-var _origRenderNotifBadge = window.renderNotifBadge;
-window.renderNotifBadge = function(){
-  if(typeof _origRenderNotifBadge === 'function') _origRenderNotifBadge();
-  ambiMajBadge();
-};
-
-// Remettre le badge à 0 quand l'user revient sur l'app
-document.addEventListener('visibilitychange', function(){
-  if(document.visibilityState === 'visible') ambiMajBadge();
-});
-
-console.log('[AMBI241] ✅ Sonneries réelles + Listeners Firestore initialisés');
+console.log('[AMBI241] ✅ QR Code Vote System chargé');
 
 })();
 </script>
