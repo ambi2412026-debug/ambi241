@@ -74,6 +74,15 @@ body.switching * {
   animation: none !important;
 }
 
+/* FIX RÉACTIVITÉ TACTILE — header et nav toujours cliquables, jamais bloqués */
+header, header *, .bottom-nav, .bottom-nav * {
+  pointer-events: auto !important;
+}
+/* Sauf les éléments décoratifs explicitement non-interactifs */
+header *[aria-hidden="true"], .bottom-nav *[aria-hidden="true"] {
+  pointer-events: none !important;
+}
+
 main, section { contain: layout style paint; }
 
 .soc-tabs, .socpub-filter-row, .igm-steps, .header-guide-bar,
@@ -1453,7 +1462,7 @@ main, section { contain: layout style paint; }
 .adm-socpub-rule-sub{font-size:0.62rem;color:var(--muted);margin-top:0.05rem;}
 .asm-new-post-cta:active{background:rgba(255,45,155,0.12);}
 
-header{position:fixed;top:0;left:0;right:0;z-index:100;
+header{position:fixed;top:0;left:0;right:0;z-index:201;
   
   background:#0d0014;
   border-bottom:1px solid rgba(255,45,155,0.2);padding:0;width:100%;max-width:100vw;box-sizing:border-box;overflow:visible;display:flex;flex-direction:column;
@@ -1505,7 +1514,7 @@ header{position:fixed;top:0;left:0;right:0;z-index:100;
 .live-dot{width:4px;height:4px;background:var(--green);border-radius:50%;animation:pulse 2s infinite;flex-shrink:0;}
 .user-btn{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-size:0.85rem;font-weight:700;padding:0;width:28px;height:28px;min-width:28px;border-radius:50%;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.1s;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .user-btn:active{transform:scale(0.92);}
-.admin-btn{background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);color:var(--amber);font-size:0.85rem;font-weight:700;padding:0;width:28px;height:28px;min-width:28px;border-radius:50%;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.1s;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.admin-btn{background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);color:var(--amber);font-size:0.85rem;font-weight:700;padding:0;width:28px;height:28px;min-width:28px;border-radius:50%;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.1s;display:flex;align-items:center;justify-content:center;flex-shrink:0;touch-action:manipulation;position:relative;z-index:200;pointer-events:auto;}
 .admin-btn.active{background:rgba(255,215,0,0.2);border-color:var(--amber);}
 .admin-btn:active{transform:scale(0.92);}
 .user-greeting{display:none;align-items:center;gap:0.2rem;background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);padding:0.2rem 0.35rem;border-radius:20px;font-size:0.6rem;font-weight:700;color:var(--pink);white-space:nowrap;max-width:70px;overflow:hidden;text-overflow:ellipsis;flex-shrink:1;}
@@ -7173,12 +7182,12 @@ document.addEventListener('DOMContentLoaded', function() {
       <div class="notif-badge" id="notifBadge">0</div>
     </div>
     <button class="user-btn" id="userLoginBtn" onclick="document.getElementById('userOverlay').classList.add('show')">&#128100;</button>
-    <button class="admin-btn" id="adminBtn" onclick="toggleAdmin()" style="display:none;">&#128513;</button><button id="adminUnlockBtn" onclick="pinBuf=\'\';updateDots();document.getElementById(\'pinOverlay\').classList.add(\'show\');" title="Acces Admin" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.3);color:rgba(255,255,255,1);font-size:0.72rem;width:26px;height:26px;min-width:26px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">&#128274;</button>
+    <button class="admin-btn" id="adminBtn" onclick="toggleAdmin()" style="display:none;touch-action:manipulation;position:relative;z-index:200;pointer-events:auto;">&#128513;</button><button id="adminUnlockBtn" onclick="pinBuf=\'\';updateDots();document.getElementById(\'pinOverlay\').classList.add(\'show\');" title="Acces Admin" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.3);color:rgba(255,255,255,1);font-size:0.72rem;width:26px;height:26px;min-width:26px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;touch-action:manipulation;position:relative;z-index:200;pointer-events:auto;">&#128274;</button>
     <!-- ══ ICÔNE ADMIN D'URGENCE — toujours cliquable, jamais affectée ══ -->
     <button id="ambiEmergencyAdminBtn"
       onclick="ambiEmergencyAdminOpen()"
       title="Accès Admin d'urgence — toujours disponible"
-      style="position:relative;background:linear-gradient(135deg,rgba(255,140,0,0.18),rgba(255,45,155,0.12));border:1.5px solid rgba(255,140,0,0.6);color:#ff8c00;font-size:0.85rem;width:30px;height:30px;min-width:30px;border-radius:50%;cursor:pointer;display:none;align-items:center;justify-content:center;flex-shrink:0;touch-action:manipulation;z-index:9999;box-shadow:0 0 12px rgba(255,140,0,0.3);transition:all 0.15s;"
+      style="position:relative;background:linear-gradient(135deg,rgba(255,140,0,0.18),rgba(255,45,155,0.12));border:1.5px solid rgba(255,140,0,0.6);color:#ff8c00;font-size:0.85rem;width:30px;height:30px;min-width:30px;border-radius:50%;cursor:pointer;display:none;align-items:center;justify-content:center;flex-shrink:0;touch-action:manipulation;z-index:200;pointer-events:auto;box-shadow:0 0 12px rgba(255,140,0,0.3);transition:all 0.15s;"
       onmousedown="this.style.transform=\'scale(0.88)\'"
       onmouseup="this.style.transform=\'scale(1)\'"
       ontouchstart="this.style.transform=\'scale(0.88)\';event.stopPropagation();"
@@ -11567,7 +11576,13 @@ function checkSecondaryAdminAccess(){
     isSuperAdmin = false;
     // Mettre à jour l'UI
     var abtn = document.getElementById("adminBtn");
-    if(abtn){ abtn.style.background="rgba(255,215,0,0.2)"; abtn.style.borderColor="rgba(255,215,0,0.6)"; abtn.style.color="#ffd700"; }
+    var unlockBtn2 = document.getElementById("adminUnlockBtn");
+    var emergBtn2 = document.getElementById("ambiEmergencyAdminBtn");
+    if(abtn){ abtn.style.display="flex"; abtn.style.background="rgba(255,215,0,0.2)"; abtn.style.borderColor="rgba(255,215,0,0.6)"; abtn.style.color="#ffd700"; }
+    if(unlockBtn2) unlockBtn2.style.display="none";
+    if(emergBtn2) emergBtn2.style.display="flex";
+    var navSettings2 = document.getElementById("navAdminSettings");
+    if(navSettings2) navSettings2.style.display="flex";
     renderStats(); renderAll(); renderHome(); updatePayVis(); renderPayments();
     // ── Afficher le bouton Ajout rapide ──
     if(typeof window.aqaCheckAdminBtn==='function') window.aqaCheckAdminBtn();
@@ -18060,6 +18075,9 @@ function renderPayments(){
 var SECS=["accueil","etablissements","paiements","contacts","profil","social"];
 function goHome(){switchSection("accueil",document.querySelector(".nav-item"));}
 function switchSection(name,btn){
+  /* FIX CRITIQUE: Toujours libérer l'overflow — évite les pages noires bloquées
+     (modaux non fermés proprement laissent overflow:hidden sur le body) */
+  document.body.style.overflow = '';
   /* PERF: Désactiver les animations pendant le changement pour réactivité */
   document.body.classList.add('switching');
   
@@ -18089,11 +18107,13 @@ function switchSection(name,btn){
       var el = document.getElementById("sec-"+s);
       if(el) el.classList.toggle("section-hidden", s !== name);
     });
-    /* PERF: Réactiver les animations après le changement */
+    /* PERF: Réactiver les animations après le changement — réduit à 20ms pour réactivité */
     setTimeout(function() {
       document.body.classList.remove('switching');
-    }, 50);
+    }, 20);
   });
+  /* SECURITE: Toujours supprimer switching après 300ms max (garde-fou contre blocage) */
+  setTimeout(function(){ document.body.classList.remove('switching'); }, 300);
   // ── LAZY LOADING : initialiser le module de la section si pas encore fait ──
   _lazyInitSection(name);
   // Effacer le badge Discussions quand on arrive sur la section
