@@ -2654,19 +2654,6 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   font-family:'DM Sans',sans-serif;font-weight:700;font-size:0.8rem;
   color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
-/* Nom vert clignotant — proche GPS ou correspondance recherche */
-@keyframes nameGreenBlink{0%,100%{opacity:1;color:var(--green);}50%{opacity:0.55;color:#00e0a0;}}
-.cr-name.search-match-near{
-  animation:nameGreenBlink 1.4s ease-in-out infinite;
-  font-weight:800;
-}
-/* Vue cartes : nom vert clignotant pour les proches GPS */
-.card-prox-near .card-name,
-.card-prox-near .card-name button.etab-name-order-btn{
-  animation:nameGreenBlink 1.4s ease-in-out infinite;
-  color:var(--green) !important;
-  font-weight:800;
-}
 /* Statut pill */
 .cr-status{
   font-size:0.55rem;font-weight:800;padding:0.12rem 0.38rem;
@@ -7210,7 +7197,7 @@ if (document.readyState === 'loading') {
   <div class="sitenav-item" onclick="installPWA();closeSiteNav()">
     <span class="sni-icon">🚀</span><span class="sni-label">Installer l'application</span><span class="sni-badge">PWA</span>
   </div>
-  <div class="sitenav-item" onclick="logoutUser();closeSiteNav()" style="color:var(--red);">
+  <div class="sitenav-item" onclick="closeSiteNav();logoutUser();" style="color:var(--red);">
     <span class="sni-icon">🚪</span><span class="sni-label">Se déconnecter</span>
   </div>
 
@@ -14325,13 +14312,27 @@ function _updateHeaderThumb(url, initiale){
 
 // ── DÉCONNEXION ───────────────────────────────────────────────
 function logoutUser(){
-  if(!confirm("Voulez-vous vraiment vous déconnecter ?")) return;
+  var modal = document.getElementById('logoutConfirmModal');
+  if(modal){ modal.style.display = 'flex'; return; }
+  _doLogout();
+}
+function _doLogout(){
+  if(typeof window._disableBeforeUnloadGuard === 'function') window._disableBeforeUnloadGuard();
+  var modal = document.getElementById('logoutConfirmModal');
+  if(modal) modal.style.display = 'none';
+  if(!window.fbSignOut || !window.auth){ showToast("Service indisponible"); return; }
   window.fbSignOut(window.auth).then(function(){
-    showToast("Déconnecté avec succès");
+    showToast("Déconnecté avec succès ✓");
   }).catch(function(err){
     showToast("Erreur lors de la déconnexion");
   });
 }
+function _cancelLogout(){
+  var modal = document.getElementById('logoutConfirmModal');
+  if(modal) modal.style.display = 'none';
+}
+window._doLogout     = _doLogout;
+window._cancelLogout = _cancelLogout;
 
 // ── MOT DE PASSE OUBLIÉ ───────────────────────────────────────
 function openForgotModal(){
@@ -15498,8 +15499,7 @@ function buildLiveDispoBar(e, canManage){
   return html;
 }
 
-function buildCompactRow(e, rank, extraClass){
-  extraClass = extraClass || "";
+function buildCompactRow(e, rank){
   var cat  = getCategory(e.type);
   var ci   = getCatInfo(cat);
   var sc   = computeRankScore(e);
@@ -15533,22 +15533,13 @@ function buildCompactRow(e, rank, extraClass){
   var waUrl = contact ? "https://wa.me/"+(contact.replace(/\+/g,""))+"?text="+encodeURIComponent("Bonjour "+escHtml(e.nom)+" (via AMBI241)") : "";
   var telUrl = contact ? "tel:"+contact : "";
 
-  // Nom vert clignotant si établissement proche (GPS) ou correspondant à la recherche
-  var _isGpsNear = extraClass.indexOf("card-prox-near") !== -1;
-  var _sqr = (document.getElementById("searchInput") ? document.getElementById("searchInput").value : "").toLowerCase().trim();
-  var _isSearchMatch = _sqr && (
-    e.nom.toLowerCase().indexOf(_sqr) !== -1 ||
-    (e.quartier && e.quartier.toLowerCase().indexOf(_sqr) !== -1)
-  );
-  var _nameCls = (_isGpsNear || _isSearchMatch) ? " search-match-near" : "";
-
   var html = "";
 
   // ─ Ligne condensée ─
-  html += "<div class='compact-row"+(extraClass?" "+extraClass:"")+"' id='cr-"+e.id+"' onclick='toggleCompactDetail("+e.id+")'>";
+  html += "<div class='compact-row' id='cr-"+e.id+"' onclick='toggleCompactDetail("+e.id+")'>";
   html += "<div class='cr-rank "+rankCls+"'>"+rank+"</div>";
   html += "<div class='cr-icon'>"+ci.icon+"</div>";
-  html += "<div class='cr-name"+_nameCls+"'>"+escHtml(e.nom)+"</div>";
+  html += "<div class='cr-name'>"+escHtml(e.nom)+"</div>";
   if(statLabel) html += "<div class='cr-status "+statCls+"'>"+statLabel+"</div>";
   html += "<div class='cr-score'>⭐ "+note+"</div>";
   html += "<div class='cr-chevron'>▼</div>";
@@ -17295,14 +17286,10 @@ function renderAllImmediate(){
         return _getCachedScore(b).score - _getCachedScore(a).score;
       });
     }
-    // GPS actif → trier par distance d'abord + classe proche
+    // GPS actif → trier par distance d'abord
     if(gpsActive) data = sortGpsData(data);
-    var PROX_KM_C = (gpsActive && typeof _gpsState !== "undefined") ? (_gpsState.radius >= 999 ? 3 : _gpsState.radius) : 0;
     html+="<div class=\"compact-list\">";
-    data.forEach(function(e,i){
-      var _ec = (gpsActive && typeof e._distKm === "number" && e._distKm <= PROX_KM_C) ? "card-prox-near" : "";
-      html+=buildCompactRow(e,i+1,_ec);
-    });
+    data.forEach(function(e,i){ html+=buildCompactRow(e,i+1); });
     html+="</div>";
   } else if(currentView==="liste"){
     // Tri par score dans la vue liste (visiteurs, avec cache)
@@ -36643,20 +36630,7 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
     }
   }, 1000);
 
-  // Désactiver la garde avant un logout volontaire
-  // On enveloppe logoutUser pour couper la garde avant signOut
-  document.addEventListener('DOMContentLoaded', function(){
-    var _interval = setInterval(function(){
-      if(typeof window.logoutUser === 'function'){
-        clearInterval(_interval);
-        var _origLogout = window.logoutUser;
-        window.logoutUser = function(){
-          _disableGuard();
-          _origLogout.apply(this, arguments);
-        };
-      }
-    }, 500);
-  });
+  // La garde est désactivée directement dans _doLogout() — hook supprimé
 
   window._enableBeforeUnloadGuard  = _enableGuard;
   window._disableBeforeUnloadGuard = _disableGuard;
@@ -46719,6 +46693,19 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
     console.log('[AMBI241] ✅ Routeur notifications → sections initialisé');
   })();
   </script>
+
+<!-- ══ MODAL CONFIRMATION DÉCONNEXION (remplace confirm() natif) ══ -->
+<div id="logoutConfirmModal" style="display:none;position:fixed;inset:0;z-index:99999;align-items:center;justify-content:center;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);">
+  <div style="background:#230d35;border:1px solid rgba(255,45,155,0.25);border-radius:20px;padding:1.8rem 1.5rem;max-width:320px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.6);">
+    <div style="font-size:2rem;margin-bottom:0.7rem;">🚪</div>
+    <div style="font-family:'Syne',sans-serif;font-size:1.05rem;font-weight:800;color:#fff0f8;margin-bottom:0.5rem;">Se déconnecter ?</div>
+    <div style="font-size:0.82rem;color:#b088c0;margin-bottom:1.4rem;line-height:1.5;">Voulez-vous vraiment quitter votre compte AMBI241 ?</div>
+    <div style="display:flex;gap:0.75rem;justify-content:center;">
+      <button onclick="_cancelLogout()" style="flex:1;padding:0.65rem;border-radius:12px;border:1.5px solid rgba(255,255,255,0.15);background:transparent;color:#b088c0;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">Annuler</button>
+      <button onclick="_doLogout()" style="flex:1;padding:0.65rem;border-radius:12px;border:none;background:linear-gradient(135deg,#ff4466,#cc0033);color:#fff;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(255,68,102,0.35);">Déconnecter</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
