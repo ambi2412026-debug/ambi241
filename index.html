@@ -21866,7 +21866,7 @@ window.closeAdminDashboard=closeAdminDashboard;
 
 function switchAdmTab(tab){
   _currentAdmTab=tab;
-  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support","content","appconfig","importgmaps"];
+  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support","content","appconfig","importgmaps","qrvotes"];
   tabs.forEach(function(t){
     var btn=document.getElementById("admtab-"+t);
     var panel=document.getElementById("admpanel-"+t);
@@ -21894,6 +21894,7 @@ function switchAdmTab(tab){
   else if(tab==="content") { if(typeof window.renderAdmContent==="function") window.renderAdmContent(); }
   else if(tab==="appconfig") { if(typeof window.renderAdmAppConfig==="function") window.renderAdmAppConfig(0); }
   else if(tab==="importgmaps") { if(!window._igm2Inited) igm2Init(); }
+  else if(tab==="qrvotes") { setTimeout(function(){ if(typeof ambiQrLoadAdminVotes==="function") ambiQrLoadAdminVotes(); }, 200); }
 }
 window.switchAdmTab=switchAdmTab;
 window.openAdminAddModal=openAdminAddModal;
@@ -35503,7 +35504,7 @@ window.switchAdmTab = function(tab){
   try{ _currentAdmTab = tab; }catch(e){}
   // Gérer les nouveaux panels
   var newTabs = ['content','appconfig'];
-  var allTabs = ["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support","content","appconfig"];
+  var allTabs = ["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support","content","appconfig","importgmaps","qrvotes"];
   allTabs.forEach(function(t){
     var btn   = document.getElementById('admtab-'+t);
     var panel = document.getElementById('admpanel-'+t);
@@ -35516,6 +35517,10 @@ window.switchAdmTab = function(tab){
   }
   if(tab === 'appconfig'){
     renderAdmAppConfig(0);
+    return;
+  }
+  if(tab === 'qrvotes'){
+    setTimeout(function(){ if(typeof ambiQrLoadAdminVotes==='function') ambiQrLoadAdminVotes(); }, 200);
     return;
   }
   _origSwitchAdmTab(tab);
@@ -45270,6 +45275,70 @@ function qrInjectCardIcons() {
 /* ────────────────────────────────────────────────────────────
    12. ADMIN DASHBOARD — votes QR en temps réel
 ──────────────────────────────────────────────────────────── */
+/* ────────────────────────────────────────────────────────────
+   HELPERS — données localStorage pour dashboard admin
+──────────────────────────────────────────────────────────── */
+function qrBuildVotesFromLocalStorage() {
+  /* Reconstruit les compteurs de votes depuis les clés localStorage */
+  var results = {};
+  try {
+    for (var i = 0; i < localStorage.length; i++) {
+      var key = localStorage.key(i);
+      /* Format: ambi241_qrvote_ETABID_UID_YYYY-MM */
+      if (key && key.startsWith('ambi241_qrvote_')) {
+        var parts = key.split('_');
+        if (parts.length >= 4) {
+          var etabId = parts[2];
+          if (!results[etabId]) results[etabId] = { etabId: etabId, total: 0, pos: 0, neg: 0 };
+          results[etabId].total++;
+          results[etabId].pos++; /* localStorage ne stocke que les votes positifs par défaut */
+        }
+      }
+    }
+    /* Fusionner avec le cache mémoire _qrVoteCache */
+    Object.keys(_qrVoteCache).forEach(function(id) {
+      var c = _qrVoteCache[id];
+      if (!results[id]) results[id] = { etabId: id, total: 0, pos: 0, neg: 0 };
+      results[id].total = Math.max(results[id].total, c.total || 0);
+      results[id].pos   = Math.max(results[id].pos,   c.pos   || 0);
+      results[id].neg   = Math.max(results[id].neg,   c.neg   || 0);
+    });
+  } catch(e) {}
+  return Object.values(results).filter(function(v){ return v.total > 0; });
+}
+
+function qrRenderVotesList(votes, kpiTotal, kpiPos, kpiEtabs, listEl) {
+  votes.sort(function(a, b){ return b.total - a.total; });
+  var maxVotes   = votes[0] ? (votes[0].total || 1) : 1;
+  var totalGlobal = 0, posGlobal = 0;
+  votes.forEach(function(v){ totalGlobal += v.total; posGlobal += v.pos; });
+
+  if (kpiTotal) kpiTotal.textContent = totalGlobal;
+  if (kpiPos)   kpiPos.textContent   = totalGlobal > 0 ? Math.round(posGlobal / totalGlobal * 100) + '%' : '—';
+  if (kpiEtabs) kpiEtabs.textContent = votes.length;
+
+  var ranks = ['🥇','🥈','🥉'];
+  var rankClasses = ['gold','silver','bronze'];
+  var html = '';
+  votes.slice(0, 15).forEach(function(v, i) {
+    var etab    = (window.etablissements || []).find(function(e){ return String(e.id) === String(v.etabId); });
+    var nom     = etab ? etab.nom : 'Étab. #' + v.etabId;
+    var pct     = Math.round(v.total / maxVotes * 100);
+    var posPct  = v.total > 0 ? Math.round(v.pos / v.total * 100) : 0;
+    var fillCls = posPct >= 70 ? 'fill-pos' : 'fill-mixed';
+    var rankIcon  = i < 3 ? ranks[i] : (i + 1);
+    var rankClass = i < 3 ? rankClasses[i] : '';
+    html += '<div class="qr-adm-vote-row">'
+      + '<div class="qr-adm-rank ' + rankClass + '">' + rankIcon + '</div>'
+      + '<div class="qr-adm-vote-name" title="' + nom + '">' + nom + '</div>'
+      + '<div class="qr-adm-vote-bar"><div class="qr-adm-vote-fill ' + fillCls + '" style="width:' + pct + '%"></div></div>'
+      + '<div class="qr-adm-vote-count">' + v.total + '</div>'
+      + '<div class="qr-adm-vote-pct" style="color:' + (posPct >= 70 ? '#00ffaa' : '#ffd700') + '">👍' + posPct + '%</div>'
+      + '</div>';
+  });
+  listEl.innerHTML = html || '<div style="text-align:center;padding:0.7rem;font-size:0.72rem;color:rgba(255,240,248,0.3);">Aucun vote QR encore enregistré</div>';
+}
+
 function qrLoadAdminVotes() {
   var listEl    = document.getElementById('qrAdminVotesList');
   var kpiTotal  = document.getElementById('qrAdmKpiTotal');
@@ -45277,8 +45346,20 @@ function qrLoadAdminVotes() {
   var kpiEtabs  = document.getElementById('qrAdmKpiEtabs');
 
   if (!listEl) return;
+
+  /* ── Fallback localStorage si Firebase absent ── */
   if (!window.db || !window.fbGetDocs || !window.fbCollection) {
-    listEl.innerHTML = '<div style="font-size:0.7rem;color:rgba(255,240,248,0.4);text-align:center;padding:0.6rem;">Firebase non disponible</div>';
+    var localVotes = qrBuildVotesFromLocalStorage();
+    if (localVotes.length > 0) {
+      qrRenderVotesList(localVotes, kpiTotal, kpiPos, kpiEtabs, listEl);
+    } else {
+      listEl.innerHTML = '<div style="text-align:center;padding:1rem;font-size:0.72rem;color:rgba(255,240,248,0.4);">Aucun vote local enregistré<br><span style=\"font-size:0.62rem;color:rgba(255,240,248,0.3);\">Les votes apparaîtront ici après activation de Firebase</span></div>';
+      if (kpiTotal) kpiTotal.textContent = '0';
+      if (kpiPos)   kpiPos.textContent   = '—';
+      if (kpiEtabs) kpiEtabs.textContent = '0';
+    }
+    clearTimeout(_qrAdminTimer);
+    _qrAdminTimer = setTimeout(qrLoadAdminVotes, 30000);
     return;
   }
 
@@ -45295,35 +45376,7 @@ function qrLoadAdminVotes() {
       totalGlobal += d.total || 0;
       posGlobal   += d.pos   || 0;
     });
-    votes.sort(function(a, b){ return b.total - a.total; });
-    var maxVotes = votes[0].total || 1;
-
-    /* KPIs */
-    if (kpiTotal) kpiTotal.textContent = totalGlobal;
-    if (kpiPos)   kpiPos.textContent   = posGlobal > 0 ? Math.round(posGlobal / totalGlobal * 100) + '%' : '—';
-    if (kpiEtabs) kpiEtabs.textContent = votes.length;
-
-    /* Classement */
-    var ranks = ['🥇', '🥈', '🥉'];
-    var rankClasses = ['gold', 'silver', 'bronze'];
-    var html = '';
-    votes.slice(0, 15).forEach(function(v, i) {
-      var etab   = (window.etablissements || []).find(function(e){ return String(e.id) === String(v.etabId); });
-      var nom    = etab ? etab.nom : 'Étab. #' + v.etabId;
-      var pct    = Math.round(v.total / maxVotes * 100);
-      var posPct = v.total > 0 ? Math.round(v.pos / v.total * 100) : 0;
-      var fillCls = posPct >= 70 ? 'fill-pos' : 'fill-mixed';
-      var rankIcon  = i < 3 ? ranks[i] : (i + 1);
-      var rankClass = i < 3 ? rankClasses[i] : '';
-      html += '<div class="qr-adm-vote-row">'
-        + '<div class="qr-adm-rank ' + rankClass + '">' + rankIcon + '</div>'
-        + '<div class="qr-adm-vote-name" title="' + nom + '">' + nom + '</div>'
-        + '<div class="qr-adm-vote-bar"><div class="qr-adm-vote-fill ' + fillCls + '" style="width:' + pct + '%"></div></div>'
-        + '<div class="qr-adm-vote-count">' + v.total + '</div>'
-        + '<div class="qr-adm-vote-pct" style="color:' + (posPct >= 70 ? '#00ffaa' : '#ffd700') + '">👍' + posPct + '%</div>'
-        + '</div>';
-    });
-    listEl.innerHTML = html;
+    qrRenderVotesList(votes, kpiTotal, kpiPos, kpiEtabs, listEl);
   }).catch(function(err) {
     listEl.innerHTML = '<div style="font-size:0.7rem;color:#ff4466;padding:0.6rem;">Erreur: ' + err.message + '</div>';
   });
