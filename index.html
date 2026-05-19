@@ -7107,7 +7107,7 @@ if (document.readyState === 'loading') {
     <button class="logout-btn" id="logoutBtn" onclick="logoutUser()" title="Se déconnecter">&#128682; Quitter</button>
     <!-- Cloche notifications -->
     <div class="notif-bell-wrap" id="notifBellWrap" style="display:none;">
-      <button class="notif-bell-btn" id="notifBellBtn" onclick="toggleNotifPanel()" title="Notifications">&#128276;</button>
+      <button class="notif-bell-btn" id="notifBellBtn" onclick="window.AMBI241_NOTIF?.panel.open()" title="Notifications">&#128276;</button>
       <div class="notif-badge" id="notifBadge">0</div>
     </div>
     <button class="user-btn" id="userLoginBtn" onclick="document.getElementById('userOverlay').classList.add('show')">&#128100;</button>
@@ -7401,8 +7401,8 @@ if (document.readyState === 'loading') {
         </div>
       </div>
       <div class="notif-panel-head-right">
-        <button class="notif-clear-btn" onclick="clearAllNotifs()">Tout lire</button>
-        <button class="notif-panel-close-btn" onclick="closeNotifPanel()">✕</button>
+        <button class="notif-clear-btn" data-action="notif-clear">Tout lire</button>
+        <button class="notif-panel-close-btn" data-action="notif-close">✕</button>
       </div>
     </div>
     <!-- Filtres par type -->
@@ -10603,13 +10603,18 @@ function loadAllPhotoProfiles() {
   if (!window.db || !etablissements) return;
   var list = etablissements.slice(0);
   var idx = 0;
+  /* Utiliser requestIdleCallback si dispo — charge les photos uniquement quand
+     le navigateur est inactif, sans jamais bloquer le thread UI principal */
+  var _scheduleNext = window.requestIdleCallback
+    ? function() { requestIdleCallback(loadNext, { timeout: 1500 }); }
+    : function() { setTimeout(loadNext, 80); };
   function loadNext() {
     if (idx >= list.length) return;
     loadPhotoProfile(list[idx].id, null);
     idx++;
-    setTimeout(loadNext, 120); // 120ms entre chaque requête
+    _scheduleNext();
   }
-  setTimeout(loadNext, 500);
+  setTimeout(_scheduleNext, 800);
 }
 window.loadAllPhotoProfiles = loadAllPhotoProfiles;
 
@@ -12461,59 +12466,127 @@ function triggerPhotoPermUpload(){
   if(inp) inp.click();
 }
 
+/* ══════════════════════════════════════════════════════════════
+   CACHE LOCAL ÉTABLISSEMENTS — localStorage TTL 5 min
+   Évite un aller-retour Firestore à chaque ouverture de l'app.
+   Sur réseau 3G Libreville (~300ms RTT), gain de ~600-900ms.
+   ══════════════════════════════════════════════════════════════ */
+var _ETAB_CACHE_KEY = 'ambi241_etab_cache_v2';
+var _ETAB_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function _saveEtabCache(data) {
+  try {
+    localStorage.setItem(_ETAB_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: data }));
+  } catch(e) { /* storage plein — pas critique */ }
+}
+
+function _loadEtabCache() {
+  try {
+    var raw = localStorage.getItem(_ETAB_CACHE_KEY);
+    if (!raw) return null;
+    var obj = JSON.parse(raw);
+    if (!obj || !obj.data || (Date.now() - obj.ts) > _ETAB_CACHE_TTL) return null;
+    return obj.data;
+  } catch(e) { return null; }
+}
+
+function _processEtabData(firebaseData) {
+  /* Dédoublonnage par id */
+  var _seenIds = {};
+  return firebaseData.filter(function(e) {
+    if (!e.id || _seenIds[e.id]) return false;
+    _seenIds[e.id] = true;
+    return true;
+  });
+}
+
+function _renderAfterLoad() {
+  document.getElementById("errorBanner").innerHTML = "";
+  rebuildPaiements();
+  etablissements.forEach(function(e) { applyDynamicStatus(e); });
+  setSyncing(false);
+  if (typeof invalidateScoreCache === 'function') invalidateScoreCache();
+  /* Un seul renderAll couvre tout — évite 4 passes DOM successives */
+  renderAll(); renderHome(); renderStats(); renderPayments(); updateSyncTime();
+  if (typeof i18n !== "undefined") i18n.applyTranslations();
+  if (isAdmin && (_currentAdmTab === 'overview' || window._currentAdmTab === 'overview') &&
+      typeof renderAdmOverview === 'function') { renderAdmOverview(); }
+}
+
 function loadData(){
-  // Guard : si Firebase pas encore prêt, réessayer dans 300ms
-  if(typeof window.fbCollection !== "function" || typeof window.fbGetDocs !== "function" || !window.db){
+  /* Guard : si Firebase pas encore prêt, réessayer dans 300ms */
+  if (typeof window.fbCollection !== "function" || typeof window.fbGetDocs !== "function" || !window.db) {
     setTimeout(loadData, 300);
     return;
   }
-  setSyncing(true);
-  var q=window.fbQuery(window.fbCollection(window.db,"etablissements"),window.fbOrderBy("id"));
-  window.fbGetDocs(q).then(function(snapshot){
-    var firebaseData=[];
-    snapshot.forEach(function(d){firebaseData.push(Object.assign({_docId:d.id},d.data()));});
 
-    if(firebaseData.length > 0){
-      // ── Dédoublonnage par id (évite les cartes identiques si Firebase a des doublons) ──
-      var _seenIds = {};
-      firebaseData = firebaseData.filter(function(e){
-        if(!e.id || _seenIds[e.id]) return false;
-        _seenIds[e.id] = true;
-        return true;
-      });
-      // ── Firebase est la source de vérité unique ──
-      // Les defaults servent UNIQUEMENT si Firebase est vide (première utilisation)
+  /* ── ÉTAPE 1 : Afficher le cache immédiatement (rendu instantané) ── */
+  var cached = _loadEtabCache();
+  if (cached && cached.length > 0) {
+    etablissements = cached;
+    etablissements.forEach(function(e) { applyDynamicStatus(e); });
+    rebuildPaiements();
+    renderAll(); renderHome(); renderStats(); renderPayments();
+    /* Pas de setSyncing(true) ici pour ne pas flasher le spinner si cache frais */
+  }
+
+  /* ── ÉTAPE 2 : Lancer établissements + paiements EN PARALLÈLE ── */
+  setSyncing(true);
+
+  var qEtab = window.fbQuery(window.fbCollection(window.db, "etablissements"), window.fbOrderBy("id"));
+  var qPaie = window.fbQuery(window.fbCollection(window.db, "paiements"), window.fbOrderBy("id"));
+
+  Promise.all([
+    window.fbGetDocs(qEtab),
+    window.fbGetDocs(qPaie)
+  ]).then(function(results) {
+    var snapEtab = results[0];
+    var snapPaie = results[1];
+
+    /* ── Traiter établissements ── */
+    var firebaseData = [];
+    snapEtab.forEach(function(d) { firebaseData.push(Object.assign({ _docId: d.id }, d.data())); });
+
+    if (firebaseData.length > 0) {
+      firebaseData = _processEtabData(firebaseData);
       etablissements = firebaseData;
+      _saveEtabCache(firebaseData); /* Mettre à jour le cache */
     } else {
-      // Firebase vide → fallback données locales
       etablissements = getDefaults();
     }
 
-    document.getElementById("errorBanner").innerHTML="";
-    rebuildPaiements();
-    etablissements.forEach(function(e){ applyDynamicStatus(e); });
-    setSyncing(false);if(typeof invalidateScoreCache==='function')invalidateScoreCache();renderStats();renderAll();renderHome();renderPayments();updateSyncTime();if(typeof i18n!=="undefined")i18n.applyTranslations();
-    if(isAdmin && (_currentAdmTab==='overview'||window._currentAdmTab==='overview') && typeof renderAdmOverview==='function'){ renderAdmOverview(); }
-    // Photos en arrière-plan (délai pour ne pas bloquer le rendu)
-    setTimeout(loadAllPhotoProfiles, 1500);
-    loadPaiementsFromFirebase();
+    /* ── Traiter paiements ── */
+    _paiementsFirebase = [];
+    snapPaie.forEach(function(d) { _paiementsFirebase.push(Object.assign({ _docId: d.id }, d.data())); });
+
+    /* ── Rendu final unique ── */
+    _renderAfterLoad();
+    updateSyncTime();
+
+    /* ── Abonnements temps réel (présences/votes) ── */
     if (typeof window._subscribeAllEtabs === "function") { window._subscribeAllEtabs(); }
-    // Précharger photos slot — limité aux 10 premiers actifs pour éviter le flood Firebase
-    setTimeout(function(){
-      if(typeof loadSlotPhotosAsync === 'function' && etablissements && etablissements.length){
-        var actifs = etablissements.filter(function(e){ return estPaiementConfirme(e); });
-        /* Bug2-FIX: max 10 chargements simultanés — sinon 50+ requêtes Firebase en même temps */
-        actifs.slice(0, 10).forEach(function(e){ if(e.id) loadSlotPhotosAsync(e.id); });
+
+    /* ── Photos en arrière-plan — délais échelonnés pour ne pas saturer le réseau ── */
+    setTimeout(loadAllPhotoProfiles, 2500);
+    setTimeout(function() {
+      if (typeof loadSlotPhotosAsync === 'function' && etablissements && etablissements.length) {
+        var actifs = etablissements.filter(function(e) { return estPaiementConfirme(e); });
+        actifs.slice(0, 10).forEach(function(e, i) {
+          /* Espacer les requêtes de 200ms chacune pour ne pas saturer la bande passante 3G */
+          setTimeout(function() { if (e.id) loadSlotPhotosAsync(e.id); }, i * 200);
+        });
       }
-    }, 2000);
-  }).catch(function(err){
-    console.error("Firebase loadData:",err);
-    etablissements=getDefaults();
-    var eb=document.getElementById("errorBanner");
-    if(eb) eb.innerHTML="";
-    rebuildPaiements();
-    etablissements.forEach(function(e){ applyDynamicStatus(e); });
-    setSyncing(false);renderStats();renderAll();renderHome();renderPayments();updateSyncTime();if(typeof i18n!=="undefined")i18n.applyTranslations();
+    }, 3500);
+
+  }).catch(function(err) {
+    console.error("Firebase loadData:", err);
+    /* Si le cache existe, on garde les données en mémoire — sinon fallback défauts */
+    if (!etablissements || !etablissements.length) {
+      etablissements = getDefaults();
+    }
+    var eb = document.getElementById("errorBanner");
+    if (eb) eb.innerHTML = "";
+    _renderAfterLoad();
   });
 }
 
@@ -20895,11 +20968,59 @@ function pushNotif(opts){
   renderNotifBadge();
   if(!notifPanelOpen) showNotifToast(item.icon+" "+item.title, item);
 
-  // ── Persistance Firebase pour les membres/établissements connectés ──
-  // Cela permet aux notifs admin d'être visibles sur tous les appareils de l'utilisateur
+  // ── Transmission au Notification Engine v3.0 (sons + toasts riches + badge) ──
+  var _engineType = (function(){
+    var m = {
+      message:"message", new_course:"taxi_dispatch", course_accepted:"taxi_dispatch",
+      taxi_dispatch:"taxi_dispatch", friend_request:"friend_request",
+      friend_accepted:"friend_accepted", paiement_confirmed:"system",
+      paiement_pending:"system", paiement_expire:"system", top_ambiance:"event_flash",
+      galerie_new_photo:"ambiance_update", new_inscription:"system",
+      new_membre:"system", top_traffic:"system", statut_change:"ambiance_update",
+      promo:"promo", vip_invite:"vip_invite", incoming_call:"incoming_call",
+      call_missed:"incoming_call", sub_expire:"system", sub_alerte:"system"
+    };
+    return opts.type || m[opts.key] || "system";
+  })();
+  if(window.AMBI241_NOTIF && typeof window.AMBI241_NOTIF.trigger === "function"){
+    window.AMBI241_NOTIF.trigger(_engineType, opts.title, opts.msg, {
+      fromUID: opts.fromUID||null, fromName: opts.fromName||null,
+      fromAvatar: opts.fromAvatar||null, targetRole: targetRole
+    });
+  }
+
+  // ── Persistance Firestore format v3 (collection user_notifications, doc par notif) ──
+  // Compatible avec le listener temps réel du Notification Engine v3.0
+  // Dédoublonnage par clé composite uid+key+jour → max 1 doc par clé par jour
+  if(window.db && window.fbDoc && window.fbSetDoc && window.fbCollection && currentUserUID && opts.key){
+    try{
+      var _dedupKey = currentUserUID + "_" + opts.key + "_" + new Date().toISOString().slice(0,10);
+      var _dedupId  = btoa(_dedupKey).replace(/[^a-zA-Z0-9]/g,"").slice(0,60);
+      window.fbSetDoc(
+        window.fbDoc(window.db, "user_notifications", _dedupId),
+        {
+          toUID:      currentUserUID,
+          type:       _engineType,
+          title:      opts.title || "",
+          body:       opts.msg   || "",
+          fromUID:    opts.fromUID    || null,
+          fromName:   opts.fromName   || null,
+          fromAvatar: opts.fromAvatar || null,
+          targetRole: targetRole,
+          read:       false,
+          createdAt:  new Date().toISOString(),
+          _source:    "pushNotif",
+          _key:       opts.key
+        },
+        { merge: false } // Ne pas écraser si déjà lu
+      ).catch(function(){});
+    }catch(ex){}
+  }
+
+  // ── Rétrocompatibilité : ancien format Firebase {items:[]} pour l'admin ──
   if(opts.fromAdmin && window.db && window.fbDoc && window.fbGetDoc && window.fbSetDoc && currentUserUID){
     try{
-      var userNotifRef = window.fbDoc(window.db, "user_notifications", currentUserUID);
+      var userNotifRef = window.fbDoc(window.db, "user_notifications_legacy", currentUserUID);
       window.fbGetDoc(userNotifRef).then(function(snap){
         var existing = snap.exists() ? (snap.data().items||[]) : [];
         existing.push(item);
@@ -45976,6 +46097,9 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
   console.log('[AMBI241] ✅ Système de présence temps réel v3.0 initialisé');
 
 })();
-</script>
+  <!-- ══ NOTIFICATION ENGINE AMBI241 v3.0 ══ -->
+  <!-- Sons Web Audio · Push VAPID · Firestore temps réel · Toasts -->
+  <script src="ambi241-notif-engine.js" defer></script>
+
 </body>
 </html>
