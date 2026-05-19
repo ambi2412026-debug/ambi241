@@ -2654,6 +2654,19 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   font-family:'DM Sans',sans-serif;font-weight:700;font-size:0.8rem;
   color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
+/* Nom vert clignotant — proche GPS ou correspondance recherche */
+@keyframes nameGreenBlink{0%,100%{opacity:1;color:var(--green);}50%{opacity:0.55;color:#00e0a0;}}
+.cr-name.search-match-near{
+  animation:nameGreenBlink 1.4s ease-in-out infinite;
+  font-weight:800;
+}
+/* Vue cartes : nom vert clignotant pour les proches GPS */
+.card-prox-near .card-name,
+.card-prox-near .card-name button.etab-name-order-btn{
+  animation:nameGreenBlink 1.4s ease-in-out infinite;
+  color:var(--green) !important;
+  font-weight:800;
+}
 /* Statut pill */
 .cr-status{
   font-size:0.55rem;font-weight:800;padding:0.12rem 0.38rem;
@@ -15485,7 +15498,8 @@ function buildLiveDispoBar(e, canManage){
   return html;
 }
 
-function buildCompactRow(e, rank){
+function buildCompactRow(e, rank, extraClass){
+  extraClass = extraClass || "";
   var cat  = getCategory(e.type);
   var ci   = getCatInfo(cat);
   var sc   = computeRankScore(e);
@@ -15519,13 +15533,22 @@ function buildCompactRow(e, rank){
   var waUrl = contact ? "https://wa.me/"+(contact.replace(/\+/g,""))+"?text="+encodeURIComponent("Bonjour "+escHtml(e.nom)+" (via AMBI241)") : "";
   var telUrl = contact ? "tel:"+contact : "";
 
+  // Nom vert clignotant si établissement proche (GPS) ou correspondant à la recherche
+  var _isGpsNear = extraClass.indexOf("card-prox-near") !== -1;
+  var _sqr = (document.getElementById("searchInput") ? document.getElementById("searchInput").value : "").toLowerCase().trim();
+  var _isSearchMatch = _sqr && (
+    e.nom.toLowerCase().indexOf(_sqr) !== -1 ||
+    (e.quartier && e.quartier.toLowerCase().indexOf(_sqr) !== -1)
+  );
+  var _nameCls = (_isGpsNear || _isSearchMatch) ? " search-match-near" : "";
+
   var html = "";
 
   // ─ Ligne condensée ─
-  html += "<div class='compact-row' id='cr-"+e.id+"' onclick='toggleCompactDetail("+e.id+")'>";
+  html += "<div class='compact-row"+(extraClass?" "+extraClass:"")+"' id='cr-"+e.id+"' onclick='toggleCompactDetail("+e.id+")'>";
   html += "<div class='cr-rank "+rankCls+"'>"+rank+"</div>";
   html += "<div class='cr-icon'>"+ci.icon+"</div>";
-  html += "<div class='cr-name'>"+escHtml(e.nom)+"</div>";
+  html += "<div class='cr-name"+_nameCls+"'>"+escHtml(e.nom)+"</div>";
   if(statLabel) html += "<div class='cr-status "+statCls+"'>"+statLabel+"</div>";
   html += "<div class='cr-score'>⭐ "+note+"</div>";
   html += "<div class='cr-chevron'>▼</div>";
@@ -17272,10 +17295,14 @@ function renderAllImmediate(){
         return _getCachedScore(b).score - _getCachedScore(a).score;
       });
     }
-    // GPS actif → trier par distance d'abord
+    // GPS actif → trier par distance d'abord + classe proche
     if(gpsActive) data = sortGpsData(data);
+    var PROX_KM_C = (gpsActive && typeof _gpsState !== "undefined") ? (_gpsState.radius >= 999 ? 3 : _gpsState.radius) : 0;
     html+="<div class=\"compact-list\">";
-    data.forEach(function(e,i){ html+=buildCompactRow(e,i+1); });
+    data.forEach(function(e,i){
+      var _ec = (gpsActive && typeof e._distKm === "number" && e._distKm <= PROX_KM_C) ? "card-prox-near" : "";
+      html+=buildCompactRow(e,i+1,_ec);
+    });
     html+="</div>";
   } else if(currentView==="liste"){
     // Tri par score dans la vue liste (visiteurs, avec cache)
