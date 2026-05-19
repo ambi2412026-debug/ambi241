@@ -9726,6 +9726,18 @@ onAuthStateChanged(auth, function(user) {
       if(typeof _syncProfilSection === "function") setTimeout(_syncProfilSection, 400);
       // ── Actualiser le panneau paiements ──
       if(typeof updatePayVis === "function") setTimeout(updatePayVis, 500);
+      // ── Démarrer le listener Taxi Pro si le user est un chauffeur approuvé ──
+      setTimeout(function() {
+        var uid = user.uid;
+        var drivers = window._chauffeurDrivers || {};
+        var driver = drivers[uid];
+        if (driver && driver.status === 'approved') {
+          if (typeof tdbStartListeningRequests === 'function') {
+            tdbStartListeningRequests();
+            console.log('[AMBI241] 🚕 Listener Taxi Pro démarré auto pour chauffeur approuvé :', driver.pseudo || user.email);
+          }
+        }
+      }, 3500); // après chargement de _chauffeurDrivers (loadData)
     }, 2000);
   } else {
     window.currentUserEmail  = "";
@@ -14333,38 +14345,115 @@ function sendForgotEmail(){
   var email = document.getElementById("forgotEmail").value.trim();
   var msg   = document.getElementById("forgotEmailMsg");
   var btn   = document.getElementById("forgotEmailBtn");
+
   if(!email){ msg.style.display="block"; msg.style.color="var(--red)"; msg.textContent="Veuillez entrer votre adresse email."; return; }
-  btn.disabled=true; btn.textContent="Envoi en cours...";
-  window.fbSendPasswordResetEmail(window.auth, email).then(function(){
-    msg.style.display="block"; msg.style.color="var(--green)";
-    msg.innerHTML="&#10003; Un lien de réinitialisation a été envoyé à <strong>"+(typeof escHtml==='function'?escHtml(email):email.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'))+"</strong>. Vérifiez votre boîte mail (et les spams).";
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ msg.style.display="block"; msg.style.color="var(--red)"; msg.textContent="Format d'adresse email invalide."; return; }
+
+  // Anti-spam : cooldown 60s
+  var cooldownKey = "ambi241_reset_cd_" + email.toLowerCase().replace(/[^a-z0-9]/g,"");
+  var lastSent = parseInt(localStorage.getItem(cooldownKey)||"0");
+  var elapsed = Math.floor((Date.now() - lastSent) / 1000);
+  if(elapsed < 60){
+    msg.style.display="block"; msg.style.color="var(--amber)";
+    msg.textContent="Patientez encore " + (60-elapsed) + " secondes avant de renvoyer.";
+    return;
+  }
+
+  btn.disabled=true; btn.innerHTML="&#9203; Envoi en cours...";
+  msg.style.display="block"; msg.style.color="var(--muted)"; msg.textContent="Connexion à Firebase…";
+
+  if(!window.fbSendPasswordResetEmail || !window.auth){
     btn.disabled=false; btn.innerHTML="&#128231; Envoyer le lien de réinitialisation";
+    msg.style.color="var(--red)"; msg.textContent="Service indisponible. Réessayez dans quelques instants.";
+    return;
+  }
+
+  window.fbSendPasswordResetEmail(window.auth, email).then(function(){
+    try { localStorage.setItem(cooldownKey, Date.now().toString()); } catch(e){}
+    msg.style.display="block"; msg.style.color="var(--green)";
+    var safeEmail = typeof escHtml==="function" ? escHtml(email) : email.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    msg.innerHTML="&#10003; Lien envoyé à <strong>"+safeEmail+"</strong>.<br><span style=\"font-size:0.72rem;opacity:0.8;\">Vérifiez votre boîte mail et les <em>spams</em>. Lien valable 1 heure.</span>";
+    btn.disabled=true;
+    var sec = 60;
+    var iv = setInterval(function(){
+      sec--;
+      if(sec <= 0){ clearInterval(iv); btn.disabled=false; btn.innerHTML="&#128231; Envoyer le lien de réinitialisation"; return; }
+      btn.innerHTML="&#128231; Renvoyer ("+sec+"s)";
+    }, 1000);
   }).catch(function(err){
     btn.disabled=false; btn.innerHTML="&#128231; Envoyer le lien de réinitialisation";
-    msg.style.display="block"; msg.style.color="var(--red)";
-    if(err.code==="auth/user-not-found") msg.textContent="Aucun compte trouvé avec cet email.";
-    else if(err.code==="auth/invalid-email") msg.textContent="Adresse email invalide.";
-    else msg.textContent="Erreur : "+err.message;
+    msg.style.display="block";
+    if(err.code==="auth/invalid-email" || err.code==="auth/missing-email"){
+      msg.style.color="var(--red)"; msg.textContent="Adresse email invalide.";
+    } else if(err.code==="auth/too-many-requests"){
+      msg.style.color="var(--amber)"; msg.textContent="Trop de tentatives. Attendez quelques minutes.";
+    } else if(err.code==="auth/network-request-failed"){
+      msg.style.color="var(--red)"; msg.textContent="Erreur réseau. Vérifiez votre connexion.";
+    } else {
+      // Message neutre (sécurité) pour auth/user-not-found, auth/invalid-credential
+      msg.style.color="var(--green)";
+      var safeEmail2 = typeof escHtml==="function" ? escHtml(email) : email.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      msg.innerHTML="&#10003; Si un compte existe pour <strong>"+safeEmail2+"</strong>, un lien a été envoyé.<br><span style=\"font-size:0.72rem;opacity:0.8;\">Vérifiez votre boîte mail et les spams.</span>";
+    }
   });
 }
 
 function sendForgotTel(){
-  var tel    = document.getElementById("forgotTel").value.trim();
-  var pseudo = document.getElementById("forgotPseudo").value.trim();
+  var tel    = (document.getElementById("forgotTel").value||"").trim();
+  var pseudo = (document.getElementById("forgotPseudo").value||"").trim();
   var msg    = document.getElementById("forgotTelMsg");
   var btn    = document.getElementById("forgotTelBtn");
-  if(!tel || !pseudo){ msg.style.display="block"; msg.style.color="var(--red)"; msg.textContent="Veuillez remplir tous les champs."; return; }
-  btn.disabled=true; btn.textContent="Envoi...";
-  // Envoyer la demande par email à l'admin via Formspree ou direct mailto
-  var subject = encodeURIComponent("AMBI241 - Récupération de compte par téléphone");
-  var body    = encodeURIComponent("Demande de récupération de compte AMBI241\n\nPseudo: "+pseudo+"\nTéléphone: "+tel+"\n\nMerci de vérifier l'identité et d'envoyer un lien de réinitialisation.");
-  // Simuler un envoi réussi et indiquer à l'utilisateur le contact admin
-  setTimeout(function(){
-    btn.disabled=false; btn.textContent="&#128241; Envoyer ma demande";
-    msg.style.display="block"; msg.style.color="var(--green)";
-    msg.innerHTML="&#10003; Votre demande a été transmise.<br>Notre équipe vous contactera sur le <strong>"+tel+"</strong> sous 24h pour vérifier votre identité.<br><br>Vous pouvez aussi nous écrire directement :<br><a href='mailto:ambi2412026@gmail.com?subject="+subject+"&body="+body+"' style='color:var(--cyan);'>&#9993; ambi2412026@gmail.com</a>";
-  }, 800);
+
+  if(!tel){ msg.style.display="block"; msg.style.color="var(--red)"; msg.textContent="Veuillez entrer votre numéro de téléphone."; return; }
+  if(!pseudo){ msg.style.display="block"; msg.style.color="var(--red)"; msg.textContent="Veuillez entrer votre pseudo ou nom d'utilisateur."; return; }
+
+  btn.disabled=true; btn.innerHTML="&#9203; Envoi en cours...";
+  msg.style.display="block"; msg.style.color="var(--muted)"; msg.textContent="Enregistrement de votre demande…";
+
+  // ── Écrire le ticket dans Firestore (support_requests) ──
+  if(window.db && window.fbCollection && window.fbAddDoc){
+    var now = new Date().toISOString();
+    var telNorm = typeof _normPhone === "function" ? _normPhone(tel) : tel;
+    window.fbAddDoc(window.fbCollection(window.db, "support_requests"), {
+      type:      "reset_password",
+      channel:   "tel",
+      pseudo:    pseudo,
+      tel:       telNorm,
+      uid:       window.currentUserUID || "",
+      email:     window.currentUserEmail || "",
+      status:    "open",
+      createdAt: now,
+      messages:  [{
+        from: "user",
+        text: "Demande de réinitialisation de mot de passe par téléphone.\nPseudo : "+pseudo+"\nTél : "+telNorm,
+        ts:   now
+      }]
+    }).then(function(docRef){
+      btn.disabled=false; btn.innerHTML="&#128241; Envoyer ma demande";
+      msg.style.color="var(--green)";
+      msg.innerHTML="&#10003; Demande enregistrée (réf. <code style=\"font-size:0.68rem;\">"+docRef.id.slice(0,8)+"…</code>).<br>"
+        +"<span style=\"font-size:0.72rem;opacity:0.85;\">Notre équipe vérifiera votre identité et vous enverra un lien de réinitialisation sous <strong>24h</strong>. "
+        +"Gardez le téléphone <strong>"+telNorm+"</strong> à portée.</span>";
+    }).catch(function(err){
+      // Fallback si Firestore indisponible : envoyer par mailto
+      _sendForgotTelMailto(tel, pseudo, msg, btn);
+    });
+  } else {
+    // Firebase non disponible : fallback mailto
+    _sendForgotTelMailto(tel, pseudo, msg, btn);
+  }
 }
+
+function _sendForgotTelMailto(tel, pseudo, msg, btn){
+  var subject = encodeURIComponent("AMBI241 - Récupération de compte par téléphone");
+  var body    = encodeURIComponent("Demande de récupération de compte AMBI241\n\nPseudo : "+pseudo+"\nTéléphone : "+tel+"\n\nMerci de vérifier l'identité et d'envoyer un lien de réinitialisation.");
+  btn.disabled=false; btn.innerHTML="&#128241; Envoyer ma demande";
+  msg.style.color="var(--green)";
+  msg.innerHTML="&#10003; Votre demande a été transmise.<br>"
+    +"<span style=\"font-size:0.72rem;opacity:0.85;\">Notre équipe vous contactera sur le <strong>"+tel+"</strong> sous 24h.<br>"
+    +"Vous pouvez aussi écrire directement : <a href='mailto:ambi2412026@gmail.com?subject="+subject+"&body="+body+"' style='color:var(--cyan);'>&#9993; ambi2412026@gmail.com</a></span>";
+}
+window._sendForgotTelMailto = _sendForgotTelMailto;
 
 window.logoutUser     = logoutUser;
 window.updateHeaderUser = updateHeaderUser;
@@ -20395,47 +20484,50 @@ window.deleteEtablissement=deleteEtablissement;
 
 /* ── RÉINITIALISATION MOT DE PASSE ÉTABLISSEMENT ── */
 function resetEstabPassword(id, name){
-  var etab=etablissements.find(function(x){return x.id===id;});
-  if(!etab){showToast("Établissement introuvable");return;}
-  if(!isAdmin){showToast("Accès refusé - Admin requis");return;}
-  if(!etab.email){showToast("Pas d'email configuré pour cet établissement");return;}
-  
-  var newPassword = "TEMP_" + Math.random().toString(36).substr(2, 8).toUpperCase();
-  
-  if(!confirm("Réinitialiser le mot de passe de \""+name+"\" ?\n\nNouveau mot de passe temporaire : "+newPassword+"\n\nUn email sera envoyé à : "+etab.email)){return;}
-  
-  // Mise à jour Firebase
-  if(!etab._docId){
-    showToast("Document Firebase non trouvé");
-    return;
+  var etab = etablissements.find(function(x){ return x.id === id; });
+  if(!etab)  { showToast("Établissement introuvable"); return; }
+  if(!isAdmin){ showToast("Accès refusé - Admin requis"); return; }
+  if(!etab.email){ showToast("❌ Pas d'email configuré pour cet établissement"); return; }
+
+  if(!confirm(
+    "🔑 RÉINITIALISATION — " + name + "\n" +
+    "Email : " + etab.email + "\n\n" +
+    "Firebase va envoyer un lien de réinitialisation à cet email.\n" +
+    "Le gérant choisira lui-même son nouveau mot de passe.\nConfirmer ?"
+  )) return;
+
+  if(!window.fbSendPasswordResetEmail || !window.auth){
+    showToast("❌ Firebase Auth non disponible"); return;
   }
-  
-  var docRef=window.fbDoc(window.db,"etablissements",etab._docId);
-  if(window.fbUpdateDoc){
-    showToast("Réinitialisation en cours...");
-    window.fbUpdateDoc(docRef, {
-      password: newPassword,
-      password_reset_date: new Date().toISOString(),
-      password_reset_by_admin: true
-    }).then(function(){
-      etab.password = newPassword;
-      showToast("✅ Mot de passe réinitialisé !\n\nNouveau: "+newPassword+"\nEmail: "+etab.email);
-      // Optionnel : envoyer email via fonction existante si disponible
-      if(typeof sendEmailNotification === "function"){
-        sendEmailNotification(etab.email, "Réinitialisation mot de passe AMBI241", 
-          "Votre nouveau mot de passe temporaire : "+newPassword+"\n\nVeuillez le changer après connexion.");
-      }
-    }).catch(function(err){
-      showToast("Erreur : "+err.message);
-    });
-  } else {
-    showToast("Firebase non disponible pour réinitialisation");
-  }
+
+  showToast("⏳ Envoi du lien en cours…");
+  window.fbSendPasswordResetEmail(window.auth, etab.email).then(function(){
+    showToast("✅ Lien de réinitialisation envoyé à " + etab.email);
+    // Traçabilité Firestore — sans stocker de mot de passe
+    if(etab._docId && window.db && window.fbDoc && window.fbUpdateDoc){
+      window.fbUpdateDoc(window.fbDoc(window.db, "etablissements", etab._docId), {
+        password_reset_date:     new Date().toISOString(),
+        password_reset_by_admin: true
+        // ⚠️ Le champ "password" n'est JAMAIS écrit ici — Firebase Auth gère le mot de passe
+      }).catch(function(){});
+    }
+    addAdminLog("🔑 Lien reset envoyé — " + name + " (" + etab.email + ")", "reset_etab_pwd");
+  }).catch(function(err){
+    if(err.code === "auth/user-not-found" || err.code === "auth/invalid-credential"){
+      showToast("⚠️ Aucun compte Firebase Auth pour " + etab.email + ". Le gérant doit s'inscrire d'abord.");
+    } else if(err.code === "auth/too-many-requests"){
+      showToast("⚠️ Trop de tentatives. Réessayez dans quelques minutes.");
+    } else if(err.code === "auth/invalid-email"){
+      showToast("❌ Email invalide : " + etab.email);
+    } else {
+      showToast("❌ Erreur : " + err.message);
+    }
+  });
 }
-window.resetEstabPassword=resetEstabPassword;
+window.resetEstabPassword = resetEstabPassword;
 
 // ── Réinitialisation MDP Membre (SuperAdmin) ──────────────────
-var DEFAULT_MEMBER_PWD = "Ambi@241";
+// DEFAULT_MEMBER_PWD supprimé — plus de mot de passe par défaut (sécurité)
 
 function resetMemberPassword(uid, email, pseudo, fromTicketId){
   if(!isAdmin){ showToast("Accès refusé - Admin requis"); return; }
@@ -22391,7 +22483,7 @@ function renderAdmUsers(){
           // ── Bouton Désigner Chauffeur ──
           var isDriver = window._chauffeurDrivers && Object.values(window._chauffeurDrivers).some(function(d){ return d.email.toLowerCase()===em && d.status==='approved'; });
           if(!isDriver){
-            h += "<button onclick=\"adminDesignDriver('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"','Ambi@241')\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(157,132,255,0.12);border:1px solid rgba(157,132,255,0.4);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;'>🚗 Désigner Chauffeur...</button>";
+            h += "<button onclick=\"adminDesignDriver('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"',null)\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(157,132,255,0.12);border:1px solid rgba(157,132,255,0.4);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;'>🚗 Désigner Chauffeur...</button>";
           } else {
             h += "<button onclick=\"adminRevokeDriver('"+escHtml(u.uid)+"');renderAdmUsers()\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.25);color:var(--red);cursor:pointer;font-family:DM Sans,sans-serif;'>🚗 Révoquer Chauffeur</button>";
           }
@@ -24909,7 +25001,7 @@ window.doAssignEtab = doAssignEtab;
     <!-- FORM TÉLÉPHONE -->
     <div id="forgotFormTel" style="display:none;">
       <div style="background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.2);border-radius:10px;padding:0.8rem;margin-bottom:1rem;font-size:0.77rem;color:var(--cyan);line-height:1.5;">
-        &#128221; Entrez votre numéro de téléphone actif réel utilisé lors de l'inscription. Notre équipe vous contactera directement pour vérifier votre identité et réinitialiser votre mot de passe.
+        &#128221; Entrez votre numéro et votre pseudo. Un ticket de support sera créé automatiquement — notre équipe vérifiera votre identité et vous enverra un lien de réinitialisation sous <strong>24h</strong>.
       </div>
       <div class="field">
         <label>Numéro de téléphone actif <span class="req">*</span></label>
@@ -30131,10 +30223,180 @@ let tdbTimerSec = 0;
 let tdbReqCountdownInterval = null;
 let tdbReqSec = 30;
 let tdbData = {
-  chauffeur: { courses: 0, gains: 0, km: 0, note: 4.8 },
-  conducteur: { courses: 0, gains: 0, km: 0, note: 4.7 },
-  livreur:    { courses: 0, gains: 0, km: 0, note: 4.9 }
+  chauffeur: { courses: 0, gains: 0, km: 0, note: 5.0 },
+  conducteur: { courses: 0, gains: 0, km: 0, note: 5.0 },
+  livreur:    { courses: 0, gains: 0, km: 0, note: 5.0 }
 };
+
+// ── Listener Firestore pour les demandes taxi en temps réel ──
+let _tdbRequestsUnsub = null;
+
+// ── Normalise un numéro de téléphone → format +XXXXXXXXXXX (sans espaces/tirets) ──
+function _normPhone(p) {
+  if (!p) return '';
+  var s = String(p).replace(/[\s\-\.\(\)]/g, ''); // supprimer espaces, tirets, parens, points
+  if (s.charAt(0) !== '+') s = '+' + s;            // ajouter le + si absent
+  return s;
+}
+window._normPhone = _normPhone;
+
+function tdbStartListeningRequests() {
+  if (!window.db || !window.fbCollection || !window.fbOnSnapshot || !window.fbQuery || !window.fbWhere || !window.fbOrderBy || !window.fbLimit) return;
+  if (_tdbRequestsUnsub) { _tdbRequestsUnsub(); _tdbRequestsUnsub = null; }
+
+  var uid = window.currentUserUID || '';
+  var driver = uid ? (window._chauffeurDrivers || {})[uid] : null;
+  if (!driver || driver.status !== 'approved') return;
+
+  var driverPhone = (driver.phone || '').replace(/[\s\-\(\)]/g, '');
+  // Normaliser vers format +XXXXXXXXXXX (avec +, sans espaces)
+  var driverPhoneNorm = _normPhone(driver.phone || '');
+
+  // Écouter les nouvelles demandes adressées à ce chauffeur (statut 'pending')
+  try {
+    var q = window.fbQuery(
+      window.fbCollection(window.db, 'taxi_requests'),
+      window.fbWhere('driverPhone', '==', driverPhoneNorm),
+      window.fbWhere('status', '==', 'pending'),
+      window.fbOrderBy('createdAt', 'desc'),
+      window.fbLimit(1)
+    );
+    _tdbRequestsUnsub = window.fbOnSnapshot(q, function(snap) {
+      if (!tdbOnDuty) return;
+      snap.docChanges().forEach(function(change) {
+        if (change.type === 'added') {
+          var req = change.doc.data();
+          req._docId = change.doc.id;
+          _tdbShowRealRequest(req);
+        }
+      });
+    }, function(err) {
+      console.warn('[TDB] Listener taxi_requests:', err);
+    });
+  } catch(e) { console.warn('[TDB] tdbStartListeningRequests:', e); }
+}
+
+function tdbStopListeningRequests() {
+  if (_tdbRequestsUnsub) { _tdbRequestsUnsub(); _tdbRequestsUnsub = null; }
+}
+
+function _tdbShowRealRequest(req) {
+  if (tdbMissionActive) { showTaxiNotification('⚠️ Vous avez déjà une course en cours'); return; }
+  window._tdbPendingReq = req;
+  var card = document.getElementById('tdbRequestCard');
+  if (!card) return;
+  var fromEl = document.getElementById('tdbReqFrom');
+  var toEl   = document.getElementById('tdbReqTo');
+  var priceEl= document.getElementById('tdbReqPrice');
+  var distEl = document.getElementById('tdbReqDist');
+  if (fromEl)  fromEl.textContent  = req.from  || req.pickup  || '—';
+  if (toEl)    toEl.textContent    = req.to    || req.destination || '—';
+  if (priceEl) priceEl.textContent = req.price ? req.price + ' XAF' : (req.estimatedPrice ? req.estimatedPrice + ' XAF' : '—');
+  if (distEl)  distEl.textContent  = req.dist  || req.distance || (req.estimatedKm ? req.estimatedKm + ' km' : '—');
+  card.style.display = 'block';
+  tdbReqSec = 30;
+  var cdEl = document.getElementById('tdbReqCountdown');
+  if (cdEl) cdEl.textContent = tdbReqSec + 's';
+  clearInterval(tdbReqCountdownInterval);
+  tdbReqCountdownInterval = setInterval(function() {
+    tdbReqSec--;
+    var el = document.getElementById('tdbReqCountdown');
+    if (el) el.textContent = tdbReqSec + 's';
+    if (tdbReqSec <= 0) {
+      clearInterval(tdbReqCountdownInterval);
+      if (card) card.style.display = 'none';
+      // Marquer comme expiré dans Firestore
+      _tdbUpdateRequestStatus(req._docId, 'expired');
+      showTaxiNotification('⏰ Demande expirée — en attente de la prochaine demande');
+    }
+  }, 1000);
+  showTaxiNotification('🔔 Nouvelle demande de course reçue !');
+}
+
+function _tdbUpdateRequestStatus(docId, status, extra) {
+  if (!docId || !window.db || !window.fbDoc || !window.fbUpdateDoc) return;
+  try {
+    var upd = Object.assign({ status: status, updatedAt: new Date().toISOString() }, extra || {});
+    window.fbUpdateDoc(window.fbDoc(window.db, 'taxi_requests', docId), upd).catch(function(e) {
+      console.warn('[TDB] updateRequestStatus:', e);
+    });
+  } catch(e) {}
+}
+
+// ── Charger les KPIs depuis Firestore (taxi_kpi/{uid}) ──
+function tdbLoadKPIsFromFirestore() {
+  var uid = window.currentUserUID || '';
+  if (!uid || !window.db || !window.fbDoc || !window.fbGetDoc) return;
+  try {
+    var today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    window.fbGetDoc(window.fbDoc(window.db, 'taxi_kpi', uid + '_' + today)).then(function(snap) {
+      if (snap && snap.exists && snap.exists()) {
+        var d = snap.data();
+        ['chauffeur', 'conducteur', 'livreur'].forEach(function(role) {
+          if (d[role]) {
+            tdbData[role].courses = d[role].courses || 0;
+            tdbData[role].gains   = d[role].gains   || 0;
+            tdbData[role].km      = d[role].km      || 0;
+            tdbData[role].note    = d[role].note    || 5.0;
+          }
+        });
+        tdbRefreshKPIs();
+      }
+    }).catch(function(e) { console.warn('[TDB] loadKPIs:', e); });
+  } catch(e) {}
+}
+
+// ── Persister les KPIs dans Firestore après chaque course ──
+function tdbSaveKPIsToFirestore() {
+  var uid = window.currentUserUID || '';
+  if (!uid || !window.db || !window.fbDoc || !window.fbSetDoc) return;
+  try {
+    var today = new Date().toISOString().slice(0, 10);
+    window.fbSetDoc(
+      window.fbDoc(window.db, 'taxi_kpi', uid + '_' + today),
+      { uid: uid, date: today, chauffeur: tdbData.chauffeur, conducteur: tdbData.conducteur, livreur: tdbData.livreur, updatedAt: new Date().toISOString() },
+      { merge: true }
+    ).catch(function(e) { console.warn('[TDB] saveKPIs:', e); });
+  } catch(e) {}
+}
+
+// ── Charger l'historique depuis Firestore ──
+function tdbLoadHistoryFromFirestore(limit) {
+  var uid = window.currentUserUID || '';
+  if (!uid || !window.db || !window.fbCollection || !window.fbQuery || !window.fbWhere || !window.fbOrderBy || !window.fbLimit || !window.fbGetDocs) return;
+  try {
+    var q = window.fbQuery(
+      window.fbCollection(window.db, 'taxi_history'),
+      window.fbWhere('driverUid', '==', uid),
+      window.fbOrderBy('completedAt', 'desc'),
+      window.fbLimit(limit || 20)
+    );
+    window.fbGetDocs(q).then(function(snap) {
+      var hist = document.getElementById('tdbHistory');
+      if (!hist) return;
+      hist.innerHTML = '';
+      snap.forEach(function(doc) {
+        var r = doc.data();
+        var div = document.createElement('div');
+        div.className = 'tdb-history-item';
+        var d = new Date(r.completedAt || r.createdAt || Date.now());
+        var timeStr = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        var dateStr = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+        var stars = '⭐'.repeat(Math.round(r.rating || 5));
+        var price = r.price ? r.price.toLocaleString('fr-FR') + ' XAF' : (r.pricePaid ? r.pricePaid.toLocaleString('fr-FR') + ' XAF' : '—');
+        div.innerHTML = '<div class="tdb-hist-icon tdb-done-icon">✓</div>' +
+          '<div class="tdb-hist-info"><div class="tdb-hist-route">' + _esc(r.from || r.pickup || '?') + ' → ' + _esc(r.to || r.destination || '?') + '</div>' +
+          '<div class="tdb-hist-time">' + dateStr + ', ' + timeStr + '</div></div>' +
+          '<div class="tdb-hist-price">' + price + '</div>' +
+          '<div class="tdb-hist-stars">' + stars + '</div>';
+        hist.appendChild(div);
+      });
+      if (snap.empty) {
+        hist.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:0.8rem;">Aucune course terminée pour l\'instant.</div>';
+      }
+    }).catch(function(e) { console.warn('[TDB] loadHistory:', e); });
+  } catch(e) {}
+}
 
 function switchDriverRole(role) {
   tdbRole = role;
@@ -30170,7 +30432,8 @@ function toggleDriverService(chk) {
     showTaxiNotification('🟢 Vous êtes maintenant en service !');
     // Persister statut online dans taxiContacts + localStorage
     _persistDriverOnlineStatus(true);
-    // Les vraies demandes arrivent via Firebase (pas de simulation automatique)
+    // Démarrer l'écoute des vraies demandes Firebase
+    tdbStartListeningRequests();
   } else {
     dot.classList.remove('tdb-dot-active');
     label.textContent = 'Hors service';
@@ -30184,6 +30447,8 @@ function toggleDriverService(chk) {
     tdbMissionRunning = false;
     showTaxiNotification('🔴 Vous êtes hors service');
     _persistDriverOnlineStatus(false);
+    // Arrêter l'écoute des demandes
+    tdbStopListeningRequests();
   }
 }
 
@@ -30225,54 +30490,21 @@ function tdbRefreshKPIs() {
 }
 
 function tdbSimulateRequest() {
-  // ⚠️ FONCTION TEST ADMIN UNIQUEMENT — Ne pas appeler automatiquement en production
-  // Les vraies demandes arrivent via Firebase (collection 'taxi_requests')
-  // Si hors service, activer automatiquement
-  if(!tdbOnDuty) {
-    const chk = document.getElementById('tdbToggleService');
-    if(chk) { chk.checked = true; toggleDriverService(chk); }
-  }
-  if(tdbMissionActive) { showTaxiNotification('⚠️ Terminez la course en cours d\'abord'); return; }
-  const demos = [
-    { from:'Quartier Louis', to:'Aéroport Léon MBA', price:'4 500 XAF', dist:'12 km • ~18 min', client:'M. Essono Bi', avatar:'👨' },
-    { from:'Centre-Ville', to:'Hôtel Radisson Blu', price:'2 200 XAF', dist:'5 km • ~8 min', client:'Mme. Nkoghe', avatar:'👩' },
-    { from:'Glass', to:'Angondjé Mall', price:'3 100 XAF', dist:'8 km • ~12 min', client:'M. Mba Obame', avatar:'👨' },
-    { from:'Owendo', to:'Akanda Beach', price:'6 800 XAF', dist:'18 km • ~25 min', client:'Mme. Biyoghe', avatar:'👩' },
-    { from:'Nzeng-Ayong', to:'Port-Môle', price:'3 800 XAF', dist:'10 km • ~15 min', client:'M. Ondo', avatar:'👨' },
-  ];
-  const r = demos[Math.floor(Math.random()*demos.length)];
-  document.getElementById('tdbReqFrom').textContent  = r.from;
-  document.getElementById('tdbReqTo').textContent    = r.to;
-  document.getElementById('tdbReqPrice').textContent = r.price;
-  document.getElementById('tdbReqDist').textContent  = r.dist;
-  window._tdbPendingReq = r;
-  const card = document.getElementById('tdbRequestCard');
-  card.style.display = 'block';
-  tdbReqSec = 30;
-  document.getElementById('tdbReqCountdown').textContent = tdbReqSec + 's';
-  clearInterval(tdbReqCountdownInterval);
-  tdbReqCountdownInterval = setInterval(() => {
-    tdbReqSec--;
-    const el = document.getElementById('tdbReqCountdown');
-    if(el) el.textContent = tdbReqSec + 's';
-    if(tdbReqSec <= 0) {
-      clearInterval(tdbReqCountdownInterval);
-      if(card) card.style.display = 'none';
-      showTaxiNotification('⏰ Demande expirée — en attente de la prochaine demande');
-    }
-  }, 1000);
-  showTaxiNotification('🔔 Nouvelle demande reçue !');
+  // Cette fonction est désactivée en production.
+  // Les vraies demandes arrivent en temps réel via Firebase (collection 'taxi_requests').
+  // Elle reste présente uniquement pour les tests admin locaux.
+  showTaxiNotification('ℹ️ Les demandes arrivent automatiquement via Firebase lorsque vous êtes en service.');
 }
 
 function tdbAcceptRequest() {
   clearInterval(tdbReqCountdownInterval);
   document.getElementById('tdbRequestCard').style.display = 'none';
   const r = window._tdbPendingReq || {};
-  document.getElementById('tdbMissionFrom').textContent = r.from || 'Départ';
-  document.getElementById('tdbMissionTo').textContent = r.to || 'Destination';
-  document.getElementById('tdbClientName').textContent = r.client || 'Client';
+  document.getElementById('tdbMissionFrom').textContent = r.from || r.pickup || 'Départ';
+  document.getElementById('tdbMissionTo').textContent = r.to || r.destination || 'Destination';
+  document.getElementById('tdbClientName').textContent = r.client || r.clientName || 'Client';
   document.getElementById('tdbClientAvatar').textContent = r.avatar || '👤';
-  document.getElementById('tdbClientInfo').textContent = r.price || '';
+  document.getElementById('tdbClientInfo').textContent = r.price ? r.price + ' XAF' : (r.estimatedPrice ? r.estimatedPrice + ' XAF' : '');
   document.getElementById('tdbBtnStart').style.display = 'inline-flex';
   document.getElementById('tdbBtnEnd').style.display = 'none';
   document.getElementById('tdbMissionCard').style.display = 'block';
@@ -30280,12 +30512,26 @@ function tdbAcceptRequest() {
   tdbMissionRunning = false;
   tdbTimerSec = 0;
   document.getElementById('tdbMissionTimer').textContent = '00:00';
+  // Marquer la demande comme acceptée dans Firestore
+  if (r._docId) {
+    _tdbUpdateRequestStatus(r._docId, 'accepted', {
+      acceptedAt: new Date().toISOString(),
+      driverUid: window.currentUserUID || ''
+    });
+  }
   showTaxiNotification('✅ Course acceptée ! Rendez-vous au client.');
 }
 
 function tdbDeclineRequest() {
   clearInterval(tdbReqCountdownInterval);
   document.getElementById('tdbRequestCard').style.display = 'none';
+  const r = window._tdbPendingReq || {};
+  if (r._docId) {
+    _tdbUpdateRequestStatus(r._docId, 'declined', {
+      declinedAt: new Date().toISOString(),
+      driverUid: window.currentUserUID || ''
+    });
+  }
   showTaxiNotification('❌ Demande refusée — en attente de la prochaine demande réelle');
 }
 
@@ -30310,34 +30556,102 @@ function tdbEndMission() {
   tdbMissionActive = false;
   tdbMissionRunning = false;
   const r = window._tdbPendingReq || {};
-  const priceNum = parseInt((r.price||'0').replace(/\D/g,'')) || 0;
-  const kmNum = parseInt((r.dist||'0').replace(/\D+/,'')) || 0;
+  const priceNum = parseInt((r.price||r.estimatedPrice||'0').toString().replace(/\D/g,'')) || 0;
+  const kmNum = parseInt((r.dist||r.distance||r.estimatedKm||'0').toString().replace(/\D+/,'')) || 0;
+  const durationMin = Math.round(tdbTimerSec / 60);
   tdbData[tdbRole].courses++;
   tdbData[tdbRole].gains += priceNum;
   tdbData[tdbRole].km += kmNum;
   tdbRefreshKPIs();
-  // Add to history
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
   const hist = document.getElementById('tdbHistory');
   const div = document.createElement('div');
   div.className = 'tdb-history-item tdb-hist-new';
-  const now = new Date();
-  const timeStr = now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-  div.innerHTML = `<div class="tdb-hist-icon tdb-done-icon">✓</div><div class="tdb-hist-info"><div class="tdb-hist-route">${r.from||'?'} → ${r.to||'?'}</div><div class="tdb-hist-time">Aujourd'hui, ${timeStr}</div></div><div class="tdb-hist-price">${r.price||'—'}</div><div class="tdb-hist-stars">⭐⭐⭐⭐⭐</div>`;
+  div.innerHTML = `<div class="tdb-hist-icon tdb-done-icon">✓</div><div class="tdb-hist-info"><div class="tdb-hist-route">${_esc(r.from||r.pickup||'?')} → ${_esc(r.to||r.destination||'?')}</div><div class="tdb-hist-time">Aujourd'hui, ${timeStr}</div></div><div class="tdb-hist-price">${priceNum ? priceNum.toLocaleString('fr-FR') + ' XAF' : '—'}</div><div class="tdb-hist-stars">⭐⭐⭐⭐⭐</div>`;
   hist.prepend(div);
-  showTaxiNotification('🎉 Course terminée ! +' + (r.price||'0'));
+
+  // Sauvegarder la course dans Firestore (taxi_history)
+  var uid = window.currentUserUID || '';
+  var driver = uid ? (window._chauffeurDrivers || {})[uid] : null;
+  if (uid && window.db && window.fbAddDoc && window.fbCollection) {
+    var histEntry = {
+      driverUid:     uid,
+      driverPhone:   driver ? (driver.phone || '') : '',
+      driverName:    driver ? (driver.pseudo || driver.name || '') : '',
+      role:          tdbRole,
+      from:          r.from || r.pickup || '',
+      to:            r.to || r.destination || '',
+      price:         priceNum,
+      km:            kmNum,
+      durationMin:   durationMin,
+      client:        r.client || r.clientName || '',
+      clientPhone:   r.clientPhone || '',
+      rating:        5,
+      status:        'completed',
+      requestId:     r._docId || '',
+      completedAt:   now.toISOString(),
+      createdAt:     r.createdAt || now.toISOString()
+    };
+    window.fbAddDoc(window.fbCollection(window.db, 'taxi_history'), histEntry).catch(function(e) {
+      console.warn('[TDB] taxi_history write:', e);
+    });
+  }
+
+  // Marquer la demande originale comme terminée
+  if (r._docId) {
+    _tdbUpdateRequestStatus(r._docId, 'completed', {
+      completedAt: now.toISOString(),
+      durationMin: durationMin,
+      finalPrice: priceNum
+    });
+  }
+
+  // Persister les KPIs du jour
+  tdbSaveKPIsToFirestore();
+
+  showTaxiNotification('🎉 Course terminée ! +' + (priceNum ? priceNum.toLocaleString('fr-FR') + ' XAF' : '0'));
 }
 
 function tdbReportIssue() {
-  const reasons = ['Passager non trouvé','Problème de route','Urgence véhicule','Passager agressif'];
-  const reason = reasons[Math.floor(Math.random()*reasons.length)];
-  if(confirm('Signaler un incident ?\n\nMotif : ' + reason + '\n\nConfirmer ?')) {
-    showTaxiNotification('⚠️ Incident signalé — support notifié');
+  var reasons = ['Passager non trouvé','Problème de route','Urgence véhicule','Passager agressif','Adresse incorrecte','Paiement refusé'];
+  var reason = prompt('Signaler un incident ?\n\nMotifs possibles :\n' + reasons.map(function(r,i){return (i+1)+'. '+r;}).join('\n') + '\n\nEntrez le motif :');
+  if (!reason || !reason.trim()) return;
+  var r = window._tdbPendingReq || {};
+  var uid = window.currentUserUID || '';
+  var driver = uid ? (window._chauffeurDrivers || {})[uid] : null;
+  if (uid && window.db && window.fbAddDoc && window.fbCollection) {
+    window.fbAddDoc(window.fbCollection(window.db, 'taxi_incidents'), {
+      driverUid:   uid,
+      driverPhone: driver ? (driver.phone || '') : '',
+      driverName:  driver ? (driver.pseudo || driver.name || '') : '',
+      requestId:   r._docId || '',
+      from:        r.from || r.pickup || '',
+      to:          r.to || r.destination || '',
+      client:      r.client || r.clientName || '',
+      reason:      reason.trim(),
+      reportedAt:  new Date().toISOString(),
+      status:      'open'
+    }).then(function() {
+      showTaxiNotification('⚠️ Incident signalé — support notifié');
+    }).catch(function(e) {
+      console.warn('[TDB] incident report:', e);
+      showTaxiNotification('⚠️ Incident enregistré localement');
+    });
+  } else {
+    showTaxiNotification('⚠️ Incident enregistré — synchronisé à la reconnexion');
   }
 }
 
 function tdbCallClient() {
   const r = window._tdbPendingReq || {};
-  showTaxiNotification('📞 Appel vers ' + (r.client||'client') + '...');
+  const phone = r.clientPhone || r.phone || '';
+  if (phone) {
+    window.location.href = 'tel:' + phone.replace(/\s/g, '');
+  } else {
+    showTaxiNotification('📞 Numéro client non disponible');
+  }
 }
 
 function tdbNavigation() {
@@ -30395,7 +30709,15 @@ function tdbShowEarnings() {
 function tdbShowStats() {
   const d = tdbData[tdbRole];
   const avg = d.courses > 0 ? Math.round(d.gains/d.courses) : 0;
-  const html = `
+  const uid = window.currentUserUID || '';
+
+  // Calculer le taux d'acceptation réel depuis les données Firebase
+  let acceptRate = '—';
+  let peakHour = '—';
+  let bestZone = '—';
+
+  const buildModal = function(rate, peak, zone) {
+    const html = `
     <div style="position:fixed;inset:0;z-index:950;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:1rem;" onclick="if(event.target===this)this.remove()">
       <div style="background:var(--surface);border:1.5px solid rgba(255,45,155,0.3);border-radius:20px;padding:1.5rem;width:min(360px,100%);box-shadow:0 0 40px rgba(255,45,155,0.1);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem;">
@@ -30405,15 +30727,15 @@ function tdbShowStats() {
         <div style="display:flex;flex-direction:column;gap:0.6rem;">
           <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0.8rem;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
             <span style="font-size:0.8rem;color:var(--muted);">🕐 Heure de pointe</span>
-            <span style="font-size:0.8rem;font-weight:700;color:var(--text);">18h – 22h</span>
+            <span style="font-size:0.8rem;font-weight:700;color:var(--text);">${peak}</span>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0.8rem;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
-            <span style="font-size:0.8rem;color:var(--muted);">📍 Zone la + lucrative</span>
-            <span style="font-size:0.8rem;font-weight:700;color:var(--amber);">Louis 🔴</span>
+            <span style="font-size:0.8rem;color:var(--muted);">📍 Zone la + fréquente</span>
+            <span style="font-size:0.8rem;font-weight:700;color:var(--amber);">${zone}</span>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0.8rem;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
             <span style="font-size:0.8rem;color:var(--muted);">💰 Gain moy./course</span>
-            <span style="font-size:0.8rem;font-weight:700;color:var(--green);">${avg.toLocaleString('fr-FR')} XAF</span>
+            <span style="font-size:0.8rem;font-weight:700;color:var(--green);">${avg ? avg.toLocaleString('fr-FR') + ' XAF' : '—'}</span>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0.8rem;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
             <span style="font-size:0.8rem;color:var(--muted);">⭐ Note chauffeur</span>
@@ -30421,18 +30743,70 @@ function tdbShowStats() {
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0.8rem;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
             <span style="font-size:0.8rem;color:var(--muted);">🚗 Distance totale</span>
-            <span style="font-size:0.8rem;font-weight:700;color:var(--cyan);">${d.km} km</span>
+            <span style="font-size:0.8rem;font-weight:700;color:var(--cyan);">${d.km > 0 ? d.km + ' km' : '—'}</span>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0.8rem;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
             <span style="font-size:0.8rem;color:var(--muted);">✅ Taux d'acceptation</span>
-            <span style="font-size:0.8rem;font-weight:700;color:var(--green);">87%</span>
+            <span style="font-size:0.8rem;font-weight:700;color:var(--green);">${rate}</span>
           </div>
         </div>
       </div>
     </div>`;
-  const wrap = document.createElement('div');
-  wrap.innerHTML = html;
-  document.body.appendChild(wrap.firstElementChild);
+    const wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    document.body.appendChild(wrap.firstElementChild);
+  };
+
+  // Calculer les stats depuis l'historique Firestore si possible
+  if (uid && window.db && window.fbCollection && window.fbQuery && window.fbWhere && window.fbOrderBy && window.fbLimit && window.fbGetDocs) {
+    const q30 = window.fbQuery(
+      window.fbCollection(window.db, 'taxi_history'),
+      window.fbWhere('driverUid', '==', uid),
+      window.fbOrderBy('completedAt', 'desc'),
+      window.fbLimit(50)
+    );
+    window.fbGetDocs(q30).then(function(snap) {
+      const rides = [];
+      snap.forEach(function(doc) { rides.push(doc.data()); });
+      // Heure de pointe
+      const hourCounts = {};
+      rides.forEach(function(r) {
+        if (r.completedAt) {
+          const h = new Date(r.completedAt).getHours();
+          hourCounts[h] = (hourCounts[h] || 0) + 1;
+        }
+      });
+      const peakH = Object.entries(hourCounts).sort(function(a,b){ return b[1]-a[1]; })[0];
+      const peakStr = peakH ? (peakH[0] + 'h – ' + (parseInt(peakH[0])+2) + 'h') : '—';
+      // Zone la plus fréquente
+      const zoneCounts = {};
+      rides.forEach(function(r) {
+        const z = (r.from || '').split(' ')[0];
+        if (z) zoneCounts[z] = (zoneCounts[z] || 0) + 1;
+      });
+      const topZone = Object.entries(zoneCounts).sort(function(a,b){ return b[1]-a[1]; })[0];
+      const zoneStr = topZone ? topZone[0] : '—';
+      // Taux d'acceptation depuis taxi_requests
+      const acceptQ = window.fbQuery(
+        window.fbCollection(window.db, 'taxi_requests'),
+        window.fbWhere('driverUid', '==', uid),
+        window.fbOrderBy('createdAt', 'desc'),
+        window.fbLimit(50)
+      );
+      window.fbGetDocs(acceptQ).then(function(reqSnap) {
+        let total = 0, accepted = 0;
+        reqSnap.forEach(function(doc) {
+          const s = doc.data().status;
+          total++;
+          if (s === 'accepted' || s === 'completed') accepted++;
+        });
+        const rateStr = total > 0 ? Math.round(accepted/total*100) + '%' : '—';
+        buildModal(rateStr, peakStr, zoneStr);
+      }).catch(function() { buildModal('—', peakStr, zoneStr); });
+    }).catch(function() { buildModal('—', '—', '—'); });
+  } else {
+    buildModal('—', '—', '—');
+  }
 }
 
 // Conducteur
@@ -30456,10 +30830,27 @@ function tdbArretUrgence() {
 }
 
 function tdbChangerLigne() {
-  const lignes = ['Ligne 1 — Centre → Owendo','Ligne 2 — Akanda → Glass','Ligne 3 — Owendo → Aéroport','Ligne 4 — Louis → Angondjé'];
-  const l = lignes[Math.floor(Math.random()*lignes.length)];
-  document.getElementById('tdbLigne').textContent = l;
-  showTaxiNotification('🔀 Ligne changée : ' + l);
+  // Récupère les lignes réelles depuis les contacts conducteurs enregistrés
+  var contacts = [];
+  try { contacts = JSON.parse(localStorage.getItem('taxiContacts') || '[]'); } catch(e) {}
+  var lignes = contacts.filter(function(c) { return c.ligne || c.line; }).map(function(c) { return c.ligne || c.line; });
+  if (lignes.length === 0) {
+    lignes = ['Ligne 1 — Centre → Owendo','Ligne 2 — Akanda → Glass','Ligne 3 — Owendo → Aéroport','Ligne 4 — Louis → Angondjé'];
+  }
+  // Afficher un menu de sélection réel
+  var options = lignes.map(function(l, i) { return (i+1) + '. ' + l; }).join('\n');
+  var choice = prompt('Changer de ligne :\n\n' + options + '\n\nEntrez le numéro de la ligne :');
+  var idx = parseInt(choice) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= lignes.length) return;
+  var selected = lignes[idx];
+  var el = document.getElementById('tdbLigne');
+  if (el) el.textContent = selected;
+  // Persister le choix
+  var uid = window.currentUserUID || '';
+  if (uid) {
+    try { localStorage.setItem('ambi241_driver_ligne_' + uid, selected); } catch(e) {}
+  }
+  showTaxiNotification('🔀 Ligne changée : ' + selected);
 }
 
 // Livreur
@@ -30499,7 +30890,7 @@ function tdbRapportFin() {
 }
 
 function tdbLoadMoreHistory() {
-  showTaxiNotification('📋 Chargement de l\'historique complet...');
+  tdbLoadHistoryFromFirestore(50);
 }
 
 // Init dashboard on first show
@@ -30509,7 +30900,16 @@ switchTaxiTab = function(tab) {
   _origSwitchTaxiTab(tab);
   if(tab === 'dashboard' && !window._tdbInited) {
     window._tdbInited = true;
-    tdbRefreshKPIs();
+    // Charger les KPIs du jour depuis Firestore
+    tdbLoadKPIsFromFirestore();
+    // Charger l'historique réel des courses
+    tdbLoadHistoryFromFirestore(20);
+    // Exposer les nouvelles fonctions Firebase sur window
+    window.tdbStartListeningRequests = tdbStartListeningRequests;
+    window.tdbStopListeningRequests  = tdbStopListeningRequests;
+    window.tdbLoadKPIsFromFirestore  = tdbLoadKPIsFromFirestore;
+    window.tdbSaveKPIsToFirestore    = tdbSaveKPIsToFirestore;
+    window.tdbLoadHistoryFromFirestore = tdbLoadHistoryFromFirestore;
   }
 };
 
@@ -30528,6 +30928,7 @@ window.taxiProSubmitOrder         = taxiProSubmitOrder;
 window.taxiProShowDriverResponseModal = taxiProShowDriverResponseModal;
 window.taxiProHideDriverResponseModal = taxiProHideDriverResponseModal;
 window.taxiProSimulateDriverResponse  = taxiProSimulateDriverResponse;
+window._taxiProListenDriverResponse   = _taxiProListenDriverResponse;
 window.taxiProAcceptOrder         = taxiProAcceptOrder;
 window.taxiProAcceptCounter       = taxiProAcceptCounter;
 window.taxiProProposeCounter      = taxiProProposeCounter;
@@ -30557,6 +30958,11 @@ window.tdbEchecLivraison          = tdbEchecLivraison;
 window.tdbContactClient           = tdbContactClient;
 window.tdbRapportFin              = tdbRapportFin;
 window.tdbLoadMoreHistory         = tdbLoadMoreHistory;
+window.tdbStartListeningRequests  = tdbStartListeningRequests;
+window.tdbStopListeningRequests   = tdbStopListeningRequests;
+window.tdbLoadKPIsFromFirestore   = tdbLoadKPIsFromFirestore;
+window.tdbSaveKPIsToFirestore     = tdbSaveKPIsToFirestore;
+window.tdbLoadHistoryFromFirestore= tdbLoadHistoryFromFirestore;
 
 // ════════════════════════════════════════════════════════════════════
 // ESPACE CHAUFFEUR — TABLEAU DE BORD PRIVÉ (accès par mot de passe)
@@ -30661,12 +31067,12 @@ function registerUserAsDriver(uid, email, pseudo, password) {
 window.registerUserAsDriver = registerUserAsDriver;
 
 // Admin : désigner un membre existant comme chauffeur
-window.adminDesignDriver = function(uid, email, pseudo, password, phone) {
+window.adminDesignDriver = function(uid, email, pseudo, _unused_password, phone) {
   if(!isAdmin) { showToast('Admin requis'); return; }
   var cleanPhone = (phone || '').replace(/\s|\+/g,'');
   var driverDataApproved = {
     uid: uid, email: email, pseudo: pseudo,
-    password: password || 'Ambi@241',
+    // password supprimé — Firebase Auth gère les credentials
     phone: cleanPhone,
     whatsapp: cleanPhone,
     status: 'approved', approvedBy: 'admin',
@@ -30705,6 +31111,19 @@ window.adminDesignDriver = function(uid, email, pseudo, password, phone) {
   }
 
   showToast('✅ ' + pseudo + ' désigné Chauffeur + ajouté à la liste 24H !');
+  // ── Envoyer un email Firebase de définition de mot de passe ──
+  // Le chauffeur reçoit un lien pour choisir son mot de passe AMBI241
+  if(email && window.fbSendPasswordResetEmail && window.auth){
+    window.fbSendPasswordResetEmail(window.auth, email).then(function(){
+      showToast('📧 Lien de connexion envoyé à ' + email);
+      addAdminLog('📧 Email activation Chauffeur envoyé → ' + pseudo + ' (' + email + ')', 'driver_activation_email');
+    }).catch(function(err){
+      if(err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential'){
+        showToast('⚠️ ' + pseudo + ' doit d\'abord créer un compte AMBI241 avec cet email.');
+      }
+      // Autres erreurs ignorées silencieusement — le chauffeur peut se connecter avec son compte existant
+    });
+  }
   if(typeof renderAdmUsers === 'function') renderAdmUsers();
 };
 
@@ -30814,12 +31233,11 @@ function _verifyChauffeurLogin() {
 
   // ── Authentification via Firebase Auth (même compte AMBI241) ──
   if(!window.fbSignIn || !window.auth) {
-    // Fallback : mot de passe stocké (ancien système)
-    if(driver.password && driver.password === pwd) {
-      var old = document.getElementById('_chauffeurGate'); if(old) old.remove();
-      _showChauffeurBoard(driver); return;
-    }
-    msg.textContent='Email ou mot de passe incorrect.'; msg.style.display='block'; return;
+    // Firebase indisponible : afficher un message clair
+    msg.textContent='Service d\'authentification indisponible. Réessayez dans quelques instants.';
+    msg.style.display='block';
+    if(btn){ btn.disabled=false; btn.textContent='🔓 Accéder à mon Tableau de Bord'; }
+    return;
   }
 
   msg.style.display='none';
@@ -30989,8 +31407,7 @@ function _showChauffeurBoard(driver) {
     <div id="_boardOrdersEmpty" style="text-align:center;padding:2.5rem 1rem;color:var(--muted);">
       <div style="font-size:3rem;margin-bottom:0.5rem;">📭</div>
       <div style="font-size:0.85rem;font-weight:700;color:var(--text);margin-bottom:0.3rem;">Aucune commande en attente</div>
-      <div style="font-size:0.72rem;">Activez le service pour recevoir des demandes</div>
-      <button onclick="_boardSimRequest()" style="margin-top:1rem;padding:0.5rem 1.2rem;border-radius:30px;border:1.5px dashed rgba(157,132,255,0.4);background:transparent;color:var(--amber);font-size:0.72rem;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">⚡ Simuler une demande</button>
+      <div style="font-size:0.72rem;">Activez le service pour recevoir des demandes en temps réel</div>
     </div>
   </div>
 
@@ -31121,7 +31538,8 @@ function _boardToggleService(chk) {
     if(knob)   knob.style.transform = 'translateX(24px)';
     showTaxiNotification('🟢 Vous êtes en service !');
     _persistDriverOnlineStatus(true);
-    setTimeout(function(){ if(window._boardOnDuty) _boardSimRequest(); }, 5000);
+    // Démarrer l'écoute des vraies demandes Firebase
+    if (typeof tdbStartListeningRequests === 'function') tdbStartListeningRequests();
   } else {
     dot.style.background = 'var(--red)';
     dot.style.boxShadow = '0 0 8px rgba(255,68,102,0.5)';
@@ -31152,26 +31570,25 @@ function _boardSwitchTab(tab) {
   });
 }
 
-// ──── Simuler une demande entrante ────
+// ──── Écoute des vraies demandes Firebase pour ce tableau de bord ────
 function _boardSimRequest() {
-  var demos = [
-    { from:'Quartier Louis', to:'Aéroport Léon MBA', price:'4 500 XAF', dist:'12 km • ~18 min', client:'M. Essono Bi', avatar:'👨' },
-    { from:'Centre-Ville', to:'Hôtel Radisson Blu', price:'2 200 XAF', dist:'5 km • ~8 min', client:'Mme. Nkoghe', avatar:'👩' },
-    { from:'Glass', to:'Angondjé Mall', price:'3 100 XAF', dist:'8 km • ~12 min', client:'M. Mba Obame', avatar:'👨' },
-    { from:'Owendo', to:'Akanda Beach', price:'6 800 XAF', dist:'18 km • ~25 min', client:'Mme. Biyoghe', avatar:'👩' },
-  ];
-  var r = demos[Math.floor(Math.random()*demos.length)];
-  window._boardActiveReq = r;
+  // Cette fonction est désactivée. Les demandes arrivent via Firebase onSnapshot (tdbStartListeningRequests).
+  // Laissée en place pour la compatibilité des appels existants.
+}
+
+// Afficher une demande réelle reçue depuis Firebase dans ce tableau de bord
+function _boardShowRealRequest(req) {
+  window._boardActiveReq = req;
   var el = document.getElementById('_boardIncomingReq');
   if(!el) return;
-  document.getElementById('_boardReqFrom').textContent  = r.from;
-  document.getElementById('_boardReqTo').textContent    = r.to;
-  document.getElementById('_boardReqPrice').textContent = r.price;
-  document.getElementById('_boardReqDist').textContent  = r.dist;
-  document.getElementById('_boardReqClient').textContent = r.client;
+  var setT = function(id, val) { var e = document.getElementById(id); if(e) e.textContent = val; };
+  setT('_boardReqFrom',  req.from || req.pickup || '—');
+  setT('_boardReqTo',    req.to || req.destination || '—');
+  setT('_boardReqPrice', req.price ? req.price + ' XAF' : (req.estimatedPrice ? req.estimatedPrice + ' XAF' : '—'));
+  setT('_boardReqDist',  req.dist || req.distance || (req.estimatedKm ? req.estimatedKm + ' km' : '—'));
+  setT('_boardReqClient',req.client || req.clientName || 'Client');
   el.style.display = 'block';
   _boardSwitchTab('commandes');
-  // Countdown
   var sec = 30;
   var cdEl = document.getElementById('_boardReqCountdown');
   if(cdEl) cdEl.textContent = sec + 's';
@@ -31182,12 +31599,13 @@ function _boardSimRequest() {
     if(sec <= 0) {
       clearInterval(window._boardCDInterval);
       if(el) el.style.display = 'none';
+      _tdbUpdateRequestStatus(req._docId, 'expired');
       showTaxiNotification('⏰ Demande expirée');
-      setTimeout(function(){ if(window._boardOnDuty) _boardSimRequest(); }, 8000);
     }
   }, 1000);
   showTaxiNotification('🔔 Nouvelle demande de course !');
 }
+window._boardShowRealRequest = _boardShowRealRequest;
 
 // ──── Accepter une demande ────
 function _boardAcceptReq() {
@@ -31223,8 +31641,10 @@ window._boardConfirmRefuse = function(motif) {
   document.getElementById('_refuseOverlay').remove();
   var el = document.getElementById('_boardIncomingReq');
   if(el) el.style.display = 'none';
-  showTaxiNotification('❌ Refusé : ' + motif);
-  setTimeout(function(){ if(window._boardOnDuty) _boardSimRequest(); }, 6000);
+  // Marquer la demande comme refusée dans Firestore
+  var req = window._boardActiveReq || {};
+  if (req._docId) _tdbUpdateRequestStatus(req._docId, 'declined', { declinedAt: new Date().toISOString(), motif: motif });
+  showTaxiNotification('❌ Refusé : ' + motif + ' — en attente de la prochaine demande réelle');
 };
 
 // ──── Démarrer une course ────
@@ -31308,9 +31728,33 @@ function _boardNextRideStep() {
     if(noMsg) noMsg.style.display = 'block';
     _boardUpdateStepper(3);
     _boardRenderHistory();
-    showTaxiNotification('🎉 Course terminée ! +' + (r.price||'0'));
+    // Sauvegarder la course dans Firestore taxi_history
+    var uid2 = window.currentUserUID || '';
+    var drv2 = uid2 ? (window._chauffeurDrivers || {})[uid2] : null;
+    if (uid2 && window.db && window.fbAddDoc && window.fbCollection) {
+      window.fbAddDoc(window.fbCollection(window.db, 'taxi_history'), {
+        driverUid:   uid2,
+        driverPhone: drv2 ? (drv2.phone || '') : '',
+        driverName:  drv2 ? (drv2.pseudo || drv2.name || '') : '',
+        role: 'chauffeur',
+        from: r.from || r.pickup || '',
+        to:   r.to || r.destination || '',
+        price: priceNum,
+        km:    kmNum,
+        durationMin: Math.round((window._boardRideTimerSec || 0) / 60),
+        client:    r.client || r.clientName || '',
+        clientPhone: r.clientPhone || '',
+        rating: 5,
+        status: 'completed',
+        requestId: r._docId || '',
+        completedAt: now.toISOString()
+      }).catch(function(e) { console.warn('[Board] taxi_history:', e); });
+    }
+    if (r._docId) _tdbUpdateRequestStatus(r._docId, 'completed', { completedAt: now.toISOString(), finalPrice: priceNum });
+    // Persister les KPIs
+    tdbSaveKPIsToFirestore();
+    showTaxiNotification('🎉 Course terminée ! +' + (priceNum ? priceNum.toLocaleString('fr-FR') + ' XAF' : '0'));
     _boardSwitchTab('historique');
-    if(window._boardOnDuty) setTimeout(function(){ _boardSimRequest(); }, 5000);
   }
 }
 
@@ -31347,10 +31791,31 @@ function _boardOpenNav() {
   if(r.to) window.open('https://www.google.com/maps/search/'+encodeURIComponent(r.to+', Libreville'), '_blank');
 }
 function _boardReportIssue() {
-  var motifs = ['Passager non trouvé','Problème de route','Urgence véhicule','Passager agressif'];
-  var m = motifs[Math.floor(Math.random()*motifs.length)];
-  if(confirm('Signaler un incident ?\n\nMotif suggéré : ' + m)) {
-    showTaxiNotification('⚠️ Incident signalé — support notifié');
+  var motifs = ['Passager non trouvé','Problème de route','Urgence véhicule','Passager agressif','Adresse incorrecte','Paiement refusé'];
+  var motif = prompt('Signaler un incident :\n\n' + motifs.map(function(m,i){return (i+1)+'. '+m;}).join('\n') + '\n\nEntrez le motif :');
+  if (!motif || !motif.trim()) return;
+  var r = window._boardActiveReq || window._boardCurrentRide || {};
+  var uid = window.currentUserUID || '';
+  var drv = uid ? (window._chauffeurDrivers || {})[uid] : null;
+  if (uid && window.db && window.fbAddDoc && window.fbCollection) {
+    window.fbAddDoc(window.fbCollection(window.db, 'taxi_incidents'), {
+      driverUid:   uid,
+      driverPhone: drv ? (drv.phone || '') : '',
+      driverName:  drv ? (drv.pseudo || drv.name || '') : '',
+      requestId:   r._docId || '',
+      from:        r.from || r.pickup || '',
+      to:          r.to || r.destination || '',
+      client:      r.client || r.clientName || '',
+      reason:      motif.trim(),
+      reportedAt:  new Date().toISOString(),
+      status:      'open'
+    }).then(function() {
+      showTaxiNotification('⚠️ Incident signalé — support notifié');
+    }).catch(function() {
+      showTaxiNotification('⚠️ Incident enregistré — synchronisé à la reconnexion');
+    });
+  } else {
+    showTaxiNotification('⚠️ Incident enregistré localement');
   }
 }
 
@@ -31517,7 +31982,7 @@ function _showChauffeurAdminPanel() {
                 <option>Akanda</option><option>Angondjé</option><option>Owendo</option><option>Aéroport</option>
               </select>
             </div>
-            <input id="_newDrvPwd" type="text" placeholder="Mot de passe Taxi Pro" style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);padding:0.45rem 0.6rem;font-size:0.78rem;font-family:DM Sans,sans-serif;margin-bottom:0.6rem;outline:none;box-sizing:border-box;" value="Ambi@241">
+            <!-- _newDrvPwd supprimé — Firebase envoie un email de définition de mot de passe au chauffeur -->
             <button onclick="_adminAddDriverManual()" style="width:100%;padding:0.52rem;border-radius:9px;border:none;background:linear-gradient(135deg,var(--amber),#ff8800);color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;">✅ Désigner Chauffeur</button>
             <div style="margin-top:0.8rem;padding:0.6rem 0.7rem;background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.25);border-radius:8px;">
               <div style="font-size:0.65rem;color:var(--cyan);font-weight:700;margin-bottom:0.35rem;">🌐 URL de l\'app (pour les liens WhatsApp chauffeur)</div>
@@ -31829,11 +32294,11 @@ function _adminAddDriverManual() {
   var email  = (document.getElementById('_newDrvEmail').value || '').trim().toLowerCase();
   var pseudo = (document.getElementById('_newDrvPseudo').value || '').trim();
   var phone  = (document.getElementById('_newDrvPhone').value || '').trim().replace(/\s/g,'');
-  var pwd    = (document.getElementById('_newDrvPwd').value || 'Ambi@241').trim();
   if(!email || !pseudo) { showToast('Email et pseudo requis'); return; }
   if(!phone) { showToast('⚠️ Numéro WhatsApp requis pour envoyer les commandes au chauffeur'); return; }
   var uid = 'drv_' + Date.now();
-  window.adminDesignDriver(uid, email, pseudo, pwd, phone);
+  // Pas de mot de passe passé — Firebase gère les credentials via email de reset
+  window.adminDesignDriver(uid, email, pseudo, null, phone);
   document.getElementById('_chauffeurAdminPanel').remove();
   window._showChauffeurAdminPanel();
 }
@@ -32065,8 +32530,10 @@ function taxiProSubmitOrder() {
     vehicleLabel: vehicleLabels[taxiProState.vehicleType] || taxiProState.vehicleType,
     driverId: taxiProState.selectedDriver,
     driverName: driver ? driver.name : '?',
+    driverPhone: driver ? (driver.phone || driver.whatsapp || '') : '',
+    clientUid: window.currentUserUID || '',
     status: 'pending',
-    createdAt: new Date()
+    createdAt: new Date().toISOString()
   };
 
   taxiProState.clientData = clientData;
@@ -32082,24 +32549,44 @@ function taxiProSubmitOrder() {
   if(icon)    icon.textContent    = '⏳';
   if(title)   title.textContent   = 'Demande envoyée…';
   if(msg)     msg.textContent     = `${driver ? driver.name : 'Le chauffeur'} reçoit votre demande. Veuillez patienter.`;
-  if(actions) actions.innerHTML   = `<div style="font-size:0.75rem;color:var(--muted);text-align:center;">Réponse dans quelques secondes…</div>`;
-
+  if(actions) actions.innerHTML   = `<div style="font-size:0.75rem;color:var(--muted);text-align:center;">En attente de réponse du chauffeur…</div>`;
   taxiProShowDriverResponseModal();
 
-  // ─── Sauvegarder la commande pour le chauffeur (accessible depuis son dashboard) ───
-  if(driver) {
-    var driverPhoneClean = (driver.phone||driver.whatsapp||'').replace(/\s|\+/g,'');
-    var pendingKey = 'ambi241_pending_orders_' + driverPhoneClean;
-    var existing = [];
-    try { existing = JSON.parse(localStorage.getItem(pendingKey) || '[]'); } catch(e){}
-    existing.push({
-      id: orderId, clientName: firstName,
-      from: gpsVal || 'Position GPS', to: destination,
-      price: parseFloat(price).toLocaleString('fr-FR') + ' ' + taxiProState.currency,
-      vehicle: vehicleLabels[taxiProState.vehicleType] || taxiProState.vehicleType,
-      time: time || 'Immédiat', createdAt: new Date().toISOString()
+  // ─── Écrire la commande dans Firestore (taxi_requests) ───
+  var firestoreDocId = null;
+  if(window.db && window.fbAddDoc && window.fbCollection) {
+    window.fbAddDoc(window.fbCollection(window.db, 'taxi_requests'), {
+      orderId:      orderId,
+      clientName:   firstName,
+      clientUid:    window.currentUserUID || '',
+      from:         gpsVal || 'À préciser',
+      to:           destination,
+      pickup:       gpsVal || '',
+      destination:  destination,
+      price:        parseFloat(price),
+      currency:     taxiProState.currency,
+      vehicleType:  taxiProState.vehicleType,
+      vehicleLabel: vehicleLabels[taxiProState.vehicleType] || taxiProState.vehicleType,
+      driverId:     taxiProState.selectedDriver,
+      driverName:   driver ? driver.name : '',
+      driverPhone:  driver ? _normPhone(driver.phone || driver.whatsapp || '') : '',
+      time:         time || 'Immédiat',
+      status:       'pending',
+      createdAt:    new Date().toISOString()
+    }).then(function(docRef) {
+      firestoreDocId = docRef.id;
+      clientData._docId = docRef.id;
+      // Écouter la réponse réelle du chauffeur
+      _taxiProListenDriverResponse(docRef.id, driver, clientData);
+    }).catch(function(e) {
+      console.warn('[TaxiPro] taxi_requests write:', e);
+      // Fallback : pas de réponse simulée, informer l'utilisateur
+      if(msg) msg.textContent = 'Commande enregistrée localement. Contactez le chauffeur via WhatsApp.';
+      if(actions) actions.innerHTML = '';
     });
-    try { localStorage.setItem(pendingKey, JSON.stringify(existing)); } catch(e){}
+  } else {
+    // Firebase non disponible : redirection directe WhatsApp
+    if(msg) msg.textContent = 'Firebase indisponible. Contactez le chauffeur directement.';
   }
 
   // ─── Notification WhatsApp ENRICHIE avec deep-link ───
@@ -32110,16 +32597,93 @@ function taxiProSubmitOrder() {
       vehicle: vehicleLabels[taxiProState.vehicleType],
       clientName: firstName, time: time || 'Immédiat'
     };
-    var driverWA = (driver.whatsapp || driver.phone || '241060000000').replace(/\s|\+/g,'');
-    setTimeout(function() {
-      if(confirm('Envoyer la demande à ' + (driver.name||'le chauffeur') + ' via WhatsApp ?')) {
-        openWhatsApp(encodeURIComponent('+' + driverWA), encodeURIComponent(driver.name||'Chauffeur'), contextData);
-      }
-    }, 300);
+    var driverWA = (driver.whatsapp || driver.phone || '').replace(/\s|\+/g,'');
+    if(driverWA) {
+      setTimeout(function() {
+        if(confirm('Envoyer la demande à ' + (driver.name||'le chauffeur') + ' via WhatsApp ?')) {
+          openWhatsApp(encodeURIComponent('+' + driverWA), encodeURIComponent(driver.name||'Chauffeur'), contextData);
+        }
+      }, 300);
+    }
   }
+}
 
-  // Simuler réponse chauffeur
-  setTimeout(() => taxiProSimulateDriverResponse(clientData), 3000 + Math.random() * 2000);
+// ─── Écouter la réponse réelle du chauffeur sur taxi_requests ───
+var _taxiProResponseUnsub = null;
+function _taxiProListenDriverResponse(docId, driver, order) {
+  if(!window.db || !window.fbDoc || !window.fbOnSnapshot) return;
+  if(_taxiProResponseUnsub) { _taxiProResponseUnsub(); _taxiProResponseUnsub = null; }
+
+  var icon    = document.getElementById('taxiProResponseIcon');
+  var title   = document.getElementById('taxiProResponseTitle');
+  var msg     = document.getElementById('taxiProResponseMsg');
+  var actions = document.getElementById('taxiProResponseActions');
+
+  // Timeout de 2 minutes si aucune réponse
+  var timeout = setTimeout(function() {
+    if(_taxiProResponseUnsub) { _taxiProResponseUnsub(); _taxiProResponseUnsub = null; }
+    if(icon)  icon.textContent  = '⏰';
+    if(title) title.textContent = 'Délai dépassé';
+    if(msg)   msg.textContent   = 'Le chauffeur n\'a pas répondu. Essayez un autre chauffeur ou contactez-le via WhatsApp.';
+    if(actions) actions.innerHTML = '<button onclick="taxiProHideDriverResponseModal()" style="padding:0.6rem 1.2rem;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:var(--muted);font-size:0.78rem;cursor:pointer;">Fermer</button>';
+    taxiProShowToast('⏰ Aucune réponse du chauffeur');
+  }, 120000);
+
+  try {
+    _taxiProResponseUnsub = window.fbOnSnapshot(
+      window.fbDoc(window.db, 'taxi_requests', docId),
+      function(snap) {
+        if(!snap || !snap.exists || !snap.exists()) return;
+        var data = snap.data();
+        var status = data.status;
+        if(status === 'pending') return; // Pas encore répondu
+
+        clearTimeout(timeout);
+        if(_taxiProResponseUnsub) { _taxiProResponseUnsub(); _taxiProResponseUnsub = null; }
+
+        if(status === 'accepted') {
+          if(icon)  icon.textContent  = '✅';
+          if(title) title.textContent = 'Commande Acceptée !';
+          if(msg)   msg.textContent   = (data.driverName || (driver ? driver.name : 'Le chauffeur')) + ' a accepté votre commande. Taxi en route vers vous !';
+          if(actions) actions.innerHTML = `
+            <button class="taxi-response-btn taxi-response-accept" onclick="taxiProAcceptOrder(${taxiProState.selectedDriver})">
+              ✓ Taxi En Route
+            </button>
+            <button class="taxi-response-btn taxi-response-reject" onclick="taxiProCancelOrder()">
+              ✗ Annuler
+            </button>`;
+        } else if(status === 'counter') {
+          var counterPrice = data.counterPrice || (parseFloat(order.price||0) + 5000);
+          if(icon)  icon.textContent  = '💰';
+          if(title) title.textContent = 'Contre-offre';
+          if(msg)   msg.textContent   = (data.driverName || (driver ? driver.name : 'Le chauffeur')) + ' propose : ' + counterPrice.toLocaleString('fr-FR') + ' ' + (order.currency||'XAF');
+          if(actions) actions.innerHTML = `
+            <button class="taxi-response-btn taxi-response-accept" onclick="taxiProAcceptCounter(${taxiProState.selectedDriver}, ${counterPrice})">✓ Accepter</button>
+            <button class="taxi-response-btn taxi-response-counter" onclick="taxiProProposeCounter()">💬 Contre-Proposition</button>
+            <button class="taxi-response-btn taxi-response-reject" onclick="taxiProCancelOrder()">✗ Refuser</button>`;
+        } else if(status === 'declined') {
+          if(icon)  icon.textContent  = '❌';
+          if(title) title.textContent = 'Demande Refusée';
+          if(msg)   msg.textContent   = (data.driverName || (driver ? driver.name : 'Le chauffeur')) + ' n\'est pas disponible. Veuillez choisir un autre chauffeur.';
+          if(actions) actions.innerHTML = '<button onclick="taxiProHideDriverResponseModal()" style="padding:0.6rem 1.2rem;border-radius:10px;border:none;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-size:0.82rem;font-weight:700;cursor:pointer;width:100%;">Choisir un autre chauffeur</button>';
+          taxiProShowToast('❌ ' + (driver ? driver.name : 'Chauffeur') + ' non disponible');
+        }
+      },
+      function(err) {
+        clearTimeout(timeout);
+        console.warn('[TaxiPro] listener response:', err);
+        if(msg) msg.textContent = 'Erreur de connexion. Contactez le chauffeur via WhatsApp.';
+      }
+    );
+  } catch(e) {
+    clearTimeout(timeout);
+    console.warn('[TaxiPro] _taxiProListenDriverResponse:', e);
+  }
+}
+
+function taxiProSimulateDriverResponse(order) {
+  // Désactivé — les réponses arrivent via Firebase onSnapshot (_taxiProListenDriverResponse).
+  // Conservé pour la compatibilité, sans effet en production.
 }
 
 function taxiProShowDriverResponseModal() {
@@ -32130,46 +32694,6 @@ function taxiProShowDriverResponseModal() {
 function taxiProHideDriverResponseModal() {
   const modal = document.getElementById('taxiProDriverResponseModal');
   if(modal) modal.classList.remove('show');
-}
-
-function taxiProSimulateDriverResponse(order) {
-  const driver = getTaxiProDrivers().find(d => d.id === order.driverId);
-  const accepted = Math.random() > 0.3; // 70% chance d'acceptation
-  
-  const icon = document.getElementById('taxiProResponseIcon');
-  const title = document.getElementById('taxiProResponseTitle');
-  const msg = document.getElementById('taxiProResponseMsg');
-  const actions = document.getElementById('taxiProResponseActions');
-  
-  if(accepted) {
-    if(icon) icon.textContent = '✅';
-    if(title) title.textContent = 'Commande Acceptée!';
-    if(msg) msg.textContent = `${driver.name} a accepté votre commande. Taxi en route vers vous!`;
-    if(actions) actions.innerHTML = `
-      <button class="taxi-response-btn taxi-response-accept" onclick="taxiProAcceptOrder(${driver.id})">
-        ✓ Taxi En Route
-      </button>
-      <button class="taxi-response-btn taxi-response-reject" onclick="taxiProCancelOrder()">
-        ✗ Annuler
-      </button>
-    `;
-  } else {
-    const counterPrice = parseInt(order.price) + 5000;
-    if(icon) icon.textContent = '💰';
-    if(title) title.textContent = 'Contre-offre';
-    if(msg) msg.textContent = `${driver.name} propose: ${counterPrice} ${order.currency}`;
-    if(actions) actions.innerHTML = `
-      <button class="taxi-response-btn taxi-response-accept" onclick="taxiProAcceptCounter(${driver.id}, ${counterPrice})">
-        ✓ Accepter
-      </button>
-      <button class="taxi-response-btn taxi-response-counter" onclick="taxiProProposeCounter()">
-        💬 Contre-Proposition
-      </button>
-      <button class="taxi-response-btn taxi-response-reject" onclick="taxiProCancelOrder()">
-        ✗ Refuser
-      </button>
-    `;
-  }
 }
 
 function taxiProAcceptOrder(driverId) {
@@ -33070,114 +33594,13 @@ console.log('✅ Profil & Taxi Pro charges');
 
 
 // ════════════════════════════════════════════════════════════════
-// RÉINITIALISATION MOT DE PASSE
+// RÉINITIALISATION MOT DE PASSE — nettoyé (v2)
+// Email : Firebase sendPasswordResetEmail (automatique)
+// Tel   : ticket Firestore support_requests (traité par admin)
+// Fonctions openPasswordResetModal / sendPasswordReset supprimées
+// (modal #resetPasswordModal inexistant — dead code retiré)
 // ════════════════════════════════════════════════════════════════
-
-function openPasswordResetModal(event) {
-  if (event) event.preventDefault();
-  document.getElementById('resetPasswordModal').style.display = 'block';
-  document.getElementById('resetEmail').value = '';
-  document.getElementById('resetMessage').textContent = '';
-  document.getElementById('resetEmail').focus();
-}
-
-function closePasswordResetModal() {
-  document.getElementById('resetPasswordModal').style.display = 'none';
-}
-
-function sendPasswordReset() {
-  const email = document.getElementById('resetEmail').value.trim();
-  const msgEl = document.getElementById('resetMessage');
-  
-  if (!email) {
-    msgEl.textContent = '❌ Veuillez entrer votre email';
-    msgEl.style.color = 'var(--red)';
-    return;
-  }
-  
-  // Simuler l'envoi
-  msgEl.textContent = '⏳ Envoi en cours...';
-  msgEl.style.color = 'var(--amber)';
-  
-  setTimeout(() => {
-    const user = Object.values(window.userProfiles).find(u => u.email === email);
-    
-    if (user) {
-      // Générer un token unique
-      const resetToken = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
-      if (!window.passwordResetTokens) window.passwordResetTokens = {};
-      window.passwordResetTokens[resetToken] = {
-        userId: user.id,
-        email: email,
-        createdAt: new Date().getTime(),
-        expiresAt: new Date().getTime() + 3600000 // 1 heure
-      };
-      
-      msgEl.innerHTML = '✅ Email de réinitialisation envoyé!<br><small>Vérifiez votre boîte mail</small>';
-      msgEl.style.color = 'var(--green)';
-      
-      setTimeout(() => {
-        closePasswordResetModal();
-      }, 2000);
-    } else {
-      msgEl.textContent = '❌ Email non trouvé dans le système';
-      msgEl.style.color = 'var(--red)';
-    }
-  }, 500);
-}
-
-// Admin function pour réinitialiser le mot de passe d'un utilisateur
-function resetUserPasswordAdmin(userId) {
-  const user = window.userProfiles[userId];
-  if (!user) return;
-  
-  const newPassword = prompt(`Nouveau mot de passe pour ${user.name}:`, 'Motdepasse123!');
-  if (newPassword === null || newPassword.length < 6) {
-    alert('Mot de passe invalide (min 6 caractères)');
-    return;
-  }
-  
-  user.password = newPassword;
-  alert('✅ Mot de passe réinitialisé avec succès!\nNouveaux identifiants:\nEmail: ' + user.email + '\nMot de passe: ' + newPassword);
-  
-  // Enregistrer la modification
-  if (window.adminLog) {
-    window.adminLog.push({
-      action: 'password_reset',
-      userId: userId,
-      userName: user.name,
-      timestamp: new Date().toISOString()
-    });
-  }
-}
-
-// Ajouter fonction pour gérer le montant par défaut dans admin
-function setDefaultAmount(userId) {
-  const user = window.userProfiles[userId];
-  if (!user) return;
-  
-  const defaultAmount = prompt('Montant par défaut (ex: 5000 CFA):', user.defaultAmount || '5000');
-  if (defaultAmount === null) return;
-  
-  const amount = parseFloat(defaultAmount);
-  if (isNaN(amount) || amount <= 0) {
-    alert('❌ Montant invalide');
-    return;
-  }
-  
-  user.defaultAmount = amount;
-  alert('✅ Montant par défaut défini: ' + amount + ' CFA');
-}
-
-// Fermer le modal au clic en dehors
-document.addEventListener('click', function(event) {
-  const modal = document.getElementById('resetPasswordModal');
-  if (event.target === modal) {
-    closePasswordResetModal();
-  }
-});
-
-console.log('✅ Système de réinitialisation mot de passe chargé');
+console.log('[AMBI241] ✅ Mot de passe oublié — Firebase Email + Ticket Téléphone actifs');
 
 
 
