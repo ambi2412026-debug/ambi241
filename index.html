@@ -39826,10 +39826,11 @@ window.afLoadMembers = function(){
 
   el.innerHTML='<div class="af-empty"><div class="af-empty-icon">⏳</div>Chargement…</div>';
   var meUID = window.currentUserUID;
-  var alreadyOut = _requestsOut.map(function(r){return r.uid;});
-  var alreadyFriends = _friends.map(function(f){return f.uid;});
 
   window.fbGetDocs(window.fbCollection(window.db,'users')).then(function(snap){
+    /* Recalculer ici pour être sûr que _requestsOut et _friends sont synchronisés */
+    var alreadyOut = _requestsOut.map(function(r){return r.uid;});
+    var alreadyFriends = _friends.map(function(f){return f.uid;});
     var list = [];
     snap.forEach(function(d){
       if(d.id === meUID) return;
@@ -39869,6 +39870,7 @@ function afRenderList(){
   var el = document.getElementById('afMemberList');
   if(!el) return;
   var filtered = _afAllMembers.filter(function(m){
+    if(m.already) return false; /* Exclure complètement les membres déjà démarchés ou amis */
     var matchType = _afFilterType === 'tous' || m.role === _afFilterType
       || (_afFilterType === 'membre' && (m.role==='user'||m.role==='membre'));
     var matchSearch = !_afSearchVal || m.name.toLowerCase().includes(_afSearchVal.toLowerCase());
@@ -39882,21 +39884,17 @@ function afRenderList(){
   filtered.forEach(function(m){
     var sel = _afSelected.has(m.uid);
     var tm  = _afTypeMap[m.role] || _afTypeMap.user;
-    var rowCls = 'af-member-row' + (sel?' af-selected':'') + (m.already?' af-already':'');
-    var checkContent = m.already ? '✓' : (sel ? '✓' : '');
-    h += '<div class="'+rowCls+'" onclick="'+(m.already?'':'"afToggle(\''+m.uid+'\')"')+'" data-af-uid="'+m.uid+'">';
-    h += '<div class="af-check">'+checkContent+'</div>';
+    var rowCls = 'af-member-row' + (sel?' af-selected':'');
+    h += '<div class="'+rowCls+'" onclick="afToggle(\''+m.uid+'\')" data-af-uid="'+m.uid+'">';
+    h += '<div class="af-check">'+(sel?'✓':'')+'</div>';
     h += '<div class="af-avatar">'+m.avatar+'</div>';
     h += '<div style="flex:1;min-width:0;">';
     h += '<div class="af-name">'+esc(m.name)+'</div>';
     h += '<div class="af-meta">';
     h += '<span class="af-badge '+tm.cls+'">'+tm.label+'</span>';
     if(m.etab && m.etab !== 'Libreville') h += '<span class="af-etab">· '+esc(m.etab)+'</span>';
-    if(m.already) h += '<span class="af-badge" style="background:rgba(255,215,0,0.08);color:var(--amber);border-color:rgba(255,215,0,0.2);">✔ Demande envoyée</span>';
     h += '</div></div>';
-    if(!m.already){
-      h += '<div style="width:26px;height:26px;border-radius:50%;background:'+(sel?'rgba(0,255,170,0.12)':'rgba(255,255,255,0.04)')+';border:1px solid '+(sel?'rgba(0,255,170,0.35)':'rgba(255,255,255,0.1)')+';display:flex;align-items:center;justify-content:center;font-size:0.7rem;flex-shrink:0;transition:all 0.15s;">'+(sel?'✓':'＋')+'</div>';
-    }
+    h += '<div style="width:26px;height:26px;border-radius:50%;background:'+(sel?'rgba(0,255,170,0.12)':'rgba(255,255,255,0.04)')+';border:1px solid '+(sel?'rgba(0,255,170,0.35)':'rgba(255,255,255,0.1)')+';display:flex;align-items:center;justify-content:center;font-size:0.7rem;flex-shrink:0;transition:all 0.15s;">'+(sel?'✓':'＋')+'</div>';
     h += '</div>';
   });
   el.innerHTML = h;
@@ -42185,6 +42183,17 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     if(!toImport.length){ if(typeof showToast==='function') showToast('⚠️ Aucun établissement sélectionné'); return; }
     if(!window.db || !window.fbAddDoc || !window.fbCollection){ if(typeof showToast==='function') showToast('❌ Firebase non disponible'); return; }
 
+    /* ── FIX: Vérifier que l'admin est bien authentifié Firebase avant d'écrire ── */
+    if(!window.auth || !window.auth.currentUser){
+      if(typeof showToast==='function') showToast('🔒 Connectez-vous avec votre compte Firebase pour importer');
+      /* Ouvrir le modal de connexion */
+      var overlay = document.getElementById('userOverlay');
+      if(overlay){ overlay.classList.add('show'); if(typeof window.switchUserTab==='function') window.switchUserTab('connexion'); }
+      return;
+    }
+    /* Forcer un refresh du token pour s'assurer que les claims sont à jour */
+    try { await window.auth.currentUser.getIdToken(true); } catch(e) { console.warn('[IGM] Token refresh failed:', e); }
+
     igmSetStep(4);
     var logWrap = document.getElementById('igmImportLog');
 
@@ -42541,6 +42550,16 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     var toImp=_r2.filter(function(r){return _sel2.has(r.place_id);});
     if(!toImp.length){if(typeof showToast==='function')showToast('⚠️ Aucun établissement sélectionné');return;}
     if(!window.db||!window.fbAddDoc||!window.fbCollection){if(typeof showToast==='function')showToast('❌ Firebase non disponible');return;}
+
+    /* ── FIX: Vérifier que l'admin est bien authentifié Firebase avant d'écrire ── */
+    if(!window.auth || !window.auth.currentUser){
+      if(typeof showToast==='function') showToast('🔒 Connectez-vous avec votre compte Firebase pour importer');
+      var overlay = document.getElementById('userOverlay');
+      if(overlay){ overlay.classList.add('show'); if(typeof window.switchUserTab==='function') window.switchUserTab('connexion'); }
+      return;
+    }
+    /* Forcer un refresh du token pour s'assurer que les claims sont à jour */
+    try { await window.auth.currentUser.getIdToken(true); } catch(e) { console.warn('[IGM2] Token refresh failed:', e); }
     igm2Step(4);
     var lw=document.getElementById('igm2ImportLog');
     function il(msg,type){var l=document.createElement('div');l.className='igm-log-line'+(type?' igm-'+type:'');l.textContent=new Date().toLocaleTimeString('fr')+' — '+msg;lw.appendChild(l);lw.scrollTop=lw.scrollHeight;}
