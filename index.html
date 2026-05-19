@@ -7431,7 +7431,7 @@ if (document.readyState === 'loading') {
         <div class="hero-title" style="display:none;">
           L'Agenda de
           <span class="ht-city">Libreville</span>
-          <span class="ht-sub-line">Hôtels · Bars · Bar Terrasses · Snacks · Restos &amp; Pâtisseries · Clubs</span>
+          <span class="ht-sub-line">Hôtels · Bars · Bar Terrasses · Snacks · Restos &amp; Pâtisseries · Clubs · Salles &amp; Cérémonies · Stades Football · Sites Touristiques</span>
         </div>
 
         <!-- Horloge -->
@@ -8260,6 +8260,21 @@ if (document.readyState === 'loading') {
                 <span class="igm-cat-icon">🎵</span>
                 <div class="igm-cat-name">Clubs</div>
                 <div class="igm-cat-count" id="igm-cnt-Discotheque">—</div>
+              </div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Salle" onclick="igmToggleCat(this)">
+                <span class="igm-cat-icon">🎪</span>
+                <div class="igm-cat-name">Salles & Cérémonies</div>
+                <div class="igm-cat-count" id="igm-cnt-Salle">—</div>
+              </div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Stade" onclick="igmToggleCat(this)">
+                <span class="igm-cat-icon">⚽</span>
+                <div class="igm-cat-name">Stades Football</div>
+                <div class="igm-cat-count" id="igm-cnt-Stade">—</div>
+              </div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Tourisme" onclick="igmToggleCat(this)">
+                <span class="igm-cat-icon">🏛️</span>
+                <div class="igm-cat-name">Sites Touristiques</div>
+                <div class="igm-cat-count" id="igm-cnt-Tourisme">—</div>
               </div>
             </div>
             <button class="igm-btn igm-btn-primary" onclick="igmStartSearch()">🔍 Lancer la recherche OpenStreetMap</button>
@@ -24905,6 +24920,9 @@ window.doAssignEtab = doAssignEtab;
               <div class="igm-cat-btn igm-cat-sel" data-key="Snack" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🍟</span><div class="igm-cat-name">Snacks</div><div class="igm-cat-count" id="igm2-cnt-Snack">—</div></div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Restaurant" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🍽️</span><div class="igm-cat-name">Restos & Pâtisseries</div><div class="igm-cat-count" id="igm2-cnt-Restaurant">—</div></div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Discotheque" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🎵</span><div class="igm-cat-name">Clubs</div><div class="igm-cat-count" id="igm2-cnt-Discotheque">—</div></div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Salle" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🎪</span><div class="igm-cat-name">Salles & Cérémonies</div><div class="igm-cat-count" id="igm2-cnt-Salle">—</div></div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Stade" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">⚽</span><div class="igm-cat-name">Stades Football</div><div class="igm-cat-count" id="igm2-cnt-Stade">—</div></div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Tourisme" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🏛️</span><div class="igm-cat-name">Sites Touristiques</div><div class="igm-cat-count" id="igm2-cnt-Tourisme">—</div></div>
             </div>
             <button class="igm-btn igm-btn-primary" onclick="igm2StartSearch()">🔍 Lancer la recherche Google Maps</button>
           </div>
@@ -41015,7 +41033,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
   // ══ MOTEUR OSM — Nominatim + Overpass (100% gratuit, sans clé API) ══
   var _igmResults = [];
   var _igmSelectedIds = new Set();
-  var _igmSelectedCats = new Set(['Hotel','Bar','Bar Terrasse','Snack','Restaurant','Discotheque']);
+  var _igmSelectedCats = new Set(['Hotel','Bar','Bar Terrasse','Snack','Restaurant','Discotheque','Salle','Stade','Tourisme']);
 
   // Mapping catégorie → tags Overpass OSM + mots-clés Nominatim
   var IGM_CAT_CONFIG = {
@@ -41036,7 +41054,16 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       queries:["restaurant Libreville","patisserie Libreville","café Libreville"]},
     "Discotheque":  {label:"Clubs",            icon:"🎵",
       overpassTags: [["amenity","nightclub"],["amenity","music_venue"]],
-      queries:["nightclub Libreville","discothèque Libreville","boite de nuit Libreville"]}
+      queries:["nightclub Libreville","discothèque Libreville","boite de nuit Libreville"]},
+    "Salle":        {label:"Salles & Cérémonies", icon:"🎪",
+      overpassTags: [["amenity","events_venue"],["amenity","community_centre"],["amenity","conference_centre"],["leisure","hall"]],
+      queries:["salle des fêtes Libreville","salle cérémonie Libreville","palais des congrès Libreville","salle événement Libreville"]},
+    "Stade":        {label:"Stades Football",  icon:"⚽",
+      overpassTags: [["leisure","stadium"],["leisure","sports_centre"],["sport","soccer"]],
+      queries:["stade football Libreville","terrain football Libreville","stade Libreville"]},
+    "Tourisme":     {label:"Sites Touristiques", icon:"🏛️",
+      overpassTags: [["tourism","attraction"],["tourism","museum"],["tourism","viewpoint"],["historic","monument"],["leisure","park"]],
+      queries:["site touristique Libreville","musée Libreville","monument Libreville","parc national Gabon","cascade Gabon"]}
   };
 
   var IGM_QUARTIERS = ["Centre-ville","Akanda","Glass","Libreville","Louis","Owendo","Nombakélé","Batterie IV","PK5","PK8","PK12","Angondjé","Nzeng-Ayong","La Sablière"];
@@ -41499,7 +41526,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 (function(){
   // ══ MOTEUR OSM igm2 ══
   var _r2 = [], _sel2 = new Set();
-  var _cats2 = new Set(['Hotel','Bar','Bar Terrasse','Snack','Restaurant','Discotheque']);
+  var _cats2 = new Set(['Hotel','Bar','Bar Terrasse','Snack','Restaurant','Discotheque','Salle','Stade','Tourisme']);
 
   var CFG2 = {
     "Hotel":        {label:"Hôtels & Motels",  icon:"🏨",
@@ -41519,7 +41546,16 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       queries:["restaurant Libreville","patisserie Libreville"]},
     "Discotheque":  {label:"Clubs",            icon:"🎵",
       overpassTags:[["amenity","nightclub"],["amenity","music_venue"]],
-      queries:["nightclub Libreville","discothèque Libreville"]}
+      queries:["nightclub Libreville","discothèque Libreville"]},
+    "Salle":        {label:"Salles & Cérémonies", icon:"🎪",
+      overpassTags:[["amenity","events_venue"],["amenity","community_centre"],["amenity","conference_centre"],["leisure","hall"]],
+      queries:["salle des fêtes Libreville","salle cérémonie Libreville","palais des congrès Libreville"]},
+    "Stade":        {label:"Stades Football",  icon:"⚽",
+      overpassTags:[["leisure","stadium"],["leisure","sports_centre"],["sport","soccer"]],
+      queries:["stade football Libreville","terrain football Libreville"]},
+    "Tourisme":     {label:"Sites Touristiques", icon:"🏛️",
+      overpassTags:[["tourism","attraction"],["tourism","museum"],["historic","monument"],["leisure","park"]],
+      queries:["site touristique Libreville","musée Libreville","monument Libreville","parc Gabon"]}
   };
   var QTRS2 = ["Centre-ville","Akanda","Glass","Louis","Owendo","Nombakélé","Batterie IV","PK5","PK8","PK12","Angondjé","Nzeng-Ayong","La Sablière"];
 
