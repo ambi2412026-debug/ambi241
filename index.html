@@ -7240,8 +7240,8 @@ if (document.readyState === 'loading') {
   <div class="sitenav-item" onclick="installPWA();closeSiteNav()">
     <span class="sni-icon">🚀</span><span class="sni-label">Installer l'application</span><span class="sni-badge">PWA</span>
   </div>
-  <div class="sitenav-item" onclick="closeSiteNav();logoutUser();" style="color:var(--red);">
-    <span class="sni-icon">🚪</span><span class="sni-label">Se déconnecter</span>
+  <div class="sitenav-item" id="siteNavLogoutItem" onclick="closeSiteNav();setTimeout(function(){if(window.currentUserUID){logoutUser();}else{var o=document.getElementById('userOverlay');if(o)o.classList.add('show');if(typeof switchUserTab==='function')switchUserTab('connexion');}},120);" style="color:var(--red);transition:all 0.2s;">
+    <span class="sni-icon" id="siteNavLogoutIcon">🚪</span><span class="sni-label" id="siteNavLogoutLabel">Se déconnecter</span>
   </div>
 
   <!-- Pied du panneau -->
@@ -7283,6 +7283,33 @@ if (document.readyState === 'loading') {
     }
   }
   // Expose globally
+  // ── Mise à jour dynamique de l'item déconnexion selon l'état auth ──
+  function _updateSiteNavAuthItem() {
+    var item  = document.getElementById('siteNavLogoutItem');
+    var icon  = document.getElementById('siteNavLogoutIcon');
+    var label = document.getElementById('siteNavLogoutLabel');
+    if (!item || !icon || !label) return;
+    if (window.currentUserUID) {
+      // Connecté → Déconnexion
+      item.style.color  = 'var(--red)';
+      icon.textContent  = '\u{1F6AA}';
+      label.textContent = 'Se d\u00e9connecter';
+      item.title        = 'Se d\u00e9connecter de votre compte';
+    } else {
+      // Non connecté → Connexion
+      item.style.color  = 'var(--cyan)';
+      icon.textContent  = '\u{1F511}';
+      label.textContent = 'Se connecter';
+      item.title        = 'Acc\u00e9der \u00e0 votre compte';
+    }
+  }
+  window._updateSiteNavAuthItem = _updateSiteNavAuthItem;
+
+  // Appel au moment d'ouvrir le menu pour avoir l'état frais
+  var _origOpen = openSiteNav;
+  openSiteNav = function() { _origOpen(); _updateSiteNavAuthItem(); };
+  window.openSiteNav = openSiteNav;
+
   window.openSiteNav=openSiteNav;
   window.closeSiteNav=closeSiteNav;
   window.toggleSiteNav=toggleSiteNav;
@@ -9741,6 +9768,8 @@ onAuthStateChanged(auth, function(user) {
       if(qba) qba.textContent = (pseudo||"?")[0].toUpperCase();
       // ── Enregistrer la session de connexion ──
       _logUserSession(user.uid, user.email, pseudo);
+      // ── Surveiller la déconnexion forcée par l'admin ──
+      setTimeout(function(){ if(typeof _watchForceLogout === 'function') _watchForceLogout(user.uid); }, 2000);
     }).catch(function(err) {
       // Détecter une session expirée via erreur Firestore
       if(err && (err.code === 'auth/user-token-expired' || err.code === 'permission-denied')){
@@ -9824,6 +9853,58 @@ function _handleSessionExpired(){
   }, 1200);
 }
 window._handleSessionExpired = _handleSessionExpired;
+
+// ── Listener déconnexion forcée par l'admin ─────────────────────
+// Surveille en temps réel le document force_logout/{uid} dans Firestore.
+// Dès qu'un admin écrit dedans, le client concerné est automatiquement déconnecté.
+var _forceLogoutUnsub = null;
+function _watchForceLogout(uid) {
+  if (!uid || !window.db || !window.fbDoc) return;
+  // Nettoyer un ancien listener
+  if (_forceLogoutUnsub) { try { _forceLogoutUnsub(); } catch(e){} _forceLogoutUnsub = null; }
+
+  try {
+    var onSnap = window.fbOnSnapshot || (typeof onSnapshot !== 'undefined' ? onSnapshot : null);
+    if (!onSnap) return;
+    var kickRef = window.fbDoc(window.db, 'force_logout', uid);
+    _forceLogoutUnsub = onSnap(kickRef, function(snap) {
+      if (!snap.exists()) return;
+      var data = snap.data();
+      if (!data || !data.kickedAt) return;
+      // Vérifier que c'est récent (< 30 s) pour éviter déconnexions parasites
+      if ((Date.now() - data.kickedAt) > 30000) return;
+      // Ignorer si c'est déjà en cours de traitement
+      if (window._forceLogoutInProgress) return;
+      window._forceLogoutInProgress = true;
+      // Supprimer le flag pour ne pas re-déclencher
+      if (window.fbDeleteDoc) {
+        window.fbDeleteDoc(kickRef).catch(function(){});
+      }
+      // Afficher le message et déconnecter
+      showToast('🔒 Votre session a été fermée par un administrateur');
+      setTimeout(function() {
+        window._forceLogoutInProgress = false;
+        if(typeof window._disableBeforeUnloadGuard === 'function') window._disableBeforeUnloadGuard();
+        if(window.fbSignOut && window.auth){
+          window.fbSignOut(window.auth).then(function(){
+            if(typeof updateNavLabels === 'function') updateNavLabels();
+            if(typeof updatePayVis === 'function') updatePayVis();
+            if(typeof renderAll === 'function') renderAll();
+            var overlay = document.getElementById('userOverlay');
+            if(overlay) overlay.classList.add('show');
+            if(typeof switchUserTab === 'function') switchUserTab('connexion');
+          }).catch(function(){});
+        }
+      }, 1800);
+    }, function(e) {
+      // Permissions manquantes — mode silencieux
+      console.warn('[AMBI241] force_logout listener:', e.code || e.message);
+    });
+  } catch(e) {
+    console.warn('[AMBI241] _watchForceLogout init failed:', e.message);
+  }
+}
+window._watchForceLogout = _watchForceLogout;
 
 // ── Enregistrement de session de connexion ──────────────────────
 function _logUserSession(uid, email, pseudo){
@@ -14330,6 +14411,7 @@ function updateHeaderUser(pseudo){
     logoutBtn.classList.remove("member-locked");
     logoutBtn.removeAttribute("disabled");
     logoutBtn.title = "Se déconnecter";
+    if(typeof window._updateSiteNavAuthItem === 'function') window._updateSiteNavAuthItem();
     if(loginBtn) loginBtn.style.display = "none";
     // La cloche est visible pour les membres/admins connectés, seulement si notifs non lues
     if(typeof renderNotifBadge === "function") renderNotifBadge();
@@ -14344,6 +14426,7 @@ function updateHeaderUser(pseudo){
     logoutBtn.classList.remove("member-locked");
     logoutBtn.removeAttribute("disabled");
     logoutBtn.title = "Quitter";
+    if(typeof window._updateSiteNavAuthItem === 'function') window._updateSiteNavAuthItem();
     if(loginBtn) loginBtn.style.display = "";
     // Masquer la cloche pour les visiteurs non connectés
     var bellWrapLogout = document.getElementById("notifBellWrap");
@@ -23408,6 +23491,214 @@ function _loadPhotoModerationQueue() {
 var _connFilter = "all";
 var _connPage   = 30;
 
+// ── Force déconnexion d'un membre en ligne ──────────────────────
+window.admForceLogout = function(sid, uid, pseudo) {
+  if (!window.isAdmin) { showToast('🔒 Accès admin requis'); return; }
+
+  // Confirmation via modal personnalisée
+  var overlay = document.createElement('div');
+  overlay.id = '_forceLogoutModal';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);';
+  overlay.innerHTML = [
+    "<div style='background:#230d35;border:1.5px solid rgba(255,68,102,0.4);border-radius:20px;padding:1.8rem 1.5rem;max-width:320px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(255,68,102,0.2);animation:popIn 0.25s cubic-bezier(0.34,1.56,0.64,1);'>",
+      "<div style='font-size:2rem;margin-bottom:0.6rem;'>⚡</div>",
+      "<div style='font-family:Syne,sans-serif;font-size:1rem;font-weight:800;color:#fff0f8;margin-bottom:0.4rem;'>Déconnecter ce membre ?</div>",
+      "<div style='font-size:0.8rem;color:#b088c0;margin-bottom:0.25rem;line-height:1.5;'>",
+        "<strong style='color:#fff0f8;'>" + escHtml(pseudo || 'Utilisateur') + "</strong><br>",
+        "Sa session sera immédiatement invalidée.",
+      "</div>",
+      "<div style='font-size:0.7rem;color:rgba(255,68,102,0.75);margin-bottom:1.3rem;background:rgba(255,68,102,0.07);border:1px solid rgba(255,68,102,0.2);border-radius:8px;padding:0.45rem 0.7rem;'>",
+        "⚠️ L'utilisateur sera redirigé vers la page de connexion.",
+      "</div>",
+      "<div style='display:flex;gap:0.7rem;justify-content:center;'>",
+        "<button onclick='document.getElementById(\"_forceLogoutModal\").remove()' ",
+          "style='flex:1;padding:0.65rem;border-radius:12px;border:1.5px solid rgba(255,255,255,0.15);background:transparent;color:#b088c0;font-family:DM Sans,sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;'>",
+          "Annuler",
+        "</button>",
+        "<button onclick='_execForceLogout(\"" + escHtml(sid) + "\",\"" + escHtml(uid) + "\",\"" + escHtml(pseudo || '') + "\")' ",
+          "style='flex:1;padding:0.65rem;border-radius:12px;border:none;background:linear-gradient(135deg,#ff4466,#cc0033);color:#fff;font-family:DM Sans,sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(255,68,102,0.35);'>",
+          "⚡ Déconnecter",
+        "</button>",
+      "</div>",
+    "</div>"
+  ].join('');
+  document.body.appendChild(overlay);
+};
+
+window._execForceLogout = function(sid, uid, pseudo) {
+  var modal = document.getElementById('_forceLogoutModal');
+  if (modal) modal.remove();
+
+  var tasks = [];
+
+  // 1. Supprimer la session RTDB (présence temps réel)
+  try {
+    if (window.rtdbRef && window.rtdbRemove) {
+      var presRef = window.rtdbRef(window.rtdb, 'presence/' + sid);
+      tasks.push(window.rtdbRemove(presRef));
+    }
+  } catch(e) {}
+
+  // 2. Supprimer la session Firestore (fallback)
+  try {
+    if (window.db && window.fbDeleteDoc && window.fbDoc) {
+      var sesRef = window.fbDoc(window.db, 'sessions', sid);
+      tasks.push(window.fbDeleteDoc(sesRef));
+    }
+  } catch(e) {}
+
+  // 3. Écrire un flag de déconnexion forcée dans Firestore pour que le client détecte
+  try {
+    if (window.db && window.fbSetDoc && window.fbDoc && uid) {
+      var kickRef = window.fbDoc(window.db, 'force_logout', uid);
+      tasks.push(window.fbSetDoc(kickRef, {
+        kickedAt: Date.now(),
+        kickedBy: window.currentUserEmail || 'admin',
+        reason: 'Admin force logout',
+        sessionId: sid
+      }));
+    }
+  } catch(e) {}
+
+  Promise.all(tasks).then(function() {
+    showToast('✅ ' + escHtml(pseudo || 'Utilisateur') + ' a été déconnecté(e)');
+    // Rafraîchir la section après 800ms
+    setTimeout(function() { renderAdmConnexions(); }, 800);
+  }).catch(function(err) {
+    showToast('⚠️ Déconnexion partielle : ' + err.message);
+    setTimeout(function() { renderAdmConnexions(); }, 800);
+  });
+};
+
+// ── Rendu de la section "Membres en ligne maintenant" ───────────
+function _renderOnlineMembersSection() {
+  var sessions = window._onlineSessions || [];
+  var now = Date.now();
+
+  var h = '';
+  h += "<div style='margin-bottom:1.5rem;'>";
+
+  // ── Titre de section ──
+  h += "<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:0.85rem;gap:0.5rem;'>";
+  h += "<div style='display:flex;align-items:center;gap:0.6rem;'>";
+  h += "<span style='position:relative;display:flex;width:10px;height:10px;'>";
+  h += "<span style='position:absolute;width:10px;height:10px;border-radius:50%;background:var(--green);opacity:0.35;animation:pulse 1.5s infinite;'></span>";
+  h += "<span style='width:7px;height:7px;border-radius:50%;background:#00ffaa;box-shadow:0 0 6px rgba(0,255,170,0.8);display:block;margin:1.5px;'></span>";
+  h += "</span>";
+  h += "<span style='font-family:Syne,sans-serif;font-size:0.9rem;font-weight:800;color:var(--green);'>Membres en ligne</span>";
+  h += "<span style='background:rgba(0,255,170,0.15);border:1px solid rgba(0,255,170,0.4);border-radius:100px;padding:0.05rem 0.5rem;font-family:Syne,sans-serif;font-size:0.7rem;font-weight:900;color:#00ffaa;'>" + sessions.length + "</span>";
+  h += "</div>";
+  h += "<button onclick='renderAdmConnexions()' style='font-size:0.68rem;padding:0.28rem 0.6rem;border-radius:8px;background:rgba(0,255,170,0.06);border:1px solid rgba(0,255,170,0.2);color:var(--green);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:600;'>↻ Rafraîchir</button>";
+  h += "</div>";
+
+  if (!sessions.length) {
+    h += "<div style='text-align:center;padding:1.8rem;background:rgba(0,255,170,0.03);border:1px dashed rgba(0,255,170,0.15);border-radius:14px;'>";
+    h += "<div style='font-size:1.5rem;margin-bottom:0.4rem;'>🌙</div>";
+    h += "<div style='font-size:0.8rem;color:var(--muted);'>Aucun membre connecté en ce moment</div>";
+    h += "</div>";
+    h += "</div>";
+    return h;
+  }
+
+  // ── Grille des membres ──
+  sessions.forEach(function(s) {
+    var pseudo  = s.pseudo || 'Visiteur';
+    var role    = s.role   || 'user';
+    var device  = s.device || 'web';
+    var elapsed = s.ts ? Math.round((now - s.ts) / 1000) : null;
+    var initial = pseudo[0].toUpperCase();
+
+    // Couleur avatar selon rôle
+    var avatarGrad = 'linear-gradient(135deg,#ff2d9b,#cc44ff)';
+    var roleLabel  = 'Membre';
+    var roleBg     = 'rgba(255,45,155,0.12)';
+    var roleColor  = 'var(--pink)';
+    var roleBorder = 'rgba(255,45,155,0.3)';
+    if (role === 'super_admin') {
+      avatarGrad = 'linear-gradient(135deg,#ffd700,#ffaa00)';
+      roleLabel = '👑 SuperAdmin'; roleBg = 'rgba(255,215,0,0.12)';
+      roleColor = 'var(--amber)'; roleBorder = 'rgba(255,215,0,0.35)';
+    } else if (role === 'admin') {
+      avatarGrad = 'linear-gradient(135deg,#ff2d9b,#ff6600)';
+      roleLabel = '⚙️ Admin'; roleBg = 'rgba(255,45,155,0.12)';
+      roleColor = 'var(--pink)'; roleBorder = 'rgba(255,45,155,0.3)';
+    } else if (role === 'establishment') {
+      avatarGrad = 'linear-gradient(135deg,#00e5ff,#0099cc)';
+      roleLabel = '🏙️ Établissement'; roleBg = 'rgba(0,229,255,0.1)';
+      roleColor = 'var(--cyan)'; roleBorder = 'rgba(0,229,255,0.3)';
+    }
+
+    // Icône appareil
+    var deviceIcon = '🌐';
+    if (device === 'mobile' || device === 'android' || device === 'ios') deviceIcon = '📱';
+    else if (device === 'tablet') deviceIcon = '📱';
+    else if (device === 'desktop') deviceIcon = '🖥️';
+
+    // Temps de session
+    var elapsedStr = '—';
+    if (elapsed !== null) {
+      if (elapsed < 60)      elapsedStr = elapsed + 's';
+      else if (elapsed < 3600) elapsedStr = Math.floor(elapsed/60) + 'min';
+      else                   elapsedStr = Math.floor(elapsed/3600) + 'h' + Math.floor((elapsed%3600)/60) + 'min';
+    }
+
+    // Bloquer la déconnexion de soi-même ou d'un super_admin par un non-super_admin
+    var isSelf      = (s.uid && s.uid === window.currentUserUID);
+    var canKick     = !isSelf && (role !== 'super_admin' || window.isSuperAdmin);
+    var kickTooltip = isSelf ? 'Vous ne pouvez pas vous déconnecter vous-même' :
+                     (!canKick ? 'Seul le SuperAdmin peut déconnecter un autre admin' : 'Déconnecter ce membre');
+
+    h += "<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:13px;padding:0.75rem 0.9rem;margin-bottom:0.5rem;display:flex;align-items:center;gap:0.8rem;transition:all 0.18s;'>";
+
+    // Avatar
+    h += "<div style='width:38px;height:38px;border-radius:50%;background:" + avatarGrad + ";display:flex;align-items:center;justify-content:center;font-family:Syne,sans-serif;font-weight:900;font-size:1rem;color:#fff;flex-shrink:0;box-shadow:0 0 10px rgba(0,0,0,0.25);position:relative;'>";
+    h += initial;
+    // Pastille online
+    h += "<span style='position:absolute;bottom:1px;right:1px;width:9px;height:9px;border-radius:50%;background:#00ffaa;border:2px solid var(--surface);box-shadow:0 0 5px rgba(0,255,170,0.7);'></span>";
+    h += "</div>";
+
+    // Infos
+    h += "<div style='flex:1;min-width:0;'>";
+    h += "<div style='display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap;margin-bottom:0.2rem;'>";
+    h += "<span style='font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;'>" + escHtml(pseudo) + "</span>";
+    h += "<span style='font-size:0.6rem;font-weight:700;padding:0.06rem 0.4rem;border-radius:6px;background:" + roleBg + ";color:" + roleColor + ";border:1px solid " + roleBorder + ";white-space:nowrap;'>" + roleLabel + "</span>";
+    h += "</div>";
+    h += "<div style='display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;'>";
+    h += "<span style='font-size:0.65rem;color:var(--muted);'>" + deviceIcon + " " + escHtml(device) + "</span>";
+    h += "<span style='font-size:0.65rem;color:rgba(0,255,170,0.55);'>⏱ " + elapsedStr + "</span>";
+    if (s.uid) h += "<span style='font-size:0.58rem;color:rgba(255,255,255,0.2);font-family:monospace;overflow:hidden;text-overflow:ellipsis;max-width:80px;white-space:nowrap;' title='" + escHtml(s.uid) + "'>" + escHtml(s.uid.slice(0,10)) + "…</span>";
+    h += "</div>";
+    h += "</div>";
+
+    // Bouton déconnexion
+    h += "<button ";
+    if (canKick) {
+      h += "onclick=\"admForceLogout('" + escHtml(s.sid) + "','" + escHtml(s.uid || '') + "','" + escHtml(pseudo) + "')\" ";
+    }
+    h += "title='" + kickTooltip + "' ";
+    h += "style='flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:0.3rem;padding:0.4rem 0.75rem;border-radius:9px;font-family:DM Sans,sans-serif;font-size:0.7rem;font-weight:700;cursor:" + (canKick ? 'pointer' : 'not-allowed') + ";transition:all 0.18s;white-space:nowrap;";
+    if (canKick) {
+      h += "background:rgba(255,68,102,0.1);border:1.5px solid rgba(255,68,102,0.4);color:var(--red);box-shadow:0 2px 8px rgba(255,68,102,0.12);";
+    } else {
+      h += "background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);color:rgba(255,255,255,0.2);";
+    }
+    h += "'";
+    if (canKick) {
+      h += " onmouseover=\"this.style.background='rgba(255,68,102,0.22)';this.style.boxShadow='0 4px 14px rgba(255,68,102,0.28)';\"";
+      h += " onmouseout=\"this.style.background='rgba(255,68,102,0.1)';this.style.boxShadow='0 2px 8px rgba(255,68,102,0.12)';\"";
+      h += " onmousedown=\"this.style.transform='scale(0.94)';\" onmouseup=\"this.style.transform='scale(1)';\"";
+    }
+    h += ">";
+    h += canKick ? "⚡ Déconnecter" : "🔒 Protégé";
+    h += "</button>";
+
+    h += "</div>"; // card
+  });
+
+  h += "</div>"; // section
+  return h;
+}
+
 function renderAdmConnexions(){
   var container = document.getElementById("adminConnexionsContent");
   if(!container) return;
@@ -23463,6 +23754,16 @@ function renderAdmConnexions(){
 
     // ── Build HTML ──
     var h = "";
+
+    // ══ Membres en ligne maintenant (top de la page) ══
+    h += _renderOnlineMembersSection();
+
+    // Séparateur
+    h += "<div style='display:flex;align-items:center;gap:0.7rem;margin-bottom:1rem;'>";
+    h += "<div style='flex:1;height:1px;background:rgba(255,255,255,0.07);'></div>";
+    h += "<span style='font-family:Syne,sans-serif;font-size:0.65rem;font-weight:800;color:rgba(255,255,255,0.2);text-transform:uppercase;letter-spacing:0.08em;white-space:nowrap;'>📋 Historique des connexions</span>";
+    h += "<div style='flex:1;height:1px;background:rgba(255,255,255,0.07);'></div>";
+    h += "</div>";
 
     // Stats chips
     h += "<div class='conn-stats-row'>";
