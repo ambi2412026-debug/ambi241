@@ -1587,6 +1587,7 @@ header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0
 .user-greeting.show{display:flex;}
 .logout-btn{background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);color:var(--red);font-size:0.58rem;font-weight:700;padding:0.2rem 0.35rem;border-radius:20px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;display:none;flex-shrink:0;white-space:nowrap;position:relative;z-index:101;}
 .logout-btn.show{display:block;}
+.logout-btn.member-locked{pointer-events:none;cursor:not-allowed;opacity:0.35;filter:grayscale(0.6);border-color:rgba(255,255,255,0.1);color:var(--muted);background:rgba(255,255,255,0.04);}
 /* ══ PWA NAV BUTTON ══ */
 /* pwa-nav-btn retiré du header — bouton install disponible via le menu hamburger */
 
@@ -7478,8 +7479,8 @@ if (document.readyState === 'loading') {
         </div>
       </div>
       <div class="notif-panel-head-right">
-        <button class="notif-clear-btn" data-action="notif-clear">Tout lire</button>
-        <button class="notif-panel-close-btn" data-action="notif-close">✕</button>
+        <button class="notif-clear-btn" data-action="notif-clear" onclick="clearAllNotifs()">Tout lire</button>
+        <button class="notif-panel-close-btn" data-action="notif-close" onclick="closeNotifPanel()">✕</button>
       </div>
     </div>
     <!-- Filtres par type -->
@@ -14364,6 +14365,9 @@ function updateHeaderUser(pseudo){
     greeting.title = "Mon profil — "+pseudo;
     greeting.onclick = function(){ document.getElementById("userOverlay").classList.add("show"); switchUserTab("monprofil"); };
     logoutBtn.classList.add("show");
+    logoutBtn.classList.add("member-locked");
+    logoutBtn.setAttribute("disabled", "disabled");
+    logoutBtn.title = "Utilisez Mon Profil pour vous déconnecter";
     if(loginBtn) loginBtn.style.display = "none";
     // La cloche est visible pour les membres/admins connectés, seulement si notifs non lues
     if(typeof renderNotifBadge === "function") renderNotifBadge();
@@ -14375,6 +14379,9 @@ function updateHeaderUser(pseudo){
     if(headerThumb){ headerThumb.textContent="?"; }
     greeting.onclick = function(){ document.getElementById("userOverlay").classList.add("show"); };
     logoutBtn.classList.remove("show");
+    logoutBtn.classList.remove("member-locked");
+    logoutBtn.removeAttribute("disabled");
+    logoutBtn.title = "Quitter";
     if(loginBtn) loginBtn.style.display = "";
     // Masquer la cloche pour les visiteurs non connectés
     var bellWrapLogout = document.getElementById("notifBellWrap");
@@ -37099,8 +37106,8 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
     </div>
     <div class="profile-actions">
       <button class="btn-p-primary btn-p-edit" onclick="pOpenEditModal('membre')">✏️ Modifier le profil</button>
-      <button class="btn-p-outline">🔗 Partager</button>
-      <button class="btn-p-outline">⋯</button>
+      <button class="btn-p-outline" onclick="pShareProfil('membre')">🔗 Partager</button>
+      <button class="btn-p-outline" onclick="pShowToast('⚙️ Options bientôt disponibles')">⋯</button>
     </div>
     <div class="stats-row stats-row-4">
       <div class="stat-cell"><div class="stat-val">142</div><div class="stat-lbl">Sorties</div></div>
@@ -37124,7 +37131,7 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
     <!-- TAB: PROFIL -->
     <div id="pm-tab-profil">
       <div class="p-section-block">
-        <div class="section-head"><span class="section-title">🔥 Spots favoris</span><button class="section-action">Voir tout</button></div>
+        <div class="section-head"><span class="section-title">🔥 Spots favoris</span><button class="section-action" onclick="pMembreTab(null,'activite')">Voir tout</button></div>
         <div class="fav-scroll" id="pv-membre-favs">
           <div style="text-align:center;padding:1.2rem;color:var(--muted);font-size:0.78rem;font-style:italic;min-width:200px;">Aucun favori enregistré.</div>
         </div>
@@ -37294,7 +37301,7 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
     </div>
     <div class="profile-actions">
       <button class="btn-p-primary" style="background:linear-gradient(135deg,#ffd700,#cc9900);color:#000;box-shadow:0 4px 20px rgba(255,215,0,.35);flex:2;" onclick="pOpenEditModal('chauffeur')">✏️ Modifier le profil</button>
-      <button class="btn-p-outline">🔗 Partager</button>
+      <button class="btn-p-outline" onclick="pShareProfil('chauffeur')">🔗 Partager</button>
     </div>
     <div class="dispo-toggle-wrap">
       <div class="dispo-left">
@@ -37320,7 +37327,7 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
         <div class="vehicle-details" id="pv-chauffeur-couleur-details"><span id="pv-chauffeur-couleur">—</span></div>
       </div>
     </div>
-    <div class="verify-banner"><span class="vb-icon">🛡️</span><div class="vb-body"><div class="vb-title">Certifié &amp; Assuré AMBI241</div><div class="vb-sub">Permis · Assurance · Antécédents vérifiés</div></div><button class="vb-btn">Voir</button></div>
+    <div class="verify-banner"><span class="vb-icon">🛡️</span><div class="vb-body"><div class="vb-title">Certifié &amp; Assuré AMBI241</div><div class="vb-sub">Permis · Assurance · Antécédents vérifiés</div></div><button class="vb-btn" onclick="pShowToast('✅ Certifié AMBI241 — Permis, assurance et antécédents vérifiés par notre équipe')">Voir</button></div>
     <div style="margin-top:1rem;">
       <div class="section-tabs-p">
         <button class="stab-p active" onclick="pSetStab(this,'chauffeur','trips')">Courses</button>
@@ -37330,7 +37337,7 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
     </div>
     <div id="pc-tab-trips">
       <div class="p-section-block">
-        <div class="section-head"><span class="section-title">🚕 Courses récentes</span><button class="section-action" style="color:var(--amber)">Historique</button></div>
+        <div class="section-head"><span class="section-title">🚕 Courses récentes</span><button class="section-action" style="color:var(--amber)" onclick="pSetStab(document.querySelector('#pv-chauffeur .stab-p[onclick*=trips]'),'chauffeur','trips'); pShowToast('📋 Historique complet des courses')">Historique</button></div>
         <div class="trips-list" id="pv-chauffeur-trips-list">
           <div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:0.8rem;font-style:italic;">Aucune course enregistrée pour le moment.</div>
         </div>
@@ -37389,8 +37396,8 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
     </div>
     <div class="profile-actions">
       <button class="btn-p-primary btn-p-edit" onclick="pOpenEditModal('etab')">✏️ Modifier</button>
-      <button class="btn-p-outline">📊 Stats</button>
-      <button class="btn-p-outline">🔗 Partager</button>
+      <button class="btn-p-outline" onclick="pSetStab(document.querySelector('#pv-etab .stab-p[onclick*=avis]'),'etab','avis')">📊 Stats</button>
+      <button class="btn-p-outline" onclick="pShareProfil('etab')">🔗 Partager</button>
     </div>
     <div class="stats-row stats-row-4">
       <div class="stat-cell"><div class="stat-val">4.8★</div><div class="stat-lbl">Note</div></div>
@@ -37399,7 +37406,7 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
       <div class="stat-cell"><div class="stat-val">876</div><div class="stat-lbl">Favoris</div></div>
     </div>
     <div class="p-section-block" style="margin-top:1rem;">
-      <div class="section-head"><span class="section-title">📊 Jauges d'ambiance</span><button class="section-action">Éditer</button></div>
+      <div class="section-head"><span class="section-title">📊 Jauges d'ambiance</span><button class="section-action" onclick="pOpenEditModal('etab')">Éditer</button></div>
       <div class="ambiance-meters">
         <div class="amb-row"><div class="amb-top"><span class="amb-label">🌡️ Température</span><span class="amb-val">Chaud</span></div><div class="amb-track"><div class="amb-fill" style="width:82%;background:linear-gradient(90deg,var(--amber),var(--pink));"></div></div></div>
         <div class="amb-row"><div class="amb-top"><span class="amb-label">👥 Remplissage</span><span class="amb-val">87%</span></div><div class="amb-track"><div class="amb-fill" style="width:87%;background:linear-gradient(90deg,var(--cyan),var(--purple));"></div></div></div>
@@ -37416,7 +37423,7 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
     </div>
     <div id="pe-tab-infos">
       <div class="p-section-block">
-        <div class="section-head"><span class="section-title">⏰ Horaires d'ouverture</span><button class="section-action">Modifier</button></div>
+        <div class="section-head"><span class="section-title">⏰ Horaires d'ouverture</span><button class="section-action" onclick="pOpenEditModal('etab')">Modifier</button></div>
         <div class="schedule-list">
           <div class="sch-row"><span class="sch-day">Lundi</span><span class="sch-time sch-closed">Fermé</span></div>
           <div class="sch-row"><span class="sch-day">Mardi</span><span class="sch-time">19h00 – 02h00</span></div>
@@ -37459,7 +37466,7 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
         </div>
       </div>
       <div class="p-section-block">
-        <div class="section-head"><span class="section-title">💬 Avis récents</span><button class="section-action">Tous les avis</button></div>
+        <div class="section-head"><span class="section-title">💬 Avis récents</span><button class="section-action" onclick="pSetStab(document.querySelector('#pv-etab .stab-p[onclick*=avis]'),'etab','avis')">Tous les avis</button></div>
         <div class="activity-list" id="pv-etab-avis-list">
           <div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:0.8rem;font-style:italic;">Chargement des avis…</div>
         </div>
@@ -37478,7 +37485,7 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
     <div class="profil-modal-head"><span class="profil-modal-title">✏️ Modifier mon profil</span><button class="profil-modal-close" onclick="pCloseModal('membre')">✕</button></div>
     <div class="profil-avatar-editor">
       <div class="profil-avatar-edit-preview" id="pmodal-av-membre" style="background:linear-gradient(135deg,#230d35,#1a0a28);color:#00e5ff;"><span id="pmodal-av-membre-init">?</span><div class="p-overlay">📷</div></div>
-      <div class="profil-avatar-actions"><label class="profil-btn-upload" style="cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;">📷 Changer la photo<input type="file" accept="image/*" style="display:none;" onchange="pHandleAvatarUpload(this)"></label><button class="profil-btn-remove">🗑️ Supprimer</button></div>
+      <div class="profil-avatar-actions"><label class="profil-btn-upload" style="cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;">📷 Changer la photo<input type="file" accept="image/*" style="display:none;" onchange="pHandleAvatarUpload(this)"></label><button class="profil-btn-remove" onclick="pHandleRemoveAvatar('membre')">🗑️ Supprimer</button></div>
     </div>
     <div class="profil-form-body">
       <div class="profil-form-group"><label class="profil-form-label">Photo de couverture</label><label class="profil-upload-zone" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;"><span style="font-size:2rem;">🌅</span><span style="font-size:.82rem;color:var(--muted);">Cliquer pour changer la couverture</span><span style="font-size:.7rem;color:var(--muted);">JPG, PNG · Max 5 Mo</span><input type="file" accept="image/*" style="display:none;" onchange="pHandleCoverUpload(this)"></label></div>
@@ -37501,7 +37508,7 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
     <div class="profil-modal-head"><span class="profil-modal-title">✏️ Mon profil chauffeur</span><button class="profil-modal-close" onclick="pCloseModal('chauffeur')">✕</button></div>
     <div class="profil-avatar-editor">
       <div class="profil-avatar-edit-preview" id="pmodal-av-chauffeur" style="background:linear-gradient(135deg,#2a1e00,#1a0a28);color:#ffd700;"><span id="pmodal-av-chauffeur-init">?</span><div class="p-overlay">📷</div></div>
-      <div class="profil-avatar-actions"><label class="profil-btn-upload" style="color:#ffd700;border-color:rgba(255,215,0,.4);background:rgba(255,215,0,.1);cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;">📷 Changer la photo<input type="file" accept="image/*" style="display:none;" onchange="pHandleAvatarUpload(this)"></label><button class="profil-btn-remove">🗑️ Supprimer</button></div>
+      <div class="profil-avatar-actions"><label class="profil-btn-upload" style="color:#ffd700;border-color:rgba(255,215,0,.4);background:rgba(255,215,0,.1);cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;">📷 Changer la photo<input type="file" accept="image/*" style="display:none;" onchange="pHandleAvatarUpload(this)"></label><button class="profil-btn-remove" onclick="pHandleRemoveAvatar('chauffeur')">🗑️ Supprimer</button></div>
     </div>
     <div class="profil-form-body">
       <div class="profil-form-row">
@@ -37526,7 +37533,7 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
     <div class="profil-modal-head"><span class="profil-modal-title">✏️ Mon établissement</span><button class="profil-modal-close" onclick="pCloseModal('etab')">✕</button></div>
     <div class="profil-avatar-editor">
       <div class="profil-avatar-edit-preview" id="pmodal-av-etab" style="background:linear-gradient(135deg,#200819,#0d1a2a);color:var(--pink);border-radius:22px;"><span id="pmodal-av-etab-init">—</span><div class="p-overlay">📷</div></div>
-      <div class="profil-avatar-actions"><label class="profil-btn-upload" style="cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;">📷 Changer le logo<input type="file" accept="image/*" style="display:none;" onchange="pHandleAvatarUpload(this)"></label><button class="profil-btn-remove">🗑️ Supprimer</button></div>
+      <div class="profil-avatar-actions"><label class="profil-btn-upload" style="cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;">📷 Changer le logo<input type="file" accept="image/*" style="display:none;" onchange="pHandleAvatarUpload(this)"></label><button class="profil-btn-remove" onclick="pHandleRemoveAvatar('etab')">🗑️ Supprimer</button></div>
     </div>
     <div class="profil-form-body">
       <div class="profil-form-group"><label class="profil-form-label">Nom de l'établissement</label><input class="profil-form-input" id="pmodal-etab-nom" type="text" value="" placeholder="Nom officiel"></div>
@@ -38063,6 +38070,43 @@ function pShowToast(msg) {
   t.style.transform = 'translateX(-50%) translateY(0)';
   if(_pToastTimer) clearTimeout(_pToastTimer);
   _pToastTimer = setTimeout(function(){ t.style.opacity='0'; t.style.transform='translateX(-50%) translateY(20px)'; }, 2800);
+}
+
+/* ── Partager le profil (Membre / Chauffeur / Établissement) ── */
+function pShareProfil(role) {
+  var names = { membre: document.getElementById('pv-membre-name'), chauffeur: document.getElementById('pv-chauffeur-name'), etab: document.getElementById('pv-etab-name') };
+  var nameEl = names[role];
+  var name = nameEl ? nameEl.textContent.replace(/[✓]/g,'').trim() : 'AMBI241';
+  var url = window.location.href.split('?')[0];
+  var text = role === 'etab' ? '🎷 Découvrez ' + name + ' sur AMBI241 !' : '👤 Profil de ' + name + ' sur AMBI241';
+  if(navigator.share) {
+    navigator.share({ title: 'AMBI241 — ' + name, text: text, url: url })
+      .catch(function(){});
+  } else {
+    try { navigator.clipboard.writeText(url); pShowToast('🔗 Lien copié dans le presse-papiers !'); }
+    catch(e) { pShowToast('🔗 ' + url); }
+  }
+}
+
+/* ── Supprimer la photo de profil ── */
+function pHandleRemoveAvatar(role) {
+  var av = document.getElementById('pav-' + role);
+  var avModal = document.getElementById('pmodal-av-' + role);
+  var initMap = { membre: document.getElementById('pav-membre-initials') || document.getElementById('pav-membre'), chauffeur: document.getElementById('pav-chauffeur-initials'), etab: document.getElementById('pav-etab-initials') };
+  var colorMap = { membre: '#00e5ff', chauffeur: '#ffd700', etab: 'var(--pink)' };
+  [av, avModal].forEach(function(el) {
+    if(!el) return;
+    var img = el.querySelector('img');
+    if(img) img.remove();
+    var initEl = el.querySelector('span') || el;
+    if(initEl) {
+      var pseudo = window.currentUserPseudo || '?';
+      initEl.textContent = pseudo[0].toUpperCase();
+    }
+  });
+  var uid = window.currentUserUID;
+  if(uid) { try { localStorage.removeItem('ambi241_avatar_' + uid); } catch(e){} }
+  pShowToast('🗑️ Photo de profil supprimée');
 }
 </script>
 
