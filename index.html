@@ -47510,9 +47510,1742 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
 })();
 </script>
 
-  <!-- ══ NOTIFICATION ENGINE AMBI241 v3.0 ══ -->
-  <!-- Sons Web Audio · Push VAPID · Firestore temps réel · Toasts -->
-  <script src="ambi241-notif-engine.js" defer></script>
+  <!-- ══ NOTIFICATION ENGINE AMBI241 v3.1 — INLINE ══ -->
+  <!-- Sons Web Audio · Push VAPID · Firestore temps réel · Toasts · Vibrations -->
+  <script>
+/**
+ * ╔══════════════════════════════════════════════════════════════════╗
+ * ║  AMBI241 — NOTIFICATION ENGINE v3.0                              ║
+ * ║  Web Audio API · Push Subscription · FCM · In-App Manager       ║
+ * ╠══════════════════════════════════════════════════════════════════╣
+ * ║  Intégration :                                                    ║
+ * ║  <script src="ambi241-notif-engine.js" defer></script>           ║
+ * ║  À placer après le chargement de Firebase dans index.html        ║
+ * ╚══════════════════════════════════════════════════════════════════╝
+ *
+ *  MODULES
+ *  ───────
+ *  A. AMBI_AUDIO    — synthèse sonore Web Audio API (zéro fichier audio)
+ *  B. AMBI_PUSH     — gestion Push Subscription + VAPID + FCM token
+ *  C. AMBI_NOTIF_DB — bridge Firebase user_notifications (temps réel)
+ *  D. AMBI_PANEL    — gestion panneau + toasts + badges (UI existante)
+ *  E. AMBI_SW       — enregistrement SW + canal IPC
+ *  F. AMBI_PREFS    — préférences utilisateur (stockage local + Firebase)
+ *  G. AMBI_BOOT     — initialisation ordonnée avec retry
+ */
+
+(function (window) {
+  'use strict';
+
+  /* ══════════════════════════════════════════════════════════
+     CONSTANTES GLOBALES
+  ══════════════════════════════════════════════════════════ */
+  const ENGINE_VERSION = '3.0.0';
+
+  /* ⚠️ Remplacer par votre vraie clé publique VAPID (générée avec web-push) */
+  const VAPID_PUBLIC_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
+
+  /* ⚠️ Remplacer par votre vraie clé FCM Web Push Certificate */
+  const FCM_VAPID_KEY = VAPID_PUBLIC_KEY;
+
+  const SW_PATH    = '/sw-ambi241.js';
+  const SW_SCOPE   = '/';
+  const DB_NOTIFS  = 'user_notifications';    /* Collection Firestore */
+  const DB_TOKENS  = 'push_tokens';           /* Collection Firestore */
+
+  const LOCAL_KEY_PREFS = 'ambi241_notif_prefs';
+  const LOCAL_KEY_SEEN  = 'ambi241_notif_seen';
+
+  /* Throttle sons : pas deux sons < 800ms d'intervalle */
+  const SOUND_THROTTLE_MS = 800;
+
+  /* ══════════════════════════════════════════════════════════
+     ÉTAT INTERNE
+  ══════════════════════════════════════════════════════════ */
+  let _audioCtx         = null;    /* AudioContext partagé */
+  let _lastSoundTs      = 0;       /* Throttle sons */
+  let _swReg            = null;    /* ServiceWorkerRegistration */
+  let _pushSub          = null;    /* PushSubscription */
+  let _fcmToken         = null;    /* Token FCM */
+  let _firestoreUnsub   = null;    /* Unsub Firestore listener */
+  let _notifStore       = [];      /* Cache local des notifications */
+  let _unreadCount      = 0;       /* Badge count */
+  let _activeFilter     = 'all';   /* Filtre actif dans le panneau */
+  let _swChannel        = null;    /* BroadcastChannel / SW MessageChannel */
+  let _isBooted         = false;
+  let _bootRetries      = 0;
+
+  /* Préférences par défaut */
+  const DEFAULT_PREFS = {
+    enabled:         true,
+    sounds:          true,
+    vibration:       true,
+    message:         true,
+    friend_request:  true,
+    friend_accepted: true,
+    event_flash:     true,
+    ambiance_update: true,
+    incoming_call:   true,
+    vip_invite:      true,
+    promo:           false,
+    taxi_dispatch:   true,
+    system:          true,
+  };
+
+  let _prefs = Object.assign({}, DEFAULT_PREFS);
+
+  /* ══════════════════════════════════════════════════════════
+     MODULE A — WEB AUDIO API
+     Sons synthétisés, zéro fichier externe
+  ══════════════════════════════════════════════════════════ */
+  const AMBI_AUDIO = (() => {
+
+    function _getCtx() {
+      if (!_audioCtx) {
+        try {
+          _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (e) {
+          console.warn('[AMBI Audio] Web Audio non supporté:', e);
+          return null;
+        }
+      }
+      /* Reprendre si suspendu (politique autoplay) */
+      if (_audioCtx.state === 'suspended') {
+        _audioCtx.resume().catch(() => {});
+      }
+      return _audioCtx;
+    }
+
+    /* ── Utilitaire : créer oscillateur + gain ── */
+    function _osc(ctx, type, freq, gainVal, startTime, duration) {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type      = type;
+      osc.frequency.setValueAtTime(freq, startTime);
+      gain.gain.setValueAtTime(gainVal, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(startTime);
+      osc.stop(startTime + duration + 0.01);
+      return { osc, gain };
+    }
+
+    /* ── Throttle ── */
+    function _canPlay() {
+      if (!_prefs.sounds) return false;
+      const now = Date.now();
+      if (now - _lastSoundTs < SOUND_THROTTLE_MS) return false;
+      _lastSoundTs = now;
+      return true;
+    }
+
+    /* ────────────────────────────────────────────────────
+       SONS DISPONIBLES
+    ──────────────────────────────────────────────────── */
+
+    /**
+     * 📞 Appel entrant — sonnerie téléphonique classique
+     * Deux tons alternants (440Hz / 480Hz), cycle 0.4s ON / 0.2s OFF × 4
+     */
+    function playIncomingCall() {
+      const ctx = _getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      for (let i = 0; i < 4; i++) {
+        const t = now + i * 0.6;
+        _osc(ctx, 'sine', 440, 0.35, t,       0.2);
+        _osc(ctx, 'sine', 480, 0.25, t + 0.02, 0.2);
+        _osc(ctx, 'sine', 440, 0.35, t + 0.22, 0.18);
+      }
+    }
+
+    /**
+     * 💬 Message reçu — ding court et propre
+     */
+    function playMessage() {
+      const ctx = _getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      _osc(ctx, 'sine',     880, 0.30, now,        0.18);
+      _osc(ctx, 'sine',    1320, 0.18, now + 0.07, 0.22);
+    }
+
+    /**
+     * 👋 Demande d'ami — deux notes chaleureuses
+     */
+    function playFriendRequest() {
+      const ctx = _getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      _osc(ctx, 'sine', 523, 0.28, now,        0.20);
+      _osc(ctx, 'sine', 659, 0.28, now + 0.16, 0.28);
+    }
+
+    /**
+     * 🎉 Ami accepté — accord de joie (do-mi-sol)
+     */
+    function playFriendAccepted() {
+      const ctx = _getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      _osc(ctx, 'sine', 523, 0.28, now,        0.18);
+      _osc(ctx, 'sine', 659, 0.25, now + 0.10, 0.18);
+      _osc(ctx, 'sine', 784, 0.28, now + 0.20, 0.30);
+    }
+
+    /**
+     * 🔥 Événement flash / soirée — montée énergétique
+     */
+    function playEventFlash() {
+      const ctx = _getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      const freqs = [392, 494, 587, 698, 880];
+      freqs.forEach((f, i) => {
+        _osc(ctx, 'sawtooth', f, 0.15, now + i * 0.07, 0.12 + i * 0.03);
+      });
+      /* Kick sub-bass */
+      const kick = ctx.createOscillator();
+      const kickGain = ctx.createGain();
+      kick.type = 'sine';
+      kick.frequency.setValueAtTime(160, now + 0.35);
+      kick.frequency.exponentialRampToValueAtTime(40, now + 0.45);
+      kickGain.gain.setValueAtTime(0.4, now + 0.35);
+      kickGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.48);
+      kick.connect(kickGain);
+      kickGain.connect(ctx.destination);
+      kick.start(now + 0.35);
+      kick.stop(now + 0.5);
+    }
+
+    /**
+     * 🎵 Mise à jour ambiance — vibration douce
+     */
+    function playAmbianceUpdate() {
+      const ctx = _getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      _osc(ctx, 'sine', 660, 0.20, now,        0.15);
+      _osc(ctx, 'sine', 440, 0.15, now + 0.12, 0.25);
+    }
+
+    /**
+     * 👑 Invitation VIP — carillon noble
+     */
+    function playVipInvite() {
+      const ctx = _getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      const seq = [[784, 0.00], [880, 0.14], [988, 0.28], [1047, 0.44]];
+      seq.forEach(([f, t]) => _osc(ctx, 'triangle', f, 0.22, now + t, 0.20));
+    }
+
+    /**
+     * 🚕 Dispatch taxi — alerte cadencée
+     */
+    function playTaxiDispatch() {
+      const ctx = _getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      [0, 0.18, 0.36].forEach(t =>
+        _osc(ctx, 'square', 600, 0.10, now + t, 0.14)
+      );
+      _osc(ctx, 'square', 900, 0.12, now + 0.55, 0.28);
+    }
+
+    /**
+     * 🔔 Notification générique
+     */
+    function playDefault() {
+      const ctx = _getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      _osc(ctx, 'sine', 700, 0.22, now,        0.14);
+      _osc(ctx, 'sine', 900, 0.16, now + 0.10, 0.20);
+    }
+
+    /**
+     * ⚠️ Alerte système urgente
+     */
+    function playAlert() {
+      const ctx = _getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      [0, 0.15, 0.30, 0.45].forEach(t =>
+        _osc(ctx, 'sawtooth', 1000, 0.12, now + t, 0.10)
+      );
+    }
+
+    /* ── Dispatcher par type ── */
+    function playForType(type) {
+      if (!_canPlay()) return;
+      const map = {
+        incoming_call:   playIncomingCall,
+        message:         playMessage,
+        friend_request:  playFriendRequest,
+        friend_accepted: playFriendAccepted,
+        event_flash:     playEventFlash,
+        ambiance_update: playAmbianceUpdate,
+        vip_invite:      playVipInvite,
+        taxi_dispatch:   playTaxiDispatch,
+        system:          playAlert,
+        promo:           playDefault,
+        default:         playDefault,
+      };
+      const fn = map[type] || map.default;
+      try { fn(); } catch (e) { console.warn('[AMBI Audio] Erreur son:', e); }
+    }
+
+    /* Déverrouiller le contexte audio au premier geste utilisateur */
+    function unlock() {
+      const ctx = _getCtx();
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+    }
+
+    return { playForType, unlock, playDefault, playIncomingCall, playMessage, playAlert };
+  })();
+
+
+  /* ══════════════════════════════════════════════════════════
+     MODULE B — PUSH SUBSCRIPTION + FCM TOKEN
+  ══════════════════════════════════════════════════════════ */
+  const AMBI_PUSH = (() => {
+
+    /* ── Convertir clé VAPID base64url → Uint8Array ── */
+    function _b64ToUint8(base64String) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const b64     = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const raw     = atob(b64);
+      return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+    }
+
+    /* ── Demander la permission ── */
+    async function requestPermission() {
+      if (!('Notification' in window)) {
+        console.warn('[AMBI Push] Notifications non supportées');
+        return 'unsupported';
+      }
+      if (Notification.permission === 'granted') return 'granted';
+      if (Notification.permission === 'denied')  return 'denied';
+      const result = await Notification.requestPermission();
+      console.log(`[AMBI Push] Permission: ${result}`);
+      return result;
+    }
+
+    /* ── Souscrire au Push (Web Push VAPID) ── */
+    async function subscribe(swRegistration) {
+      if (!swRegistration || !swRegistration.pushManager) {
+        console.warn('[AMBI Push] pushManager non disponible');
+        return null;
+      }
+      try {
+        const existing = await swRegistration.pushManager.getSubscription();
+        if (existing) {
+          console.log('[AMBI Push] ✅ Subscription existante récupérée');
+          _pushSub = existing;
+          return existing;
+        }
+        const sub = await swRegistration.pushManager.subscribe({
+          userVisibleOnly:      true,
+          applicationServerKey: _b64ToUint8(VAPID_PUBLIC_KEY),
+        });
+        console.log('[AMBI Push] ✅ Nouvelle subscription créée');
+        _pushSub = sub;
+        return sub;
+      } catch (e) {
+        console.error('[AMBI Push] Échec subscription:', e.message);
+        return null;
+      }
+    }
+
+    /* ── Désabonner ── */
+    async function unsubscribe() {
+      if (_pushSub) {
+        await _pushSub.unsubscribe();
+        _pushSub = null;
+        console.log('[AMBI Push] ✅ Désabonné');
+      }
+    }
+
+    /* ── Sauvegarder le token en Firestore ── */
+    async function saveTokenToFirestore(subscription, fcmToken) {
+      const uid = window.currentUserUID;
+      if (!uid) return;
+      if (!window.db || !window.fbDoc || !window.fbSetDoc) return;
+
+      const tokenData = {
+        uid,
+        platform:     'web',
+        userAgent:    navigator.userAgent.slice(0, 120),
+        endpoint:     subscription ? subscription.endpoint : null,
+        p256dh:       subscription ? btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('p256dh')))) : null,
+        auth:         subscription ? btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('auth')))) : null,
+        fcmToken:     fcmToken || null,
+        updatedAt:    new Date().toISOString(),
+        active:       true,
+      };
+
+      try {
+        const docId = uid + '_web_' + btoa(tokenData.endpoint || fcmToken || uid).slice(0, 20);
+        await window.fbSetDoc(
+          window.fbDoc(window.db, DB_TOKENS, docId),
+          tokenData,
+          { merge: true }
+        );
+        console.log('[AMBI Push] ✅ Token sauvegardé en Firestore');
+      } catch (e) {
+        console.error('[AMBI Push] Erreur save token:', e);
+      }
+    }
+
+    /* ── Supprimer le token (déconnexion) ── */
+    async function removeTokenFromFirestore() {
+      const uid = window.currentUserUID;
+      if (!uid || !_pushSub) return;
+      if (!window.db || !window.fbDoc || !window.fbDeleteDoc) return;
+      try {
+        const docId = uid + '_web_' + btoa(_pushSub.endpoint).slice(0, 20);
+        await window.fbDeleteDoc(window.fbDoc(window.db, DB_TOKENS, docId));
+        console.log('[AMBI Push] ✅ Token supprimé');
+      } catch (e) {
+        console.warn('[AMBI Push] Erreur suppression token:', e);
+      }
+    }
+
+    /* ── Obtenir le token FCM (si Firebase Messaging disponible) ── */
+    async function getFCMToken() {
+      /* Firebase Messaging v9+ modular */
+      if (window.firebase && window.firebase.messaging) {
+        try {
+          const messaging = window.firebase.messaging();
+          const token = await messaging.getToken({ vapidKey: FCM_VAPID_KEY });
+          _fcmToken = token;
+          console.log('[AMBI Push] ✅ FCM Token obtenu');
+          return token;
+        } catch (e) {
+          console.warn('[AMBI Push] FCM token échoué (normal si pas de FCM config):', e.message);
+        }
+      }
+      /* Firebase Messaging v10 modular (import dynamique) */
+      try {
+        const { getMessaging, getToken } = await import(
+          'https://www.gstatic.com/firebasejs/10.12.1/firebase-messaging.js'
+        );
+        const app = window.__firebaseApp;
+        if (app) {
+          const messaging = getMessaging(app);
+          const token = await getToken(messaging, { vapidKey: FCM_VAPID_KEY });
+          _fcmToken = token;
+          console.log('[AMBI Push] ✅ FCM Token v10 obtenu');
+          return token;
+        }
+      } catch (e) {
+        /* FCM optionnel — l'app fonctionne sans */
+        console.info('[AMBI Push] FCM non configuré — Push WebPush natif utilisé');
+      }
+      return null;
+    }
+
+    /* ── Enregistrer le handler FCM foreground ── */
+    async function setupFCMForegroundHandler() {
+      try {
+        const { getMessaging, onMessage } = await import(
+          'https://www.gstatic.com/firebasejs/10.12.1/firebase-messaging.js'
+        );
+        const app = window.__firebaseApp;
+        if (!app) return;
+        const messaging = getMessaging(app);
+        onMessage(messaging, payload => {
+          console.log('[AMBI Push] 📨 FCM Foreground message:', payload);
+          const { notification = {}, data = {} } = payload;
+          AMBI_NOTIF_DB.ingest({
+            type:      data.type || 'default',
+            title:     notification.title || data.title || 'AMBI241',
+            body:      notification.body  || data.body  || '',
+            fromUID:   data.fromUID || null,
+            fromName:  data.fromName || null,
+            fromAvatar:data.fromAvatar || null,
+            meta:      data,
+            read:      false,
+            createdAt: new Date().toISOString(),
+            _source:   'fcm',
+          });
+        });
+        console.log('[AMBI Push] ✅ FCM Foreground handler actif');
+      } catch (e) {
+        console.info('[AMBI Push] FCM foreground handler ignoré (FCM non configuré)');
+      }
+    }
+
+    return {
+      requestPermission,
+      subscribe,
+      unsubscribe,
+      saveTokenToFirestore,
+      removeTokenFromFirestore,
+      getFCMToken,
+      setupFCMForegroundHandler,
+    };
+  })();
+
+
+  /* ══════════════════════════════════════════════════════════
+     MODULE C — BRIDGE FIRESTORE user_notifications
+  ══════════════════════════════════════════════════════════ */
+  const AMBI_NOTIF_DB = (() => {
+
+    /* ── Démarrer l'écoute temps réel ── */
+    function startListener(uid) {
+      if (!window.db || !window.fbCollection || !window.fbOnSnapshot) {
+        console.warn('[AMBI DB] Firebase non disponible — mode local uniquement');
+        return;
+      }
+      if (_firestoreUnsub) _firestoreUnsub(); /* Stopper l'ancien listener */
+
+      try {
+        /* Requête : notifs destinées à cet utilisateur, triées par date, max 50 */
+        let q;
+        try {
+          q = window.fbQuery(
+            window.fbCollection(window.db, DB_NOTIFS),
+            window.fbWhere('toUID', '==', uid),
+            window.fbOrderBy('createdAt', 'desc'),
+            window.fbLimit(50)
+          );
+        } catch (e) {
+          /* Fallback si query helpers absents */
+          q = window.fbCollection(window.db, DB_NOTIFS);
+        }
+
+        _firestoreUnsub = window.fbOnSnapshot(q, snap => {
+          let hasNew = false;
+
+          snap.docChanges ? snap.docChanges().forEach(change => {
+            const data = change.doc.data();
+            data._id  = change.doc.id;
+
+            if (change.type === 'added') {
+              /* Vérifier si c'est vraiment nouvelle (pas déjà vue) */
+              const alreadyKnown = _notifStore.find(n => n._id === data._id);
+              if (!alreadyKnown) {
+                _notifStore.unshift(data);
+                if (!data.read) {
+                  hasNew = true;
+                  /* Déclencher son + toast */
+                  _onNewNotif(data);
+                }
+              }
+            } else if (change.type === 'modified') {
+              const idx = _notifStore.findIndex(n => n._id === data._id);
+              if (idx !== -1) _notifStore[idx] = data;
+            } else if (change.type === 'removed') {
+              _notifStore = _notifStore.filter(n => n._id !== data._id);
+            }
+          }) : /* Fallback snapshot complet */
+          snap.forEach(doc => {
+            const data = { ...doc.data(), _id: doc.id };
+            if (!_notifStore.find(n => n._id === data._id)) {
+              _notifStore.unshift(data);
+              if (!data.read) { hasNew = true; _onNewNotif(data); }
+            }
+          });
+
+          if (hasNew || true) AMBI_PANEL.refresh();
+        }, err => {
+          console.warn('[AMBI DB] Listener error:', err.message);
+        });
+
+        console.log('[AMBI DB] ✅ Listener user_notifications actif pour', uid);
+      } catch (e) {
+        console.error('[AMBI DB] Erreur démarrage listener:', e);
+      }
+    }
+
+    /* ── Arrêter le listener ── */
+    function stopListener() {
+      if (_firestoreUnsub) {
+        _firestoreUnsub();
+        _firestoreUnsub = null;
+      }
+    }
+
+    /* ── Marquer une notif comme lue ── */
+    async function markRead(notifId) {
+      if (!window.db || !window.fbDoc || !window.fbUpdateDoc) return;
+      const idx = _notifStore.findIndex(n => n._id === notifId);
+      if (idx !== -1) _notifStore[idx].read = true;
+      try {
+        await window.fbUpdateDoc(
+          window.fbDoc(window.db, DB_NOTIFS, notifId),
+          { read: true, readAt: new Date().toISOString() }
+        );
+      } catch (e) { console.warn('[AMBI DB] markRead error:', e); }
+    }
+
+    /* ── Marquer toutes comme lues ── */
+    async function markAllRead() {
+      const unread = _notifStore.filter(n => !n.read);
+      await Promise.allSettled(unread.map(n => markRead(n._id)));
+      _notifStore.forEach(n => n.read = true);
+      AMBI_PANEL.refresh();
+    }
+
+    /* ── Supprimer une notif ── */
+    async function deleteNotif(notifId) {
+      _notifStore = _notifStore.filter(n => n._id !== notifId);
+      if (window.db && window.fbDoc && window.fbDeleteDoc) {
+        try {
+          await window.fbDeleteDoc(window.fbDoc(window.db, DB_NOTIFS, notifId));
+        } catch (e) { console.warn('[AMBI DB] deleteNotif error:', e); }
+      }
+      AMBI_PANEL.refresh();
+    }
+
+    /* ── Supprimer toutes les notifs ── */
+    async function deleteAll() {
+      const ids = _notifStore.map(n => n._id).filter(Boolean);
+      _notifStore = [];
+      AMBI_PANEL.refresh();
+      if (window.db && window.fbDoc && window.fbDeleteDoc) {
+        await Promise.allSettled(ids.map(id =>
+          window.fbDeleteDoc(window.fbDoc(window.db, DB_NOTIFS, id)).catch(() => {})
+        ));
+      }
+    }
+
+    /* ── Injecter une notification en local (FCM foreground, test…) ── */
+    function ingest(data) {
+      const notif = {
+        _id:       'local_' + Date.now(),
+        _source:   data._source || 'local',
+        toUID:     window.currentUserUID || '',
+        type:      data.type || 'default',
+        title:     data.title || 'AMBI241',
+        body:      data.body || data.msg || '',
+        fromUID:   data.fromUID || null,
+        fromName:  data.fromName || null,
+        fromAvatar:data.fromAvatar || null,
+        meta:      data.meta || data,
+        read:      false,
+        createdAt: data.createdAt || new Date().toISOString(),
+      };
+      _notifStore.unshift(notif);
+      _onNewNotif(notif);
+      AMBI_PANEL.refresh();
+    }
+
+    return { startListener, stopListener, markRead, markAllRead, deleteNotif, deleteAll, ingest };
+  })();
+
+
+  /* ══════════════════════════════════════════════════════════
+     MODULE D — PANEL UI + TOASTS + BADGES
+  ══════════════════════════════════════════════════════════ */
+  const AMBI_PANEL = (() => {
+
+    /* ── Afficher un toast riche ── */
+    function showToast(notif) {
+      const toast = document.querySelector('.notif-toast');
+      if (!toast) return;
+
+      const iconEl  = toast.querySelector('.notif-toast-icon');
+      const labelEl = toast.querySelector('.notif-toast-label');
+      const titleEl = toast.querySelector('.notif-toast-title');
+      const msgEl   = toast.querySelector('.notif-toast-msg');
+
+      if (iconEl)  iconEl.textContent  = _typeIcon(notif.type);
+      if (labelEl) labelEl.textContent = _typeLabel(notif.type);
+      if (titleEl) titleEl.textContent = notif.fromName || notif.title || 'AMBI241';
+      if (msgEl)   msgEl.textContent   = notif.body || '';
+
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 4500);
+
+      /* Click sur le toast → marquer lu + fermer */
+      toast.onclick = () => {
+        toast.classList.remove('show');
+        if (notif._id) AMBI_NOTIF_DB.markRead(notif._id);
+      };
+    }
+
+    /* ── Mettre à jour le badge ── */
+    function updateBadge() {
+      _unreadCount = _notifStore.filter(n => !n.read).length;
+
+      /* Badge cloche */
+      const badge = document.querySelector('.notif-badge');
+      if (badge) {
+        badge.textContent = _unreadCount > 99 ? '99+' : String(_unreadCount);
+        badge.classList.toggle('show', _unreadCount > 0);
+      }
+
+      /* Badge favicon / App Badge API */
+      if ('setAppBadge' in navigator) {
+        if (_unreadCount > 0) {
+          navigator.setAppBadge(_unreadCount).catch(() => {});
+        } else {
+          navigator.clearAppBadge().catch(() => {});
+        }
+      }
+
+      /* Titre de l'onglet */
+      const baseTitle = 'AMBI241';
+      document.title = _unreadCount > 0
+        ? `(${_unreadCount}) ${baseTitle}`
+        : baseTitle;
+    }
+
+    /* ── Rafraîchir la liste dans le panneau ── */
+    function refresh() {
+      updateBadge();
+      _renderList();
+      _updateSubhead();
+    }
+
+    /* ── Rendre la liste de notifications ── */
+    function _renderList() {
+      const list = document.querySelector('.notif-list');
+      if (!list) return;
+
+      const filtered = _activeFilter === 'all'
+        ? _notifStore
+        : _notifStore.filter(n => n.type === _activeFilter);
+
+      if (!filtered.length) {
+        list.innerHTML = `
+          <div style="text-align:center;padding:3rem 1rem;color:var(--muted);">
+            <div style="font-size:2.5rem;margin-bottom:0.75rem;">🔔</div>
+            <div style="font-family:'Syne',sans-serif;font-size:0.85rem;font-weight:800;margin-bottom:0.4rem;">
+              Aucune notification
+            </div>
+            <div style="font-size:0.7rem;opacity:0.6;">
+              ${_activeFilter === 'all' ? 'Vos notifications apparaîtront ici' : 'Aucune notification de ce type'}
+            </div>
+          </div>`;
+        return;
+      }
+
+      list.innerHTML = filtered.map(n => _buildItem(n)).join('');
+
+      /* Attacher les événements click */
+      list.querySelectorAll('[data-notif-id]').forEach(el => {
+        el.addEventListener('click', () => {
+          const id = el.dataset.notifId;
+          AMBI_NOTIF_DB.markRead(id);
+          el.classList.remove('unread');
+          updateBadge();
+          _handleNotifAction(id);
+        });
+      });
+    }
+
+    /* ── Construire un item de notification ── */
+    function _buildItem(n) {
+      const icon      = _typeIcon(n.type);
+      const label     = _typeLabel(n.type);
+      const timeStr   = _timeAgo(n.createdAt);
+      const unreadCls = n.read ? '' : 'unread';
+      const avatarContent = n.fromAvatar
+        ? `<img src="${_esc(n.fromAvatar)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`
+        : (n.fromName ? `<span style="font-size:1rem;">${_esc(n.fromName[0]?.toUpperCase() || '?')}</span>` : `<span>${icon}</span>`);
+
+      return `
+        <div class="notif-item ${unreadCls}" data-notif-id="${_esc(n._id || '')}">
+          <div class="notif-item-avatar-wrap">
+            <div class="notif-item-avatar"
+                 style="width:42px;height:42px;border-radius:50%;background:${_typeColor(n.type)}22;
+                        border:1.5px solid ${_typeColor(n.type)}44;
+                        display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">
+              ${avatarContent}
+            </div>
+            <div class="notif-item-type-dot"
+                 style="position:absolute;bottom:-1px;right:-1px;width:16px;height:16px;
+                        border-radius:50%;background:${_typeColor(n.type)};
+                        border:2px solid var(--bg);display:flex;align-items:center;
+                        justify-content:center;font-size:0.52rem;">
+              ${icon}
+            </div>
+          </div>
+          <div class="notif-item-body" style="flex:1;min-width:0;">
+            <div class="notif-item-head" style="display:flex;align-items:baseline;gap:0.35rem;margin-bottom:0.1rem;">
+              <span style="font-size:0.56rem;font-weight:800;letter-spacing:0.08em;
+                           text-transform:uppercase;color:${_typeColor(n.type)};font-family:'Syne',sans-serif;">
+                ${_esc(label)}
+              </span>
+              <span style="font-size:0.55rem;color:var(--muted);margin-left:auto;white-space:nowrap;">
+                ${_esc(timeStr)}
+              </span>
+            </div>
+            <div style="font-size:0.78rem;font-weight:700;color:var(--text);
+                        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:0.1rem;">
+              ${_esc(n.fromName || n.title || 'AMBI241')}
+            </div>
+            <div style="font-size:0.7rem;color:var(--muted);
+                        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              ${_esc(n.body || '')}
+            </div>
+          </div>
+          ${!n.read ? `<div style="width:8px;height:8px;border-radius:50%;
+                                   background:var(--pink);flex-shrink:0;
+                                   box-shadow:0 0 6px rgba(255,45,155,0.6);"></div>` : ''}
+        </div>`;
+    }
+
+    /* ── Sous-titre panneau (X non lus) ── */
+    function _updateSubhead() {
+      const sub = document.querySelector('.notif-panel-head-sub');
+      if (!sub) return;
+      sub.textContent = _unreadCount > 0
+        ? `${_unreadCount} non lue${_unreadCount > 1 ? 's' : ''}`
+        : 'Tout est à jour ✓';
+    }
+
+    /* ── Ouvrir le panneau ── */
+    function openPanel() {
+      const panel = document.querySelector('.notif-panel');
+      if (!panel) return;
+      panel.classList.add('open');
+      _renderList();
+      AMBI_NOTIF_DB.markAllRead().catch(() => {});
+    }
+
+    /* ── Fermer le panneau ── */
+    function closePanel() {
+      document.querySelector('.notif-panel')?.classList.remove('open');
+    }
+
+    /* ── Changer le filtre ── */
+    function setFilter(filter) {
+      _activeFilter = filter;
+      document.querySelectorAll('.notif-filter-btn').forEach(btn => {
+        btn.classList.toggle('active', (btn.dataset.filter || 'all') === filter);
+      });
+      _renderList();
+    }
+
+    /* ── Helpers ── */
+    function _typeIcon(type) {
+      const icons = {
+        message: '💬', friend_request: '👋', friend_accepted: '🎉',
+        event_flash: '🔥', ambiance_update: '🎵', incoming_call: '📞',
+        vip_invite: '👑', promo: '🎁', taxi_dispatch: '🚕',
+        system: 'ℹ️', default: '🔔',
+      };
+      return icons[type] || icons.default;
+    }
+
+    function _typeLabel(type) {
+      const labels = {
+        message: 'Message', friend_request: 'Ami', friend_accepted: 'Amitié',
+        event_flash: 'Événement', ambiance_update: 'Ambiance', incoming_call: 'Appel',
+        vip_invite: 'VIP', promo: 'Promo', taxi_dispatch: 'Course',
+        system: 'Système', default: 'Notification',
+      };
+      return labels[type] || labels.default;
+    }
+
+    function _typeColor(type) {
+      const colors = {
+        message: '#00e5ff', friend_request: '#cc44ff', friend_accepted: '#00ffaa',
+        event_flash: '#ff2d9b', ambiance_update: '#ffd700', incoming_call: '#ff2d9b',
+        vip_invite: '#ffd700', promo: '#cc44ff', taxi_dispatch: '#ffd700',
+        system: '#b088c0', default: '#ff2d9b',
+      };
+      return colors[type] || colors.default;
+    }
+
+    function _timeAgo(ts) {
+      if (!ts) return '';
+      const d = ts.toDate ? ts.toDate() : new Date(ts);
+      const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+      if (diff < 60)   return 'À l\'instant';
+      if (diff < 3600) return Math.floor(diff / 60) + ' min';
+      if (diff < 86400)return Math.floor(diff / 3600) + ' h';
+      return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+    }
+
+    function _esc(s) {
+      return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function _handleNotifAction(id) {
+      const n = _notifStore.find(x => x._id === id);
+      if (!n) return;
+      /* Routing selon le type */
+      const routes = {
+        friend_request:  () => typeof window.socSwitchTab === 'function' && window.socSwitchTab('demandes'),
+        friend_accepted: () => typeof window.socSwitchTab === 'function' && window.socSwitchTab('amis'),
+        message:         () => typeof window.socSwitchTab === 'function' && window.socSwitchTab('messages'),
+        event_flash:     () => typeof window.switchTab === 'function' && window.switchTab('home'),
+        ambiance_update: () => typeof window.switchTab === 'function' && window.switchTab('map'),
+        taxi_dispatch:   () => typeof window.switchTab === 'function' && window.switchTab('taxi'),
+      };
+      const fn = routes[n.type];
+      if (fn) { fn(); closePanel(); }
+    }
+
+    return { showToast, updateBadge, refresh, openPanel, closePanel, setFilter };
+  })();
+
+
+  /* ══════════════════════════════════════════════════════════
+     MODULE E — SERVICE WORKER REGISTRATION + IPC
+  ══════════════════════════════════════════════════════════ */
+  const AMBI_SW = (() => {
+
+    async function register() {
+      if (!('serviceWorker' in navigator)) {
+        console.warn('[AMBI SW] Service Workers non supportés');
+        return null;
+      }
+      try {
+        const reg = await navigator.serviceWorker.register(SW_PATH, { scope: SW_SCOPE });
+        _swReg = reg;
+        console.log('[AMBI SW] ✅ SW enregistré — scope:', reg.scope);
+
+        /* Écouter les messages du SW */
+        navigator.serviceWorker.addEventListener('message', _onSwMessage);
+
+        /* Surveiller les mises à jour */
+        reg.addEventListener('updatefound', () => {
+          const worker = reg.installing;
+          if (worker) {
+            worker.addEventListener('statechange', () => {
+              if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+                console.log('[AMBI SW] 🆕 Nouvelle version disponible');
+                /* Notifier l'UI */
+                _onNewNotif({
+                  type:  'system',
+                  title: 'Mise à jour AMBI241',
+                  body:  'Une nouvelle version est disponible. Rechargez pour l\'appliquer.',
+                  read:  false,
+                  createdAt: new Date().toISOString(),
+                  _id:   'update_' + Date.now(),
+                });
+              }
+            });
+          }
+        });
+
+        return reg;
+      } catch (e) {
+        console.error('[AMBI SW] Échec enregistrement:', e);
+        return null;
+      }
+    }
+
+    /* ── Recevoir les messages du SW ── */
+    function _onSwMessage(event) {
+      const msg = event.data || {};
+      console.log('[AMBI SW] Message reçu du SW:', msg.type);
+
+      switch (msg.type) {
+        case 'SW_PUSH_RECEIVED':
+          /* Le SW a reçu un push alors que l'app était ouverte */
+          if (msg.payload) {
+            AMBI_NOTIF_DB.ingest(msg.payload);
+          }
+          break;
+
+        case 'SW_NOTIF_CLICK':
+          /* L'utilisateur a cliqué sur une notif système */
+          if (msg.notifId) AMBI_NOTIF_DB.markRead(msg.notifId);
+          /* Router si nécessaire */
+          if (msg.targetUrl && msg.targetUrl !== window.location.href) {
+            window.history.pushState({}, '', msg.targetUrl);
+            _handleUrlParams(new URL(msg.targetUrl, window.location.origin));
+          }
+          break;
+
+        case 'SW_SUBSCRIPTION_RENEWED':
+          try {
+            const sub = JSON.parse(msg.subscription);
+            AMBI_PUSH.saveTokenToFirestore(sub, _fcmToken);
+          } catch { /* */ }
+          break;
+
+        case 'SW_FLUSH_ACTION':
+          /* SW demande d'exécuter une action Firebase en attente */
+          if (msg.action?.type === 'mark_seen' && msg.action.data?.notifId) {
+            AMBI_NOTIF_DB.markRead(msg.action.data.notifId);
+          }
+          break;
+
+        case 'SW_PERIODIC_CHECK':
+          /* Refresh déclenché par periodic sync */
+          AMBI_PANEL.refresh();
+          break;
+
+        case 'PONG':
+          console.log('[AMBI SW] Pong reçu — SW version:', msg.version);
+          break;
+      }
+    }
+
+    /* ── Envoyer un message au SW ── */
+    function send(msg) {
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage(msg);
+      }
+    }
+
+    /* ── Ping de santé ── */
+    function ping() {
+      send({ type: 'PING' });
+    }
+
+    /* ── Enregistrer la Periodic Background Sync ── */
+    async function registerPeriodicSync(reg) {
+      if (!reg || !('periodicSync' in reg)) return;
+      try {
+        const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
+        if (status.state === 'granted') {
+          await reg.periodicSync.register('ambi241-check-events', {
+            minInterval: 24 * 60 * 60 * 1000, /* 1 fois par jour */
+          });
+          console.log('[AMBI SW] ✅ Periodic Sync enregistré');
+        }
+      } catch (e) {
+        console.info('[AMBI SW] Periodic Sync non disponible');
+      }
+    }
+
+    return { register, send, ping, registerPeriodicSync };
+  })();
+
+
+  /* ══════════════════════════════════════════════════════════
+     MODULE F — PRÉFÉRENCES UTILISATEUR
+  ══════════════════════════════════════════════════════════ */
+  const AMBI_PREFS = (() => {
+
+    function load() {
+      try {
+        const saved = localStorage.getItem(LOCAL_KEY_PREFS);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          _prefs = Object.assign({}, DEFAULT_PREFS, parsed);
+        }
+      } catch { /* */ }
+    }
+
+    function save() {
+      try {
+        localStorage.setItem(LOCAL_KEY_PREFS, JSON.stringify(_prefs));
+      } catch { /* */ }
+      /* Synchroniser les prefs avec le SW */
+      AMBI_SW.send({ type: 'UPDATE_PREFS', prefs: _prefs });
+    }
+
+    function set(key, value) {
+      _prefs[key] = value;
+      save();
+    }
+
+    function get(key) {
+      return key ? _prefs[key] : { ..._prefs };
+    }
+
+    /* ── Rendre les toggles dans le panneau de prefs ── */
+    function renderPrefsPanel() {
+      const container = document.getElementById('notifPrefsPanel');
+      if (!container) return;
+
+      const prefDefs = [
+        { key: 'sounds',          icon: '🔊', label: 'Sons'                },
+        { key: 'vibration',       icon: '📳', label: 'Vibrations'          },
+        { key: 'message',         icon: '💬', label: 'Messages'             },
+        { key: 'friend_request',  icon: '👋', label: 'Demandes d\'amis'     },
+        { key: 'friend_accepted', icon: '🎉', label: 'Amis acceptés'        },
+        { key: 'event_flash',     icon: '🔥', label: 'Événements flash'     },
+        { key: 'ambiance_update', icon: '🎵', label: 'Mises à jour ambiance'},
+        { key: 'incoming_call',   icon: '📞', label: 'Appels entrants'      },
+        { key: 'vip_invite',      icon: '👑', label: 'Invitations VIP'      },
+        { key: 'promo',           icon: '🎁', label: 'Promotions'           },
+        { key: 'taxi_dispatch',   icon: '🚕', label: 'Courses taxi'         },
+      ];
+
+      container.innerHTML = prefDefs.map(p => `
+        <div style="display:flex;align-items:center;justify-content:space-between;
+                    padding:0.65rem 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+          <div style="display:flex;align-items:center;gap:0.55rem;">
+            <span style="font-size:1rem;">${p.icon}</span>
+            <span style="font-size:0.8rem;font-weight:600;color:var(--text);">${p.label}</span>
+          </div>
+          <label class="notif-toggle" style="position:relative;display:inline-block;width:36px;height:20px;">
+            <input type="checkbox" ${_prefs[p.key] ? 'checked' : ''}
+                   onchange="window.AMBI241_NOTIF.prefs.set('${p.key}',this.checked)"
+                   style="opacity:0;width:0;height:0;">
+            <span class="notif-toggle-slider"></span>
+          </label>
+        </div>
+      `).join('');
+    }
+
+    return { load, save, set, get, renderPrefsPanel };
+  })();
+
+
+  /* ══════════════════════════════════════════════════════════
+     HANDLER — nouvelle notification reçue
+  ══════════════════════════════════════════════════════════ */
+  function _onNewNotif(notif) {
+    if (!_prefs.enabled) return;
+    if (!_prefs[notif.type] && notif.type !== 'system') return;
+
+    /* Son */
+    AMBI_AUDIO.playForType(notif.type);
+
+    /* Vibration native (si pas Audio) */
+    if (_prefs.vibration && 'vibrate' in navigator) {
+      const patterns = {
+        incoming_call:   [300, 200, 300, 200, 300],
+        message:         [100, 50, 100],
+        friend_request:  [150, 100, 150],
+        event_flash:     [200, 100, 400],
+        default:         [100],
+      };
+      navigator.vibrate(patterns[notif.type] || patterns.default);
+    }
+
+    /* Toast in-app */
+    AMBI_PANEL.showToast(notif);
+
+    /* Notification système si page non active */
+    if (document.hidden && Notification.permission === 'granted') {
+      _swReg?.showNotification(notif.title || 'AMBI241', {
+        body:    notif.body || '',
+        icon:    '/icon-192.png',
+        tag:     'ambi241-' + (notif._id || Date.now()),
+        vibrate: [100],
+        data:    { type: notif.type, notifId: notif._id },
+      }).catch(() => {});
+    }
+  }
+
+  /* ── Parser les params d'URL après click notif ── */
+  function _handleUrlParams(url) {
+    const tab = url.searchParams.get('tab');
+    const sub = url.searchParams.get('sub');
+    if (tab && typeof window.switchTab === 'function') window.switchTab(tab);
+    if (sub && typeof window.socSwitchTab === 'function') window.socSwitchTab(sub);
+  }
+
+
+  /* ══════════════════════════════════════════════════════════
+     MODULE G — BOOT SÉQUENCE
+  ══════════════════════════════════════════════════════════ */
+  const AMBI_BOOT = (() => {
+
+    async function boot() {
+      if (_isBooted) return;
+      console.log(`[AMBI241 Notif Engine] 🚀 Boot v${ENGINE_VERSION}`);
+
+      /* 1. Charger les préférences */
+      AMBI_PREFS.load();
+
+      /* 2. Déverrouiller l'audio au premier geste */
+      document.addEventListener('pointerdown', () => AMBI_AUDIO.unlock(), { once: true });
+      document.addEventListener('keydown',     () => AMBI_AUDIO.unlock(), { once: true });
+
+      /* 3. Enregistrer le Service Worker */
+      const reg = await AMBI_SW.register();
+      if (reg) {
+        await AMBI_SW.registerPeriodicSync(reg);
+      }
+
+      /* 4. Initialiser le panneau UI */
+      _bindUI();
+
+      /* 5. Attendre la connexion utilisateur puis démarrer les listeners Firebase */
+      _waitForUser();
+
+      _isBooted = true;
+      console.log('[AMBI241 Notif Engine] ✅ Boot terminé');
+    }
+
+    /* ── Attendre window.currentUserUID ── */
+    function _waitForUser() {
+      const MAX_RETRIES = 30;
+
+      const check = async () => {
+        const uid = window.currentUserUID;
+        if (uid) {
+          console.log('[AMBI241 Notif] Utilisateur détecté:', uid);
+
+          /* Démarrer le listener Firestore */
+          AMBI_NOTIF_DB.startListener(uid);
+
+          /* Demander permission push */
+          const permission = await AMBI_PUSH.requestPermission();
+          if (permission === 'granted' && _swReg) {
+            /* Souscrire au push */
+            const sub = await AMBI_PUSH.subscribe(_swReg);
+            if (sub) {
+              /* Obtenir token FCM si disponible */
+              const fcmToken = await AMBI_PUSH.getFCMToken();
+              /* Sauvegarder en Firestore */
+              await AMBI_PUSH.saveTokenToFirestore(sub, fcmToken);
+              /* Configurer le handler FCM foreground */
+              await AMBI_PUSH.setupFCMForegroundHandler();
+            }
+          }
+          return;
+        }
+
+        _bootRetries++;
+        if (_bootRetries < MAX_RETRIES) {
+          setTimeout(check, 500);
+        } else {
+          console.info('[AMBI241 Notif] Pas d\'utilisateur connecté — mode invité');
+        }
+      };
+
+      check();
+
+      /* Intercepter login/logout */
+      try {
+        let _uidVal = window.currentUserUID;
+        Object.defineProperty(window, 'currentUserUID', {
+          get: () => _uidVal,
+          set: v => {
+            const prev = _uidVal;
+            _uidVal = v;
+            if (v && v !== prev) {
+              /* Nouvel utilisateur connecté */
+              _bootRetries = 0;
+              AMBI_NOTIF_DB.stopListener();
+              AMBI_NOTIF_DB.startListener(v);
+              AMBI_PUSH.requestPermission().then(perm => {
+                if (perm === 'granted' && _swReg) {
+                  AMBI_PUSH.subscribe(_swReg).then(sub => {
+                    if (sub) {
+                      AMBI_PUSH.getFCMToken().then(token => {
+                        AMBI_PUSH.saveTokenToFirestore(sub, token);
+                        AMBI_PUSH.setupFCMForegroundHandler();
+                      });
+                    }
+                  });
+                }
+              });
+            } else if (!v && prev) {
+              /* Déconnexion */
+              AMBI_PUSH.removeTokenFromFirestore().catch(() => {});
+              AMBI_NOTIF_DB.stopListener();
+              _notifStore = [];
+              AMBI_PANEL.refresh();
+            }
+          },
+          configurable: true,
+        });
+      } catch (e) { /* defineProperty peut échouer si déjà défini */ }
+    }
+
+    /* ── Binder tous les éléments UI ── */
+    function _bindUI() {
+
+      /* Bouton cloche → ouvrir panneau */
+      document.querySelectorAll('.notif-bell-btn, [onclick*="openNotifPanel"], [data-action="notif-panel"]')
+        .forEach(btn => {
+          btn.onclick = e => {
+            e.preventDefault();
+            e.stopPropagation();
+            AMBI_PANEL.openPanel();
+          };
+        });
+
+      /* Fermer panneau (backdrop + bouton fermer) */
+      document.querySelectorAll('.notif-panel').forEach(panel => {
+        panel.addEventListener('click', e => {
+          if (e.target === panel) AMBI_PANEL.closePanel();
+        });
+      });
+      document.querySelectorAll('.notif-panel-close-btn, [data-action="notif-close"]')
+        .forEach(btn => { btn.onclick = () => AMBI_PANEL.closePanel(); });
+
+      /* Bouton "Tout lire" */
+      document.querySelectorAll('.notif-clear-btn, [data-action="notif-clear"]')
+        .forEach(btn => {
+          btn.onclick = () => {
+            AMBI_NOTIF_DB.markAllRead();
+            AMBI_PANEL.refresh();
+          };
+        });
+
+      /* Bouton "Tout supprimer" */
+      document.querySelectorAll('[data-action="notif-delete-all"]')
+        .forEach(btn => {
+          btn.onclick = () => AMBI_NOTIF_DB.deleteAll();
+        });
+
+      /* Filtres */
+      document.querySelectorAll('.notif-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          AMBI_PANEL.setFilter(btn.dataset.filter || 'all');
+        });
+      });
+
+      /* Panneau préférences */
+      AMBI_PREFS.renderPrefsPanel();
+    }
+
+    return { boot };
+  })();
+
+
+  /* ══════════════════════════════════════════════════════════
+     API PUBLIQUE — window.AMBI241_NOTIF
+  ══════════════════════════════════════════════════════════ */
+  window.AMBI241_NOTIF = {
+    version: ENGINE_VERSION,
+
+    /* Déclencher manuellement une notification (pour tests / code externe) */
+    trigger(type, title, body, extra = {}) {
+      AMBI_NOTIF_DB.ingest({ type, title, body, ...extra });
+    },
+
+    /* Envoyer une notification système (si permission accordée) */
+    async showSystem(type, title, body, data = {}) {
+      if (Notification.permission !== 'granted') return;
+      if (_swReg) {
+        AMBI_SW.send({
+          type: 'SHOW_LOCAL_NOTIF',
+          type: type,
+          title,
+          body,
+          data,
+        });
+      } else {
+        new Notification(title, { body, icon: '/icon-192.png' });
+      }
+    },
+
+    /* Sons */
+    audio: {
+      play: (type) => AMBI_AUDIO.playForType(type),
+      call: () => AMBI_AUDIO.playIncomingCall(),
+      message: () => AMBI_AUDIO.playMessage(),
+      alert: () => AMBI_AUDIO.playAlert(),
+    },
+
+    /* Préférences */
+    prefs: AMBI_PREFS,
+
+    /* Panneau */
+    panel: {
+      open:  () => AMBI_PANEL.openPanel(),
+      close: () => AMBI_PANEL.closePanel(),
+    },
+
+    /* DB */
+    db: {
+      markRead:    (id) => AMBI_NOTIF_DB.markRead(id),
+      markAllRead: ()   => AMBI_NOTIF_DB.markAllRead(),
+      deleteNotif: (id) => AMBI_NOTIF_DB.deleteNotif(id),
+      deleteAll:   ()   => AMBI_NOTIF_DB.deleteAll(),
+    },
+
+    /* Test complet */
+    async test(type = 'event_flash') {
+      console.log(`[AMBI241 Notif] 🧪 Test son + notification type=${type}`);
+      AMBI_AUDIO.playForType(type);
+      this.trigger(type, 'Test AMBI241', `Test notification type: ${type}`);
+      await this.showSystem(type, `Test AMBI241`, `Notification système type: ${type}`);
+    },
+
+    /* Demande permission manuelle (pour bouton "Activer les notifications") */
+    async requestPermission() {
+      const perm = await AMBI_PUSH.requestPermission();
+      if (perm === 'granted' && _swReg) {
+        const sub = await AMBI_PUSH.subscribe(_swReg);
+        if (sub) {
+          const fcmToken = await AMBI_PUSH.getFCMToken();
+          await AMBI_PUSH.saveTokenToFirestore(sub, fcmToken);
+          await AMBI_PUSH.setupFCMForegroundHandler();
+          if (typeof window.showToast === 'function') {
+            window.showToast('🔔 Notifications activées !');
+          }
+        }
+      } else if (perm === 'denied') {
+        if (typeof window.showToast === 'function') {
+          window.showToast('🔕 Notifications bloquées dans les paramètres du navigateur');
+        }
+      }
+      return perm;
+    },
+
+    /* Statut complet (debug) */
+    get status() {
+      return {
+        permission:    Notification.permission,
+        swRegistered:  !!_swReg,
+        pushSubscribed:!!_pushSub,
+        fcmToken:      _fcmToken ? _fcmToken.slice(0, 20) + '…' : null,
+        unread:        _unreadCount,
+        totalStored:   _notifStore.length,
+        firestoreActive: !!_firestoreUnsub,
+        prefs:         _prefs,
+      };
+    },
+  };
+
+  /* Rétrocompatibilité avec les appels existants dans index.html */
+  window.openNotifPanel  = () => AMBI_PANEL.openPanel();
+  window.closeNotifPanel = () => AMBI_PANEL.closePanel();
+
+  /* ══════════════════════════════════════════════════════════
+     DÉMARRAGE
+  ══════════════════════════════════════════════════════════ */
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => AMBI_BOOT.boot());
+  } else {
+    AMBI_BOOT.boot();
+  }
+
+  console.log(`[AMBI241] 🔔 Notification Engine v${ENGINE_VERSION} chargé`);
+
+})(window);
+
+  </script>
+
+  <!-- ══ AMBI_NOTIF_SEND — Dispatcher rôles → Firestore v3 ══════════════
+       Envoie des notifications ciblées par rôle à TOUS les utilisateurs
+       concernés en écrivant directement dans user_notifications (Firestore).
+       Branché sur pushNotif() existant + AMBI241_NOTIF engine.
+
+       RÔLES SUPPORTÉS
+       ───────────────
+       "all"           → tous les utilisateurs connectés
+       "user"          → membres simples
+       "etablissement" → gérants d'établissements
+       "chauffeur"     → chauffeurs taxi
+       "admin"         → administrateurs
+       "super_admin"   → super-administrateurs
+       "vip"           → membres ayant abonnement premium actif
+
+       API PUBLIQUE
+       ────────────
+       AMBI_NOTIF_SEND.toUser(uid, type, title, body, extra)
+       AMBI_NOTIF_SEND.toRole(role, type, title, body, extra)
+       AMBI_NOTIF_SEND.toAll(type, title, body, extra)
+       AMBI_NOTIF_SEND.toVip(type, title, body, extra)
+       AMBI_NOTIF_SEND.friendRequest(fromUID, fromName, fromAvatar, toUID)
+       AMBI_NOTIF_SEND.friendAccepted(fromUID, fromName, fromAvatar, toUID)
+       AMBI_NOTIF_SEND.message(fromUID, fromName, fromAvatar, toUID, text)
+       AMBI_NOTIF_SEND.eventFlash(title, body, targetRole)
+       AMBI_NOTIF_SEND.taxiDispatch(driverUID, title, body)
+       AMBI_NOTIF_SEND.vipInvite(toUID, title, body)
+       AMBI_NOTIF_SEND.ambianceUpdate(etabId, title, body)
+  ══════════════════════════════════════════════════════════════════════ -->
+  <script>
+  (function(window) {
+    'use strict';
+
+    /* ─── Constantes ─────────────────────────────────────────── */
+    var COL_NOTIFS = 'user_notifications';
+    var COL_USERS  = 'users';
+
+    /* ─── Map type → son AMBI241_NOTIF ──────────────────────── */
+    var TYPE_SOUND_MAP = {
+      message:         'message',
+      friend_request:  'friend_request',
+      friend_accepted: 'friend_accepted',
+      event_flash:     'event_flash',
+      ambiance_update: 'ambiance_update',
+      incoming_call:   'incoming_call',
+      vip_invite:      'vip_invite',
+      taxi_dispatch:   'taxi_dispatch',
+      promo:           'promo',
+      system:          'system',
+    };
+
+    /* ─── Vérifier Firestore disponible ─────────────────────── */
+    function _fsReady() {
+      return !!(window.db && window.fbDoc && window.fbSetDoc &&
+                window.fbCollection && window.fbGetDocs);
+    }
+
+    /* ─── Générer un ID unique de document ─────────────────── */
+    function _docId(toUID, type) {
+      var day = new Date().toISOString().slice(0, 10);
+      var raw = toUID + '_' + type + '_' + day + '_' + Math.random().toString(36).slice(2, 7);
+      try { return btoa(raw).replace(/[^a-zA-Z0-9]/g, '').slice(0, 60); }
+      catch(e) { return Date.now() + '_' + Math.random().toString(36).slice(2, 8); }
+    }
+
+    /* ─── Écrire UNE notification pour UN utilisateur ────────
+       Écrit dans user_notifications/{docId} avec toUID ciblé.
+       Compatible avec le listener temps réel AMBI_NOTIF_DB.   */
+    function _write(toUID, type, title, body, extra) {
+      if (!toUID || !_fsReady()) return Promise.resolve(null);
+      extra = extra || {};
+
+      var docId  = _docId(toUID, type);
+      var docRef = window.fbDoc(window.db, COL_NOTIFS, docId);
+      var data   = {
+        toUID:      toUID,
+        type:       TYPE_SOUND_MAP[type] ? type : 'system',
+        title:      title  || 'AMBI241',
+        body:       body   || '',
+        fromUID:    extra.fromUID    || window.currentUserUID || null,
+        fromName:   extra.fromName   || window.currentUserPseudo || null,
+        fromAvatar: extra.fromAvatar || null,
+        targetRole: extra.targetRole || 'all',
+        read:       false,
+        createdAt:  new Date().toISOString(),
+        _source:    'AMBI_NOTIF_SEND',
+        _key:       extra.key || (type + '_' + Date.now()),
+      };
+
+      return window.fbSetDoc(docRef, data, { merge: false })
+        .then(function() {
+          /* Si c'est l'utilisateur courant → déclencher le son + toast localement */
+          if (toUID === window.currentUserUID) {
+            if (window.AMBI241_NOTIF && typeof window.AMBI241_NOTIF.trigger === 'function') {
+              window.AMBI241_NOTIF.trigger(data.type, data.title, data.body, {
+                fromUID:    data.fromUID,
+                fromName:   data.fromName,
+                fromAvatar: data.fromAvatar,
+              });
+            }
+          }
+          return docId;
+        })
+        .catch(function(err) {
+          console.warn('[AMBI_NOTIF_SEND] Erreur écriture', toUID, err.message);
+          return null;
+        });
+    }
+
+    /* ─── Récupérer tous les utilisateurs d'un rôle ─────────
+       Lit la collection "users" et filtre par champ "role".
+       Supporte "all", "vip" (abonnement actif), et tous rôles. */
+    function _getUsersByRole(role) {
+      if (!_fsReady()) return Promise.resolve([]);
+
+      return window.fbGetDocs(window.fbCollection(window.db, COL_USERS))
+        .then(function(snap) {
+          var users = [];
+          snap.forEach(function(doc) {
+            var d = Object.assign({ uid: doc.id }, doc.data());
+
+            /* Déterminer le rôle effectif */
+            var uRole = d.role || 'user';
+
+            /* Cas "vip" : abonnement premium actif */
+            if (role === 'vip') {
+              var hasVip = (d.abonnement_type && d.abonnement_echeance &&
+                            new Date(d.abonnement_echeance) > new Date());
+              if (hasVip) users.push(d);
+              return;
+            }
+
+            /* Cas "etablissement" : chercher dans les établissements */
+            if (role === 'etablissement') {
+              var etabList = window.etablissements || [];
+              var linked   = etabList.some(function(e) {
+                return (e.email || '').toLowerCase() === (d.email || '').toLowerCase();
+              });
+              if (linked || uRole === 'etablissement') users.push(d);
+              return;
+            }
+
+            /* Rôle exact ou "all" */
+            if (role === 'all' || uRole === role) {
+              users.push(d);
+            }
+          });
+          return users;
+        })
+        .catch(function(err) {
+          console.warn('[AMBI_NOTIF_SEND] Erreur lecture users:', err.message);
+          return [];
+        });
+    }
+
+    /* ─── Dispatcher vers un rôle (batch Firestore) ─────────── */
+    function _dispatchToRole(role, type, title, body, extra) {
+      return _getUsersByRole(role).then(function(users) {
+        if (!users.length) {
+          console.info('[AMBI_NOTIF_SEND] Aucun utilisateur pour le rôle:', role);
+          return [];
+        }
+        var promises = users.map(function(u) {
+          return _write(u.uid, type, title, body,
+            Object.assign({}, extra, { targetRole: role }));
+        });
+        return Promise.all(promises).then(function(ids) {
+          var ok = ids.filter(Boolean).length;
+          console.log('[AMBI_NOTIF_SEND] ✅ Envoyé à', ok, '/', users.length,
+                      'utilisateurs (rôle:', role + ')');
+          return ids;
+        });
+      });
+    }
+
+    /* ════════════════════════════════════════════════════════
+       API PUBLIQUE — window.AMBI_NOTIF_SEND
+    ════════════════════════════════════════════════════════ */
+    var SEND = {
+
+      /* Envoyer à un utilisateur précis par UID */
+      toUser: function(uid, type, title, body, extra) {
+        return _write(uid, type, title, body, extra);
+      },
+
+      /* Envoyer à tous les utilisateurs d'un rôle */
+      toRole: function(role, type, title, body, extra) {
+        return _dispatchToRole(role, type, title, body, extra);
+      },
+
+      /* Broadcast à tous les utilisateurs */
+      toAll: function(type, title, body, extra) {
+        return _dispatchToRole('all', type, title, body, extra);
+      },
+
+      /* Envoyer aux membres VIP (abonnement actif) */
+      toVip: function(type, title, body, extra) {
+        return _dispatchToRole('vip', type, title, body, extra);
+      },
+
+      /* ── Notifications sémantiques ────────────────────── */
+
+      /* Demande d'ami : fromUID → toUID */
+      friendRequest: function(fromUID, fromName, fromAvatar, toUID) {
+        return _write(toUID, 'friend_request',
+          fromName + ' vous a envoyé une demande d\'ami',
+          'Acceptez pour rejoindre son cercle AMBI241',
+          { fromUID: fromUID, fromName: fromName, fromAvatar: fromAvatar,
+            key: 'friend_req_' + fromUID }
+        );
+      },
+
+      /* Ami accepté : fromUID → toUID */
+      friendAccepted: function(fromUID, fromName, fromAvatar, toUID) {
+        return _write(toUID, 'friend_accepted',
+          fromName + ' a accepté votre demande d\'ami',
+          'Vous êtes maintenant amis sur AMBI241 🎉',
+          { fromUID: fromUID, fromName: fromName, fromAvatar: fromAvatar,
+            key: 'friend_acc_' + fromUID }
+        );
+      },
+
+      /* Message reçu */
+      message: function(fromUID, fromName, fromAvatar, toUID, text) {
+        return _write(toUID, 'message',
+          fromName,
+          text || 'Nouveau message',
+          { fromUID: fromUID, fromName: fromName, fromAvatar: fromAvatar,
+            key: 'msg_' + fromUID + '_' + Date.now() }
+        );
+      },
+
+      /* Événement flash (soirée, ambiance…) vers un rôle ou tous */
+      eventFlash: function(title, body, targetRole) {
+        return _dispatchToRole(targetRole || 'all', 'event_flash', title, body,
+          { key: 'event_' + Date.now() }
+        );
+      },
+
+      /* Dispatch taxi vers un chauffeur précis */
+      taxiDispatch: function(driverUID, title, body) {
+        return _write(driverUID, 'taxi_dispatch',
+          title || '🚕 Nouvelle course disponible',
+          body  || 'Un client attend dans votre zone',
+          { key: 'taxi_' + Date.now() }
+        );
+      },
+
+      /* Invitation VIP vers un utilisateur précis */
+      vipInvite: function(toUID, title, body) {
+        return _write(toUID, 'vip_invite',
+          title || '👑 Invitation VIP exclusive',
+          body  || 'Vous êtes invité à un événement VIP AMBI241',
+          { key: 'vip_' + Date.now() }
+        );
+      },
+
+      /* Mise à jour ambiance d'un établissement → tous */
+      ambianceUpdate: function(etabId, title, body) {
+        return _dispatchToRole('all', 'ambiance_update',
+          title || '🎵 Ambiance mise à jour',
+          body  || 'L\'ambiance vient d\'être actualisée',
+          { key: 'amb_' + (etabId || '') + '_' + Date.now() }
+        );
+      },
+
+      /* Promo → membres */
+      promo: function(title, body, targetRole) {
+        return _dispatchToRole(targetRole || 'all', 'promo', title, body,
+          { key: 'promo_' + Date.now() }
+        );
+      },
+
+    }; /* fin SEND */
+
+    window.AMBI_NOTIF_SEND = SEND;
+
+    /* ════════════════════════════════════════════════════════
+       PATCH pushNotif() existant
+       Intercèpte les appels pushNotif({targetRole:X, ...}) et
+       les redirige vers AMBI_NOTIF_SEND.toRole() pour écriture
+       multi-utilisateurs en Firestore v3.
+    ════════════════════════════════════════════════════════ */
+    var _origPushNotif = window.pushNotif;
+
+    window.pushNotif = function(opts) {
+      /* 1. Comportement original (toast local + badge + légacy) */
+      if (typeof _origPushNotif === 'function') {
+        _origPushNotif(opts);
+      }
+
+      /* 2. Dispatch multi-user Firestore v3 si admin ou fromAdmin */
+      var isAdminCtx = (window.isAdmin || window.isSuperAdmin ||
+                        (window.currentUserRole === 'admin') ||
+                        (window.currentUserRole === 'super_admin') ||
+                        opts.fromAdmin);
+
+      if (!isAdminCtx) return; /* Seul un admin dispatch vers d'autres users */
+
+      var targetRole = opts.targetRole || opts.role || 'all';
+      var type = (function() {
+        var m = {
+          message:'message', new_course:'taxi_dispatch',
+          course_accepted:'taxi_dispatch', taxi_dispatch:'taxi_dispatch',
+          friend_request:'friend_request', friend_accepted:'friend_accepted',
+          top_ambiance:'event_flash', galerie_new_photo:'ambiance_update',
+          paiement_confirmed:'system', paiement_pending:'system',
+          sub_expire:'system', sub_alerte:'system', promo:'promo',
+          vip_invite:'vip_invite', incoming_call:'incoming_call',
+          admin_broadcast:'system', promoted_admin:'system',
+          new_inscription:'system', new_membre:'system',
+        };
+        return opts.type || m[opts.key] || 'system';
+      })();
+
+      /* Éviter les doublons sur l'utilisateur courant (déjà fait par _origPushNotif) */
+      _getUsersByRole(targetRole).then(function(users) {
+        var promises = users
+          .filter(function(u) { return u.uid !== window.currentUserUID; }) /* Exclure soi-même */
+          .map(function(u) {
+            return _write(u.uid, type, opts.title || '', opts.msg || '', {
+              fromUID:    opts.fromUID    || window.currentUserUID,
+              fromName:   opts.fromName   || window.currentUserPseudo,
+              fromAvatar: opts.fromAvatar || null,
+              targetRole: targetRole,
+              key:        opts.key || (type + '_' + Date.now()),
+            });
+          });
+        return Promise.all(promises);
+      }).then(function(ids) {
+        var ok = (ids || []).filter(Boolean).length;
+        if (ok > 0) {
+          console.log('[AMBI_NOTIF_SEND] pushNotif patché →', ok,
+                      'utilisateurs supplémentaires notifiés (rôle:', targetRole + ')');
+        }
+      }).catch(function(err) {
+        console.warn('[AMBI_NOTIF_SEND] Patch pushNotif erreur:', err.message);
+      });
+    };
+
+    console.log('[AMBI241] ✅ AMBI_NOTIF_SEND v1.0 initialisé — dispatch multi-rôles actif');
+
+  })(window);
+  </script>
 
   <!-- ══ ROUTEUR NOTIFICATIONS → SECTIONS ══
        Lit les paramètres ?tab= et ?sub= injectés par le Service Worker
