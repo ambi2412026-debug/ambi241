@@ -1,1 +1,17 @@
-
+name: Inject notif-engine into index.html
+on:
+  workflow_dispatch:
+jobs:
+  inject:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Inject script
+        run: sed -i 's|</body>|<script src="ambi241-notif-engine.js" defer></script>\n</body>|' index.html
+      - name: Commit
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add index.html
+          git commit -m "feat: inject notif engine"
+          git push
