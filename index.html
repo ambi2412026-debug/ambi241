@@ -5171,6 +5171,21 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 .friend-act-btn.ok{background:rgba(0,255,170,0.12);color:var(--green);}
 .friend-act-btn:active{transform:scale(0.88);opacity:0.8;}
 
+/* ── Badge SMS non lus ── */
+.friend-msg-wrap{position:relative;display:inline-flex;}
+.friend-msg-badge{
+  position:absolute;top:-5px;right:-5px;
+  min-width:16px;height:16px;border-radius:8px;
+  background:var(--pink);color:#fff;
+  font-size:0.52rem;font-weight:900;font-family:'DM Sans',sans-serif;
+  display:flex;align-items:center;justify-content:center;
+  padding:0 3px;box-sizing:border-box;
+  box-shadow:0 1px 8px rgba(255,45,155,0.6);
+  pointer-events:none;border:1.5px solid var(--bg);z-index:10;
+  animation:fmbPop 0.3s cubic-bezier(.17,.67,.48,1.4) both;
+}
+@keyframes fmbPop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+
 /* ── Demande d'ami ── */
 .friend-req-card{
   background:rgba(255,45,155,0.05);
@@ -40399,7 +40414,12 @@ function renderFriends(){
     if(f.tag) h += '<span class="friend-tag">'+esc(f.tag)+'</span>';
     h += '</div></div>';
     h += '<div class="friend-actions">';
-    h += '<button class="friend-act-btn msg" onclick="event.stopPropagation();openDM(\''+f.uid+'\')" title="Message">💬</button>';
+    /* ── Bouton message avec badge non lus ── */
+    var _fUnread = (window._dmUnreadMap && window._dmUnreadMap[f.uid]) || 0;
+    var _fBadge  = _fUnread > 0
+      ? '<span class="friend-msg-badge">'+(_fUnread > 99 ? '99+' : _fUnread)+'</span>'
+      : '';
+    h += '<div class="friend-msg-wrap"><button class="friend-act-btn msg" id="fmb-'+f.uid+'" onclick="event.stopPropagation();openDM(\''+f.uid+'\')" title="Message">💬</button>'+_fBadge+'</div>';
     h += '<button class="friend-act-btn del" onclick="event.stopPropagation();confirmAction(\'Supprimer '+esc(f.name)+' de tes amis ?\',\'🗑️\',\'Supprimer\',function(){removeFriend(\''+f.uid+'\')})" title="Supprimer">🗑️</button>';
     h += '<button class="friend-act-btn blk" onclick="event.stopPropagation();confirmAction(\'Bloquer '+esc(f.name)+' ?\',\'🚫\',\'Bloquer\',function(){blockUser(\''+f.uid+'\')})" title="Bloquer">🚫</button>';
     h += '</div></div>';
@@ -50135,6 +50155,158 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
       _vibrateForRole();
     }
   };
+
+})();
+</script>
+
+<!-- ════════════════════════════════════════════════════════════
+     AMBI241 — BADGES SMS NON LUS — v1.0
+     Affiche le nombre de messages non lus sur le bouton 💬
+     de chaque ami dans la liste Forum · Section Amis.
+     Le badge disparaît automatiquement dès l'ouverture du DM.
+     ════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  'use strict';
+
+  /* ─── Map partagée : uid_ami → nb messages non lus ─── */
+  window._dmUnreadMap = window._dmUnreadMap || {};
+
+  var _dmBadgeUnsub = null;   /* Listener Firestore actif */
+  var _prevUIDDMB   = null;   /* Pour détecter changement de compte */
+
+  /* ───────────────────────────────────────────────────
+     Mise à jour d'un badge individuel dans le DOM
+     sans déclencher un re-render complet
+  ─────────────────────────────────────────────────── */
+  function _setBadge(friendUid, count){
+    window._dmUnreadMap[friendUid] = count;
+
+    var btn = document.getElementById('fmb-' + friendUid);
+    if(!btn) return;                            /* carte pas dans le DOM */
+    var wrap = btn.parentElement;               /* .friend-msg-wrap      */
+    if(!wrap) return;
+
+    var existing = wrap.querySelector('.friend-msg-badge');
+
+    if(count > 0){
+      var label = count > 99 ? '99+' : String(count);
+      if(existing){
+        if(existing.textContent !== label){
+          existing.textContent = label;
+          /* Re-jouer l'animation pop pour signaler la mise à jour */
+          existing.style.animation = 'none';
+          existing.offsetWidth;   /* reflow */
+          existing.style.animation = '';
+        }
+      } else {
+        var badge = document.createElement('span');
+        badge.className  = 'friend-msg-badge';
+        badge.textContent = label;
+        wrap.appendChild(badge);
+      }
+    } else {
+      if(existing) existing.remove();
+    }
+  }
+
+  /* ───────────────────────────────────────────────────
+     Listener Firestore — conversations avec non-lus
+     Écoute la collection dm_conversations en temps réel
+     et met à jour les badges dès qu'un message arrive.
+  ─────────────────────────────────────────────────── */
+  function _startBadgeListener(){
+    var meUID = window.currentUserUID;
+    if(!meUID || !window.db || !window.fbCollection ||
+       !window.fbOnSnapshot || !window.fbQuery || !window.fbWhere) return;
+
+    /* Couper l'ancien listener si présent */
+    if(typeof _dmBadgeUnsub === 'function'){ _dmBadgeUnsub(); _dmBadgeUnsub = null; }
+
+    /* Reset badges lors du changement de compte */
+    window._dmUnreadMap = {};
+
+    try {
+      var q = window.fbQuery(
+        window.fbCollection(window.db, 'dm_conversations'),
+        window.fbWhere('participants', 'array-contains', meUID)
+      );
+
+      _dmBadgeUnsub = window.fbOnSnapshot(q, function(snap){
+        snap.docChanges ? snap.docChanges().forEach(function(change){
+          _processDMDoc(change.doc, meUID);
+        }) : snap.forEach(function(doc){
+          _processDMDoc(doc, meUID);
+        });
+      }, function(err){
+        console.warn('[AMBI241-DM-Badge] Listener error:', err);
+      });
+
+      console.log('[AMBI241-DM-Badge] ✅ Listener badges SMS actif (uid:', meUID, ')');
+    } catch(e){
+      console.warn('[AMBI241-DM-Badge] fbQuery failed:', e);
+    }
+  }
+
+  /* ───────────────────────────────────────────────────
+     Traitement d'un document dm_conversations
+  ─────────────────────────────────────────────────── */
+  function _processDMDoc(doc, meUID){
+    var data = doc.data();
+    if(!data) return;
+    var unread = data['unread_' + meUID] || 0;
+    var parts  = data.participants || [];
+    var other  = parts.find(function(p){ return p !== meUID; });
+    if(other) _setBadge(other, unread);
+  }
+
+  /* ───────────────────────────────────────────────────
+     Patch openDM — effacer le badge IMMÉDIATEMENT
+     au clic sur le bouton 💬 (avant même la lecture Firestore)
+  ─────────────────────────────────────────────────── */
+  (function _patchOpenDM(){
+    var _orig = window.openDM;
+    if(typeof _orig !== 'function'){
+      /* openDM pas encore défini — réessayer dans 800 ms */
+      setTimeout(_patchOpenDM, 800); return;
+    }
+    window.openDM = function(uid){
+      /* Effacer le badge localement en premier */
+      _setBadge(uid, 0);
+      /* Appeler l'original qui appellera _dmMarkRead côté Firestore */
+      _orig.apply(this, arguments);
+    };
+    console.log('[AMBI241-DM-Badge] ✅ openDM patché (badge reset au clic)');
+  })();
+
+  /* ───────────────────────────────────────────────────
+     Watcher connexion — démarre/arrête le listener
+     selon que l'utilisateur est connecté ou non
+  ─────────────────────────────────────────────────── */
+  setInterval(function(){
+    var uid = window.currentUserUID || null;
+    if(uid && uid !== _prevUIDDMB){
+      _prevUIDDMB = uid;
+      setTimeout(_startBadgeListener, 1400);
+    } else if(!uid && _prevUIDDMB){
+      _prevUIDDMB = null;
+      if(typeof _dmBadgeUnsub === 'function'){ _dmBadgeUnsub(); _dmBadgeUnsub = null; }
+      window._dmUnreadMap = {};
+    }
+  }, 700);
+
+  /* Démarrage si déjà connecté au chargement */
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){
+      setTimeout(function(){
+        if(window.currentUserUID) _startBadgeListener();
+      }, 2000);
+    });
+  } else {
+    setTimeout(function(){
+      if(window.currentUserUID) _startBadgeListener();
+    }, 2000);
+  }
 
 })();
 </script>
