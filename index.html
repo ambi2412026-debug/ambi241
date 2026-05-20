@@ -220,6 +220,44 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 .notif-badge.show{display:flex;animation:ambiNotifBadgePulse 1.4s ease-in-out infinite;}
 @keyframes ambiNotifBadgePulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
 
+/* ═══════════════════════════════════════════════════
+   PATCH v4 — BELL SHAKE · GLOW · SONNERIE PAR RÔLE
+   ═══════════════════════════════════════════════════ */
+/* Animation secousse cloche */
+@keyframes ambiBellShake{
+  0%,100%{transform:rotate(0deg);}
+  10%{transform:rotate(-18deg);}
+  20%{transform:rotate(18deg);}
+  30%{transform:rotate(-14deg);}
+  40%{transform:rotate(14deg);}
+  50%{transform:rotate(-8deg);}
+  60%{transform:rotate(8deg);}
+  70%{transform:rotate(-4deg);}
+  80%{transform:rotate(4deg);}
+  90%{transform:rotate(0deg);}
+}
+/* Lueur rose pulsante sur la cloche */
+@keyframes ambiBellGlow{
+  0%,100%{box-shadow:0 0 0 0 rgba(255,45,155,0);}
+  50%{box-shadow:0 0 0 8px rgba(255,45,155,0.35),0 0 18px 4px rgba(255,45,155,0.22);}
+}
+/* Badge flash lors d'une nouvelle notif */
+@keyframes ambiBadgeFlash{
+  0%{transform:scale(1);background:var(--red);}
+  20%{transform:scale(1.55);background:#ff8c00;}
+  50%{transform:scale(1.35);background:var(--pink);}
+  80%{transform:scale(1.2);}
+  100%{transform:scale(1);background:var(--red);}
+}
+/* État actif de l'animation secousse */
+.notif-bell-btn.ambi-bell-ringing{
+  animation:ambiBellShake 0.75s ease-in-out,ambiBellGlow 0.75s ease-in-out;
+}
+/* Flash badge */
+.notif-badge.ambi-badge-flash{
+  animation:ambiBadgeFlash 0.6s cubic-bezier(.36,.07,.19,.97) both !important;
+}
+
 /* Panneau notifications plein écran */
 .notif-panel{display:none;position:fixed;top:0;left:0;right:0;z-index:1000;background:rgba(10,2,20,0.7);backdrop-filter:blur(6px);}
 .notif-panel.open{display:block;}
@@ -13146,16 +13184,28 @@ function renderUserPayDashboard(){
   if(joursRestants!==null){
     if(joursRestants<0){
       alerteEcheance='<div style="background:rgba(255,68,102,0.12);border:1px solid rgba(255,68,102,0.35);border-radius:12px;padding:0.9rem;margin-bottom:1rem;text-align:center;">'
-        +'<div style="font-size:1.2rem;margin-bottom:0.3rem;">⚠️</div>'
+        +'<div style="font-size:1.2rem;margin-bottom:0.3rem;">⛔</div>'
         +'<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;color:var(--red);">Abonnement expiré</div>'
-        +'<div style="font-size:0.72rem;color:var(--muted);margin-top:0.3rem;">Votre abonnement a expiré il y a '+Math.abs(joursRestants)+' jour(s).</div>'
-        +'<div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;">Renouvelez pour maintenir votre visibilité.</div>'
+        +'<div style="font-size:0.72rem;color:var(--muted);margin-top:0.3rem;">Votre abonnement a expiré il y a <strong style="color:var(--red);">'+Math.abs(joursRestants)+' jour(s)</strong>.</div>'
+        +'<div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;">Renouvelez pour maintenir votre visibilité sur AMBI241.</div>'
+        +'</div>';
+    } else if(joursRestants===1){
+      alerteEcheance='<div style="background:rgba(255,68,102,0.14);border:2px solid rgba(255,68,102,0.5);border-radius:12px;padding:0.9rem;margin-bottom:1rem;text-align:center;">'
+        +'<div style="font-size:1.2rem;margin-bottom:0.3rem;">🚨</div>'
+        +'<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;color:var(--red);">Expiration dans moins de 24h !</div>'
+        +'<div style="font-size:0.72rem;color:var(--muted);margin-top:0.3rem;">Renouvelez <strong style="color:var(--red);">maintenant</strong> pour ne pas perdre votre visibilité.</div>'
         +'</div>';
     } else if(joursRestants<=7){
       alerteEcheance='<div style="background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);border-radius:12px;padding:0.9rem;margin-bottom:1rem;text-align:center;">'
         +'<div style="font-size:1.2rem;margin-bottom:0.3rem;">⏰</div>'
         +'<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;color:var(--amber);">Expiration imminente</div>'
         +'<div style="font-size:0.72rem;color:var(--muted);margin-top:0.3rem;">Il vous reste <strong style="color:var(--amber);">'+joursRestants+' jour(s)</strong> avant expiration.</div>'
+        +'</div>';
+    } else if(joursRestants<=14){
+      alerteEcheance='<div style="background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:0.75rem;margin-bottom:1rem;text-align:center;">'
+        +'<div style="font-size:1rem;margin-bottom:0.2rem;">🔔</div>'
+        +'<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;color:var(--amber);">Pensez au renouvellement</div>'
+        +'<div style="font-size:0.7rem;color:var(--muted);margin-top:0.2rem;">'+joursRestants+' jours restants sur votre abonnement.</div>'
         +'</div>';
     }
   }
@@ -13198,28 +13248,59 @@ function renderUserPayDashboard(){
     html+='</div>';
     html+='</div>';
 
-    /* Échéance */
+    /* Échéance avec barre de progression */
     if(echeance){
       var echeanceStr=echeance.toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"});
-      var joursColor=joursRestants<0?"var(--red)":joursRestants<=7?"var(--amber)":"var(--green)";
-      var joursLabel=joursRestants<0?"Expiré il y a "+Math.abs(joursRestants)+" j":joursRestants===0?"Expire aujourd'hui":joursRestants+" jour(s) restant(s)";
-      html+='<div style="background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.15);border-radius:12px;padding:0.9rem;margin-bottom:1rem;">';
-      html+='<div style="font-size:0.68rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.5rem;">⏱️ Échéance en cours</div>';
-      html+='<div style="display:flex;align-items:center;justify-content:space-between;">';
+      var joursColor=joursRestants<0?"var(--red)":joursRestants<=1?"var(--red)":joursRestants<=7?"var(--amber)":"var(--green)";
+      var joursLabel=joursRestants<0?"Expiré il y a "+Math.abs(joursRestants)+" j"
+        :joursRestants===0?"Expire aujourd'hui !"
+        :joursRestants===1?"Expire demain !"
+        :joursRestants+" jour(s) restant(s)";
+      /* Calcul du pourcentage d'avancement */
+      var planDur = {mensuel:30,trimestriel:90,annuel:365};
+      var totalDays = planDur[planType] || 30;
+      var elapsed = totalDays - Math.max(joursRestants, 0);
+      var pct = Math.min(100, Math.max(0, Math.round((elapsed/totalDays)*100)));
+      var barColor = joursRestants<=1?"var(--red)":joursRestants<=7?"var(--amber)":"var(--green)";
+      var activStr = dateActiv ? dateActiv.toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}) : "—";
+
+      html+='<div style="background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.15);border-radius:12px;padding:0.9rem;margin-bottom:1rem;">';
+      html+='<div style="font-size:0.65rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.55rem;">⏱️ Chrono abonnement</div>';
+
+      /* Ligne dates */
+      html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.55rem;">';
       html+='<div>';
-      html+='<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.92rem;color:var(--text);">'+echeanceStr+'</div>';
-      html+='<div style="font-size:0.68rem;margin-top:0.2rem;color:'+joursColor+';font-weight:700;">'+joursLabel+'</div>';
+      html+='<div style="font-size:0.63rem;color:var(--muted);">Activé le <strong style="color:var(--text);">'+activStr+'</strong></div>';
+      html+='<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;color:var(--text);margin-top:0.15rem;">'+echeanceStr+'</div>';
+      html+='<div style="font-size:0.7rem;margin-top:0.1rem;color:'+joursColor+';font-weight:700;">'+joursLabel+'</div>';
       html+='</div>';
-      html+='<div style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);border-radius:20px;padding:0.25rem 0.6rem;font-size:0.65rem;font-weight:700;color:var(--cyan);">'+planLabel+'</div>';
-      html+='</div></div>';
+      html+='<div style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);border-radius:20px;padding:0.25rem 0.6rem;font-size:0.65rem;font-weight:700;color:var(--cyan);white-space:nowrap;height:fit-content;">'+planLabel+'</div>';
+      html+='</div>';
+
+      /* Barre de progression */
+      html+='<div style="background:rgba(255,255,255,0.07);border-radius:20px;height:7px;overflow:hidden;margin-bottom:0.35rem;">';
+      html+='<div style="height:100%;width:'+pct+'%;background:'+barColor+';border-radius:20px;transition:width 0.5s ease;"></div>';
+      html+='</div>';
+      html+='<div style="display:flex;justify-content:space-between;font-size:0.57rem;color:var(--muted);">';
+      html+='<span>Début</span><span style="color:'+joursColor+';font-weight:700;">'+pct+'% écoulé</span><span>Fin</span>';
+      html+='</div>';
+      html+='</div>';
     }
 
-    /* Bouton renouveler si expiré ou proche */
+    /* Bouton renouveler si expiré, < 24h, ou < 14j */
     if(joursRestants===null||joursRestants<=14){
+      var renewLabel = joursRestants===null ? "🔄 S'abonner à AMBI241"
+        : joursRestants < 0 ? "⛔ Renouveler — abonnement expiré"
+        : joursRestants <= 1 ? "🚨 Renouveler maintenant (< 24h !)"
+        : joursRestants <= 7 ? "⏰ Renouveler rapidement ("+joursRestants+"j restants)"
+        : "🔄 Renouveler mon abonnement ("+joursRestants+"j restants)";
+      var renewGrad = joursRestants !== null && joursRestants <= 1
+        ? "linear-gradient(135deg,var(--red),#cc0033)"
+        : "linear-gradient(135deg,var(--pink),var(--purple))";
       html+='<div style="margin-bottom:1rem;">';
       html+='<a href="https://wa.me/24174450924?text=Bonjour%20AMBI241%2C%20je%20souhaite%20renouveler%20mon%20abonnement%20pour%20'+encodeURIComponent(myEtab.nom)+'." target="_blank" ';
-      html+='style="display:flex;align-items:center;justify-content:center;gap:0.5rem;width:100%;padding:0.8rem;border-radius:12px;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;text-decoration:none;box-shadow:0 4px 18px rgba(255,45,155,0.3);">';
-      html+='🔄 Renouveler mon abonnement</a>';
+      html+='style="display:flex;align-items:center;justify-content:center;gap:0.5rem;width:100%;padding:0.85rem;border-radius:12px;background:'+renewGrad+';color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;text-decoration:none;box-shadow:0 4px 18px rgba(255,45,155,0.3);">';
+      html+=renewLabel+'</a>';
       html+='</div>';
     }
 
@@ -13618,16 +13699,30 @@ function switchUserTab(tab){
 // Cache avatar en mémoire { uid: url }
 var _userAvatarCache = {};
 
-// Charger l'avatar d'un utilisateur depuis Firestore
+// Charger l'avatar \u2014 localStorage d'abord (instantané), puis Firestore (source de vérité)
 function loadUserAvatar(uid, cb){
   if(!uid){ if(cb) cb(null); return; }
+  // 1. Cache mémoire
   if(_userAvatarCache[uid] !== undefined){ if(cb) cb(_userAvatarCache[uid]); return; }
-  if(!window.db){ if(cb) cb(null); return; }
+  // 2. localStorage fallback (affichage instantané / offline / après reconnexion)
+  var lsUrl = null;
+  try { lsUrl = localStorage.getItem('ambi241_avatar_'+uid) || null; } catch(e){}
+  if(lsUrl){ _userAvatarCache[uid] = lsUrl; if(cb) cb(lsUrl); }
+  // 3. Firestore (source de vérité) \u2014 mis à jour même si localStorage avait une valeur
+  if(!window.db || !window.fbGetDoc || !window.fbDoc){ if(!lsUrl && cb) cb(null); return; }
   window.fbGetDoc(window.fbDoc(window.db,"users",uid)).then(function(snap){
-    var url = snap.exists() ? (snap.data().avatarUrl||null) : null;
-    _userAvatarCache[uid] = url;
-    if(cb) cb(url);
-  }).catch(function(){ _userAvatarCache[uid]=null; if(cb) cb(null); });
+    var url = (snap.exists ? snap.exists() : false) ? (snap.data().avatarUrl||null) : null;
+    if(url){
+      _userAvatarCache[uid] = url;
+      try { localStorage.setItem('ambi241_avatar_'+uid, url); } catch(e){}
+      if(cb && url !== lsUrl) cb(url);
+    } else {
+      if(!lsUrl){ _userAvatarCache[uid] = null; if(cb) cb(null); }
+    }
+  }).catch(function(){
+    _userAvatarCache[uid] = lsUrl;
+    if(!lsUrl && cb) cb(null);
+  });
 }
 
 // Rendre l'onglet Mon Profil
@@ -17303,29 +17398,7 @@ function renderAllImmediate(){
     }
   }
   var data=filterData();
-  // —— Admin : actifs en haut, archivés en bas ——
-  if(isAdmin){
-    var _actifs   = data.filter(function(e){ return  estPaiementConfirme(e); });
-    var _archives = data.filter(function(e){ return !estPaiementConfirme(e); });
-    data = _actifs.concat(_archives);
-  }
-  // Bandeau établissements archivés (admin uniquement)
-  var archivedHtml="";
-  if(isAdmin){
-    var archived=etablissements.filter(function(e){return !estPaiementConfirme(e);});
-    if(archived.length>0){
-      archivedHtml+="<div style=\"background:rgba(255,80,80,0.08);border:1px dashed rgba(255,80,80,0.3);border-radius:14px;padding:0.8rem 1rem;margin-bottom:1rem;\">";
-      archivedHtml+="<div style=\"font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;color:#ff5050;margin-bottom:0.5rem;\">&#128274; "+archived.length+" établissement(s) archivé(s) — en attente de paiement</div>";
-      archived.forEach(function(e){
-        archivedHtml+="<div style=\"display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,0.3);border-radius:10px;padding:0.5rem 0.75rem;margin-bottom:0.4rem;\">";
-        archivedHtml+="<div><div style=\"font-weight:700;font-size:0.82rem;color:#fff;\">"+e.nom+"</div><div style=\"font-size:0.7rem;color:var(--muted);\">"+e.type+" · "+e.quartier+"</div></div>";
-        archivedHtml+="<span style=\"font-size:0.7rem;color:#ff5050;font-weight:700;background:rgba(255,80,80,0.12);padding:0.2rem 0.5rem;border-radius:6px;\">Non payé</span>";
-        archivedHtml+="</div>";
-      });
-      archivedHtml+="<div style=\"font-size:0.68rem;color:var(--muted);margin-top:0.4rem;\">&#128161; Confirmez le paiement dans l'onglet Tarifs pour rendre visible.</div>";
-      archivedHtml+="</div>";
-    }
-  }
+  // Tous les établissements sont actifs — aucun archivage
   if(!data.length){
     var emptyMsg;
     if(typeof _gpsState !== "undefined" && _gpsState.active && _gpsState.lat !== null){
@@ -17335,7 +17408,7 @@ function renderAllImmediate(){
     } else {
       emptyMsg = "<div style=\"text-align:center;padding:3rem;color:var(--muted)\">Aucun etablissement visible</div>";
     }
-    document.getElementById("mainList").innerHTML=archivedHtml+emptyMsg;
+    document.getElementById("mainList").innerHTML=emptyMsg;
     return;
   }
   // ── GPS banner dans la liste ──
@@ -17547,56 +17620,173 @@ window.renderAllPaged = function(from, total){
   }
 };
 function toggleConfirme(index){
-  if(!isAdmin)return;
-  var p=paiements[index];
-  if(!p)return;
-  var newStatut=p.statut==="Confirme"?"En attente":"Confirme";
-  // Si confirmation → activer l'abonnement sur l'établissement associé
+  if(!isAdmin) return;
+  var p = paiements[index];
+  if(!p) return;
+  var newStatut = p.statut === "Confirme" ? "En attente" : "Confirme";
+
+  // ══ VALIDATION PAIEMENT → démarrage du chrono à la date EXACTE de cette action ══
   if(newStatut === "Confirme"){
     var etabMatch = etablissements.find(function(e){
       return e.nom && p.nom && e.nom.toLowerCase().indexOf(p.nom.toLowerCase().slice(0,10)) !== -1;
     });
     if(etabMatch && etabMatch.id){
-      var planKey = p.abonnement_type || etabMatch.abonnement_type || "mensuel";
+      var planKey  = p.abonnement_type || etabMatch.abonnement_type || "mensuel";
       var planData = SUBSCRIPTION_PLANS[planKey] || SUBSCRIPTION_PLANS["mensuel"];
-      var now = Date.now();
+      // ⏱ Date exacte de validation = maintenant (timestamp précis)
+      var activationTs  = Date.now();
+      var activationIso = new Date(activationTs).toISOString();
+      var echeanceDate  = computeEcheance(planKey, activationTs);
+      var echeanceIso   = echeanceDate ? echeanceDate.toISOString() : null;
+      var echeanceStr   = echeanceDate
+        ? echeanceDate.toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"})
+        : "—";
+
       var updateSubData = {
-        abonnement_type: planKey,
-        abonnement_activated_at: now,
-        abonnement_echeance: computeEcheance(planKey, now).toISOString(),
-        paiement: "Actif — "+planData.label
+        abonnement_type:         planKey,
+        abonnement_activated_at: activationTs,    // timestamp ms — utilisé pour le chrono
+        abonnement_activation_iso: activationIso, // ISO lisible pour logs/admin
+        abonnement_echeance:     echeanceIso,
+        paiement:                "Actif — "+planData.label
       };
+
+      // Mise à jour Firebase de l'établissement
       if(window.db && window.fbDoc && window.fbUpdateDoc){
         window.fbUpdateDoc(window.fbDoc(window.db,"etablissements",String(etabMatch.id)), updateSubData)
           .then(function(){
-            etabMatch.abonnement_type = planKey;
-            etabMatch.abonnement_activated_at = now;
-            etabMatch.abonnement_echeance = updateSubData.abonnement_echeance;
-            etabMatch.paiement = updateSubData.paiement;
-          }).catch(function(){});
+            // Mettre à jour la copie locale
+            etabMatch.abonnement_type           = planKey;
+            etabMatch.abonnement_activated_at   = activationTs;
+            etabMatch.abonnement_activation_iso = activationIso;
+            etabMatch.abonnement_echeance       = echeanceIso;
+            etabMatch.paiement                  = updateSubData.paiement;
+            // Notifier l'établissement que son abonnement est actif
+            if(typeof pushNotif === "function"){
+              pushNotif({
+                targetRole:    "etablissement",
+                targetEtabId:  String(etabMatch.id),
+                key:           "sub_activated_"+etabMatch.id+"_"+activationTs,
+                icon:          "✅",
+                title:         "Abonnement activé — "+planData.label,
+                msg:           "Votre abonnement "+planData.label+" est actif depuis aujourd'hui. "
+                             + "Échéance : "+echeanceStr+". Bienvenue sur AMBI241 !",
+                channel:       "push"
+              });
+            }
+            // ── WhatsApp : message de confirmation au numéro de l'établissement ──
+            (function(){
+              var waMsg = "✅ Bonjour *"+etabMatch.nom+"* !\n\n"
+                + "Votre paiement AMBI241 a été *validé* par notre équipe.\n\n"
+                + "📋 *Détails de votre abonnement :*\n"
+                + "• Formule : *"+planData.label+"* ("+planData.dureeLabel+")\n"
+                + "• Activé le : *"+new Date(activationTs).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"})+"*\n"
+                + "• Échéance : *"+echeanceStr+"*\n\n"
+                + "Votre fiche est maintenant active sur AMBI241 🎉\n"
+                + "Merci pour votre confiance !";
+              sendWhatsAppToEtab(etabMatch, waMsg);
+            })();
+            // Notif admin de confirmation
+            if(typeof pushNotif === "function"){
+              pushNotif({
+                targetRole: "admin",
+                key:        "admin_activated_"+etabMatch.id,
+                icon:       "✅",
+                title:      "Abonnement démarré — "+etabMatch.nom,
+                msg:        planData.label+" · Activé le "+new Date(activationTs).toLocaleDateString("fr-FR")+" · Échéance : "+echeanceStr,
+                channel:    "push"
+              });
+            }
+            if(typeof renderAdmEtabl === "function") renderAdmEtabl();
+          }).catch(function(err){
+            showToast("Firebase étab: "+err.message);
+          });
+      } else {
+        // Pas de Firebase : mise à jour locale uniquement
+        etabMatch.abonnement_type           = planKey;
+        etabMatch.abonnement_activated_at   = activationTs;
+        etabMatch.abonnement_activation_iso = activationIso;
+        etabMatch.abonnement_echeance       = echeanceIso;
+        etabMatch.paiement                  = updateSubData.paiement;
+      }
+    }
+  } else {
+    // ══ ANNULATION : remettre en attente — on NE supprime PAS le chrono existant
+    // (l'établissement reste visible, seul le statut paiement change)
+    var etabCancel = etablissements.find(function(e){
+      return e.nom && p.nom && e.nom.toLowerCase().indexOf(p.nom.toLowerCase().slice(0,10)) !== -1;
+    });
+    if(etabCancel && etabCancel.id){
+      var cancelData = { paiement: "En attente" };
+      if(window.db && window.fbDoc && window.fbUpdateDoc){
+        window.fbUpdateDoc(window.fbDoc(window.db,"etablissements",String(etabCancel.id)), cancelData)
+          .then(function(){ etabCancel.paiement = "En attente"; })
+          .catch(function(){});
+      } else {
+        etabCancel.paiement = "En attente";
       }
     }
   }
-  // Mise à jour Firebase si disponible
+
+  // Mise à jour du statut dans la collection "paiements"
   if(window.db && window.fbDoc && window.fbUpdateDoc){
-    var docRef=window.fbDoc(window.db,"paiements",p.id);
+    var docRef = window.fbDoc(window.db,"paiements",p.id);
     window.fbUpdateDoc(docRef,{statut:newStatut}).then(function(){
-      paiements[index].statut=newStatut;
-      renderPayments();renderAll();renderHome();
-      showToast(newStatut==="Confirme"?"✅ Paiement confirmé — abonnement activé":"⏳ Remis en attente — établissement archivé");
+      paiements[index].statut = newStatut;
+      renderPayments(); renderAll(); renderHome();
+      showToast(newStatut==="Confirme"
+        ? "✅ Paiement validé — chrono abonnement démarré"
+        : "⏳ Paiement remis en attente");
     }).catch(function(){
-      paiements[index].statut=newStatut;
-      renderPayments();renderAll();renderHome();
-      showToast(newStatut==="Confirme"?"✅ Confirmé (local)":"⏳ En attente (local)");
+      paiements[index].statut = newStatut;
+      renderPayments(); renderAll(); renderHome();
+      showToast(newStatut==="Confirme" ? "✅ Confirmé (local)" : "⏳ En attente (local)");
     });
   } else {
-    paiements[index].statut=newStatut;
-    renderPayments();renderAll();renderHome();
-    showToast(newStatut==="Confirme"?"✅ Paiement confirmé — abonnement activé":"⏳ Remis en attente — établissement archivé");
+    paiements[index].statut = newStatut;
+    renderPayments(); renderAll(); renderHome();
+    showToast(newStatut==="Confirme"
+      ? "✅ Paiement validé — chrono abonnement démarré"
+      : "⏳ Paiement remis en attente");
   }
 }
 window.toggleConfirme=toggleConfirme;
 window.renderPayments=renderPayments;
+
+// ══════════════════════════════════════════════════════════════
+// ══ WHATSAPP NOTIFICATIONS ÉTABLISSEMENTS                    ══
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Nettoie un numéro et retourne un numéro wa.me valide (sans + ni espaces).
+ * Préfixe 241 (Gabon) si pas d'indicatif détecté.
+ */
+function _cleanWaNumber(raw){
+  if(!raw) return null;
+  var n = String(raw).replace(/[\s\-\.\(\)]/g,"");
+  if(n.charAt(0)==="+") return n.replace("+","");
+  if(n.substr(0,3)==="241") return n;
+  if(n.substr(0,4)==="0024") return n.substr(2);
+  if(n.substr(0,2)==="00") return n.substr(2);
+  if(n.charAt(0)==="0"&&n.length>=8) return "241"+n.substr(1);
+  if(n.length>=8) return "241"+n;
+  return null;
+}
+
+/**
+ * Ouvre WhatsApp avec le numéro de l'établissement et un message pré-rempli.
+ * Si pas de numéro disponible : toast d'avertissement, mais ne bloque pas.
+ */
+function sendWhatsAppToEtab(etab, message){
+  var rawTel = etab.contact || etab.telephone || etab.tel || etab.phone || "";
+  var waNum  = _cleanWaNumber(rawTel);
+  if(!waNum){
+    showToast("⚠️ Pas de numéro WhatsApp pour "+etab.nom+" — notif in-app envoyée uniquement.");
+    return;
+  }
+  var url = "https://wa.me/"+waNum+"?text="+encodeURIComponent(message);
+  setTimeout(function(){ window.open(url,"_blank"); }, 300);
+}
+window.sendWhatsAppToEtab = sendWhatsAppToEtab;
 
 // ══════════════════════════════════════════════════════════════
 // ══ SYSTÈME GPS — PRÈS DE CHEZ VOUS                         ══
@@ -18641,33 +18831,54 @@ window._syncProfilSection = _syncProfilSection;
     if(lsAvatar) _applyAvatar(lsAvatar);
     if(lsCover)  _applyCover(lsCover);
 
-    // 2. Vérifier/mettre à jour depuis Firestore (source de vérité)
+    // 2. Firestore - source de verite permanente
+    // Lecture TOUJOURS forcee : garantit que photos/covers ne disparaissent
+    // pas apres deconnexion, sur nouvel appareil ou apres vidage localStorage.
     if(window.db && window.fbDoc && window.fbGetDoc){
       window.fbGetDoc(window.fbDoc(window.db,'users',uid)).then(function(snap){
-        if(!snap.exists || !snap.exists()) return;
-        var d = snap.data();
-        // Avatar
-        if(d.avatarUrl){
-          _applyAvatar(d.avatarUrl);
-          // Mettre à jour le cache localStorage si différent
-          if(d.avatarUrl !== lsAvatar){
-            try { localStorage.setItem('ambi241_avatar_'+uid, d.avatarUrl); } catch(e){}
-          }
+        if(!snap || !(snap.exists ? snap.exists() : false)) return;
+        var d = snap.data() || {};
+
+        // -- Avatar (tous roles) --
+        var fsAvatar = d.avatarUrl || d.photoURL || '';
+        if(fsAvatar){
+          _applyAvatar(fsAvatar);
+          try { localStorage.setItem('ambi241_avatar_'+uid, fsAvatar); } catch(e){}
+          if(typeof _userAvatarCache!=='undefined') _userAvatarCache[uid] = fsAvatar;
         }
-        // Cover
-        var coverField = 'coverUrl_'+role;
-        if(d[coverField]){
-          _applyCover(d[coverField]);
-          if(d[coverField] !== lsCover){
-            try { localStorage.setItem('ambi241_cover_'+role+'_'+uid, d[coverField]); } catch(e){}
+
+        // -- Covers (TOUS roles : membre, chauffeur, etab) --
+        // On restaure les 3 covers simultanement pour que l'UI soit
+        // toujours a jour quelle que soit la vue active.
+        ['membre','chauffeur','etab'].forEach(function(r){
+          var cf = 'coverUrl_'+r;
+          if(!d[cf]) return;
+          var coverEl = document.getElementById('pcov-'+r);
+          if(coverEl){
+            var ci = coverEl.querySelector('img');
+            if(!ci){
+              ci = document.createElement('img');
+              coverEl.prepend(ci);
+              var fd2 = coverEl.querySelector('div:not(.cover-overlay)');
+              if(fd2) fd2.style.display = 'none';
+            }
+            ci.src = d[cf];
+            ci.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;';
           }
-        }
-        // Mettre à jour l'avatar header et quickbar
-        if(d.avatarUrl && typeof _refreshQuickbarAvatar==='function'){
+          // Persister dans localStorage pour affichage instantane au prochain chargement
+          try { localStorage.setItem('ambi241_cover_'+r+'_'+uid, d[cf]); } catch(e){}
+        });
+
+        // -- Quickbar & header --
+        var finalAvatar = fsAvatar || lsAvatar;
+        if(finalAvatar && typeof _refreshQuickbarAvatar==='function'){
           var pseudo = window.currentUserPseudo||'?';
-          _refreshQuickbarAvatar(d.avatarUrl, (pseudo||'?')[0].toUpperCase());
+          _refreshQuickbarAvatar(finalAvatar, (pseudo||'?')[0].toUpperCase());
         }
-      }).catch(function(){});
+      }).catch(function(){
+        // Firestore indisponible : localStorage deja applique
+        console.warn('[AMBI241] _restoreProfilePhotos Firestore err, localStorage OK:', role, uid);
+      });
     }
   }
 
@@ -20180,20 +20391,67 @@ function getEcheanceStr(etab){
 
 // ── Vérification automatique et notifications ─────────────────
 function checkSubscriptionRenewals(){
-  if(!window.db || !isAdmin) return;
-  var now = Date.now();
+  if(!window.db) return;
   etablissements.forEach(function(etab){
-    if(!etab.paiement || etab.paiement.indexOf("Actif") === -1) return;
-    var status = getSubscriptionStatus(etab);
+    if(!etab.abonnement_activated_at) return; // jamais activé, pas de chrono
+    var status   = getSubscriptionStatus(etab);
     var daysLeft = getDaysLeft(etab);
     if(daysLeft === null) return;
-    // Notifications d'avertissement
+
+    // ── Alertes admin ──
+    if(isAdmin){
+      if(status === "expire"){
+        pushNotif({targetRole:"admin",key:"sub_expire_"+etab.id,icon:"🔴",
+          title:"Abonnement EXPIRÉ — "+etab.nom,
+          msg:"L'abonnement de "+etab.nom+" a expiré. Renouvellement en attente.",channel:"push"});
+      } else if(daysLeft === 1){
+        // 24h avant : alerte prioritaire
+        pushNotif({targetRole:"admin",key:"sub_24h_"+etab.id,icon:"🚨",
+          title:"🚨 EXPIRATION DANS 24H — "+etab.nom,
+          msg:"L'abonnement de "+etab.nom+" expire demain ("+getEcheanceStr(etab)+"). Contacter l'établissement immédiatement.",channel:"push"});
+      } else if(status === "critique"){
+        pushNotif({targetRole:"admin",key:"sub_critique_"+etab.id+"_d"+daysLeft,icon:"⚠️",
+          title:"⚠️ Échéance dans "+daysLeft+"j — "+etab.nom,
+          msg:"Rappel : l'abonnement expire dans "+daysLeft+" jour(s). Contacter l'établissement.",channel:"push"});
+      } else if(status === "alerte" && daysLeft === 14){
+        pushNotif({targetRole:"admin",key:"sub_alerte14_"+etab.id,icon:"🔔",
+          title:"Rappel abonnement — "+etab.nom,
+          msg:"L'abonnement expire dans 14 jours ("+getEcheanceStr(etab)+").",channel:"push"});
+      }
+    }
+
+    // ── Alertes établissement ──
     if(status === "expire"){
-      pushNotif({targetRole:"admin",key:"sub_expire_"+etab.id,icon:"🔴",title:"Abonnement EXPIRÉ — "+etab.nom,msg:"L'abonnement de "+etab.nom+" a expiré. Renouvellement en attente.",channel:"push"});
+      pushNotif({targetRole:"etablissement",targetEtabId:String(etab.id),
+        key:"my_sub_expire_"+etab.id,icon:"🔴",
+        title:"⛔ Votre abonnement est expiré !",
+        msg:"Votre fiche n'est plus mise en avant. Renouvelez votre abonnement pour rester sur AMBI241.",channel:"push"});
+    } else if(daysLeft === 1){
+      // Notification 24h avant pour l'établissement
+      pushNotif({targetRole:"etablissement",targetEtabId:String(etab.id),
+        key:"my_sub_24h_"+etab.id,icon:"⏰",
+        title:"⏰ Votre abonnement expire demain !",
+        msg:"Il reste moins de 24h avant la fin de votre abonnement ("+getEcheanceStr(etab)+"). Renouvelez maintenant pour maintenir votre visibilité.",channel:"push"});
+      // ── WhatsApp automatique 24h avant ──
+      (function(e){
+        var waMsg24 = "⏰ Bonjour *"+e.nom+"* !\n\n"
+          + "⚠️ *Votre abonnement AMBI241 expire demain* ("+getEcheanceStr(e)+").\n\n"
+          + "Il vous reste *moins de 24h* pour renouveler et maintenir votre visibilité sur la plateforme.\n\n"
+          + "👉 Renouvelez maintenant :\n"
+          + "https://wa.me/24174450924?text=Renouvellement+urgent+"+encodeURIComponent(e.nom)+"\n\n"
+          + "_L'équipe AMBI241_";
+        sendWhatsAppToEtab(e, waMsg24);
+      })(etab);
     } else if(status === "critique"){
-      pushNotif({targetRole:"admin",key:"sub_critique_"+etab.id+"_d"+daysLeft,icon:"⚠️",title:"⚠️ Échéance dans "+daysLeft+"j — "+etab.nom,msg:"Rappel urgent : l'abonnement expire dans "+daysLeft+" jour(s). Contacter l'établissement.",channel:"push"});
-    } else if(status === "alerte" && daysLeft === 14){
-      pushNotif({targetRole:"admin",key:"sub_alerte14_"+etab.id,icon:"🔔",title:"Rappel abonnement — "+etab.nom,msg:"L'abonnement expire dans 14 jours ("+getEcheanceStr(etab)+").",channel:"push"});
+      pushNotif({targetRole:"etablissement",targetEtabId:String(etab.id),
+        key:"my_sub_critique_"+etab.id,icon:"⚠️",
+        title:"Abonnement expire dans "+daysLeft+"j !",
+        msg:"Procédez au renouvellement avant le "+getEcheanceStr(etab)+" pour maintenir votre visibilité.",channel:"push"});
+    } else if(status === "alerte"){
+      pushNotif({targetRole:"etablissement",targetEtabId:String(etab.id),
+        key:"my_sub_alerte_"+etab.id,icon:"🔔",
+        title:"Rappel renouvellement — "+daysLeft+" jours",
+        msg:"Votre abonnement expire le "+getEcheanceStr(etab)+". Renouvelez dès maintenant.",channel:"push"});
     }
   });
 }
@@ -22380,76 +22638,252 @@ function renderAdmOverview(){
 }
 
 // ── Établissements admin ───────────────────────────────────────
+// ══ AUCUN ARCHIVAGE : tous les établissements sont toujours actifs
+// ══ Le compte à rebours démarre UNIQUEMENT à la date de validation du paiement par l'admin
 function renderAdmEtabl(){
-  var d=etablissements;
-  
-  // TRI : établissements ACTIFS en haut, ARCHIVÉS en bas
-  var actifs = [];
-  var archives = [];
-  d.forEach(function(e){
-    if(e.paiement && (e.paiement.indexOf("Actif")!==-1 || e.paiement.indexOf("Confirme")!==-1)){
-      actifs.push(e);
-    } else {
-      archives.push(e);
-    }
+  var d = etablissements.slice(); // copie sans tri archivé/actif — tous égaux
+
+  // TRI : ceux dont le paiement est validé (abonnement_activated_at) d'abord, puis le reste par nom
+  d.sort(function(a, b){
+    var aAct = a.abonnement_activated_at ? 1 : 0;
+    var bAct = b.abonnement_activated_at ? 1 : 0;
+    if(bAct !== aAct) return bAct - aAct;
+    return (a.nom || "").localeCompare(b.nom || "");
   });
-  var sorted = actifs.concat(archives);
-  
-  var html="<div style='margin-bottom:0.8rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;'>";
-  html+="<span style='font-size:0.72rem;color:var(--muted);'><strong style='color:var(--green);'>"+actifs.length+" actif(s)</strong> · <strong style='color:var(--red);'>"+archives.length+" archivé(s)</strong> · "+d.length+" total</span>";
-  html+="<input id='admSearchEtabl' type='text' placeholder='Rechercher...' oninput='admFilterEtabl()' style='background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);font-size:0.78rem;padding:0.4rem 0.7rem;width:150px;'>";
-  html+="</div>";
-  
-  // HEADER ACTIFS si existants
-  if(actifs.length > 0){
-    html+="<div style='display:flex;align-items:center;gap:0.5rem;margin:0.8rem 0 0.6rem;padding:0.6rem 0.75rem;background:rgba(0,255,170,0.08);border-left:3px solid var(--green);border-radius:6px;'>";
-    html+="<span style='font-size:1.1rem;'>✓</span>";
-    html+="<span style='font-size:0.75rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.05em;'>Établissements Actifs</span>";
-    html+="</div>";
+
+  // Compteurs pour l'en-tête
+  var nbPayes   = d.filter(function(e){ return !!e.abonnement_activated_at; }).length;
+  var nbAttente = d.length - nbPayes;
+  var nbAlerte  = d.filter(function(e){
+    var st = getSubscriptionStatus(e);
+    return st === "critique" || st === "alerte";
+  }).length;
+
+  var html = "<div style='margin-bottom:0.8rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;'>";
+  html += "<span style='font-size:0.72rem;color:var(--muted);'>"
+       + "<strong style='color:var(--green);'>"+nbPayes+" actif(s)</strong>"
+       + " · <strong style='color:var(--amber);'>"+nbAttente+" en attente</strong>"
+       + (nbAlerte > 0 ? " · <strong style='color:var(--red);'>⚠️ "+nbAlerte+" à renouveler</strong>" : "")
+       + " · "+d.length+" total</span>";
+  html += "<input id='admSearchEtabl' type='text' placeholder='Rechercher...' oninput='admFilterEtabl()' "
+       + "style='background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;"
+       + "color:var(--text);font-size:0.78rem;padding:0.4rem 0.7rem;width:150px;'>";
+  html += "</div>";
+
+  // Bandeau alerte globale si des abonnements expirent bientôt
+  if(nbAlerte > 0){
+    html += "<div style='display:flex;align-items:center;gap:0.6rem;padding:0.65rem 0.9rem;"
+          + "background:rgba(255,215,0,0.09);border:1px solid rgba(255,215,0,0.3);border-radius:10px;margin-bottom:0.8rem;'>"
+          + "<span style='font-size:1rem;'>⚠️</span>"
+          + "<span style='font-size:0.73rem;color:var(--amber);font-weight:700;'>"
+          + nbAlerte+" établissement(s) arrivent à échéance sous 14 jours — pensez à les contacter."
+          + "</span></div>";
   }
-  
-  // HEADER ARCHIVES si existants
-  if(archives.length > 0){
-    html+="<div style='display:flex;align-items:center;gap:0.5rem;margin:1rem 0 0.6rem;padding:0.6rem 0.75rem;background:rgba(255,68,102,0.08);border-left:3px solid var(--red);border-radius:6px;'>";
-    html+="<span style='font-size:1.1rem;'>📦</span>";
-    html+="<span style='font-size:0.75rem;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:0.05em;'>Établissements Archivés</span>";
-    html+="</div>";
-  }
-  
-  sorted.forEach(function(e){
-    var isArchived = !(e.paiement && (e.paiement.indexOf("Actif")!==-1 || e.paiement.indexOf("Confirme")!==-1));
-    var bgStyle = isArchived ? "background:rgba(255,68,102,0.06);border:1px solid rgba(255,68,102,0.15);" : "background:rgba(0,255,170,0.04);border:1px solid rgba(0,255,170,0.12);";
-    
-    var sc=e.statut&&e.statut.indexOf("Bonde")!==-1?"var(--red)":e.statut&&e.statut.indexOf("Anime")!==-1?"var(--green)":e.statut&&e.statut.indexOf("Ouvert")!==-1?"var(--amber)":"var(--muted)";
-    html+="<div class='notif-admin-item' data-nom='"+(e.nom||"").toLowerCase()+"' style='"+bgStyle+"border-radius:10px;padding:0.85rem;margin-bottom:0.6rem;'>";
-    html+="<div style='display:flex;justify-content:space-between;align-items:flex-start;gap:0.4rem;'>";
-    html+="<div style='cursor:pointer;' onclick=\"(function(){var etab=etablissements.find(function(x){return x.id==="+e.id+"});if(typeof window.openPublicProfile==='function'&&etab)window.openPublicProfile('etablissement',"+e.id+",etab);else showToast('Fiche: "+e.nom+"');})()\">";
-    html+="<div style='font-weight:700;font-size:0.85rem;color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;'>"+(isArchived?"🔒 ":"")+e.nom+"</div>";
-    html+="<div style='font-size:0.7rem;color:var(--muted);'>"+e.type+" · "+e.quartier+"</div></div>";
-    html+="<span style='font-size:0.65rem;font-weight:700;color:"+sc+";white-space:nowrap;'>"+e.statut+"</span></div>";
-    html+="<div style='display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem;'>";
-    html+="<div style='display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;'>";
-    var statusOpts=["Ouvert - Anime","Ouvert - Bonde","Ouvert - Calme","Ferme"];
+
+  d.forEach(function(e){
+    var subStatus  = getSubscriptionStatus(e);   // "actif" | "alerte" | "critique" | "expire" | "aucun"
+    var daysLeft   = getDaysLeft(e);
+    var echeStr    = getEcheanceStr(e);
+    var hasActiv   = !!e.abonnement_activated_at;
+
+    // Couleur de bordure selon statut abonnement
+    var borderColor, bgCard;
+    if(!hasActiv){
+      borderColor = "rgba(255,255,255,0.1)";  bgCard = "rgba(255,255,255,0.02)";
+    } else if(subStatus === "expire"){
+      borderColor = "rgba(255,68,102,0.4)";   bgCard = "rgba(255,68,102,0.05)";
+    } else if(subStatus === "critique"){
+      borderColor = "rgba(255,68,102,0.3)";   bgCard = "rgba(255,68,102,0.04)";
+    } else if(subStatus === "alerte"){
+      borderColor = "rgba(255,215,0,0.35)";   bgCard = "rgba(255,215,0,0.04)";
+    } else {
+      borderColor = "rgba(0,255,170,0.2)";    bgCard = "rgba(0,255,170,0.03)";
+    }
+
+    var sc = e.statut && e.statut.indexOf("Bonde")  !== -1 ? "var(--red)"  :
+             e.statut && e.statut.indexOf("Anime")  !== -1 ? "var(--green)":
+             e.statut && e.statut.indexOf("Ouvert") !== -1 ? "var(--amber)": "var(--muted)";
+
+    html += "<div class='notif-admin-item' data-nom='"+(e.nom||"").toLowerCase()+"' "
+          + "style='background:"+bgCard+";border:1px solid "+borderColor+";border-radius:12px;padding:0.85rem;margin-bottom:0.65rem;'>";
+
+    // ── Ligne 1 : nom + statut ouverture
+    html += "<div style='display:flex;justify-content:space-between;align-items:flex-start;gap:0.4rem;'>";
+    html += "<div style='cursor:pointer;' onclick=\"(function(){var etab=etablissements.find(function(x){return x.id==="+e.id+"});if(typeof window.openPublicProfile==='function'&&etab)window.openPublicProfile('etablissement',"+e.id+",etab);else showToast('Fiche: "+e.nom+"');})()\">";
+    html += "<div style='font-weight:700;font-size:0.85rem;color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;'>"+e.nom+"</div>";
+    html += "<div style='font-size:0.7rem;color:var(--muted);'>"+e.type+" · "+e.quartier+"</div></div>";
+    html += "<span style='font-size:0.65rem;font-weight:700;color:"+sc+";white-space:nowrap;'>"+e.statut+"</span></div>";
+
+    // ── Chrono abonnement (visible seulement si paiement validé)
+    if(hasActiv){
+      var planKey  = e.abonnement_type || "mensuel";
+      var planData = SUBSCRIPTION_PLANS[planKey] || SUBSCRIPTION_PLANS["mensuel"];
+      var activDate = new Date(e.abonnement_activated_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"});
+      var chronoBg, chronoBorder, chronoColor, chronoIcon;
+      if(subStatus === "expire"){
+        chronoBg="#ff446618"; chronoBorder="rgba(255,68,102,0.4)"; chronoColor="var(--red)"; chronoIcon="🔴";
+      } else if(subStatus === "critique"){
+        chronoBg="rgba(255,68,102,0.1)"; chronoBorder="rgba(255,68,102,0.35)"; chronoColor="var(--red)"; chronoIcon="🚨";
+      } else if(subStatus === "alerte"){
+        chronoBg="rgba(255,215,0,0.08)"; chronoBorder="rgba(255,215,0,0.3)"; chronoColor="var(--amber)"; chronoIcon="⚠️";
+      } else {
+        chronoBg="rgba(0,255,170,0.07)"; chronoBorder="rgba(0,255,170,0.25)"; chronoColor="var(--green)"; chronoIcon="✅";
+      }
+
+      html += "<div style='margin-top:0.55rem;padding:0.55rem 0.7rem;background:"+chronoBg+";border:1px solid "+chronoBorder+";border-radius:9px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.4rem;'>";
+      html += "<div>";
+      html += "<div style='font-size:0.63rem;color:var(--muted);'>"+chronoIcon+" <strong style='color:"+chronoColor+";'>"+planData.label+"</strong>"
+            + " · Activé le "+activDate+"</div>";
+      if(subStatus === "expire"){
+        html += "<div style='font-size:0.7rem;font-weight:800;color:var(--red);margin-top:0.15rem;'>⏱ Expiré depuis "+Math.abs(daysLeft)+" j</div>";
+      } else {
+        html += "<div style='font-size:0.7rem;font-weight:800;color:"+chronoColor+";margin-top:0.15rem;'>⏱ "
+              + (daysLeft !== null ? daysLeft+" j restants" : "—")+"</div>";
+      }
+      html += "<div style='font-size:0.6rem;color:var(--muted);margin-top:0.1rem;'>Échéance : <strong style='color:var(--text);'>"+echeStr+"</strong></div>";
+      html += "</div>";
+
+      // Alerte renouvellement 24h / 7j / 14j
+      if(subStatus === "expire" || subStatus === "critique"){
+        html += "<button onclick=\"window.adminSendRenewalAlert("+e.id+")\" "
+              + "style='font-size:0.62rem;padding:0.28rem 0.6rem;border-radius:7px;background:rgba(255,68,102,0.18);"
+              + "border:1px solid rgba(255,68,102,0.4);color:var(--red);cursor:pointer;font-weight:700;white-space:nowrap;'>"
+              + "📨 Notifier renouvellement</button>";
+      } else if(subStatus === "alerte"){
+        html += "<button onclick=\"window.adminSendRenewalAlert("+e.id+")\" "
+              + "style='font-size:0.62rem;padding:0.28rem 0.6rem;border-radius:7px;background:rgba(255,215,0,0.12);"
+              + "border:1px solid rgba(255,215,0,0.35);color:var(--amber);cursor:pointer;font-weight:700;white-space:nowrap;'>"
+              + "🔔 Rappel renouvellement</button>";
+      }
+      html += "</div>";
+    } else {
+      // Pas encore de paiement validé → en attente
+      html += "<div style='margin-top:0.5rem;font-size:0.65rem;color:var(--muted);"
+            + "background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);"
+            + "border-radius:8px;padding:0.4rem 0.6rem;'>"
+            + "⏳ Abonnement en attente — le chrono démarrera à la validation du paiement</div>";
+    }
+
+    // ── Contrôles statut ouverture
+    html += "<div style='display:flex;justify-content:space-between;align-items:center;margin-top:0.55rem;'>";
+    html += "<div style='display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;'>";
+    var statusOpts = ["Ouvert - Anime","Ouvert - Bonde","Ouvert - Calme","Ferme"];
     statusOpts.forEach(function(s){
-      html+="<button onclick=\"updateField("+e.id+",{statut:'"+s+"'})\" style='font-size:0.6rem;padding:0.2rem 0.45rem;border-radius:5px;cursor:pointer;border:1px solid rgba(255,255,255,0.12);background:"+(e.statut===s?"rgba(255,45,155,0.2)":"transparent")+";color:"+(e.statut===s?"var(--pink)":"var(--muted)")+";font-family:DM Sans,sans-serif;'>"+s.replace("Ouvert - ","")+"</button>";
+      html += "<button onclick=\"updateField("+e.id+",{statut:'"+s+"'})\" "
+            + "style='font-size:0.6rem;padding:0.2rem 0.45rem;border-radius:5px;cursor:pointer;"
+            + "border:1px solid rgba(255,255,255,0.12);"
+            + "background:"+(e.statut===s?"rgba(255,45,155,0.2)":"transparent")+";"
+            + "color:"+(e.statut===s?"var(--pink)":"var(--muted)")+";font-family:DM Sans,sans-serif;'>"
+            + s.replace("Ouvert - ","")+"</button>";
     });
     if(e._adminOverride){
-      html+="<span style='font-size:0.58rem;background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.35);color:var(--amber);border-radius:4px;padding:0.06rem 0.3rem;margin-left:0.2rem;'>✏️ Override</span>";
-      html+="<button onclick=\"updateField("+e.id+",{_adminOverride:false})\" style='font-size:0.58rem;padding:0.18rem 0.42rem;border-radius:5px;cursor:pointer;border:1px solid rgba(0,229,255,0.35);background:rgba(0,229,255,0.08);color:var(--cyan);font-family:DM Sans,sans-serif;'>↺ Libérer</button>";
+      html += "<span style='font-size:0.58rem;background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.35);"
+            + "color:var(--amber);border-radius:4px;padding:0.06rem 0.3rem;margin-left:0.2rem;'>✏️ Override</span>";
+      html += "<button onclick=\"updateField("+e.id+",{_adminOverride:false})\" "
+            + "style='font-size:0.58rem;padding:0.18rem 0.42rem;border-radius:5px;cursor:pointer;"
+            + "border:1px solid rgba(0,229,255,0.35);background:rgba(0,229,255,0.08);color:var(--cyan);font-family:DM Sans,sans-serif;'>↺ Libérer</button>";
     }
-    html+="</div>";
-    html+="<input type='number' min='0' max='100' value='"+(e.affluence||0)+"' onchange=\"updateField("+e.id+",{affluence:parseInt(this.value)})\" title='Affluence %' style='width:55px;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:var(--amber);font-size:0.8rem;padding:0.25rem 0.4rem;text-align:center;'>";
-    html+="</div>";
-    html+="<div style='display:flex;gap:0.4rem;margin-top:0.6rem;flex-wrap:wrap;'>";
-    html+="<button onclick=\"deleteEtablissement("+e.id+")\" style='font-size:0.65rem;padding:0.2rem 0.5rem;border-radius:6px;background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.3);color:var(--red);cursor:pointer;'>&#128465; Supprimer</button>";
-    html+="<button onclick=\"resetEstabPassword("+e.id+",'"+escHtml(e.nom)+"')\" style='font-size:0.65rem;padding:0.2rem 0.5rem;border-radius:6px;background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.35);color:var(--cyan);cursor:pointer;font-weight:700;'>🔑 RÉZ. MOT DE PASSE</button>";
-    html+="<button onclick=\"(function(){var etab=etablissements.find(function(x){return x.id==="+e.id+"});if(typeof window.openPublicProfile==='function'&&etab)window.openPublicProfile('etablissement',"+e.id+",etab);else showToast('ID:"+e._docId+" · Email:"+(e.email||'N/A')+"');})()\" style='font-size:0.65rem;padding:0.2rem 0.5rem;border-radius:6px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);cursor:pointer;font-weight:700;'>&#128065; Infos</button>";
-    html+="<span style='margin-left:auto;'>"+renderSubStatusBadge(e)+"</span>";
-    html+="</div>";
-    html+="</div>";
+    html += "</div>";
+    html += "<input type='number' min='0' max='100' value='"+(e.affluence||0)+"' "
+          + "onchange=\"updateField("+e.id+",{affluence:parseInt(this.value)})\" title='Affluence %' "
+          + "style='width:55px;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:6px;"
+          + "color:var(--amber);font-size:0.8rem;padding:0.25rem 0.4rem;text-align:center;'>";
+    html += "</div>";
+
+    // ── Boutons d'action
+    html += "<div style='display:flex;gap:0.4rem;margin-top:0.6rem;flex-wrap:wrap;'>";
+    html += "<button onclick=\"deleteEtablissement("+e.id+")\" "
+          + "style='font-size:0.65rem;padding:0.2rem 0.5rem;border-radius:6px;"
+          + "background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.3);color:var(--red);cursor:pointer;'>"
+          + "&#128465; Supprimer</button>";
+    html += "<button onclick=\"resetEstabPassword("+e.id+",'"+escHtml(e.nom)+"')\" "
+          + "style='font-size:0.65rem;padding:0.2rem 0.5rem;border-radius:6px;"
+          + "background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.35);color:var(--cyan);cursor:pointer;font-weight:700;'>"
+          + "🔑 RÉZ. MOT DE PASSE</button>";
+    html += "<button onclick=\"(function(){var etab=etablissements.find(function(x){return x.id==="+e.id+"});"
+          + "if(typeof window.openPublicProfile==='function'&&etab)window.openPublicProfile('etablissement',"+e.id+",etab);"
+          + "else showToast('ID:"+e._docId+" · Email:"+(e.email||'N/A')+"');})()\" "
+          + "style='font-size:0.65rem;padding:0.2rem 0.5rem;border-radius:6px;"
+          + "background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);cursor:pointer;font-weight:700;'>"
+          + "&#128065; Infos</button>";
+    html += "<span style='margin-left:auto;'>"+renderSubStatusBadge(e)+"</span>";
+    html += "</div>";
+    html += "</div>";
   });
-  document.getElementById("adminEtablList").innerHTML=html;
+
+  document.getElementById("adminEtablList").innerHTML = html;
 }
+
+// ── Envoi d'alerte de renouvellement par l'admin ──────────────────────────
+window.adminSendRenewalAlert = function(etabId){
+  var etab = etablissements.find(function(e){ return String(e.id) === String(etabId); });
+  if(!etab){ showToast("Établissement introuvable"); return; }
+  var daysLeft = getDaysLeft(etab);
+  var status   = getSubscriptionStatus(etab);
+  var echeStr  = getEcheanceStr(etab);
+  var msgTitle, msgBody;
+  if(status === "expire"){
+    msgTitle = "🔴 Abonnement expiré — "+etab.nom;
+    msgBody  = "Votre abonnement AMBI241 a expiré. Votre fiche n'est plus mise en avant. Renouvelez dès maintenant pour maintenir votre visibilité.";
+  } else if(status === "critique"){
+    msgTitle = "🚨 Expiration imminente — "+etab.nom;
+    msgBody  = "Urgent : votre abonnement expire dans "+daysLeft+" jour(s) ("+echeStr+"). Renouvelez avant cette date pour ne pas perdre votre visibilité sur AMBI241.";
+  } else {
+    msgTitle = "⚠️ Rappel renouvellement — "+etab.nom;
+    msgBody  = "Votre abonnement AMBI241 arrive à échéance dans "+daysLeft+" jour(s), le "+echeStr+". Pensez à renouveler pour continuer à profiter de nos services.";
+  }
+  // Envoi via le système de notifications existant
+  if(typeof pushNotif === "function"){
+    pushNotif({
+      targetRole: "etablissement",
+      targetEtabId: String(etabId),
+      key: "renewal_alert_"+etabId+"_"+Date.now(),
+      icon: status === "expire" ? "🔴" : status === "critique" ? "🚨" : "⚠️",
+      title: msgTitle,
+      msg: msgBody,
+      channel: "push"
+    });
+  }
+  // Aussi notifier l'admin lui-même
+  if(typeof pushNotif === "function"){
+    pushNotif({
+      targetRole: "admin",
+      key: "admin_renewal_sent_"+etabId,
+      icon: "📨",
+      title: "Alerte envoyée → "+etab.nom,
+      msg: "Notification de renouvellement envoyée ("+daysLeft+"j restants).",
+      channel: "push"
+    });
+  }
+  // ── WhatsApp : rappel de renouvellement au numéro de l'établissement ──
+  (function(){
+    var waMsg;
+    if(status === "expire"){
+      waMsg = "🔴 Bonjour *"+etab.nom+"* !\n\n"
+        + "Votre abonnement AMBI241 est *expiré*.\n\n"
+        + "Votre fiche n'est plus mise en avant sur la plateforme.\n\n"
+        + "👉 Renouvelez dès maintenant pour retrouver votre visibilité :\n"
+        + "https://wa.me/24174450924?text=Renouvellement+abonnement+"+encodeURIComponent(etab.nom)+"\n\n"
+        + "_L'équipe AMBI241_";
+    } else if(status === "critique"){
+      waMsg = "🚨 Bonjour *"+etab.nom+"* !\n\n"
+        + "Votre abonnement AMBI241 expire dans *"+daysLeft+" jour(s)* (le "+echeStr+").\n\n"
+        + "⚠️ Renouvelez *avant cette date* pour maintenir votre visibilité sur la plateforme.\n\n"
+        + "👉 Contactez-nous pour renouveler :\n"
+        + "https://wa.me/24174450924?text=Renouvellement+abonnement+"+encodeURIComponent(etab.nom)+"\n\n"
+        + "_L'équipe AMBI241_";
+    } else {
+      waMsg = "🔔 Bonjour *"+etab.nom+"* !\n\n"
+        + "Votre abonnement AMBI241 arrive à échéance dans *"+daysLeft+" jour(s)*, le *"+echeStr+"*.\n\n"
+        + "Pensez à renouveler pour continuer à profiter de nos services et maintenir votre visibilité.\n\n"
+        + "👉 Contactez-nous pour renouveler :\n"
+        + "https://wa.me/24174450924?text=Renouvellement+abonnement+"+encodeURIComponent(etab.nom)+"\n\n"
+        + "_L'équipe AMBI241_";
+    }
+    sendWhatsAppToEtab(etab, waMsg);
+  })();
+  showToast("📨 Alerte envoyée à "+etab.nom+" (notif + WhatsApp)");
+};
 function admRefreshEtabl(){ loadData(); setTimeout(function(){if(_currentAdmTab==="etabl")renderAdmEtabl();},1500); }
 function admFilterEtabl(){
   var q=(document.getElementById("admSearchEtabl").value||"").toLowerCase();
@@ -38328,7 +38762,19 @@ function pHandleRemoveAvatar(role) {
     }
   });
   var uid = window.currentUserUID;
-  if(uid) { try { localStorage.removeItem('ambi241_avatar_' + uid); } catch(e){} }
+  if(uid) {
+    // Supprimer du localStorage et du cache memoire
+    try { localStorage.removeItem('ambi241_avatar_' + uid); } catch(e){}
+    if(typeof _userAvatarCache !== 'undefined') _userAvatarCache[uid] = null;
+    // Supprimer aussi dans Firestore (la suppression doit etre permanente)
+    if(window.db && window.fbDoc){
+      var _upd = { avatarUrl: '' };
+      try {
+        if(window.fbSetDoc) window.fbSetDoc(window.fbDoc(window.db,'users',uid),_upd,{merge:true}).catch(function(){});
+        else if(window.fbUpdateDoc) window.fbUpdateDoc(window.fbDoc(window.db,'users',uid),_upd).catch(function(){});
+      } catch(er){}
+    }
+  }
   pShowToast('🗑️ Photo de profil supprimée');
 }
 </script>
@@ -41516,14 +41962,18 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
   /* ── FIX #1 : Firestore sync galerie ── */
   window._pGallerySaveToFirestore = function(urls) {
-    if(!window.currentUserUID || !window.db || !window.fbDoc || !window.fbUpdateDoc) return;
+    if(!window.currentUserUID || !window.db || !window.fbDoc) return;
     try {
-      // Ne stocker que les 12 premières; chaque URL est déjà compressée (base64 ~20-80KB)
       var toStore = (urls || []).slice(0, 12);
-      window.fbUpdateDoc(
-        window.fbDoc(window.db, 'users', window.currentUserUID),
-        { galleryPhotos: toStore, galleryUpdatedAt: Date.now() }
-      ).catch(function(e){ console.warn('[AMBI241] Gallery Firestore save failed:', e); });
+      var ref = window.fbDoc(window.db, 'users', window.currentUserUID);
+      var data = { galleryPhotos: toStore, galleryUpdatedAt: Date.now() };
+      if(window.fbUpdateDoc){
+        window.fbUpdateDoc(ref, data).catch(function(e){
+          if(window.fbSetDoc) window.fbSetDoc(ref, data, {merge:true}).catch(function(){});
+        });
+      } else if(window.fbSetDoc){
+        window.fbSetDoc(ref, data, {merge:true}).catch(function(){});
+      }
     } catch(e) {}
   };
 
@@ -41531,16 +41981,12 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     var uid = window.currentUserUID;
     if(!uid || !window.db || !window.fbDoc || !window.fbGetDoc) return;
     window.fbGetDoc(window.fbDoc(window.db, 'users', uid)).then(function(snap) {
-      if(!snap.exists()) return;
-      var data = snap.data();
+      if(!snap || !(snap.exists ? snap.exists() : false)) return;
+      var data = snap.data() || {};
       var fsUrls = data.galleryPhotos;
       if(!Array.isArray(fsUrls) || !fsUrls.length) return;
-      // Fusionner avec localStorage (Firestore gagne en cas de conflit)
-      var localUrls = [];
-      try { localUrls = JSON.parse(localStorage.getItem('ambi241_pgallery_' + uid) || '[]'); } catch(e){}
-      // Firestore est la source de vérité
+      // Firestore est la source de verite
       try { localStorage.setItem('ambi241_pgallery_' + uid, JSON.stringify(fsUrls.slice(0,12))); } catch(e){}
-      // Raffraîchir la galerie dans l'UI
       setTimeout(function(){
         if(typeof _pGalleryRestore === 'function') {
           _pGalleryRestore('pgallery-membre');
@@ -44393,8 +44839,7 @@ console.log('[AMBI241] ✅ Patch v4 — Firebase admin retry + performance mobil
 
 <!-- ═══════════════════════════════════════════════════════════════════
      PATCH AMBI241 — Ajout Rapide Établissement (Admin Pro)
-     À insérer juste avant <script src="ambi241-notif-engine.js" defer></script>
-</body> dans index.html
+     À insérer juste avant </body> dans index.html
      ═══════════════════════════════════════════════════════════════════ -->
 
 <!-- ── STYLES ── -->
@@ -47520,7 +47965,7 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
  * ║  Web Audio API · Push Subscription · FCM · In-App Manager       ║
  * ╠══════════════════════════════════════════════════════════════════╣
  * ║  Intégration :                                                    ║
- * ║  <script src="ambi241-notif-engine.js" defer></script>           ║
+ * ║  <script src="ambi241-notif-engine.js" defer><\/script>          ║
  * ║  À placer après le chargement de Firebase dans index.html        ║
  * ╚══════════════════════════════════════════════════════════════════╝
  *
@@ -49444,6 +49889,213 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
 })();
 </script>
 
-<script src="ambi241-notif-engine.js" defer></script>
+<!-- ══ PATCH v4 — SONNERIE · CLOCHE · VIBRATION CONTEXTUELLE ══ -->
+<script>
+(function(){
+  'use strict';
+
+  /* ─────────────────────────────────────────────────────────────
+     SONNERIES PAR RÔLE — Web Audio API (zéro fichier externe)
+  ───────────────────────────────────────────────────────────── */
+  var _patchAudioCtx = null;
+
+  function _getAudioCtx(){
+    if(!_patchAudioCtx){
+      try{
+        _patchAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }catch(e){ return null; }
+    }
+    if(_patchAudioCtx.state === 'suspended'){
+      _patchAudioCtx.resume().catch(function(){});
+    }
+    return _patchAudioCtx;
+  }
+
+  function _tone(ctx, freq, type, gainVal, start, dur){
+    var osc  = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, start);
+    gain.gain.setValueAtTime(gainVal, start);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + dur + 0.05);
+  }
+
+  /* 🔔 Membre (user) — ding doux court */
+  function _ringUser(){
+    var ctx = _getAudioCtx(); if(!ctx) return;
+    var t = ctx.currentTime;
+    _tone(ctx, 880,  'sine', 0.28, t,       0.16);
+    _tone(ctx, 1320, 'sine', 0.18, t+0.08,  0.20);
+  }
+
+  /* 🚕 Chauffeur — deux bips urgents */
+  function _ringChauffeur(){
+    var ctx = _getAudioCtx(); if(!ctx) return;
+    var t = ctx.currentTime;
+    _tone(ctx, 660, 'square', 0.18, t,      0.10);
+    _tone(ctx, 880, 'square', 0.18, t+0.15, 0.10);
+    _tone(ctx, 660, 'square', 0.15, t+0.32, 0.10);
+  }
+
+  /* 🏪 Établissement — gong grave puis montée */
+  function _ringEstablishment(){
+    var ctx = _getAudioCtx(); if(!ctx) return;
+    var t = ctx.currentTime;
+    _tone(ctx, 440, 'sine', 0.32, t,       0.30);
+    _tone(ctx, 523, 'sine', 0.28, t+0.22,  0.22);
+    _tone(ctx, 659, 'sine', 0.24, t+0.40,  0.28);
+  }
+
+  /* 👑 Admin/Super-Admin — fanfare triomphale */
+  function _ringAdmin(){
+    var ctx = _getAudioCtx(); if(!ctx) return;
+    var t = ctx.currentTime;
+    _tone(ctx, 523, 'sine', 0.30, t,        0.16);
+    _tone(ctx, 659, 'sine', 0.30, t+0.13,   0.16);
+    _tone(ctx, 784, 'sine', 0.30, t+0.26,   0.16);
+    _tone(ctx, 1046,'sine', 0.32, t+0.40,   0.30);
+    /* harmonique douce */
+    _tone(ctx, 523, 'triangle', 0.12, t+0.40, 0.40);
+  }
+
+  /* Sélection automatique selon le rôle courant */
+  function _ringForRole(){
+    var role = (window.currentUserRole || '').toLowerCase();
+    if(role === 'admin' || role === 'super_admin') { _ringAdmin(); }
+    else if(role === 'chauffeur')                  { _ringChauffeur(); }
+    else if(role === 'establishment')              { _ringEstablishment(); }
+    else                                           { _ringUser(); }
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     ANIMATION CLOCHE (secousse + lueur)
+  ───────────────────────────────────────────────────────────── */
+  function _shakeBell(){
+    var btn = document.getElementById('notifBellBtn');
+    if(!btn) return;
+    btn.classList.remove('ambi-bell-ringing');
+    /* Forcer reflow pour relancer l'animation */
+    void btn.offsetWidth;
+    btn.classList.add('ambi-bell-ringing');
+    /* Retirer la classe à la fin de l'animation */
+    setTimeout(function(){ btn.classList.remove('ambi-bell-ringing'); }, 800);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     FLASH BADGE
+  ───────────────────────────────────────────────────────────── */
+  function _flashBadge(){
+    var badge = document.getElementById('notifBadge');
+    if(!badge) return;
+    badge.classList.remove('ambi-badge-flash');
+    void badge.offsetWidth;
+    badge.classList.add('ambi-badge-flash');
+    setTimeout(function(){ badge.classList.remove('ambi-badge-flash'); }, 650);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     VIBRATION CONTEXTUELLE
+  ───────────────────────────────────────────────────────────── */
+  function _vibrateForRole(){
+    if(!navigator.vibrate) return;
+    var role = (window.currentUserRole || '').toLowerCase();
+    if(role === 'admin' || role === 'super_admin'){
+      navigator.vibrate([80, 40, 80, 40, 200]);   /* Long — urgent */
+    } else if(role === 'chauffeur'){
+      navigator.vibrate([60, 30, 60, 30, 60]);    /* Triple bref */
+    } else if(role === 'establishment'){
+      navigator.vibrate([100, 50, 150]);           /* Medium */
+    } else {
+      navigator.vibrate([50, 30, 50]);             /* Léger double */
+    }
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     SONNERIE AU CLIC SUR LA CLOCHE
+  ───────────────────────────────────────────────────────────── */
+  function _attachBellClickSound(){
+    var btn = document.getElementById('notifBellBtn');
+    if(!btn || btn._ambiPatchBound) return;
+    btn._ambiPatchBound = true;
+    btn.addEventListener('click', function(){
+      /* Jouer la sonnerie adaptée au rôle */
+      _ringForRole();
+    }, { passive: true });
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     OBSERVER BADGE — détecter les nouvelles notifications
+     en temps réel (MutationObserver sur le texte du badge)
+  ───────────────────────────────────────────────────────────── */
+  var _lastBadgeVal = '0';
+
+  function _observeBadge(){
+    var badge = document.getElementById('notifBadge');
+    if(!badge){ return; }
+
+    var mo = new MutationObserver(function(){
+      var shown  = badge.classList.contains('show');
+      var newVal = badge.textContent.trim();
+
+      if(shown && newVal !== '0' && newVal !== _lastBadgeVal){
+        /* Nouvelle(s) notification(s) détectée(s) */
+        _lastBadgeVal = newVal;
+        _shakeBell();
+        _flashBadge();
+        _ringForRole();
+        _vibrateForRole();
+      } else if(!shown){
+        _lastBadgeVal = '0';
+      } else {
+        _lastBadgeVal = newVal;
+      }
+    });
+
+    mo.observe(badge, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+    console.log('[AMBI241-PATCH-v4] ✅ MutationObserver badge actif');
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     INIT — attendre que le DOM soit prêt
+  ───────────────────────────────────────────────────────────── */
+  function _init(){
+    _attachBellClickSound();
+    _observeBadge();
+    console.log('[AMBI241-PATCH-v4] 🔔 Sonnerie · Cloche · Vibration initialisés (rôle:', window.currentUserRole || 'user', ')');
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){
+      /* Délai pour laisser l'app définir currentUserRole */
+      setTimeout(_init, 1500);
+    });
+  } else {
+    setTimeout(_init, 1500);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     API PUBLIQUE — window.AMBI_BELL
+  ───────────────────────────────────────────────────────────── */
+  window.AMBI_BELL = {
+    shake   : _shakeBell,
+    ring    : _ringForRole,
+    vibrate : _vibrateForRole,
+    flash   : _flashBadge,
+    /** Déclencher manuellement une alerte complète */
+    trigger : function(){
+      _shakeBell();
+      _flashBadge();
+      _ringForRole();
+      _vibrateForRole();
+    }
+  };
+
+})();
+</script>
+
 </body>
 </html>
