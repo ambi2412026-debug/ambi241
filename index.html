@@ -1728,7 +1728,7 @@ header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0
 }
 .emrg-maint-btn:hover{background:linear-gradient(135deg,rgba(255,60,0,0.28),rgba(255,150,0,0.18));border-color:rgba(255,100,0,0.9);box-shadow:0 6px 28px rgba(255,100,0,0.35);}
 .emrg-maint-btn:active{transform:scale(0.97);}
-.emrg-maint-btn::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,150,0,0.18),transparent);animation:emrg-shimmer 3s infinite;}
+.emrg-maint-btn::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,150,0,0.18),transparent);animation:emrg-shimmer 3s infinite;pointer-events:none;}
 @keyframes emrg-shimmer{0%{left:-100%}100%{left:200%}}
 @keyframes emrg-pulse-glow{0%,100%{box-shadow:0 0 0 0 rgba(255,100,0,0.35)}50%{box-shadow:0 0 0 6px rgba(255,100,0,0)}}
 
@@ -11617,7 +11617,7 @@ function isSuperAdminUser(){
 function loadAdminConfig(){
   if(!window.db || typeof window.fbGetDoc !== "function"){
     // Firebase pas encore initialise : reessayer dans 300ms
-    setTimeout(function(){ loadAdminConfig(); }, 0);
+    setTimeout(function(){ loadAdminConfig(); }, 300);
     return;
   }
   // S'assurer que currentUserEmail est synchronisé avec window.currentUserEmail
@@ -12739,7 +12739,7 @@ function _renderAfterLoad() {
 function loadData(){
   /* Guard : si Firebase pas encore prêt, réessayer dans 300ms */
   if (typeof window.fbCollection !== "function" || typeof window.fbGetDocs !== "function" || !window.db) {
-    setTimeout(loadData, 100);
+    setTimeout(loadData, 300);
     return;
   }
 
@@ -12790,16 +12790,17 @@ function loadData(){
     if (typeof window._subscribeAllEtabs === "function") { window._subscribeAllEtabs(); }
 
     /* ── Photos en arrière-plan — délais plus longs pour ne pas concurrencer le rendu ── */
-    setTimeout(loadAllPhotoProfiles, 6000);  /* différé — ne bloque pas le rendu */
+    setTimeout(loadAllPhotoProfiles, 4000);  /* était 2500ms */
     setTimeout(function() {
       if (typeof loadSlotPhotosAsync === 'function' && etablissements && etablissements.length) {
         var actifs = etablissements.filter(function(e) { return estPaiementConfirme(e); });
-        /* Limité à 6 établissements espacés de 600ms pour ne pas saturer la bande passante */
+        /* Limité à 6 établissements (était 10) espacés de 400ms (était 200ms)
+           pour ne pas saturer la bande passante 3G pendant la navigation */
         actifs.slice(0, 6).forEach(function(e, i) {
-          setTimeout(function() { if (e.id) loadSlotPhotosAsync(e.id); }, i * 600);
+          setTimeout(function() { if (e.id) loadSlotPhotosAsync(e.id); }, i * 400);
         });
       }
-    }, 8000);  /* bien après le rendu principal */
+    }, 5000);  /* était 3500ms */
 
   }).catch(function(err) {
     console.error("Firebase loadData:", err);
@@ -17431,7 +17432,7 @@ function restorePhotosPersistence(){
 
 function renderAll(){
   if(_renderAllTimer) clearTimeout(_renderAllTimer);
-  _renderAllTimer = setTimeout(renderAllImmediate, 40); // debounce 40ms
+  _renderAllTimer = setTimeout(renderAllImmediate, 80); // debounce 80ms — évite les appels multiples
 }
 
 function renderAllImmediate(){
@@ -21139,7 +21140,7 @@ function _startApp(){
   if(typeof window.fbGetDocs==="function" && typeof window.fbCollection==="function" && window.db){
     loadData();
   } else if(_startAppAttempts < 40){
-    setTimeout(_startApp, 100);
+    setTimeout(_startApp, 250);
   } else {
     // Firebase jamais prêt → afficher les données locales immédiatement
     // Les données locales sont déjà chargées (pré-population au démarrage)
@@ -21152,27 +21153,19 @@ function _startApp(){
 // ── Démarrage : afficher un skeleton léger au lieu des 65 hardcodés ──
 // Firebase chargera les vraies données en <2s — pas besoin de pré-remplir
 etablissements = [];
-/* ── Cache instantané : afficher les données locales AVANT Firebase ── */
+rebuildPaiements();
+loadSuperAdmin();
+// Afficher un indicateur de chargement plutôt que les faux 65 lieux
 (function(){
-  loadSuperAdmin();
-  var cached = _loadEtabCache();
-  if(cached && cached.length > 0){
-    etablissements = cached;
-    etablissements.forEach(function(e){ applyDynamicStatus && applyDynamicStatus(e); });
-    rebuildPaiements();
-    renderAll(); renderHome(); renderStats(); renderPayments();
-  } else {
-    rebuildPaiements(); renderStats(); renderHome(); renderPayments();
-    /* Pas de cache : afficher le spinner en attendant Firebase */
-    var ml = document.getElementById('mainList');
-    if(ml) ml.innerHTML = '<div style="text-align:center;padding:3rem 1rem;color:var(--muted);">'
-      +'<div style="font-size:2rem;margin-bottom:0.8rem;">⏳</div>'
-      +'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;color:var(--cyan);">Chargement des lieux...</div>'
-      +'<div style="font-size:0.72rem;margin-top:0.4rem;">Connexion à Firebase en cours</div>'
-      +'</div>';
-  }
+  var ml = document.getElementById("mainList");
+  if(ml) ml.innerHTML = '<div style="text-align:center;padding:3rem 1rem;color:var(--muted);">'
+    +'<div style="font-size:2rem;margin-bottom:0.8rem;">⏳</div>'
+    +'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;color:var(--cyan);">Chargement des lieux...</div>'
+    +'<div style="font-size:0.72rem;margin-top:0.4rem;">Connexion à Firebase en cours</div>'
+    +'</div>';
 })();
-setTimeout(initMeteo, 2000);
+renderStats(); renderHome(); renderPayments();
+setTimeout(initMeteo, 500);
 
 _startApp();
 updatePayVis();
@@ -24679,7 +24672,7 @@ function renderAdmSettings(){
       html += "</div>";
     }
   })();
-  html += "<button class='emrg-maint-btn' onclick='emrgOpenPanel()'><span style='font-size:1.2rem;'>🛡️</span> Ouvrir le panneau de maintenance d'urgence</button>";
+  html += "<button class='emrg-maint-btn' onclick='if(typeof window.emrgOpenPanel===\"function\")window.emrgOpenPanel();else{var o=document.getElementById(\"emrgOverlay\");if(o)o.classList.add(\"show\");}' style='pointer-events:auto;'><span style='font-size:1.2rem;pointer-events:none;'>🛡️</span><span style='pointer-events:none;'> Ouvrir le panneau de maintenance d'urgence</span></button>";
   html += "</div>";
 
   // ══ RESET TOTAL — NOUVEAU CYCLE ══
@@ -25321,8 +25314,8 @@ function initAdminDefaultPhotosPreviews(){
         }
       });
     }
-    if(++attempts > 30) clearInterval(t);
-  }, 150);
+    if(++attempts > 60) clearInterval(t);
+  }, 500);
 })();
 
 // ── Afficher le bouton Admin dans la nav quand mode admin actif ─
@@ -38970,10 +38963,7 @@ function pHandleRemoveAvatar(role) {
     if(tab === 'appconfig'){
       var el = document.getElementById('adminDefaultPhotosSection');
       if(el && typeof renderAdminDefaultPhotosSection === 'function'){
-        /* Si photos déjà chargées en mémoire → affichage immédiat, pas de requête Firebase */
-        if(window._adminDefaultPhotos && Object.keys(window._adminDefaultPhotos).length > 0){
-          el.innerHTML = renderAdminDefaultPhotosSection();
-        } else if(typeof loadAdminDefaultPhotos === 'function'){
+        if(typeof loadAdminDefaultPhotos === 'function'){
           loadAdminDefaultPhotos(function(){ el.innerHTML = renderAdminDefaultPhotosSection(); });
         } else {
           el.innerHTML = renderAdminDefaultPhotosSection();
