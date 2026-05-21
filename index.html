@@ -9690,7 +9690,13 @@ window._renderUserPhotosUI = function() {
         profilePhotoBox.innerHTML = '<img src="' + photoData.photoURL + '" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;"/>';
         if (deleteProfileBtn) deleteProfileBtn.style.display = 'block';
       } else {
-        profilePhotoBox.innerHTML = '<div class="photo-upload-placeholder"><span>📷</span><small>Cliquer pour ajouter</small></div>';
+        // Utiliser la photo de profil par défaut admin si disponible
+        var defaultUserPhoto = (window._adminDefaultPhotos && window._adminDefaultPhotos['user_profile']) || null;
+        if(defaultUserPhoto){
+          profilePhotoBox.innerHTML = '<img src="' + defaultUserPhoto + '" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;opacity:0.7;" title="Photo par défaut — cliquez pour choisir votre photo"/>';
+        } else {
+          profilePhotoBox.innerHTML = '<div class="photo-upload-placeholder"><span>📷</span><small>Cliquer pour ajouter</small></div>';
+        }
         if (deleteProfileBtn) deleteProfileBtn.style.display = 'none';
       }
     }
@@ -10035,81 +10041,78 @@ window._livePresences = {};  // { eid: { count: N, users: [...] } }
 window._liveVotes     = {};  // { eid: { pos: N, neg: N, myVote: null|'pos'|'neg' } }
 window._liveRatings   = {};  // { eid: { note: X.X, avis: N } }
 
-// ✅ OPTIMISATION #1 — 1 listener fusionné au lieu de 3 (-67% bandwidth)
-var _statsUnsubs = {}; // remplace _presUnsubs, _voteUnsubs, _rateUnsubs
+var _presUnsubs  = {}; // unsubscribe map pour présences
+var _voteUnsubs  = {}; // unsubscribe map pour votes
+var _rateUnsubs  = {}; // unsubscribe map pour ratings
 
+// ── Abonner un établissement à ses flux Firestore ────────────
 function _subscribeEtab(eid) {
   var eidStr = String(eid);
-  if (_statsUnsubs[eidStr]) return;
-  try {
-    var statsRef = window.fbDoc(window.db, "etablissements", eidStr, "stats", "live");
-    _statsUnsubs[eidStr] = window.fbOnSnapshot(statsRef, function(snap) {
-      if (!snap.exists()) {
-        window._liveStats = window._liveStats || {};
-        window._liveStats[eidStr] = {
-          presences: { count: 0, users: [] },
-          votes: { pos: 0, neg: 0, myVote: null },
-          ratings: { note: 0, avis: 0 }
-        };
-      } else {
-        window._liveStats = window._liveStats || {};
-        window._liveStats[eidStr] = snap.data();
-      }
-      _updateEtabStatsUI(eid);
-    }, function(err) {
-      console.warn("Stats listener error pour " + eidStr, err);
-    });
-  } catch(e) {
-    console.error("_subscribeEtab error:", e);
+
+  // ── Présences (sous-collection) ──────────────────────────────
+  if (!_presUnsubs[eidStr]) {
+    try {
+      var presCol = collection(db, "etablissements", eidStr, "presences");
+      _presUnsubs[eidStr] = onSnapshot(presCol, function(snap) {
+        var now = Date.now();
+        var TTL = 3 * 3600 * 1000;
+        var users = [];
+        snap.forEach(function(d) {
+          var data = d.data();
+          if (data.ts && (now - data.ts) < TTL) {
+            users.push({ uid: d.id, pseudo: data.pseudo || "Visiteur", ts: data.ts });
+          }
+        });
+        window._livePresences[eidStr] = { count: users.length, users: users };
+        _patchCardPresence(eid);
+        _updateRankScoreLive();
+      }, function() {});
+    } catch(e) {}
   }
-}
 
-function _updateEtabStatsUI(eid) {
-  var eidStr = String(eid);
-  var stats = (window._liveStats && window._liveStats[eidStr]) || {};
-  // Présences
-  document.querySelectorAll("[data-live-pres='" + eidStr + "']").forEach(function(el) {
-    el.textContent = (stats.presences && stats.presences.count) || 0;
-  });
-  document.querySelectorAll("[data-live-presl='" + eidStr + "']").forEach(function(el) {
-    el.textContent = ((stats.presences && stats.presences.count) || 0) + " pers. sur place";
-  });
-  // Votes
-  document.querySelectorAll("[data-live-votes='" + eidStr + "']").forEach(function(el) {
-    if (stats.votes) el.textContent = (stats.votes.pos || 0) + "/" + (stats.votes.neg || 0);
-  });
-  var posEl = document.getElementById("vpos-" + eidStr);
-  if (posEl && stats.votes) posEl.textContent = stats.votes.pos || 0;
-  var negEl = document.getElementById("vneg-" + eidStr);
-  if (negEl && stats.votes) negEl.textContent = stats.votes.neg || 0;
-  // Ratings
-  document.querySelectorAll("[data-live-rate='" + eidStr + "']").forEach(function(el) {
-    if (stats.ratings) el.textContent = (stats.ratings.note || 0) + "★";
-  });
-  var etab = (typeof etablissements !== "undefined") ? etablissements.find(function(x){ return x.id === eid; }) : null;
-  if (etab && stats.ratings && stats.ratings.avis > 0) {
-    etab.note = stats.ratings.note;
-    etab.avis = stats.ratings.avis;
+  // ── Votes (sous-collection) ──────────────────────────────────
+  if (!_voteUnsubs[eidStr]) {
+    try {
+      var voteCol = collection(db, "etablissements", eidStr, "votes");
+      _voteUnsubs[eidStr] = onSnapshot(voteCol, function(snap) {
+        var pos = 0, neg = 0, myVote = null;
+        var myUid = window.currentUserUID || null;
+        snap.forEach(function(d) {
+          var v = d.data().vote;
+          if (v === "pos") pos++;
+          if (v === "neg") neg++;
+          if (myUid && d.id === myUid) myVote = v || null;
+        });
+        window._liveVotes[eidStr] = { pos: pos, neg: neg, myVote: myVote };
+        _patchCardVotes(eid);
+        _updateRankScoreLive();
+      }, function() {});
+    } catch(e) {}
   }
-  _debouncedUpdateRank();
-}
 
-var _rankDebounceTimer = null;
-function _debouncedUpdateRank() {
-  clearTimeout(_rankDebounceTimer);
-  _rankDebounceTimer = setTimeout(function() { _updateRankScoreLive(); }, 150);
-}
-
-function _unsubscribeEtab(eid) {
-  var eidStr = String(eid);
-  if (_statsUnsubs[eidStr]) { _statsUnsubs[eidStr](); delete _statsUnsubs[eidStr]; }
-}
-
-function unsubscribeAllEtabs() {
-  Object.keys(_statsUnsubs).forEach(function(eidStr) {
-    if (_statsUnsubs[eidStr]) _statsUnsubs[eidStr]();
-  });
-  _statsUnsubs = {};
+  // ── Ratings / Notes (sous-collection "ratings") ──────────────
+  if (!_rateUnsubs[eidStr]) {
+    try {
+      var rateCol = collection(db, "etablissements", eidStr, "ratings");
+      _rateUnsubs[eidStr] = onSnapshot(rateCol, function(snap) {
+        var total = 0, count = 0;
+        snap.forEach(function(d) {
+          var r = d.data().rating;
+          if (r >= 1 && r <= 5) { total += r; count++; }
+        });
+        var avgNote = count > 0 ? Math.round((total / count) * 10) / 10 : 0;
+        window._liveRatings[eidStr] = { note: avgNote, avis: count };
+        // Mettre à jour l'établissement local
+        var etab = (typeof etablissements !== "undefined") ? etablissements.find(function(x){ return x.id === eid; }) : null;
+        if (etab && count > 0) {
+          etab.note = avgNote;
+          etab.avis = count;
+        }
+        _patchCardRating(eid);
+        _updateRankScoreLive();
+      }, function() {});
+    } catch(e) {}
+  }
 }
 
 // ── Patch en direct des éléments DOM sans re-render total ───
@@ -12753,18 +12756,8 @@ function loadData(){
   /* ── ÉTAPE 2 : Lancer établissements + paiements EN PARALLÈLE ── */
   setSyncing(true);
 
-  // ✅ OPTIMISATION #2 — Filtres + limite côté Firestore (-90% données)
-  var qEtab = window.fbQuery(
-    window.fbCollection(window.db, "etablissements"),
-    window.fbWhere("paiement", "in", ["Confirme", "Actif"]),
-    window.fbOrderBy("createdAt", "desc"),
-    window.fbLimit(50)
-  );
-  var qPaie = window.fbQuery(
-    window.fbCollection(window.db, "paiements"),
-    window.fbOrderBy("id"),
-    window.fbLimit(200)
-  );
+  var qEtab = window.fbQuery(window.fbCollection(window.db, "etablissements"), window.fbOrderBy("id"));
+  var qPaie = window.fbQuery(window.fbCollection(window.db, "paiements"), window.fbOrderBy("id"));
 
   Promise.all([
     window.fbGetDocs(qEtab),
@@ -20288,13 +20281,7 @@ function deleteGaleriePhoto(index){ _deleteGaleriePhotoByIdx(index); }
 
 // ══ FIN PROTECTIONS SÉCURITÉ ════════════════════════════════════
 
-// ✅ OPTIMISATION #3 — Smart refresh au lieu de polling toutes les 60s (-80% requêtes)
-document.addEventListener('visibilitychange', function() {
-  if (document.hidden === false && !window._isAdmin) {
-    console.log("App reprend le focus — sync Firebase...");
-    loadData();
-  }
-});
+setInterval(function(){if(!isAdmin)loadData();},60000);
 
 // ── Expose toutes les fonctions appelées depuis le HTML ──────
 window.switchSection      = switchSection;
@@ -24461,6 +24448,32 @@ function renderAdmSettings(){
   var superEmail = _superAdminEmail || lsGet(SUPER_ADMIN_KEY, "");
   var html="";
 
+  // ── Logo de l'application ──
+  var _settLogoUrl = (_adminDefaultPhotos && _adminDefaultPhotos['app_logo']) || null;
+  html += "<div style='background:linear-gradient(135deg,rgba(255,45,155,0.08),rgba(0,229,255,0.05));border:1.5px solid rgba(255,45,155,0.45);border-radius:16px;padding:1.1rem;margin-bottom:1.1rem;'>";
+  html += "<div style='display:flex;align-items:center;gap:0.6rem;margin-bottom:0.45rem;'>";
+  html += "<span style='font-size:1.4rem;'>🏷️</span>";
+  html += "<div style='font-family:Syne,sans-serif;font-weight:800;color:var(--pink);font-size:0.92rem;'>Logo de l'application</div>";
+  html += "</div>";
+  html += "<div style='font-size:0.72rem;color:var(--muted);margin-bottom:0.85rem;line-height:1.55;'>S'affiche à l'ouverture de l'app, dans le header et partout sur le site. Format recommandé : carré PNG ou JPEG.</div>";
+  html += "<div style='display:flex;align-items:center;gap:0.8rem;'>";
+  if(_settLogoUrl){
+    html += "<img src='" + _settLogoUrl + "' alt='Logo' style='width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,45,155,0.6);box-shadow:0 0 10px rgba(255,45,155,0.3);flex-shrink:0;'>";
+    html += "<div style='flex:1;'>";
+    html += "<div style='font-size:0.7rem;color:var(--green);font-weight:700;margin-bottom:0.3rem;'>✅ Logo personnalisé actif</div>";
+    html += "<label style='display:block;width:100%;padding:0.4rem 0.6rem;border-radius:9px;background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.4);color:var(--pink);font-size:0.72rem;font-weight:700;cursor:pointer;text-align:center;font-family:DM Sans,sans-serif;'>🔄 Changer le logo<input type='file' accept='image/*' style='display:none;' onchange='admLogoSelected(this)'></label>";
+    html += "<button onclick='admDeleteLogo()' style='margin-top:0.35rem;width:100%;padding:0.35rem;border-radius:9px;background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.35);color:var(--red);font-size:0.68rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;'>🗑️ Supprimer — revenir au logo défaut</button>";
+    html += "</div>";
+  } else {
+    html += "<div style='width:60px;height:60px;border-radius:50%;background:rgba(255,45,155,0.06);border:2px dashed rgba(255,45,155,0.35);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.6rem;opacity:0.55;'>🏷️</div>";
+    html += "<div style='flex:1;'>";
+    html += "<div style='font-size:0.7rem;color:var(--muted);margin-bottom:0.3rem;'>Logo actuel : logo AMBI241 par défaut</div>";
+    html += "<label style='display:block;width:100%;padding:0.4rem 0.6rem;border-radius:9px;background:linear-gradient(135deg,rgba(255,45,155,0.15),rgba(0,229,255,0.1));border:1px solid rgba(255,45,155,0.5);color:var(--pink);font-size:0.72rem;font-weight:700;cursor:pointer;text-align:center;font-family:DM Sans,sans-serif;'>📁 Choisir un logo depuis la galerie<input type='file' accept='image/*' style='display:none;' onchange='admLogoSelected(this)'></label>";
+    html += "</div>";
+  }
+  html += "</div>";
+  html += "</div>";
+
   // Bloc SuperAdmin
   if(iAmSuper){
     html+="<div style='background:linear-gradient(135deg,rgba(255,215,0,0.1),rgba(255,45,155,0.07));border:1px solid rgba(255,215,0,0.35);border-radius:14px;padding:1rem;margin-bottom:1rem;'>";
@@ -25074,6 +25087,7 @@ var ADMIN_DEFAULT_PHOTOS_DOC = "config/default_photos";
 
 // Descripteurs des 6 slots
 var ADMIN_PHOTO_SLOTS = [
+  { key:"user_profile", label:"Membres (profil par défaut)", icon:"👤", hint:"Avatar affiché pour tout membre n'ayant pas encore uploadé sa photo de profil" },
   { key:"bar_resto",   label:"Bar / Resto",          icon:"🍸", hint:"Photo profil par défaut des bars & restaurants" },
   { key:"bar_terrasse",label:"Bar Terrasse",         icon:"🏙️", hint:"Photo profil par défaut des bars terrasses" },
   { key:"club",        label:"Club / Discothèque",   icon:"🎶", hint:"Photo profil par défaut des clubs" },
@@ -25083,7 +25097,7 @@ var ADMIN_PHOTO_SLOTS = [
   { key:"tourisme",    label:"Sites Touristiques",   icon:"🏛️", hint:"Photo profil par défaut des sites touristiques" },
   { key:"driver",      label:"Chauffeur (Taxi Pro)", icon:"🚕", hint:"Avatar par défaut pour les chauffeurs Taxi Pro" },
   { key:"company",     label:"Entreprise (Taxi Pro)",icon:"🏢", hint:"Logo/avatar par défaut pour les entreprises Taxi Pro" },
-  { key:"generic",     label:"Autres établissements",icon:"📍", hint:"Photo de fallback générique (tous les autres lieux)" }
+  { key:"generic",     label:"Autres établissements",icon:"📍", hint:"Photo de fallback générique (tous les autres lieux)\" }" }
 ];
 
 // Cache local des photos par défaut admin (initialisé au chargement)
@@ -25278,6 +25292,12 @@ function initAdminDefaultPhotosPreviews(){
       clearInterval(t);
       loadAdminDefaultPhotos(function(photos){
         _adminDefaultPhotos = photos || {};
+        // ── Appliquer le logo personnalisé si présent ──
+        var appLogo = _adminDefaultPhotos['app_logo'];
+        if(appLogo){
+          var logoImgs = document.querySelectorAll('.logo-img, #appLogoImg');
+          logoImgs.forEach(function(el){ if(el && el.tagName === 'IMG') el.src = appLogo; });
+        }
         // Patcher les etablissements déjà chargés
         if(typeof etablissements !== "undefined" && etablissements && etablissements.length){
           etablissements.forEach(function(e){
@@ -37503,6 +37523,35 @@ function _renderAppConfigUI(){
 
   var html = '';
 
+  // ── Logo du site & de l'application
+  var currentLogo = (_adminDefaultPhotos && _adminDefaultPhotos['app_logo']) || null;
+  html += '<div style="background:linear-gradient(135deg,rgba(255,45,155,0.08),rgba(0,229,255,0.05));border:1.5px solid rgba(255,45,155,0.4);border-radius:16px;padding:1.1rem;margin-bottom:1rem;">';
+  html += '<div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;">';
+  html += '<span style="font-size:1.4rem;">🏷️</span>';
+  html += '<div style="font-family:Syne,sans-serif;font-weight:800;color:var(--pink);font-size:0.92rem;">Logo du site & de l\'app</div>';
+  html += '</div>';
+  html += '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.9rem;line-height:1.55;">Ce logo remplace l\'image ronde visible dans le header, le footer, l\'écran de chargement et partout sur le site. Format recommandé : carré, PNG transparent ou JPEG.</div>';
+  html += '<div style="display:flex;align-items:center;gap:0.8rem;margin-bottom:0.8rem;">';
+  // Aperçu logo actuel
+  if(currentLogo){
+    html += '<div style="position:relative;flex-shrink:0;">';
+    html += '<img id="admLogoPreview" src="'+currentLogo+'" alt="Logo actuel" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,45,155,0.6);box-shadow:0 0 12px rgba(255,45,155,0.35);">';
+    html += '</div>';
+    html += '<div style="flex:1;">';
+    html += '<div style="font-size:0.73rem;color:var(--green);font-weight:700;margin-bottom:0.35rem;">✅ Logo personnalisé actif</div>';
+    html += '<label style="display:block;width:100%;padding:0.42rem 0.7rem;border-radius:9px;background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.4);color:var(--pink);font-family:DM Sans,sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;text-align:center;">🔄 Changer le logo<input type="file" accept="image/*" style="display:none;" onchange="admLogoSelected(this)"></label>';
+    html += '<button onclick="admDeleteLogo()" style="margin-top:0.4rem;width:100%;padding:0.38rem;border-radius:9px;background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.35);color:var(--red);font-size:0.7rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">🗑️ Supprimer (revenir logo défaut)</button>';
+    html += '</div>';
+  } else {
+    html += '<div id="admLogoPreview" style="width:64px;height:64px;border-radius:50%;background:rgba(255,45,155,0.08);border:2px dashed rgba(255,45,155,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.8rem;opacity:0.5;">🏷️</div>';
+    html += '<div style="flex:1;">';
+    html += '<div style="font-size:0.73rem;color:var(--muted);margin-bottom:0.35rem;">Logo actuel : logo AMBI241 par défaut</div>';
+    html += '<label style="display:block;width:100%;padding:0.42rem 0.7rem;border-radius:9px;background:linear-gradient(135deg,rgba(255,45,155,0.15),rgba(0,229,255,0.1));border:1px solid rgba(255,45,155,0.5);color:var(--pink);font-family:DM Sans,sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;text-align:center;">📁 Choisir un logo depuis la galerie<input type="file" accept="image/*" style="display:none;" onchange="admLogoSelected(this)"></label>';
+    html += '</div>';
+  }
+  html += '</div>';
+  html += '</div>';
+
   // ── Maintenance
   html += '<div style="background:linear-gradient(135deg,rgba(255,68,102,0.1),rgba(204,68,255,0.06));border:1.5px solid rgba(255,68,102,0.35);border-radius:16px;padding:1.1rem;margin-bottom:1rem;">';
   html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">';
@@ -37583,6 +37632,59 @@ function _admSaveMultipleFields(fields){
     .then(function(){ showToast('✅ Configuration enregistrée !'); })
     .catch(function(e){ showToast('Erreur: '+e.message); });
 }
+
+/* ── Logo du site : sélection & suppression ───────────────────────────── */
+window.admLogoSelected = function(input){
+  var file = input && input.files && input.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var img = new Image();
+    img.onload = function(){
+      var canvas = document.createElement('canvas');
+      var MAX = 256;
+      var w = img.width, h = img.height;
+      if(w > MAX || h > MAX){
+        if(w > h){ h = Math.round(h * MAX/w); w = MAX; }
+        else { w = Math.round(w * MAX/h); h = MAX; }
+      }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      var compressed = canvas.toDataURL('image/jpeg', 0.88);
+      // Sauvegarder dans config/default_photos sous la clé "app_logo"
+      if(!window.db || !window.fbSetDoc || !window.fbDoc){ showToast('❌ Firebase non disponible'); return; }
+      _adminDefaultPhotos['app_logo'] = compressed;
+      _adminDefaultPhotos['_updated'] = Date.now();
+      window.fbSetDoc(window.fbDoc(window.db,'config','default_photos'), _adminDefaultPhotos, {merge:true})
+        .then(function(){
+          showToast('✅ Logo enregistré et actif partout !');
+          // Mettre à jour le logo visible dans le header sans reload
+          var logoImgs = document.querySelectorAll('.logo-img, #appLogoImg');
+          logoImgs.forEach(function(el){ if(el.tagName === 'IMG') el.src = compressed; });
+          // Re-rendre la section logo (Config App + Paramètres)
+          if(typeof window.renderAdmAppConfig === 'function') window.renderAdmAppConfig(0);
+          if(typeof renderAdmSettings === 'function') renderAdmSettings();
+        })
+        .catch(function(e){ showToast('❌ Erreur: ' + (e.message||'')); });
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+window.admDeleteLogo = function(){
+  if(!confirm('Supprimer le logo personnalisé et revenir au logo AMBI241 par défaut ?')) return;
+  if(!window.db || !window.fbSetDoc || !window.fbDoc){ showToast('❌ Firebase non disponible'); return; }
+  delete _adminDefaultPhotos['app_logo'];
+  _adminDefaultPhotos['_updated'] = Date.now();
+  window.fbSetDoc(window.fbDoc(window.db,'config','default_photos'), _adminDefaultPhotos, {merge:false})
+    .then(function(){
+      showToast('🗑️ Logo supprimé — logo par défaut restauré');
+      if(typeof window.renderAdmAppConfig === 'function') window.renderAdmAppConfig(0);
+      if(typeof renderAdmSettings === 'function') renderAdmSettings();
+    })
+    .catch(function(e){ showToast('❌ Erreur: ' + (e.message||'')); });
+};
 
 window.admForceRefreshAll = function(){
   if(typeof loadData==='function') loadData();
