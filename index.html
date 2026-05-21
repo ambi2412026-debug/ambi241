@@ -1728,7 +1728,7 @@ header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0
 }
 .emrg-maint-btn:hover{background:linear-gradient(135deg,rgba(255,60,0,0.28),rgba(255,150,0,0.18));border-color:rgba(255,100,0,0.9);box-shadow:0 6px 28px rgba(255,100,0,0.35);}
 .emrg-maint-btn:active{transform:scale(0.97);}
-.emrg-maint-btn::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,150,0,0.18),transparent);animation:emrg-shimmer 3s infinite;pointer-events:none;}
+.emrg-maint-btn::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,150,0,0.18),transparent);animation:emrg-shimmer 3s infinite;}
 @keyframes emrg-shimmer{0%{left:-100%}100%{left:200%}}
 @keyframes emrg-pulse-glow{0%,100%{box-shadow:0 0 0 0 rgba(255,100,0,0.35)}50%{box-shadow:0 0 0 6px rgba(255,100,0,0)}}
 
@@ -24448,32 +24448,6 @@ function renderAdmSettings(){
   var superEmail = _superAdminEmail || lsGet(SUPER_ADMIN_KEY, "");
   var html="";
 
-  // ── Logo de l'application ──
-  var _settLogoUrl = (_adminDefaultPhotos && _adminDefaultPhotos['app_logo']) || null;
-  html += "<div style='background:linear-gradient(135deg,rgba(255,45,155,0.08),rgba(0,229,255,0.05));border:1.5px solid rgba(255,45,155,0.45);border-radius:16px;padding:1.1rem;margin-bottom:1.1rem;'>";
-  html += "<div style='display:flex;align-items:center;gap:0.6rem;margin-bottom:0.45rem;'>";
-  html += "<span style='font-size:1.4rem;'>🏷️</span>";
-  html += "<div style='font-family:Syne,sans-serif;font-weight:800;color:var(--pink);font-size:0.92rem;'>Logo de l'application</div>";
-  html += "</div>";
-  html += "<div style='font-size:0.72rem;color:var(--muted);margin-bottom:0.85rem;line-height:1.55;'>S'affiche à l'ouverture de l'app, dans le header et partout sur le site. Format recommandé : carré PNG ou JPEG.</div>";
-  html += "<div style='display:flex;align-items:center;gap:0.8rem;'>";
-  if(_settLogoUrl){
-    html += "<img src='" + _settLogoUrl + "' alt='Logo' style='width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,45,155,0.6);box-shadow:0 0 10px rgba(255,45,155,0.3);flex-shrink:0;'>";
-    html += "<div style='flex:1;'>";
-    html += "<div style='font-size:0.7rem;color:var(--green);font-weight:700;margin-bottom:0.3rem;'>✅ Logo personnalisé actif</div>";
-    html += "<label style='display:block;width:100%;padding:0.4rem 0.6rem;border-radius:9px;background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.4);color:var(--pink);font-size:0.72rem;font-weight:700;cursor:pointer;text-align:center;font-family:DM Sans,sans-serif;'>🔄 Changer le logo<input type='file' accept='image/*' style='display:none;' onchange='admLogoSelected(this)'></label>";
-    html += "<button onclick='admDeleteLogo()' style='margin-top:0.35rem;width:100%;padding:0.35rem;border-radius:9px;background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.35);color:var(--red);font-size:0.68rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;'>🗑️ Supprimer — revenir au logo défaut</button>";
-    html += "</div>";
-  } else {
-    html += "<div style='width:60px;height:60px;border-radius:50%;background:rgba(255,45,155,0.06);border:2px dashed rgba(255,45,155,0.35);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.6rem;opacity:0.55;'>🏷️</div>";
-    html += "<div style='flex:1;'>";
-    html += "<div style='font-size:0.7rem;color:var(--muted);margin-bottom:0.3rem;'>Logo actuel : logo AMBI241 par défaut</div>";
-    html += "<label style='display:block;width:100%;padding:0.4rem 0.6rem;border-radius:9px;background:linear-gradient(135deg,rgba(255,45,155,0.15),rgba(0,229,255,0.1));border:1px solid rgba(255,45,155,0.5);color:var(--pink);font-size:0.72rem;font-weight:700;cursor:pointer;text-align:center;font-family:DM Sans,sans-serif;'>📁 Choisir un logo depuis la galerie<input type='file' accept='image/*' style='display:none;' onchange='admLogoSelected(this)'></label>";
-    html += "</div>";
-  }
-  html += "</div>";
-  html += "</div>";
-
   // Bloc SuperAdmin
   if(iAmSuper){
     html+="<div style='background:linear-gradient(135deg,rgba(255,215,0,0.1),rgba(255,45,155,0.07));border:1px solid rgba(255,215,0,0.35);border-radius:14px;padding:1rem;margin-bottom:1rem;'>";
@@ -24627,6 +24601,9 @@ function renderAdmSettings(){
   html+="<div class='adm-kpi'><div class='kv' style='color:var(--purple);'>"+t.total+"</div><div class='kl'>Total</div></div>";
   html+="</div></div>";
 
+  // ── Photos par défaut (Admin) ──
+  html += renderAdminDefaultPhotosSection();
+
   /* ── 🎵 Chanson de la semaine ── */
   html += "<div style='background:linear-gradient(135deg,rgba(255,45,155,0.08),rgba(204,68,255,0.05));border:1.5px solid rgba(255,45,155,0.3);border-radius:14px;padding:1rem;margin-bottom:1rem;'>";
   html += "<div style='display:flex;align-items:center;gap:0.55rem;margin-bottom:0.6rem;'>";
@@ -24672,7 +24649,7 @@ function renderAdmSettings(){
       html += "</div>";
     }
   })();
-  html += "<button class='emrg-maint-btn' onclick='if(typeof window.emrgOpenPanel===\"function\")window.emrgOpenPanel();else{var o=document.getElementById(\"emrgOverlay\");if(o)o.classList.add(\"show\");}' style='pointer-events:auto;'><span style='font-size:1.2rem;pointer-events:none;'>🛡️</span><span style='pointer-events:none;'> Ouvrir le panneau de maintenance d'urgence</span></button>";
+  html += "<button class='emrg-maint-btn' onclick='emrgOpenPanel()'><span style='font-size:1.2rem;'>🛡️</span> Ouvrir le panneau de maintenance d'urgence</button>";
   html += "</div>";
 
   // ══ RESET TOTAL — NOUVEAU CYCLE ══
@@ -37658,9 +37635,8 @@ window.admLogoSelected = function(input){
           // Mettre à jour le logo visible dans le header sans reload
           var logoImgs = document.querySelectorAll('.logo-img, #appLogoImg');
           logoImgs.forEach(function(el){ if(el.tagName === 'IMG') el.src = compressed; });
-          // Re-rendre la section logo (Config App + Paramètres)
+          // Re-rendre la section logo
           if(typeof window.renderAdmAppConfig === 'function') window.renderAdmAppConfig(0);
-          if(typeof renderAdmSettings === 'function') renderAdmSettings();
         })
         .catch(function(e){ showToast('❌ Erreur: ' + (e.message||'')); });
     };
@@ -37678,7 +37654,6 @@ window.admDeleteLogo = function(){
     .then(function(){
       showToast('🗑️ Logo supprimé — logo par défaut restauré');
       if(typeof window.renderAdmAppConfig === 'function') window.renderAdmAppConfig(0);
-      if(typeof renderAdmSettings === 'function') renderAdmSettings();
     })
     .catch(function(e){ showToast('❌ Erreur: ' + (e.message||'')); });
 };
