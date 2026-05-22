@@ -15728,7 +15728,7 @@ function buildCard(e,delay,compact,rank,extraClass){
   // ── PHOTOS ──
   var slotPhotos=loadSlotPhotos(e.id);
   // ── Photo principale : approved > manuelle > Google > défaut admin > fallback SVG ──
-  var permPhoto = e._photo_profile_approved || e.photo_interieur || e.photo_exterieur || getGooglePhotoUrl(e,'exterieur') || getAdminDefaultPhotoForEtab(e) || "";
+  var permPhoto = e._photo_profile_approved || e.photo_interieur || e.photo_exterieur || getGooglePhotoUrl(e,'exterieur') || getAdminDefaultPhotoForEtab(e) || e._fallback_svg || generateFallbackPhoto(e.type, e.nom);
   var isProfileApproved = !!e._photo_profile_approved;
   var isManual = !isProfileApproved && (!!e.photo_interieur || !!e.photo_exterieur);
   var isGoogleAuto = !isProfileApproved && !isManual && !!permPhoto && (e._gphoto_urls && e._gphoto_urls.length > 0);
@@ -15737,9 +15737,9 @@ function buildCard(e,delay,compact,rank,extraClass){
 
   var photosHtml = "<div style='width:100%;'>";
 
-  // ── GALERIE CE SOIR directement + fallback permPhoto ──
-  // Priorité : slotPhotos[0] (ce soir) > permPhoto (présentation main) > placeholder vide
-  var displayedPhoto = (slotPhotos.length > 0) ? slotPhotos[0].url : (permPhoto || "");
+  // ── GALERIE CE SOIR directement + fallback permPhoto (toujours rempli via generateFallbackPhoto) ──
+  // Priorité : slotPhotos[0] (ce soir) > permPhoto (jamais vide)
+  var displayedPhoto = (slotPhotos.length > 0) ? slotPhotos[0].url : permPhoto;
   
   photosHtml += "<div id='photo-wrap-"+e.id+"' style='position:relative;height:120px;overflow:hidden;background:rgba(255,45,155,0.06);cursor:pointer;'>";
   if(displayedPhoto){
@@ -44832,8 +44832,7 @@ console.log('[AMBI241] ✅ Patch v4 — Firebase admin retry + performance mobil
 
   </script>
 
-</body> dans index.html
-     ═══════════════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
 
 <!-- ── STYLES ── -->
 <style>
