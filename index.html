@@ -24107,22 +24107,41 @@ function saveAppIdentity(fields) {
   });
 }
 
-/** Upload logo vers Supabase ou base64 local */
+/** Compresse une image en base64 pour eviter les limites Firestore */
+function _compressImageToBase64(dataUrl, maxPx, quality, callback) {
+  var img = new Image();
+  img.onload = function() {
+    var w = img.width, h = img.height;
+    var scale = Math.min(1, maxPx / Math.max(w, h, 1));
+    var nw = Math.round(w * scale), nh = Math.round(h * scale);
+    var canvas = document.createElement("canvas");
+    canvas.width = nw; canvas.height = nh;
+    var ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0, nw, nh);
+    callback(canvas.toDataURL("image/jpeg", quality));
+  };
+  img.onerror = function() { callback(dataUrl); };
+  img.src = dataUrl;
+}
+
+/** Upload logo vers Supabase ou base64 compresse local */
 function _uploadAppLogo(file, slot) {
   if (!file) return;
-  var maxSize = 2 * 1024 * 1024; /* 2 MB */
-  if (file.size > maxSize) { showToast("❌ Image trop lourde (max 2 Mo)"); return; }
+  var maxSize = 5 * 1024 * 1024;
+  if (file.size > maxSize) { showToast("❌ Image trop lourde (max 5 Mo)"); return; }
+
+  showToast("⏳ Traitement du logo...");
 
   var reader = new FileReader();
   reader.onload = function(ev) {
-    var dataUrl = ev.target.result;
+    var rawDataUrl = ev.target.result;
 
-    /* Aperçu immédiat */
+    /* Apercu immediat */
     var previewId = slot === "splash" ? "admLogoSplashPreview" : "admLogoMainPreview";
     var previewEl = document.getElementById(previewId);
-    if (previewEl) { previewEl.src = dataUrl; previewEl.style.display = "block"; }
+    if (previewEl) { previewEl.src = rawDataUrl; previewEl.style.display = "block"; }
 
-    /* Essayer Supabase si disponible, sinon stocker en base64 dans Firestore */
+    /* Essayer Supabase si disponible */
     if (window.supabase && typeof window.supabase.storage !== "undefined") {
       var path = "app-identity/" + slot + "-" + Date.now() + ".png";
       window.supabase.storage.from("ambi241").upload(path, file, { upsert: true })
@@ -24134,16 +24153,20 @@ function _uploadAppLogo(file, slot) {
           saveAppIdentity(fields);
         })
         .catch(function() {
-          /* Fallback base64 */
-          var fields = {};
-          fields[slot === "splash" ? "splashLogoUrl" : "logoUrl"] = dataUrl;
-          saveAppIdentity(fields);
+          /* Fallback : compresser en base64 avant Firestore */
+          _compressImageToBase64(rawDataUrl, 256, 0.75, function(compressed) {
+            var fields = {};
+            fields[slot === "splash" ? "splashLogoUrl" : "logoUrl"] = compressed;
+            saveAppIdentity(fields);
+          });
         });
     } else {
-      /* Stocker directement en base64 dans Firestore */
-      var fields = {};
-      fields[slot === "splash" ? "splashLogoUrl" : "logoUrl"] = dataUrl;
-      saveAppIdentity(fields);
+      /* Compresser avant stockage Firestore (evite erreur "value too long") */
+      _compressImageToBase64(rawDataUrl, 256, 0.75, function(compressed) {
+        var fields = {};
+        fields[slot === "splash" ? "splashLogoUrl" : "logoUrl"] = compressed;
+        saveAppIdentity(fields);
+      });
     }
   };
   reader.readAsDataURL(file);
@@ -24202,7 +24225,7 @@ function renderAdmLogoPanel() {
   h += "</div>"; /* fin grid */
 
   /* ── Bouton appliquer partout ── */
-  h += "<button onclick='_applyAppIdentity();showToast(\"✅ Logo appliqué partout !\");' style='width:100%;padding:0.6rem;border-radius:10px;border:none;background:linear-gradient(135deg,#9D84FF,var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;margin-bottom:0.5rem;'>🔄 Appliquer partout maintenant</button>";
+  h += "<button onclick='saveAppIdentity(_appIdentityCache).then(function(){_applyAppIdentity();showToast(\"✅ Logo appliqué et sauvegardé partout !\");}).catch(function(){_applyAppIdentity();showToast(\"⚠️ Appliqué localement (erreur Firestore)\");});' style='width:100%;padding:0.6rem;border-radius:10px;border:none;background:linear-gradient(135deg,#9D84FF,var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;margin-bottom:0.5rem;'>🔄 Appliquer partout maintenant</button>";
 
   /* ── Supprimer logo ── */
   h += "<button onclick='if(confirm(\"Supprimer le logo personnalisé ?\"))saveAppIdentity({logoUrl:\"\",splashLogoUrl:\"\"})' style='width:100%;padding:0.45rem;border-radius:8px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.06);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer;'>🗑️ Supprimer le logo personnalisé</button>";
@@ -39913,7 +39936,7 @@ window.blockUser = function(uid){
   var f = _friends.find(function(x){return x.uid===uid;});
   if(f){ _friends = _friends.filter(function(x){return x.uid!==uid;}); }
   var r = _requestsIn.find(function(x){return x.uid===uid;});
-  if(r){ _requestsIn = _requestsIn.filter(function(x){return x.uid!==uid;}); }
+  if(r){ _requestsIn = _requestsIn.filter(function(x){return x.uid!==uid;}); if(typeof updateBadges==='function') updateBadges(); }
   var blockedEntry = { uid:uid, name:(f||r||{name:'Utilisateur'}).name, avatar:(f||r||{avatar:'👤'}).avatar, blockedAt:new Date().toLocaleDateString('fr-FR') };
   _blocked.push(blockedEntry);
   renderFriends();renderRequests();renderBlocked();
@@ -40567,6 +40590,33 @@ window.openDM = function(uid){
   if(window._syncPlayerH) window._syncPlayerH();
   openModal('modalDMChat');
   _dmMarkRead(_dmCurrentConvId, window.currentUserUID);
+  /* ── Effacer le badge DM immédiatement à l'ouverture ── */
+  var _dmBadgeEl = document.getElementById('dmInboxBadge');
+  if(_dmBadgeEl){ _dmBadgeEl.textContent='0'; _dmBadgeEl.style.display='none'; }
+  /* Marquer comme lu dans Firestore user_notifications (type dm/message) */
+  (function(){
+    var meUID = window.currentUserUID;
+    if(!meUID||!window.db||!window.fbCollection||!window.fbQuery||!window.fbWhere||!window.fbGetDocs||!window.fbUpdateDoc||!window.fbDoc) return;
+    try{
+      var q = window.fbQuery(
+        window.fbCollection(window.db,'user_notifications'),
+        window.fbWhere('toUID','==',meUID),
+        window.fbWhere('unread','==',true)
+      );
+      window.fbGetDocs(q).then(function(snap){
+        snap.forEach(function(d){
+          var k=((d.data().key||d.data().type||'')+'').toLowerCase();
+          if(k.indexOf('message')!==-1||k.indexOf('dm')!==-1){
+            window.fbUpdateDoc(window.fbDoc(window.db,'user_notifications',d.id),{unread:false}).catch(function(){});
+          }
+        });
+        /* Resync badge nav */
+        if(typeof window._ambiNavBadge !== 'undefined' && typeof window._ambiNavBadge.sync === 'function'){
+          setTimeout(window._ambiNavBadge.sync, 300);
+        }
+      }).catch(function(){});
+    }catch(e){}
+  })();
 
   if(!window.db||!window.fbCollection||!window.fbOnSnapshot||!window.fbQuery||!window.fbOrderBy||!window.fbLimit){
     if(box) box.innerHTML='<div class="dm-empty"><div class="dm-empty-icon">⚠️</div><div class="dm-empty-txt">Firebase non disponible</div></div>';
@@ -40668,8 +40718,24 @@ function _dmStartInboxListener(meUID){
   );
 
   _dmInboxUnsub = window.fbOnSnapshot(q, function(snap){
+    /* Calculer le total non-lu reel depuis TOUTES les conversations */
+    var unreadKey = 'unread_' + meUID;
+    var totalUnread = 0;
+    snap.forEach(function(d){ totalUnread += (d.data()[unreadKey] || 0); });
+
+    /* Mettre a jour le badge DM avec la vraie valeur */
+    var dmBadge = document.getElementById('dmInboxBadge');
+    if(dmBadge){
+      if(totalUnread > 0){
+        dmBadge.textContent = totalUnread > 99 ? '99+' : String(totalUnread);
+        dmBadge.style.display = 'inline-flex';
+      } else {
+        dmBadge.textContent = '0';
+        dmBadge.style.display = 'none';
+      }
+    }
+
     if(!_dmInboxReady){
-      // Premier snapshot : enregistrer l'état actuel comme baseline (pas de notif)
       snap.forEach(function(d){
         var data = d.data();
         _dmInboxLastSeen[d.id] = data.updatedAt ? (typeof data.updatedAt.toMillis==='function' ? data.updatedAt.toMillis() : data.updatedAt) : 0;
@@ -40680,44 +40746,17 @@ function _dmStartInboxListener(meUID){
 
     snap.docChanges && snap.docChanges().forEach(function(change){
       if(change.type !== 'added' && change.type !== 'modified') return;
-      var d    = change.doc;
-      var data = d.data();
-      var convId = d.id;
-
-      // Pas de notif si c'est nous qui avons envoyé le dernier message
+      var d = change.doc; var data = d.data(); var convId = d.id;
       if(data.lastMsgFrom === meUID) return;
-
-      // Pas de notif si le modal est déjà ouvert sur cette conversation
       if(_dmCurrentConvId === convId) return;
-
-      // Pas de notif si unread_meUID est 0 (déjà lu)
-      var unreadKey = 'unread_'+meUID;
       if(!(data[unreadKey] > 0)) return;
-
-      // Vérifier que c'est plus récent que la dernière valeur vue
       var newTs = data.updatedAt ? (typeof data.updatedAt.toMillis==='function' ? data.updatedAt.toMillis() : data.updatedAt) : 0;
       var lastTs = _dmInboxLastSeen[convId] || 0;
       if(newTs <= lastTs) return;
       _dmInboxLastSeen[convId] = newTs;
-
-      // Identifier l'expéditeur
-      var senderName = data.lastMsgFrom
-        ? ((_friends||[]).find(function(f){ return f.uid===data.lastMsgFrom; })||{}).name || 'Quelqu\'un'
-        : 'Quelqu\'un';
+      var senderName = ((_friends||[]).find(function(f){ return f.uid===data.lastMsgFrom; })||{}).name || "Quelqu'un";
       var preview = data.lastMsg ? data.lastMsg.substring(0,60) : '...';
-
-      // Notification in-app
-      if(typeof socToast === 'function'){
-        socToast('💬 '+senderName+' : '+preview);
-      }
-
-      // Incrémenter le badge DM sur l'interface si présent
-      var dmBadge = document.getElementById('dmInboxBadge');
-      if(dmBadge){
-        var cur = parseInt(dmBadge.textContent||'0', 10) || 0;
-        dmBadge.textContent = cur + 1;
-        dmBadge.style.display = 'inline-flex';
-      }
+      if(typeof socToast === 'function'){ socToast('💬 '+senderName+' : '+preview); }
     });
   }, function(e){ console.warn('[DM Inbox] listener error:', e); });
 }
@@ -48266,7 +48305,7 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
       var dmUnread = dmEl ? (parseInt(dmEl.textContent, 10) || 0) : 0;
 
       /* Injecter dans le badge Forum (cumulatif) */
-      _COUNTS.navBadgeForum = Math.max(_COUNTS.navBadgeForum, reqIn + dmUnread);
+      _COUNTS.navBadgeForum = reqIn + dmUnread; // valeur reelle, pas cumulative
       _flushBadges();
     }
 
@@ -48309,10 +48348,10 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
           }
           _PREV_TOTAL = total;
 
-          _COUNTS.navBadgeForum     = Math.max(_COUNTS.navBadgeForum,     forum);
-          _COUNTS.navBadgeProfil    = Math.max(_COUNTS.navBadgeProfil,    profil);
-          _COUNTS.navBadgePaiements = Math.max(_COUNTS.navBadgePaiements, paiements);
-          _COUNTS.navBadgeAdmin     = Math.max(_COUNTS.navBadgeAdmin,     admin);
+          _COUNTS.navBadgeForum     = forum; // valeur reelle Firestore
+          _COUNTS.navBadgeProfil    = profil;
+          _COUNTS.navBadgePaiements = paiements;
+          _COUNTS.navBadgeAdmin     = admin;
           _flushBadges(); /* setAppBadge géré centralement dans _flushBadges */
         }, function(err){
           console.warn('[NavBadge] Firestore listener error:', err && err.code);
@@ -48452,7 +48491,7 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
             var n = parseInt(dmEl.textContent, 10) || 0;
             if(n > 0){
               playNotifSound('message');
-              _COUNTS.navBadgeForum = Math.max(_COUNTS.navBadgeForum, n);
+              _COUNTS.navBadgeForum = n; // valeur directe DM
               _flushBadges();
             }
           });
