@@ -12609,8 +12609,8 @@ function triggerPhotoPermUpload(){
    Évite un aller-retour Firestore à chaque ouverture de l'app.
    Sur réseau 3G Libreville (~300ms RTT), gain de ~600-900ms.
    ══════════════════════════════════════════════════════════════ */
-var _ETAB_CACHE_KEY = 'ambi241_etab_cache_v2';
-var _ETAB_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+var _ETAB_CACHE_KEY = 'ambi241_etab_cache_v3';
+var _ETAB_CACHE_TTL = 30 * 1000; // 30 secondes — Firestore remplace rapidement
 
 function _saveEtabCache(data) {
   try {
@@ -12659,7 +12659,12 @@ function loadData(){
   }
 
   /* ── ÉTAPE 1 : Afficher le cache immédiatement (rendu instantané) ── */
-  var cached = _loadEtabCache();
+  /* FIX v3 : si l'app vient d'être lancée depuis l'écran d'accueil (PWA),
+     ignorer le cache et aller directement sur Firestore pour avoir les données fraîches */
+  var _isPWA = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+              || window.navigator.standalone === true;
+  var cached = _isPWA ? null : _loadEtabCache();
+
   if (cached && cached.length > 0) {
     etablissements = cached;
     etablissements.forEach(function(e) { applyDynamicStatus(e); });
@@ -48104,13 +48109,7 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
           _COUNTS.navBadgeProfil    = Math.max(_COUNTS.navBadgeProfil,    profil);
           _COUNTS.navBadgePaiements = Math.max(_COUNTS.navBadgePaiements, paiements);
           _COUNTS.navBadgeAdmin     = Math.max(_COUNTS.navBadgeAdmin,     admin);
-          _flushBadges();
-
-          /* Synchroniser aussi l'icône app PWA */
-          if('setAppBadge' in navigator){
-            if(total > 0) navigator.setAppBadge(total).catch(function(){});
-            else navigator.clearAppBadge().catch(function(){});
-          }
+          _flushBadges(); /* setAppBadge géré centralement dans _flushBadges */
         }, function(err){
           console.warn('[NavBadge] Firestore listener error:', err && err.code);
         });
@@ -48121,12 +48120,50 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
 
     /* ─────────────────────────────────────────────────────────────
        6. FLUSH — met à jour l'affichage de tous les badges
+          + synchronise le badge sur l'icône de l'app (PWA)
     ───────────────────────────────────────────────────────────── */
     function _flushBadges(){
       Object.keys(_COUNTS).forEach(function(id){
         _setNavBadge(id, _COUNTS[id]);
       });
+
+      /* ── Badge icône app Android/iOS (comme WhatsApp) ── */
+      var totalBadge = (_COUNTS.navBadgeForum || 0)
+                     + (_COUNTS.navBadgeProfil || 0)
+                     + (_COUNTS.navBadgePaiements || 0)
+                     + (_COUNTS.navBadgeAdmin || 0);
+
+      if('setAppBadge' in navigator){
+        if(totalBadge > 0){
+          navigator.setAppBadge(totalBadge).catch(function(){});
+        } else {
+          navigator.clearAppBadge().catch(function(){});
+        }
+      }
+
+      /* ── Titre de l'onglet ── */
+      var baseTitle = document.title.replace(/^\(\d+\)\s*/, '');
+      document.title = totalBadge > 0 ? '(' + totalBadge + ') ' + baseTitle : baseTitle;
     }
+
+    /* ─────────────────────────────────────────────────────────────
+       6b. PERMISSION NOTIFICATION — demander au bon moment
+           (nécessaire pour setAppBadge sur Android)
+    ───────────────────────────────────────────────────────────── */
+    function _requestBadgePermission(){
+      if(!('Notification' in window)) return;
+      if(Notification.permission === 'granted') return;
+      if(Notification.permission === 'denied') return;
+      /* Demander seulement sur un geste utilisateur */
+      Notification.requestPermission().then(function(result){
+        console.log('[AMBI241] Permission notification:', result);
+      });
+    }
+    /* Déclencher sur le premier tap de l'utilisateur */
+    document.addEventListener('click', function _askPerm(){
+      _requestBadgePermission();
+      document.removeEventListener('click', _askPerm);
+    }, { once: true });
 
     /* ─────────────────────────────────────────────────────────────
        7. PATCH pushNotif — son immédiat à chaque push in-app
