@@ -24016,14 +24016,218 @@ function renderAdmSettings(){
   html += "<button onclick=\"weekSongOpenAdmin()\" style='width:100%;padding:0.65rem;border-radius:10px;border:1.5px solid rgba(255,45,155,0.45);background:rgba(255,45,155,0.1);color:var(--pink);font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;transition:all 0.2s;'>🎵 Configurer / Changer la chanson</button>";
   html += "</div>";
 
+  // ══ LOGO & IDENTITÉ DE L'APPLICATION ══
+  html += renderAdmLogoPanel();
+
   // ══ RESET TOTAL — NOUVEAU CYCLE ══
   html += renderAdmResetPanel();
 
   document.getElementById("adminSettingsContent").innerHTML=html;
   // Init des aperçus après injection du HTML
   setTimeout(initAdminDefaultPhotosPreviews, 80);
+  setTimeout(initAdmLogoPanel, 120);
 }
 
+
+// ══════════════════════════════════════════════════════════════
+// ══  LOGO & IDENTITÉ DE L'APPLICATION                         ══
+// ══════════════════════════════════════════════════════════════
+
+/* Clés Firestore pour le logo et les assets de l'app */
+var ADMIN_APP_IDENTITY_DOC = "config/app_identity";
+var _appIdentityCache = {};
+
+/** Charge l'identité de l'app depuis Firestore */
+function loadAppIdentity() {
+  if (!window.db || typeof window.fbGetDoc !== "function") return;
+  window.fbGetDoc(window.fbDoc(window.db, "config", "app_identity"))
+    .then(function(doc) {
+      if (doc && doc.exists && doc.exists()) {
+        _appIdentityCache = doc.data() || {};
+        _applyAppIdentity();
+      }
+    }).catch(function(){});
+}
+
+/** Applique logo + nom partout dans l'app */
+function _applyAppIdentity() {
+  var logo = _appIdentityCache.logoUrl || "";
+  var splashLogo = _appIdentityCache.splashLogoUrl || logo;
+  var appName = _appIdentityCache.appName || "AMBI241";
+
+  /* ── Logo header principal ── */
+  var headerImgs = document.querySelectorAll(".logo-img, #appLogoImg, [data-app-logo]");
+  headerImgs.forEach(function(el) {
+    if (logo) { el.src = logo; el.style.display = "block"; }
+  });
+
+  /* ── Logo écran de démarrage (splash) ── */
+  var splashEl = document.getElementById("splashLogo");
+  if (splashEl && splashLogo) splashEl.src = splashLogo;
+
+  /* ── Nom de l'app dans le titre ── */
+  if (appName && document.title.indexOf(appName) === -1) {
+    document.title = appName + " - Ambiance Libreville en Direct";
+  }
+
+  /* ── Favicon dynamique ── */
+  if (logo) {
+    var favicon = document.querySelector("link[rel='icon'], link[rel='shortcut icon']");
+    if (!favicon) {
+      favicon = document.createElement("link");
+      favicon.rel = "icon"; favicon.type = "image/png";
+      document.head.appendChild(favicon);
+    }
+    favicon.href = logo;
+  }
+
+  /* ── Apple touch icon ── */
+  if (logo) {
+    var appleIcon = document.querySelector("link[rel='apple-touch-icon']");
+    if (appleIcon) appleIcon.href = logo;
+  }
+}
+
+/** Sauvegarde l'identité dans Firestore */
+function saveAppIdentity(fields) {
+  if (!window.db || typeof window.fbSetDoc !== "function") {
+    showToast("❌ Firebase non disponible");
+    return Promise.reject();
+  }
+  Object.assign(_appIdentityCache, fields);
+  return window.fbSetDoc(
+    window.fbDoc(window.db, "config", "app_identity"),
+    _appIdentityCache,
+    { merge: true }
+  ).then(function() {
+    _applyAppIdentity();
+    showToast("✅ Identité de l'app mise à jour !");
+  }).catch(function(err) {
+    showToast("❌ Erreur : " + (err.message || err));
+  });
+}
+
+/** Upload logo vers Supabase ou base64 local */
+function _uploadAppLogo(file, slot) {
+  if (!file) return;
+  var maxSize = 2 * 1024 * 1024; /* 2 MB */
+  if (file.size > maxSize) { showToast("❌ Image trop lourde (max 2 Mo)"); return; }
+
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var dataUrl = ev.target.result;
+
+    /* Aperçu immédiat */
+    var previewId = slot === "splash" ? "admLogoSplashPreview" : "admLogoMainPreview";
+    var previewEl = document.getElementById(previewId);
+    if (previewEl) { previewEl.src = dataUrl; previewEl.style.display = "block"; }
+
+    /* Essayer Supabase si disponible, sinon stocker en base64 dans Firestore */
+    if (window.supabase && typeof window.supabase.storage !== "undefined") {
+      var path = "app-identity/" + slot + "-" + Date.now() + ".png";
+      window.supabase.storage.from("ambi241").upload(path, file, { upsert: true })
+        .then(function(res) {
+          if (res.error) throw res.error;
+          var publicUrl = window.supabase.storage.from("ambi241").getPublicUrl(path).data.publicUrl;
+          var fields = {};
+          fields[slot === "splash" ? "splashLogoUrl" : "logoUrl"] = publicUrl;
+          saveAppIdentity(fields);
+        })
+        .catch(function() {
+          /* Fallback base64 */
+          var fields = {};
+          fields[slot === "splash" ? "splashLogoUrl" : "logoUrl"] = dataUrl;
+          saveAppIdentity(fields);
+        });
+    } else {
+      /* Stocker directement en base64 dans Firestore */
+      var fields = {};
+      fields[slot === "splash" ? "splashLogoUrl" : "logoUrl"] = dataUrl;
+      saveAppIdentity(fields);
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+/** Génère le HTML du panneau logo admin */
+function renderAdmLogoPanel() {
+  var logoUrl = _appIdentityCache.logoUrl || "";
+  var splashUrl = _appIdentityCache.splashLogoUrl || logoUrl;
+  var appName = _appIdentityCache.appName || "AMBI241";
+
+  var h = "";
+  h += "<div style='background:linear-gradient(135deg,rgba(157,132,255,0.08),rgba(0,229,255,0.04));border:1px solid rgba(157,132,255,0.3);border-radius:14px;padding:1rem;margin-bottom:1rem;'>";
+  h += "<div style='display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;'><span style='font-size:1.1rem;'>🎨</span><span style='font-family:Syne,sans-serif;font-weight:800;color:#9D84FF;font-size:0.92rem;'>Logo & Identité de l'application</span></div>";
+  h += "<div style='font-size:0.72rem;color:var(--muted);margin-bottom:1rem;line-height:1.55;'>Le logo s'affiche dans le header, à l'écran de démarrage, et comme favicon. La mise à jour est instantanée pour tous les utilisateurs.</div>";
+
+  /* ── Nom de l'app ── */
+  h += "<div style='margin-bottom:1rem;'>";
+  h += "<label style='font-size:0.72rem;color:var(--muted);display:block;margin-bottom:0.3rem;font-weight:700;'>📝 Nom de l'application</label>";
+  h += "<div style='display:flex;gap:0.5rem;'>";
+  h += "<input id='admAppNameInput' type='text' value='" + escHtml(appName) + "' placeholder='AMBI241' style='flex:1;background:var(--surface2);border:1px solid rgba(157,132,255,0.25);border-radius:8px;color:var(--text);padding:0.5rem 0.7rem;font-size:0.82rem;'>";
+  h += "<button onclick='saveAppIdentity({appName:document.getElementById(\"admAppNameInput\").value})' style='padding:0.5rem 0.9rem;border-radius:8px;border:none;background:linear-gradient(135deg,#9D84FF,var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;white-space:nowrap;'>Sauver</button>";
+  h += "</div></div>";
+
+  /* ── Grid logo principal + splash ── */
+  h += "<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;margin-bottom:1rem;'>";
+
+  /* Logo principal */
+  h += "<div style='background:rgba(0,0,0,0.2);border:1.5px dashed rgba(157,132,255,0.3);border-radius:12px;padding:0.8rem;text-align:center;'>";
+  h += "<div style='font-size:0.7rem;color:#9D84FF;font-weight:800;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.06em;'>🏷️ Logo principal</div>";
+  h += "<div style='font-size:0.62rem;color:var(--muted);margin-bottom:0.6rem;'>Header + Favicon</div>";
+  if (logoUrl) {
+    h += "<img id='admLogoMainPreview' src='" + escHtml(logoUrl) + "' style='width:64px;height:64px;object-fit:contain;border-radius:12px;margin-bottom:0.5rem;display:block;margin-left:auto;margin-right:auto;border:1.5px solid rgba(157,132,255,0.25);'>";
+  } else {
+    h += "<img id='admLogoMainPreview' style='width:64px;height:64px;display:none;object-fit:contain;border-radius:12px;margin-bottom:0.5rem;margin-left:auto;margin-right:auto;'>";
+    h += "<div style='font-size:1.8rem;margin-bottom:0.5rem;'>🖼️</div>";
+  }
+  h += "<label style='display:block;padding:0.45rem 0.6rem;border-radius:8px;border:1px solid rgba(157,132,255,0.4);background:rgba(157,132,255,0.08);color:#9D84FF;font-size:0.72rem;font-weight:700;cursor:pointer;'>";
+  h += "📂 Choisir<input type='file' accept='image/*' style='display:none;' onchange='_uploadAppLogo(this.files[0],\"main\")'>";
+  h += "</label></div>";
+
+  /* Logo splash */
+  h += "<div style='background:rgba(0,0,0,0.2);border:1.5px dashed rgba(0,229,255,0.3);border-radius:12px;padding:0.8rem;text-align:center;'>";
+  h += "<div style='font-size:0.7rem;color:var(--cyan);font-weight:800;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.06em;'>🚀 Écran démarrage</div>";
+  h += "<div style='font-size:0.62rem;color:var(--muted);margin-bottom:0.6rem;'>Splash screen PWA</div>";
+  if (splashUrl) {
+    h += "<img id='admLogoSplashPreview' src='" + escHtml(splashUrl) + "' style='width:64px;height:64px;object-fit:contain;border-radius:12px;margin-bottom:0.5rem;display:block;margin-left:auto;margin-right:auto;border:1.5px solid rgba(0,229,255,0.25);'>";
+  } else {
+    h += "<img id='admLogoSplashPreview' style='width:64px;height:64px;display:none;object-fit:contain;border-radius:12px;margin-bottom:0.5rem;margin-left:auto;margin-right:auto;'>";
+    h += "<div style='font-size:1.8rem;margin-bottom:0.5rem;'>✨</div>";
+  }
+  h += "<label style='display:block;padding:0.45rem 0.6rem;border-radius:8px;border:1px solid rgba(0,229,255,0.35);background:rgba(0,229,255,0.06);color:var(--cyan);font-size:0.72rem;font-weight:700;cursor:pointer;'>";
+  h += "📂 Choisir<input type='file' accept='image/*' style='display:none;' onchange='_uploadAppLogo(this.files[0],\"splash\")'>";
+  h += "</label></div>";
+
+  h += "</div>"; /* fin grid */
+
+  /* ── Bouton appliquer partout ── */
+  h += "<button onclick='_applyAppIdentity();showToast(\"✅ Logo appliqué partout !\");' style='width:100%;padding:0.6rem;border-radius:10px;border:none;background:linear-gradient(135deg,#9D84FF,var(--purple));color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;margin-bottom:0.5rem;'>🔄 Appliquer partout maintenant</button>";
+
+  /* ── Supprimer logo ── */
+  h += "<button onclick='if(confirm(\"Supprimer le logo personnalisé ?\"))saveAppIdentity({logoUrl:\"\",splashLogoUrl:\"\"})' style='width:100%;padding:0.45rem;border-radius:8px;border:1px solid rgba(255,68,102,0.3);background:rgba(255,68,102,0.06);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer;'>🗑️ Supprimer le logo personnalisé</button>";
+
+  h += "</div>";
+  return h;
+}
+
+/** Init du panneau logo après injection HTML */
+function initAdmLogoPanel() {
+  /* Rien de spécial à initialiser — les inputs file sont inline */
+}
+
+/** Charge l'identité au démarrage de Firebase */
+(function _bootAppIdentity() {
+  var _tries = 0;
+  var _wait = setInterval(function() {
+    _tries++;
+    if (window.db && typeof window.fbGetDoc === "function") {
+      clearInterval(_wait);
+      loadAppIdentity();
+    }
+    if (_tries > 20) clearInterval(_wait);
+  }, 500);
+})();
 
 // ══════════════════════════════════════════════════════════════
 // ══  PANNEAU RESET TOTAL — NOUVEAU CYCLE                      ══
