@@ -10793,74 +10793,21 @@ function _showPhotoChoiceModal(eid, etab) {
     var file = fileInput.files[0];
     if (!file) return;
     overlay.remove();
-    showToast("⏳ Upload en cours...");
-    showUploadProgress(15, "Upload...");
-    // Essayer Firebase Storage d'abord
-    if (window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL) {
-      var docId = etab._docId || ("etab_" + String(eid).padStart(3, "0"));
-      var path = "etablissements/" + docId + "/photo_profile_" + _cryptoId(12) + ".jpg";
-      var storageRef = window.fbRef(window.fbStorage, path);
-      showUploadProgress(35, "Upload...");
-      window.fbUploadBytes(storageRef, file).then(function() {
-        showUploadProgress(80, "Finalisation...");
-        return window.fbGetDownloadURL(storageRef);
-      }).then(function(url) {
-        hideUploadProgress(700);
-        savePhotoProfile(eid, url, 'upload_local');
-        showToast("✅ Photo de présentation mise à jour !");
-      }).catch(function() {
-        // Fallback base64
-        compressImage(file, function(dataUrl) {
-          hideUploadProgress(700);
-          var field = {};
-          field['photo_interieur'] = dataUrl;
-          field['_photo_profile_approved'] = dataUrl;
-          updateField(eid, field);
-          if (etab) etab._photo_profile_approved = dataUrl;
-          /* ── Persistance locale des photos ── */
-          try{localStorage.setItem('ambi_photo_'+eid+'_interieur',dataUrl);localStorage.setItem('ambi_photo_'+eid+'_profile',dataUrl);}catch(e){console.warn('localStorage full:',e);}
-          if('indexedDB' in window){
-            var req=indexedDB.open('AMBI241_DB',1);
-            req.onsuccess=function(ev){
-              var db=ev.target.result;
-              if(db.objectStoreNames.contains('photos')){
-                var tx=db.transaction('photos','readwrite');
-                tx.objectStore('photos').put(dataUrl,'ambi_photo_'+eid+'_interieur');
-                tx.objectStore('photos').put(dataUrl,'ambi_photo_'+eid+'_profile');
-                db.close();
-              }else{db.close();}
-            };
-            req.onupgradeneeded=function(ev){ev.target.result.createObjectStore('photos');};
-          }
-          showToast("✅ Photo enregistrée !");
-          if (typeof renderAll === "function") setTimeout(renderAll, 200);
-        });
-      });
-    } else {
-      // Fallback base64 direct
-      compressImage(file, function(dataUrl) {
-        hideUploadProgress(700);
-        updateField(eid, {photo_interieur: dataUrl, _photo_profile_approved: dataUrl});
-        if (etab) etab._photo_profile_approved = dataUrl;
-        /* ── Persistance locale des photos ── */
-        try{localStorage.setItem('ambi_photo_'+eid+'_interieur',dataUrl);localStorage.setItem('ambi_photo_'+eid+'_profile',dataUrl);}catch(e){console.warn('localStorage full:',e);}
-        if('indexedDB' in window){
-          var req=indexedDB.open('AMBI241_DB',1);
-          req.onsuccess=function(ev){
-            var db=ev.target.result;
-            if(db.objectStoreNames.contains('photos')){
-              var tx=db.transaction('photos','readwrite');
-              tx.objectStore('photos').put(dataUrl,'ambi_photo_'+eid+'_interieur');
-              tx.objectStore('photos').put(dataUrl,'ambi_photo_'+eid+'_profile');
-              db.close();
-            }else{db.close();}
-          };
-          req.onupgradeneeded=function(ev){ev.target.result.createObjectStore('photos');};
-        }
-        showToast("✅ Photo enregistrée !");
-        if (typeof renderAll === "function") setTimeout(renderAll, 200);
-      });
-    }
+    showUploadProgress(20, "Compression...");
+    // ✅ Système direct : compresse → base64 → updateField (sans Firebase Storage)
+    compressImage(file, function(dataUrl) {
+      if(!dataUrl){ hideUploadProgress(400); showToast("❌ Impossible de lire l'image"); fileInput.value=''; return; }
+      showUploadProgress(70, "Sauvegarde...");
+      updateField(eid, {photo_interieur: dataUrl, _photo_profile_approved: dataUrl});
+      if (etab) etab._photo_profile_approved = dataUrl;
+      try{
+        localStorage.setItem('ambi_photo_'+eid+'_interieur', dataUrl);
+        localStorage.setItem('ambi_photo_'+eid+'_profile', dataUrl);
+      }catch(e){}
+      hideUploadProgress(500);
+      showToast("✅ Photo enregistrée !");
+      if (typeof renderAll === "function") setTimeout(renderAll, 200);
+    });
     fileInput.value = '';
   };
   document.body.appendChild(fileInput);
@@ -18989,94 +18936,54 @@ function onSlotPhotoSelected(inp){
   if(!canEditPhotos(etab)){showToast("Acces refuse");inp.value="";return;}
   var arr=loadSlotPhotos(eid);
   if(arr.length>=MAX_SLOT){showToast("Maximum "+MAX_SLOT+" photos atteint");inp.value="";return;}
-  showToast("Upload en cours... ⏳");
-  showUploadProgress(15, "Upload Firebase...");
-  // ✅ Passer le File directement à saveSlotPhoto (qui gère Storage + Firestore)
-  // Invalider le cache pour forcer le rechargement
+  // Invalider le cache avant sauvegarde
   var eidStr = String(eid);
   delete _slotPhotoCache[eidStr];
   saveSlotPhoto(eid, inp.files[0]);
   inp.value="";
-  // Rafraîchir l'UI après un court délai (upload async)
+  // Rafraîchir l'UI après compression (async)
   setTimeout(function(){
-    // Recharger depuis Firebase pour avoir le docId
     loadSlotPhotosAsync(eid, function(){
       renderAll(); renderHome();
       var modal=document.getElementById("photoManagerModal");
       if(modal && modal.style.display==="flex") renderPhotoManager();
     });
-  }, 1500);
+  }, 1200);
 }
 
 function onPermPhotoSelected(inp){
-  // Récupérer eid/type depuis window (définis par le label onclick) ou les vars locales
   var eid  = __permPhotoEid  || window.__permPhotoEid  || __photoModalEid;
   var type = __permPhotoType || window.__permPhotoType || __photoModalType || "exterieur";
-  if(!eid||!inp.files||!inp.files[0])return;
+  if(!eid || !inp.files || !inp.files[0]) return;
   var file = inp.files[0];
-  var etab = etablissements.find(function(x){return x.id===eid;})||{};
-  if(!canEditPhotos(etab) && !isAdmin){showToast("Accès refusé");inp.value="";return;}
+  var etab = etablissements.find(function(x){ return x.id === eid; }) || {};
+  if(!canEditPhotos(etab) && !isAdmin){ showToast("Accès refusé"); inp.value=""; return; }
 
-  // Synchro des vars locales pour la suite
   __permPhotoEid  = eid;
   __permPhotoType = type;
 
-  // Fermer le bon modal (photoManager ou photoModal)
   function _closeAnyPhotoModal(){
     closePhotoModal();
     var pm = document.getElementById("photoManagerModal");
-    if(pm) pm.style.display="none";
-    _photoManagerEid=null; _photoManagerType=null;
+    if(pm) pm.style.display = "none";
+    _photoManagerEid = null; _photoManagerType = null;
   }
 
-  showToast("Upload en cours... ⏳");
-  showUploadProgress(10, "Upload...");
+  showUploadProgress(20, "Compression...");
 
-  // Essayer Firebase Storage en priorité
-  if(window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL){
-    var docId = etab._docId || ("etab_"+String(eid).padStart(3,"0"));
-    var path = "etablissements/"+docId+"/"+type+"_"+_cryptoId(12)+".jpg";
-    var storageRef = window.fbRef(window.fbStorage, path);
-    showUploadProgress(30, "Upload...");
-    window.fbUploadBytes(storageRef, file).then(function(){
-      showUploadProgress(80, "Finalisation...");
-      return window.fbGetDownloadURL(storageRef);
-    }).then(function(url){
-      hideUploadProgress(700);
-      var field = type==="interieur"?"photo_interieur":"photo_exterieur";
-      var obj={}; obj[field]=url;
-      updateField(eid, obj);
-      inp.value="";
-      renderAll(); renderHome();
-      _closeAnyPhotoModal();
-      showToast("✅ Photo uploadée !");
-    }).catch(function(err){
-      // Fallback base64 si Storage échoue
-      showToast("Storage indisponible, compression locale...");
-      compressImage(file, function(dataUrl){
-        hideUploadProgress(700);
-        var field=type==="interieur"?"photo_interieur":"photo_exterieur";
-        var obj={}; obj[field]=dataUrl;
-        updateField(eid, obj);
-        inp.value="";
-        renderAll(); renderHome();
-        _closeAnyPhotoModal();
-        showToast("✅ Photo enregistrée !");
-      });
-    });
-  } else {
-    // Fallback base64
-    compressImage(file, function(dataUrl){
-      hideUploadProgress(700);
-      var field=type==="interieur"?"photo_interieur":"photo_exterieur";
-      var obj={}; obj[field]=dataUrl;
-      updateField(eid, obj);
-      inp.value="";
-      renderAll(); renderHome();
-      _closeAnyPhotoModal();
-      showToast("✅ Photo enregistrée !");
-    });
-  }
+  // ✅ Système direct : compresse → base64 → updateField (même chemin que tous les autres champs)
+  // Firebase Storage retiré — évite les blocages de progression sur Android/réseau instable
+  compressImage(file, function(dataUrl){
+    if(!dataUrl){ hideUploadProgress(400); showToast("❌ Impossible de lire l'image"); inp.value=""; return; }
+    showUploadProgress(70, "Sauvegarde...");
+    var field = type === "interieur" ? "photo_interieur" : "photo_exterieur";
+    var obj = {}; obj[field] = dataUrl;
+    updateField(eid, obj);
+    hideUploadProgress(500);
+    inp.value = "";
+    _closeAnyPhotoModal();
+    showToast("✅ Photo enregistrée !");
+  });
 }
 
 // ── Modal photo permanente (URL + Upload) ──
@@ -19303,63 +19210,62 @@ function saveSlotPhoto(eid, file_or_dataUrl){
   var current = _slotPhotoCache[eidStr] || lsGetJSON("ambi241_slot_photos",{})[eidStr] || [];
   if(current.length >= MAX_SLOT){ showToast("Maximum "+MAX_SLOT+" photos atteint"); return; }
 
+  // ✅ Système direct : base64 → Firestore (même principe que updateField)
+  // Firebase Storage retiré — évite les blocages sur Android/réseau instable
   function _persist(dataUrl){
-    var record = {url: dataUrl, ts: Date.now(), addedBy: window.currentUserUID||"inconnu"};
+    if(!dataUrl){ hideUploadProgress && hideUploadProgress(400); showToast("❌ Impossible de lire l'image"); return; }
+    showUploadProgress && showUploadProgress(70, "Photo soirée...");
+    var rec = { url: dataUrl, ts: Date.now(), addedBy: window.currentUserUID || "inconnu" };
 
-    // 1. Firebase Storage si disponible
-    function _saveRecord(url){
-      var rec = {url:url, ts:record.ts, addedBy:record.addedBy};
-      if(window.db && window.fbAddDoc && window.fbCollection){
-        window.fbAddDoc(window.fbCollection(window.db,"slotPhotos",eidStr,"photos"), rec)
-          .then(function(ref){
-            rec.docId = ref.id;
-            if(!_slotPhotoCache[eidStr]) _slotPhotoCache[eidStr]=[];
-            _slotPhotoCache[eidStr].push(rec);
-            // Sync localStorage
-            var stored=lsGetJSON("ambi241_slot_photos",{});
-            stored[eidStr]=_slotPhotoCache[eidStr];
-            try{lsSetJSON("ambi241_slot_photos",stored);}catch(e){}
-            showToast("📸 Photo sauvegardée !");
-            if(typeof renderAll==="function") renderAll();
-            if(typeof renderHome==="function") renderHome();
-          }).catch(function(){
-            // Fallback localStorage uniquement
-            _saveLocalOnly(rec);
-          });
-      } else {
-        _saveLocalOnly(rec);
-      }
-    }
-
-    function _saveLocalOnly(rec){
-      if(!_slotPhotoCache[eidStr]) _slotPhotoCache[eidStr]=[];
-      _slotPhotoCache[eidStr].push(rec);
-      var stored=lsGetJSON("ambi241_slot_photos",{});
-      stored[eidStr]=_slotPhotoCache[eidStr];
-      try{lsSetJSON("ambi241_slot_photos",stored);}catch(e){showToast("Stockage plein, supprimez des photos");}
-      if(typeof renderAll==="function") renderAll();
-      if(typeof renderHome==="function") renderHome();
-    }
-
-    // Tenter Firebase Storage pour un vrai URL permanent
-    if(file_or_dataUrl instanceof File && window.fbStorage && window.fbRef && window.fbUploadBytes && window.fbGetDownloadURL){
-      var path = "slotPhotos/"+eidStr+"/"+_cryptoId(16)+".jpg";
-      var storRef = window.fbRef(window.fbStorage, path);
-      showUploadProgress && showUploadProgress(20,"Photo soirée...");
-      window.fbUploadBytes(storRef, file_or_dataUrl)
-        .then(function(){ showUploadProgress && showUploadProgress(80,"Finalisation..."); return window.fbGetDownloadURL(storRef); })
-        .then(function(url){ hideUploadProgress && hideUploadProgress(400); _saveRecord(url); })
-        .catch(function(){ hideUploadProgress && hideUploadProgress(400); _saveRecord(dataUrl); });
+    // Sauvegarder en Firestore
+    if(window.db && window.fbAddDoc && window.fbCollection){
+      window.fbAddDoc(window.fbCollection(window.db, "slotPhotos", eidStr, "photos"), rec)
+        .then(function(ref){
+          rec.docId = ref.id;
+          if(!_slotPhotoCache[eidStr]) _slotPhotoCache[eidStr] = [];
+          _slotPhotoCache[eidStr].push(rec);
+          var stored = lsGetJSON("ambi241_slot_photos", {});
+          stored[eidStr] = _slotPhotoCache[eidStr];
+          try{ lsSetJSON("ambi241_slot_photos", stored); }catch(e){}
+          hideUploadProgress && hideUploadProgress(400);
+          showToast("📸 Photo sauvegardée !");
+          if(typeof renderAll === "function") renderAll();
+          if(typeof renderHome === "function") renderHome();
+        }).catch(function(){
+          // Fallback localStorage
+          if(!_slotPhotoCache[eidStr]) _slotPhotoCache[eidStr] = [];
+          _slotPhotoCache[eidStr].push(rec);
+          var stored = lsGetJSON("ambi241_slot_photos", {});
+          stored[eidStr] = _slotPhotoCache[eidStr];
+          try{ lsSetJSON("ambi241_slot_photos", stored); }catch(e){ showToast("Stockage plein, supprimez des photos"); }
+          hideUploadProgress && hideUploadProgress(400);
+          showToast("📸 Photo sauvegardée localement !");
+          if(typeof renderAll === "function") renderAll();
+          if(typeof renderHome === "function") renderHome();
+        });
     } else {
-      _saveRecord(dataUrl);
+      // Pas de Firestore — localStorage uniquement
+      if(!_slotPhotoCache[eidStr]) _slotPhotoCache[eidStr] = [];
+      _slotPhotoCache[eidStr].push(rec);
+      var stored = lsGetJSON("ambi241_slot_photos", {});
+      stored[eidStr] = _slotPhotoCache[eidStr];
+      try{ lsSetJSON("ambi241_slot_photos", stored); }catch(e){}
+      hideUploadProgress && hideUploadProgress(400);
+      showToast("📸 Photo sauvegardée !");
+      if(typeof renderAll === "function") renderAll();
+      if(typeof renderHome === "function") renderHome();
     }
   }
 
-  // Accepte File ou dataUrl string
+  showUploadProgress && showUploadProgress(20, "Compression...");
+
   if(file_or_dataUrl instanceof File){
-    if(typeof compressImage==="function"){ compressImage(file_or_dataUrl, _persist); }
+    if(typeof compressImage === "function"){ compressImage(file_or_dataUrl, _persist); }
     else {
-      var fr=new FileReader(); fr.onload=function(e){_persist(e.target.result);}; fr.readAsDataURL(file_or_dataUrl);
+      var fr = new FileReader();
+      fr.onload = function(e){ _persist(e.target.result); };
+      fr.onerror = function(){ hideUploadProgress && hideUploadProgress(400); showToast("❌ Erreur lecture fichier"); };
+      fr.readAsDataURL(file_or_dataUrl);
     }
   } else {
     _persist(file_or_dataUrl);
