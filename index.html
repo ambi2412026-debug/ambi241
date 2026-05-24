@@ -16241,45 +16241,46 @@ function buildEtabInfoStrip(e){
 }
 
 function buildEtabProfilePanel(e){
-  var hasData = (e.capacite_totale && e.capacite_totale > 0)
-    || (e.nb_vip && e.nb_vip > 0)
-    || (e.nb_chambres && e.nb_chambres > 0)
-    || (e.genres_musicaux && e.genres_musicaux.length)
-    || e.age_clientele
-    || e.dress_code;
-  if(!hasData) return "";
-
+  // ── TOUJOURS afficher le panneau (0 si non renseigné) ──
   var html = "<div class='etab-profile-panel'>";
 
-  // ── Ligne capacité (stats chiffrées) ──
+  // ── Ligne capacité (stats chiffrées — toujours visibles) ──
   var stats = [];
-  if(e.capacite_totale && e.capacite_totale > 0)
-    stats.push({icon:"🪑", val:e.capacite_totale, lbl:"places"});
-  if(e.nb_vip && e.nb_vip > 0)
-    stats.push({icon:"🏆", val:e.nb_vip, lbl:"VIP"});
-  if(e.nb_chambres && e.nb_chambres > 0)
-    stats.push({icon:"🛏️", val:e.nb_chambres, lbl:"chambres"});
+  stats.push({icon:"🪑", val:(e.capacite_totale||0), lbl:"places"});
+  stats.push({icon:"🏆", val:(e.nb_vip||0), lbl:"VIP"});
+  // Chambres uniquement pour hôtels
+  var cat = getCategory(e.type);
+  if(cat==="Hotel" || (e.type||"").toLowerCase().indexOf("hôtel")!==-1 || (e.type||"").toLowerCase().indexOf("hotel")!==-1 || e.nb_chambres>0)
+    stats.push({icon:"🛏️", val:(e.nb_chambres||0), lbl:"chambres"});
 
-  if(stats.length){
-    html += "<div class='epp-stats-row'>";
-    stats.forEach(function(s){
-      html += "<div class='epp-stat'>"
-        +"<span class='epp-stat-icon'>"+s.icon+"</span>"
-        +"<strong class='epp-stat-val'>"+s.val+"</strong>"
-        +"<span class='epp-stat-lbl'>"+s.lbl+"</span>"
-        +"</div>";
-    });
-    html += "</div>";
-  }
+  html += "<div class='epp-stats-row'>";
+  stats.forEach(function(s){
+    html += "<div class='epp-stat'>"
+      +"<span class='epp-stat-icon'>"+s.icon+"</span>"
+      +"<strong class='epp-stat-val'>"+s.val+"</strong>"
+      +"<span class='epp-stat-lbl'>"+s.lbl+"</span>"
+      +"</div>";
+  });
+  html += "</div>";
+
+  // ── Note & avis publics ──
+  html += "<div class='epp-stats-row' style='margin-top:0.3rem;'>";
+  html += "<div class='epp-stat'><span class='epp-stat-icon'>⭐</span><strong class='epp-stat-val'>"+(e.note?e.note.toFixed(1):"0")+"</strong><span class='epp-stat-lbl'>note</span></div>";
+  html += "<div class='epp-stat'><span class='epp-stat-icon'>💬</span><strong class='epp-stat-val'>"+(e.avis||0)+"</strong><span class='epp-stat-lbl'>avis</span></div>";
+  html += "<div class='epp-stat'><span class='epp-stat-icon'>👥</span><strong class='epp-stat-val'>"+(e.affluence||0)+"%</strong><span class='epp-stat-lbl'>affluence</span></div>";
+  html += "</div>";
 
   // ── Tags âge + dress code ──
   var tags = [];
   if(e.age_clientele)
     tags.push("<span class='epp-tag epp-tag-age'>👥 "+escHtml(e.age_clientele)+"</span>");
+  else
+    tags.push("<span class='epp-tag' style='opacity:0.5;'>👥 Âge : —</span>");
   if(e.dress_code)
     tags.push("<span class='epp-tag epp-tag-dress'>👔 "+escHtml(e.dress_code)+"</span>");
-  if(tags.length)
-    html += "<div class='epp-tags-row'>"+tags.join("")+"</div>";
+  else
+    tags.push("<span class='epp-tag' style='opacity:0.5;'>👔 Dress code : —</span>");
+  html += "<div class='epp-tags-row'>"+tags.join("")+"</div>";
 
   // ── Genres musicaux ──
   if(e.genres_musicaux && e.genres_musicaux.length){
@@ -16288,6 +16289,8 @@ function buildEtabProfilePanel(e){
       html += "<span class='epp-genre'>"+escHtml(g)+"</span>";
     });
     html += "</div>";
+  } else {
+    html += "<div class='epp-music-row' style='opacity:0.5;'><span class='epp-music-icon'>🎵</span><span class='epp-genre'>Musique : non renseignée</span></div>";
   }
 
   html += "</div>";
@@ -16299,7 +16302,7 @@ function buildLiveDispoBar(e, canManage){
   var hasDispo    = e.places_dispo !== undefined && e.places_dispo !== null && e.places_dispo > 0;
   var hasTendance = e.affluence_tendance && e.affluence_tendance !== "Stable";
   var hasMusiSoir = e.musique_soir && e.musique_soir.trim();
-  if(!hasDispo && !hasTendance && !hasMusiSoir && !canManage) return "";
+  // ── TOUJOURS afficher (public voit 0 si non renseigné) ──
 
   var cap = e.capacite_totale || 0;
   var dispo = e.places_dispo || 0;
@@ -16326,13 +16329,15 @@ function buildLiveDispoBar(e, canManage){
   else if(tendance === "Saturé" || tendance === "Complet") tendBadge = "<span class='eld-tendance full'>🔴 Saturé</span>";
   else if(hasDispo)                 tendBadge = "<span class='eld-tendance stab'>→ Stable</span>";
 
+  // Libellé par défaut si aucune donnée
+  if(!label) label = dispo + " place"+(dispo>1?"s":"")+" dispo";
+
   var html = "<div class='etab-live-dispo'>";
   html += "<div class='eld-dot "+dotClass+"'></div>";
-  if(label) html += "<span class='eld-label'>"+escHtml(label)+"</span>";
-  if(hasMusiSoir){
-    html += "<span class='eld-sub'>🎵 Ce soir : "+escHtml(e.musique_soir)+"</span>";
-  }
+  html += "<span class='eld-label'>"+escHtml(label)+"</span>";
+  html += "<span class='eld-sub'>🎵 Ce soir : "+(hasMusiSoir?escHtml(e.musique_soir):"non renseigné")+"</span>";
   if(tendBadge) html += tendBadge;
+  else html += "<span class='eld-tendance stab'>→ Stable</span>";
   html += "</div>";
   return html;
 }
@@ -17013,7 +17018,7 @@ function buildCard(e,delay,compact,rank,extraClass){
     "<div class=\"card-name\"><button class=\"etab-name-order-btn\" onclick=\"window['_etabOrderBtn_'+"+e.id+"] && window['_etabOrderBtn_'+"+e.id+"]()\" title=\"📋 Réserver à "+e.nom.replace(/"/g,'')+"\" style=\"font-family:'Syne',sans-serif;font-size:inherit;font-weight:inherit;\">"+e.nom+" <span class=\"etab-name-order-pulse\">+</span></button> <span onclick=\"openGalerie("+e.id+")\" title=\"Voir la galerie de "+(e.nom||"").replace(/"/g,'')+"\" style=\"cursor:pointer;display:inline-flex;align-items:center;gap:0.35rem;flex-wrap:wrap;transition:color 0.2s;\"><span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span>"+(e._distKm!=null?"<span class=\"dist-badge "+distClass(e._distKm)+"\">"+fmtDist(e._distKm)+"</span>":"")+"</span></div>"+
     "<span class=\"cat-badge "+ci.badge+"\" style=\"cursor:pointer;\" onclick=\"goToTypeFilter('"+getCategory(e.type)+"')\" title=\"Filtrer par "+ci.label+"\">"+ci.icon+" "+ci.label+"</span>"+
     "<div style=\"font-size:0.7rem;color:var(--cyan);margin-top:0.2rem;cursor:pointer;display:inline-flex;align-items:center;gap:0.2rem;\" onclick=\"goToQuartier('"+e.quartier.replace(/'/g,"")+"')\">&#128205; "+e.quartier+"<span style='font-size:0.55rem;opacity:0.6;'> ›</span></div>"+
-    "</div>"+(e.statut ? "<span class=\"status-pill "+sc+"\">"+e.statut+"</span>" : "")+"</div>"+
+    "</div>"+(e.statut ? "<span class=\"status-pill "+sc+"\">"+e.statut+"</span>" : "<span class=\"status-pill\">—</span>")+"</div>"+
     affBar+
     buildDispoPublicStrip(e)+
     buildEtabProfilePanel(e)+
@@ -17090,8 +17095,9 @@ function buildCard(e,delay,compact,rank,extraClass){
       ? "<div class=\"stars\">"+makeStars(e.note)+"</div>"
         +"<span class=\"note\" data-live-note=\""+e.id+"\">"+e.note+"</span>"
         +"<span class=\"avis\" data-live-avis=\""+e.id+"\">"+e.avis+" avis</span>"
-      : "<span style='font-size:0.68rem;color:var(--muted);font-style:italic;' data-live-note=\""+e.id+"\">Pas encore de note</span>"
-        +"<span style='display:none' data-live-avis=\""+e.id+"\"></span>"
+      : "<div class=\"stars\">"+makeStars(0)+"</div>"
+        +"<span class=\"note\" data-live-note=\""+e.id+"\">0</span>"
+        +"<span class=\"avis\" data-live-avis=\""+e.id+"\">0 avis</span>"
     )+
     (!compact?"<button class=\"rate-btn\" onclick=\"openRatingModal("+e.id+")\">&#11088; "+(e.avis>0?"Voter":"1er avis")+"</button>":"")+
     "</div>"+
