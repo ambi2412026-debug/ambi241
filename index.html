@@ -12563,7 +12563,8 @@ function renderPhotoManager(){
     // Utiliser un <label> pour déclencher le sélecteur de fichier nativement (fiable Android)
     html+="<label for='__fileSlotPhoto' onclick='window.__slotUploadEid=_photoManagerEid;' style='display:block;width:100%;padding:0.75rem;background:rgba(255,45,155,0.15);border:1.5px dashed rgba(255,45,155,0.4);border-radius:8px;color:var(--pink);font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.9rem;text-align:center;box-sizing:border-box;'>+ Ajouter une photo</label>";
   } else if(_photoManagerType==="exterieur" || _photoManagerType==="interieur"){
-    html+="<button onclick='triggerPhotoPermUpload()' style='width:100%;padding:0.75rem;background:rgba(255,45,155,0.15);border:1.5px dashed rgba(255,45,155,0.4);border-radius:8px;color:var(--pink);font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.9rem;'>Changer la photo</button>";
+    // ✅ label natif → ouvre directement la galerie sur Android/iOS (même système que photo profil admin)
+    html+="<label for='__filePermPhoto' onclick='window.__permPhotoEid=_photoManagerEid;window.__permPhotoType=_photoManagerType;' style='display:block;width:100%;padding:0.75rem;background:rgba(255,45,155,0.15);border:1.5px dashed rgba(255,45,155,0.4);border-radius:8px;color:var(--pink);font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.9rem;text-align:center;box-sizing:border-box;'>📷 Changer la photo</label>";
   }
   
   html+="</div>";
@@ -19020,6 +19021,14 @@ function onPermPhotoSelected(inp){
   __permPhotoEid  = eid;
   __permPhotoType = type;
 
+  // Fermer le bon modal (photoManager ou photoModal)
+  function _closeAnyPhotoModal(){
+    closePhotoModal();
+    var pm = document.getElementById("photoManagerModal");
+    if(pm) pm.style.display="none";
+    _photoManagerEid=null; _photoManagerType=null;
+  }
+
   showToast("Upload en cours... ⏳");
   showUploadProgress(10, "Upload...");
 
@@ -19039,7 +19048,7 @@ function onPermPhotoSelected(inp){
       updateField(eid, obj);
       inp.value="";
       renderAll(); renderHome();
-      closePhotoModal();
+      _closeAnyPhotoModal();
       showToast("✅ Photo uploadée !");
     }).catch(function(err){
       // Fallback base64 si Storage échoue
@@ -19051,7 +19060,7 @@ function onPermPhotoSelected(inp){
         updateField(eid, obj);
         inp.value="";
         renderAll(); renderHome();
-        closePhotoModal();
+        _closeAnyPhotoModal();
         showToast("✅ Photo enregistrée !");
       });
     });
@@ -19064,7 +19073,7 @@ function onPermPhotoSelected(inp){
       updateField(eid, obj);
       inp.value="";
       renderAll(); renderHome();
-      closePhotoModal();
+      _closeAnyPhotoModal();
       showToast("✅ Photo enregistrée !");
     });
   }
