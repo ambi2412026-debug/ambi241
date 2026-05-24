@@ -45922,6 +45922,22 @@ textarea.aqa-input { resize: vertical; min-height: 64px; }
       <!-- ── ÉTAPE 6 : RÉCAP + ENVOI ── -->
       <div class="aqa-section" id="aqaStep5">
         <div id="aqaRecap" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:1rem;font-size:0.78rem;line-height:1.9;"></div>
+
+        <!-- ── Connexion Firebase requise (mode Admin PIN sans compte Firebase) ── -->
+        <div id="aqaAuthBox" style="display:none;margin-top:0.9rem;background:rgba(255,100,0,0.07);border:1.5px solid rgba(255,150,0,0.35);border-radius:14px;padding:1rem;">
+          <div style="font-size:0.75rem;font-weight:800;color:#ffaa00;margin-bottom:0.6rem;">🔐 Connexion Firebase requise</div>
+          <div style="font-size:0.68rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.5;">Vous êtes en mode Admin PIN mais pas connecté à Firebase. Entrez vos identifiants administrateur pour enregistrer l'établissement.</div>
+          <input type="email" id="aqaAuthEmail" placeholder="Email administrateur" autocomplete="email"
+            style="width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,150,0,0.3);border-radius:9px;padding:0.55rem 0.75rem;color:#fff;font-size:0.78rem;font-family:'DM Sans',sans-serif;margin-bottom:0.45rem;outline:none;">
+          <input type="password" id="aqaAuthPwd" placeholder="Mot de passe" autocomplete="current-password"
+            style="width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,150,0,0.3);border-radius:9px;padding:0.55rem 0.75rem;color:#fff;font-size:0.78rem;font-family:'DM Sans',sans-serif;margin-bottom:0.6rem;outline:none;">
+          <div id="aqaAuthMsg" style="font-size:0.68rem;color:var(--red);min-height:1rem;margin-bottom:0.4rem;"></div>
+          <button onclick="aqaDoSignIn()" id="aqaAuthBtn"
+            style="width:100%;padding:0.6rem;border-radius:9px;background:linear-gradient(135deg,#ff9500,#ffaa00);border:none;color:#1a0a28;font-weight:800;font-size:0.82rem;font-family:'DM Sans',sans-serif;cursor:pointer;">
+            🔑 Se connecter et créer l'établissement
+          </button>
+        </div>
+
         <div class="aqa-status-msg" id="aqaStatusMsg"></div>
         <!-- Debug panel Android -->
         <div id="aqaDebugBox" style="display:none;margin-top:0.8rem;background:rgba(0,0,0,0.5);border:1px solid rgba(0,229,255,0.25);border-radius:10px;padding:0.7rem;max-height:180px;overflow-y:auto;">
@@ -46212,6 +46228,46 @@ function aqaUploadPhoto(inputId, path) {
   });
 }
 
+/* ── Connexion Firebase depuis le modal AQA ── */
+window.aqaDoSignIn = function() {
+  var email = (document.getElementById('aqaAuthEmail').value || '').trim();
+  var pwd   = (document.getElementById('aqaAuthPwd').value  || '');
+  var msgEl = document.getElementById('aqaAuthMsg');
+  var btn   = document.getElementById('aqaAuthBtn');
+
+  if (!email || !pwd) {
+    msgEl.textContent = '⚠️ Remplissez email et mot de passe.'; return;
+  }
+  if (!window.fbSignIn || !window.auth) {
+    msgEl.textContent = '❌ Firebase Auth non disponible. Rechargez la page.'; return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Connexion…';
+  msgEl.style.color = 'var(--muted)';
+  msgEl.textContent = 'Connexion en cours…';
+
+  window.fbSignIn(window.auth, email, pwd).then(function() {
+    msgEl.style.color = 'var(--green)';
+    msgEl.textContent = '✅ Connecté ! Envoi en cours…';
+    btn.textContent = '✅ Connecté';
+    document.getElementById('aqaAuthBox').style.display = 'none';
+    // Relancer la soumission maintenant que l'auth est OK
+    setTimeout(function() { window.aqaSubmit(); }, 400);
+  }).catch(function(err) {
+    btn.disabled = false;
+    btn.textContent = '🔑 Se connecter et créer l\'établissement';
+    msgEl.style.color = 'var(--red)';
+    if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+      msgEl.textContent = '❌ Email ou mot de passe incorrect.';
+    } else if (err.code === 'auth/too-many-requests') {
+      msgEl.textContent = '🚫 Trop de tentatives. Réessayez dans quelques minutes.';
+    } else {
+      msgEl.textContent = '❌ Erreur : ' + (err.message || err.code);
+    }
+  });
+};
+
 /* ── Soumission Firebase ── */
 window.aqaSubmit = function() {
   var nom = (document.getElementById('aqaNom').value || '').trim();
@@ -46229,6 +46285,22 @@ window.aqaSubmit = function() {
     var msgEl2 = document.getElementById('aqaStatusMsg');
     msgEl2.className = 'aqa-status-msg err';
     msgEl2.textContent = '❌ Firebase non disponible. Vérifiez votre connexion.';
+    return;
+  }
+
+  // ── Vérification Firebase Auth ──
+  // Le mode Admin PIN est local. Firestore/Storage exigent un utilisateur authentifié.
+  if (!window.auth || !window.auth.currentUser) {
+    var msgElAuth = document.getElementById('aqaStatusMsg');
+    msgElAuth.className = 'aqa-status-msg err';
+    msgElAuth.textContent = '⚠️ Connexion Firebase requise (mode Admin PIN détecté sans session Firebase).';
+    var authBox = document.getElementById('aqaAuthBox');
+    if (authBox) {
+      authBox.style.display = 'block';
+      var authMsgEl = document.getElementById('aqaAuthMsg');
+      if (authMsgEl) { authMsgEl.style.color = 'var(--muted)'; authMsgEl.textContent = ''; }
+    }
+    aqaLog('⚠️ Non authentifié Firebase — formulaire de connexion affiché', '#ffaa00');
     return;
   }
 
