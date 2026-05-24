@@ -7262,7 +7262,7 @@ if (document.readyState === 'loading') {
   <div class="sitenav-item" onclick="switchSection('etablissements',null);closeSiteNav()">
     <span class="sni-icon">📍</span><span class="sni-label">Lieux &amp; Établissements</span>
   </div>
-  <div class="sitenav-item" onclick="switchSection('fiches',null);closeSiteNav()">
+  <div class="sitenav-item" id="sitenavFichesItem" onclick="navHandleFiches(null);closeSiteNav();" style="display:none;">
     <span class="sni-icon">📋</span><span class="sni-label">Fiches Sectorielles</span>
   </div>
   <div class="sitenav-item" onclick="switchSection('social',null);closeSiteNav()">
@@ -10165,7 +10165,7 @@ window.closePhotoViewer = closePhotoViewer;
   <button class="nav-item" onclick="switchSection('etablissements',this)"><span class="nav-icon">&#128269;</span>Lieux</button>
   <button class="nav-item" id="navProfilBtn" onclick="navHandleProfil(this)"><span class="nav-unread-badge" id="navBadgeProfil"></span><span class="nav-icon" id="navProfilIcon">&#128273;</span><span id="navProfilLabel">Connexion</span></button>
   <button class="nav-item" onclick="switchSection('social',this)"><span class="nav-unread-badge" id="navBadgeForum"></span><span class="nav-icon">👥</span>Forum</button>
-  <button class="nav-item" id="navFichesBtn" onclick="switchSection('fiches',this)"><span class="nav-icon">📋</span>Fiches</button>
+  <button class="nav-item" id="navFichesBtn" onclick="navHandleFiches(this)" style="display:none;"><span class="nav-icon">📋</span>Fiches</button>
   <button class="nav-item" id="navPaiementsBtn" onclick="switchSection('paiements',this)"><span class="nav-unread-badge" id="navBadgePaiements"></span><span class="nav-icon">&#128179;</span>Paiements</button>
   <button class="nav-item" id="navAdminSettings" style="display:none;" onclick="openAdminDashboard(this)"><span class="nav-unread-badge" id="navBadgeAdmin"></span><span class="nav-icon">&#9881;</span>Paramètres</button>
 </nav>
@@ -10623,6 +10623,8 @@ onAuthStateChanged(auth, function(user) {
       if(typeof updateNavLabels === "function") updateNavLabels();
       // ── Pré-remplir sec-profil avec les vraies données utilisateur ──
       if(typeof _syncProfilSection === "function") setTimeout(_syncProfilSection, 400);
+      // ── Visibilité pro-panels fiches selon rôle ──
+      setTimeout(function(){ if(typeof _applyFichesPanelVisibility === 'function') _applyFichesPanelVisibility(); }, 600);
       // ── Actualiser le panneau paiements ──
       if(typeof updatePayVis === "function") setTimeout(updatePayVis, 500);
       // ── Démarrer le listener Taxi Pro si le user est un chauffeur approuvé ──
@@ -10645,6 +10647,8 @@ onAuthStateChanged(auth, function(user) {
     updateHeaderUser(null);
     // ── Repasser le bouton en "Connexion" après déconnexion ──
     if(typeof updateNavLabels === "function") updateNavLabels();
+    // ── Masquer les pro-panels fiches pour les visiteurs ──
+    if(typeof _applyFichesPanelVisibility === 'function') _applyFichesPanelVisibility();
     // ── Réafficher les formules d'abonnement après déconnexion ──
     if(typeof updatePayVis === "function") setTimeout(updatePayVis, 200);
   }
@@ -12338,6 +12342,8 @@ function checkSecondaryAdminAccess(){
     renderStats(); renderAll(); renderHome(); updatePayVis(); renderPayments();
     // ── Afficher le bouton Ajout rapide ──
     if(typeof window.aqaCheckAdminBtn==='function') window.aqaCheckAdminBtn();
+    // ── Actualiser la visibilité des pro-panels ──
+    if(typeof _applyFichesPanelVisibility === 'function') setTimeout(_applyFichesPanelVisibility, 300);
     showToast("🔑 Accès Admin secondaire activé");
   }
 }
@@ -18045,6 +18051,8 @@ function renderAllImmediate(){
   restorePhotosPersistence();
   _rankCache = null; // invalider le cache rankings
   loadSoireePhotos();
+  // ── Actualiser visibilité pro-panels fiches ──
+  setTimeout(function(){ if(typeof _applyFichesPanelVisibility === 'function') _applyFichesPanelVisibility(); }, 200);
 
   // ── Bandeau "Mon établissement" (membres propriétaires uniquement) ──
   var myBanner = document.getElementById("myEtabBanner");
@@ -19472,6 +19480,52 @@ function navHandleProfil(btn){
   }
 }
 window.navHandleProfil = navHandleProfil;
+
+/* ── Navigation Fiches : redirige vers Profil > Fiche Pro si propriétaire/admin ── */
+function navHandleFiches(btn){
+  var isOwnerOrAdmin = isAdmin || (typeof userEtabIds !== 'undefined' && userEtabIds && userEtabIds.length > 0);
+  if(isOwnerOrAdmin && window.currentUserUID){
+    // Aller dans Profil > vue Établissement > onglet Fiche Pro
+    switchSection('profil', document.getElementById('navProfilBtn'));
+    setTimeout(function(){
+      pSwitchRole('etab');
+      var ficheTabBtn = document.getElementById('pe-fiches-tab-btn');
+      if(ficheTabBtn) pSetStab(ficheTabBtn, 'etab', 'fiches');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 200);
+  } else if(window.currentUserUID) {
+    // Connecté mais pas propriétaire : accès aux fiches publiques directement
+    switchSection('fiches', btn);
+  } else {
+    // Non connecté → vers Profil connexion
+    _renderVisitorProfilScreen();
+    switchSection('profil', document.getElementById('navProfilBtn'));
+  }
+}
+window.navHandleFiches = navHandleFiches;
+
+/* ── Visibilité des pro-panels selon le rôle ── */
+function _applyFichesPanelVisibility(){
+  var canSeeProPanel = isAdmin || (typeof userEtabIds !== 'undefined' && userEtabIds && userEtabIds.length > 0);
+  // Masquer ou afficher les pro-panels dans sec-fiches
+  document.querySelectorAll('#sec-fiches .pro-panel').forEach(function(panel){
+    if(canSeeProPanel){
+      panel.classList.remove('pub-hidden');
+    } else {
+      panel.classList.add('pub-hidden');
+    }
+  });
+  // Afficher le bouton "Fiches" nav uniquement si propriétaire/admin
+  var fichesBtn = document.getElementById('navFichesBtn');
+  if(fichesBtn) fichesBtn.style.display = canSeeProPanel ? '' : 'none';
+  // Afficher le lien Fiches dans le menu hamburger
+  var sitenavFiches = document.getElementById('sitenavFichesItem');
+  if(sitenavFiches) sitenavFiches.style.display = canSeeProPanel ? '' : 'none';
+  // Afficher le tab "Fiche Pro" dans le profil étab uniquement si propriétaire/admin
+  var ficheTabBtn = document.getElementById('pe-fiches-tab-btn');
+  if(ficheTabBtn) ficheTabBtn.style.display = canSeeProPanel ? '' : 'none';
+}
+window._applyFichesPanelVisibility = _applyFichesPanelVisibility;
 
 /* Ouvre directement la fiche d'inscription pour un rôle donné */
 function openRegistrationForRole(type){
@@ -26925,6 +26979,8 @@ window.doAssignEtab = doAssignEtab;
 #sec-fiches .signal-btns{display:flex;gap:0.35rem;flex-wrap:wrap;}
 #sec-fiches .sig-btn{flex:1;min-width:calc(50% - 0.2rem);padding:0.45rem 0.4rem;border-radius:10px;font-size:0.7rem;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:var(--muted);font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:0.3rem;transition:all 0.2s;}
 #sec-fiches .pro-panel{background:linear-gradient(135deg,rgba(255,45,155,0.08),rgba(0,229,255,0.04));border:1.5px solid rgba(255,45,155,0.25);border-radius:16px;margin-top:1rem;overflow:hidden;}
+/* ── Pro-panel : masqué du public par défaut — affiché via JS si propriétaire/admin ── */
+#sec-fiches .pro-panel.pub-hidden { display: none !important; }
 #sec-fiches .pro-panel-header{padding:0.75rem 0.9rem;display:flex;align-items:center;gap:0.7rem;border-bottom:1px solid rgba(255,45,155,0.15);}
 #sec-fiches .pro-panel-icon{font-size:1.4rem;}
 #sec-fiches .pro-panel-title{font-family:'Syne',sans-serif;font-size:0.9rem;font-weight:800;color:var(--pink);}
@@ -38381,6 +38437,7 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
         <button class="stab-p active" onclick="pSetStab(this,'etab','infos')">Infos</button>
         <button class="stab-p" onclick="pSetStab(this,'etab','photos')">Photos</button>
         <button class="stab-p" onclick="pSetStab(this,'etab','avis')">Avis</button>
+        <button class="stab-p" id="pe-fiches-tab-btn" onclick="pSetStab(this,'etab','fiches')" style="display:none;">📋 Fiche Pro</button>
       </div>
     </div>
     <div id="pe-tab-infos">
@@ -38434,10 +38491,35 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
         </div>
       </div>
     </div>
+    <div id="pe-tab-fiches" style="display:none;">
+      <!-- ═══════════════════════════════════════════════════
+           FICHES SECTORIELLES — accessible depuis le Profil
+           Visible uniquement Propriétaire / Admin
+           ═══════════════════════════════════════════════════ -->
+      <div class="p-section-block" style="margin-top:1rem;">
+        <div class="section-head">
+          <span class="section-title">📋 Fiches sectorielles</span>
+          <button class="section-action" onclick="switchSection('fiches',null);window.scrollTo(0,0);">Plein écran →</button>
+        </div>
+        <div style="padding:0.6rem 1rem 0.4rem;font-size:0.72rem;color:var(--muted);line-height:1.5;">
+          🔒 Espace réservé au propriétaire et à l'administration. Gérez le statut, les disponibilités, les tarifs et les services de votre établissement en temps réel.
+        </div>
+        <div style="padding:0.4rem 1rem 1rem;display:flex;flex-wrap:wrap;gap:0.5rem;">
+          <button onclick="switchSection('fiches',null);window.scrollTo(0,0);" style="background:linear-gradient(135deg,rgba(255,45,155,0.18),rgba(204,68,255,0.14));border:1.5px solid rgba(255,45,155,0.38);color:var(--pink);font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;padding:0.75rem 1.2rem;border-radius:14px;cursor:pointer;width:100%;text-align:left;display:flex;align-items:center;gap:0.6rem;">
+            ⚡ Statut en direct &amp; Affluence
+          </button>
+          <button onclick="switchSection('fiches',null);fShowSector('bar');window.scrollTo(0,0);" style="background:rgba(255,45,155,0.07);border:1px solid rgba(255,45,155,0.2);color:var(--text);font-size:0.75rem;padding:0.55rem 0.9rem;border-radius:10px;cursor:pointer;font-family:DM Sans,sans-serif;font-weight:600;">🍺 Bar &amp; Lounge</button>
+          <button onclick="switchSection('fiches',null);fShowSector('hotel');window.scrollTo(0,0);" style="background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.2);color:var(--text);font-size:0.75rem;padding:0.55rem 0.9rem;border-radius:10px;cursor:pointer;font-family:DM Sans,sans-serif;font-weight:600;">🏨 Hôtel</button>
+          <button onclick="switchSection('fiches',null);fShowSector('resto');window.scrollTo(0,0);" style="background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.2);color:var(--text);font-size:0.75rem;padding:0.55rem 0.9rem;border-radius:10px;cursor:pointer;font-family:DM Sans,sans-serif;font-weight:600;">🍽️ Restaurant</button>
+          <button onclick="switchSection('fiches',null);fShowSector('stade');window.scrollTo(0,0);" style="background:rgba(0,255,170,0.07);border:1px solid rgba(0,255,170,0.2);color:var(--text);font-size:0.75rem;padding:0.55rem 0.9rem;border-radius:10px;cursor:pointer;font-family:DM Sans,sans-serif;font-weight:600;">⚽ Stade</button>
+          <button onclick="switchSection('fiches',null);fShowSector('club');window.scrollTo(0,0);" style="background:rgba(204,68,255,0.07);border:1px solid rgba(204,68,255,0.2);color:var(--text);font-size:0.75rem;padding:0.55rem 0.9rem;border-radius:10px;cursor:pointer;font-family:DM Sans,sans-serif;font-weight:600;">🎵 Club</button>
+          <button onclick="switchSection('fiches',null);fShowSector('salle');window.scrollTo(0,0);" style="background:rgba(255,149,0,0.07);border:1px solid rgba(255,149,0,0.2);color:var(--text);font-size:0.75rem;padding:0.55rem 0.9rem;border-radius:10px;cursor:pointer;font-family:DM Sans,sans-serif;font-weight:600;">🎭 Salle</button>
+          <button onclick="switchSection('fiches',null);fShowSector('site');window.scrollTo(0,0);" style="background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.18);color:var(--text);font-size:0.75rem;padding:0.55rem 0.9rem;border-radius:10px;cursor:pointer;font-family:DM Sans,sans-serif;font-weight:600;">🌿 Site touristique</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
-
-</div><!-- end profil-views -->
 
 <!-- MODALS ÉDITION -->
 <!-- Modal Membre -->
@@ -38689,9 +38771,9 @@ console.log('✅ AMBI241 Admin Control v2.0 chargé');
 <script>
 /* ═══ PROFIL — LOGIQUE JS ═══ */
 var pTabDefs = {
-  membre:    { tabs: ['fav','activite','notif'],    prefix: 'pm-tab-' },
-  chauffeur: { tabs: ['trips','avis','compte'],     prefix: 'pc-tab-' },
-  etab:      { tabs: ['infos','photos','avis'],     prefix: 'pe-tab-' }
+  membre:    { tabs: ['fav','activite','notif'],         prefix: 'pm-tab-' },
+  chauffeur: { tabs: ['trips','avis','compte'],          prefix: 'pc-tab-' },
+  etab:      { tabs: ['infos','photos','avis','fiches'], prefix: 'pe-tab-' }
 };
 
 function pSwitchRole(role) {
