@@ -192,6 +192,115 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 .af-empty{text-align:center;padding:2.2rem 1rem;color:var(--muted);font-size:0.78rem;}
 .af-empty-icon{font-size:2rem;margin-bottom:0.5rem;}
 
+/* ════════════════════════════════════════════════════════════════
+   ══ MODULE GESTION COLLECTIVE PHOTOS DE PROFIL DES ÉTABLISSEMENTS ═
+   ════════════════════════════════════════════════════════════════ */
+.bpp-container{background:var(--surface2);border:1px solid rgba(255,45,155,0.18);border-radius:16px;padding:1.3rem;margin-bottom:1.5rem;}
+.bpp-header{display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;font-family:'Syne',sans-serif;}
+.bpp-title{font-size:0.95rem;font-weight:800;color:var(--text);}
+.bpp-subtitle{font-size:0.72rem;color:var(--muted);margin-top:0.3rem;font-family:'DM Sans',sans-serif;line-height:1.5;}
+.bpp-mode-tabs{display:flex;gap:0.4rem;margin-bottom:1.2rem;border-bottom:1px solid rgba(255,45,155,0.12);padding-bottom:0.8rem;}
+.bpp-tab{padding:0.5rem 0.9rem;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);font-size:0.75rem;font-weight:700;cursor:pointer;transition:all 0.2s;font-family:'DM Sans',sans-serif;}
+.bpp-tab.bpp-active{background:rgba(0,255,170,0.1);border-color:rgba(0,255,170,0.3);color:var(--green);}
+.bpp-section{display:none;}
+.bpp-section.bpp-active{display:block;}
+
+/* ══ UPLOAD IMAGE ZONE ══ */
+.bpp-upload-zone{border:2px dashed rgba(255,45,155,0.25);border-radius:12px;padding:1.8rem 1rem;text-align:center;cursor:pointer;transition:all 0.25s;background:rgba(255,45,155,0.04);}
+.bpp-upload-zone:hover{border-color:rgba(0,255,170,0.35);background:rgba(0,255,170,0.06);}
+.bpp-upload-zone.bpp-dragover{border-color:var(--green);background:rgba(0,255,170,0.12);}
+.bpp-upload-icon{font-size:2.2rem;margin-bottom:0.4rem;}
+.bpp-upload-text{font-size:0.78rem;color:var(--muted);margin-bottom:0.35rem;}
+.bpp-upload-hint{font-size:0.65rem;color:var(--muted);opacity:0.7;}
+.bpp-file-input{display:none;}
+
+/* ══ GALERIE D'IMAGES SÉLECTIONNÉES ══ */
+.bpp-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:0.7rem;margin-bottom:1.3rem;}
+.bpp-img-item{position:relative;border-radius:10px;overflow:hidden;aspect-ratio:1;background:rgba(255,255,255,0.05);border:1.5px solid rgba(255,45,155,0.15);cursor:pointer;transition:all 0.2s;}
+.bpp-img-item:hover{border-color:rgba(0,255,170,0.35);}
+.bpp-img-item img{width:100%;height:100%;object-fit:cover;}
+.bpp-img-check{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:5px;background:rgba(255,255,255,0.1);border:1.5px solid rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:0.65rem;color:transparent;transition:all 0.15s;}
+.bpp-img-item.bpp-selected .bpp-img-check{background:var(--green);border-color:var(--green);color:#001a0e;}
+.bpp-img-order{position:absolute;bottom:4px;left:4px;width:24px;height:24px;border-radius:50%;background:var(--cyan);color:#001a0e;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:900;display:none;}
+.bpp-img-item.bpp-selected .bpp-img-order{display:flex;}
+.bpp-img-remove{position:absolute;top:4px;left:4px;width:20px;height:20px;border-radius:50%;background:rgba(255,68,102,0.8);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.6rem;cursor:pointer;opacity:0;transition:opacity 0.15s;}
+.bpp-img-item:hover .bpp-img-remove{opacity:1;}
+
+/* ══ LISTE ÉTABLISSEMENTS & ATTRIBUTION ══ */
+.bpp-etabs-list{display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1.3rem;max-height:280px;overflow-y:auto;padding-right:0.4rem;}
+.bpp-etab-row{display:flex;align-items:center;gap:0.6rem;padding:0.7rem;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,45,155,0.12);transition:all 0.2s;cursor:pointer;}
+.bpp-etab-row:hover{border-color:rgba(0,255,170,0.3);background:rgba(0,255,170,0.03);}
+.bpp-etab-row.bpp-filled{opacity:0.55;pointer-events:none;}
+.bpp-etab-check{width:20px;height:20px;border-radius:6px;border:1.5px solid rgba(255,255,255,0.18);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:transparent;transition:all 0.15s;}
+.bpp-etab-row.bpp-checked .bpp-etab-check{background:var(--green);border-color:var(--green);color:#001a0e;}
+.bpp-etab-avatar{width:40px;height:40px;border-radius:8px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;}
+.bpp-etab-info{flex:1;min-width:0;}
+.bpp-etab-name{font-family:'Syne',sans-serif;font-size:0.76rem;font-weight:800;color:var(--text);margin-bottom:0.08rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bpp-etab-meta{display:flex;gap:0.35rem;align-items:center;font-size:0.62rem;color:var(--muted);}
+.bpp-etab-type{background:rgba(255,45,155,0.1);color:var(--pink);padding:0.04rem 0.3rem;border-radius:4px;font-weight:700;}
+.bpp-etab-status{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.bpp-etab-status.bpp-has-img{background:var(--green);}
+.bpp-etab-status.bpp-no-img{background:var(--amber);}
+.bpp-etab-preview{width:28px;height:28px;border-radius:6px;flex-shrink:0;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.bpp-etab-preview img{width:100%;height:100%;object-fit:cover;}
+
+/* ══ CONTRÔLES & ACTIONS ══ */
+.bpp-controls{display:flex;flex-wrap:wrap;gap:0.6rem;margin-bottom:1.2rem;padding-top:0.8rem;border-top:1px solid rgba(255,45,155,0.12);}
+.bpp-btn{display:inline-flex;align-items:center;justify-content:center;gap:0.35rem;padding:0.6rem 1rem;border-radius:9px;border:none;font-family:'DM Sans',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;transition:all 0.2s;white-space:nowrap;}
+.bpp-btn:active{transform:scale(0.97);}
+.bpp-btn-primary{background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;box-shadow:0 4px 14px rgba(255,45,155,0.28);}
+.bpp-btn-primary:disabled{opacity:0.4;cursor:not-allowed;transform:none;}
+.bpp-btn-primary:not(:disabled):hover{box-shadow:0 6px 18px rgba(255,45,155,0.38);}
+.bpp-btn-success{background:linear-gradient(135deg,#00c878,var(--green));color:#001a0e;box-shadow:0 4px 14px rgba(0,255,170,0.22);}
+.bpp-btn-success:hover{box-shadow:0 6px 18px rgba(0,255,170,0.32);}
+.bpp-btn-secondary{background:rgba(255,255,255,0.05);border:1.5px solid rgba(255,255,255,0.12);color:var(--muted);}
+.bpp-btn-secondary:hover{border-color:rgba(255,45,155,0.3);background:rgba(255,45,155,0.06);}
+.bpp-btn-sm{padding:0.4rem 0.7rem;font-size:0.7rem;}
+
+/* ══ ÉTAT & FEEDBACK ══ */
+.bpp-status-msg{padding:0.75rem;border-radius:10px;font-size:0.75rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.4rem;}
+.bpp-status-success{background:rgba(0,255,170,0.1);border:1px solid rgba(0,255,170,0.3);color:var(--green);}
+.bpp-status-error{background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);color:var(--red);}
+.bpp-status-info{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);}
+.bpp-status-icon{font-size:0.95rem;flex-shrink:0;}
+
+/* ══ PROGRESSION & LOG ══ */
+.bpp-progress-wrap{margin-bottom:1rem;}
+.bpp-progress-bar{height:6px;background:rgba(255,255,255,0.06);border-radius:10px;overflow:hidden;margin-bottom:0.4rem;}
+.bpp-progress-fill{height:100%;background:linear-gradient(90deg,var(--pink),var(--purple));border-radius:10px;transition:width 0.35s ease;width:0%;}
+.bpp-progress-text{display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);}
+.bpp-log{background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:0.7rem;max-height:140px;overflow-y:auto;font-size:0.63rem;font-family:monospace;line-height:1.6;color:var(--muted);}
+.bpp-log-ok{color:var(--green);}
+.bpp-log-warn{color:var(--amber);}
+.bpp-log-err{color:var(--red);}
+
+/* ══ MODAL ÉDITION ══ */
+.bpp-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:1050;animation:fadeIn 0.2s;}
+.bpp-modal-overlay.bpp-active{display:flex;align-items:center;justify-content:center;}
+.bpp-modal{background:var(--surface2);border:1px solid rgba(255,45,155,0.25);border-radius:14px;padding:1.5rem;max-width:500px;width:90%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);}
+.bpp-modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;gap:0.6rem;}
+.bpp-modal-title{font-family:'Syne',sans-serif;font-size:0.95rem;font-weight:800;color:var(--text);}
+.bpp-modal-close{background:transparent;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer;padding:0;width:32px;height:32px;display:flex;align-items:center;justify-content:center;transition:color 0.2s;}
+.bpp-modal-close:hover{color:var(--text);}
+.bpp-modal-img{width:100%;aspect-ratio:1;border-radius:10px;object-fit:cover;margin-bottom:1rem;border:1px solid rgba(255,45,155,0.15);}
+.bpp-modal-form{display:flex;flex-direction:column;gap:0.9rem;}
+.bpp-form-group{display:flex;flex-direction:column;gap:0.3rem;}
+.bpp-form-label{font-size:0.76rem;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:0.04em;}
+.bpp-form-input{background:rgba(255,255,255,0.05);border:1.5px solid rgba(255,45,155,0.15);border-radius:8px;padding:0.6rem;color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.78rem;transition:all 0.2s;}
+.bpp-form-input:focus{outline:none;border-color:var(--green);background:rgba(0,255,170,0.05);}
+.bpp-form-actions{display:flex;gap:0.6rem;margin-top:0.6rem;}
+.bpp-form-actions .bpp-btn{flex:1;}
+
+/* ══ VARIANTES ÉTABLISSEMENT ══ */
+.bpp-type-restaurant{--type-color:#ff9500;}
+.bpp-type-bar{--type-color:#ff1493;}
+.bpp-type-hotel{--type-color:#00d9ff;}
+.bpp-type-nightclub{--type-color:#cc44ff;}
+.bpp-type-cafe{--type-color:#00ffaa;}
+.bpp-type-disco{--type-color:#ff006e;}
+.bpp-type-pub{--type-color:#ffaa00;}
+.bpp-type-lounge{--type-color:#ff45b8;}
+
 .igm-guide{background:linear-gradient(135deg,rgba(0,229,255,0.07),rgba(0,255,170,0.05));border:1px solid rgba(0,229,255,0.22);border-radius:16px;padding:1.1rem 1.1rem 0.9rem;margin-bottom:1rem;}
 .igm-guide-title{font-family:'Syne',sans-serif;font-size:0.85rem;font-weight:800;color:var(--cyan);margin-bottom:0.85rem;display:flex;align-items:center;gap:0.4rem;}
 .igm-guide-steps{display:flex;flex-direction:column;gap:0.7rem;margin-bottom:0.85rem;}
@@ -26672,6 +26781,136 @@ window.doAssignEtab = doAssignEtab;
           </div>
         </div>
 
+        <!-- ══════════════════════════════════════════════════════════
+             ══ 🎨 GESTION COLLECTIVE PHOTOS DE PROFIL ÉTABLISSEMENTS ═══
+             ══════════════════════════════════════════════════════════ -->
+        <div class="bpp-container">
+          <div class="bpp-header">
+            <span style="font-size:1.3rem;">🎨</span>
+            <div>
+              <div class="bpp-title">Gestion Collective des Photos de Profil</div>
+              <div class="bpp-subtitle">
+                Sélectionnez les photos depuis votre galerie et attribuez-les automatiquement aux établissements. 
+                Les images restent modifiables ultérieurement.
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabs Mode -->
+          <div class="bpp-mode-tabs">
+            <button class="bpp-tab bpp-active" onclick="switchBppTab('upload')">📤 Ajouter Photos</button>
+            <button class="bpp-tab" onclick="switchBppTab('assign')">✅ Attribuer</button>
+            <button class="bpp-tab" onclick="switchBppTab('manage')">⚙️ Gérer</button>
+          </div>
+
+          <!-- ══ SECTION 1 : UPLOAD PHOTOS ══ -->
+          <div id="bppTab-upload" class="bpp-section bpp-active">
+            <div style="margin-bottom:1.2rem;">
+              <div class="bpp-upload-zone" id="bppUploadZone" onclick="document.getElementById('bppFileInput').click();">
+                <div class="bpp-upload-icon">📁</div>
+                <div class="bpp-upload-text">Cliquez pour sélectionner ou glissez-déposez des images</div>
+                <div class="bpp-upload-hint">JPEG, PNG, WebP • Max 5MB par image</div>
+              </div>
+              <input type="file" id="bppFileInput" class="bpp-file-input" multiple accept="image/*" onchange="bppHandleFileSelect(event)">
+            </div>
+
+            <div id="bppGalleryContainer" style="display:none;margin-bottom:1.2rem;">
+              <div style="font-size:0.75rem;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.6rem;">
+                📸 Images sélectionnées (<span id="bppImageCount">0</span>)
+              </div>
+              <div class="bpp-gallery" id="bppGallery"></div>
+            </div>
+
+            <div id="bppStatusMsg" style="display:none;"></div>
+          </div>
+
+          <!-- ══ SECTION 2 : ATTRIBUER AUX ÉTABLISSEMENTS ══ -->
+          <div id="bppTab-assign" class="bpp-section">
+            <div style="margin-bottom:1rem;">
+              <div style="font-size:0.75rem;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.6rem;">
+                📍 Établissements à traiter
+              </div>
+              <div style="font-size:0.7rem;color:var(--muted);margin-bottom:0.8rem;line-height:1.5;">
+                Cochez les établissements pour lesquels vous avez sélectionné des photos. Les images seront attribuées dans l'ordre 1, 2, 3…
+              </div>
+            </div>
+
+            <div id="bppEtabsList" class="bpp-etabs-list"></div>
+
+            <div id="bppAssignLog" style="display:none;margin-bottom:1rem;">
+              <div style="font-size:0.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:0.5rem;">📝 Journal d'opération</div>
+              <div class="bpp-log" id="bppLogContent"></div>
+            </div>
+
+            <div id="bppProgressWrap" class="bpp-progress-wrap" style="display:none;margin-bottom:1rem;">
+              <div class="bpp-progress-bar">
+                <div class="bpp-progress-fill" id="bppProgressFill" style="width:0%;"></div>
+              </div>
+              <div class="bpp-progress-text">
+                <span id="bppProgressLabel">Préparation…</span>
+                <span id="bppProgressPercent">0%</span>
+              </div>
+            </div>
+
+            <div class="bpp-controls">
+              <button class="bpp-btn bpp-btn-primary" id="bppAssignBtn" onclick="bppStartAssign()" disabled>
+                ✅ Attribuer les photos
+              </button>
+              <button class="bpp-btn bpp-btn-secondary" onclick="bppResetForm()">🔄 Réinitialiser</button>
+            </div>
+          </div>
+
+          <!-- ══ SECTION 3 : GÉRER LES PHOTOS ══ -->
+          <div id="bppTab-manage" class="bpp-section">
+            <div style="margin-bottom:1rem;">
+              <div style="font-size:0.75rem;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.6rem;">
+                📝 Modifier ou supprimer les photos
+              </div>
+              <div style="font-size:0.7rem;color:var(--muted);margin-bottom:1rem;line-height:1.5;">
+                Consultez et modifiez les photos de profil de chaque établissement. Les propriétaires peuvent aussi les modifier depuis leurs paramètres.
+              </div>
+            </div>
+
+            <div id="bppManageList" style="display:flex;flex-direction:column;gap:0.6rem;"></div>
+            <div id="bppManageEmpty" style="text-align:center;padding:2rem 1rem;color:var(--muted);font-size:0.78rem;">
+              <div style="font-size:1.8rem;margin-bottom:0.5rem;">📋</div>
+              <div>Aucun établissement avec photo pour le moment</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══ MODAL ÉDITION PHOTO ══ -->
+        <div id="bppEditModal" class="bpp-modal-overlay">
+          <div class="bpp-modal">
+            <div class="bpp-modal-header">
+              <div class="bpp-modal-title">✏️ Éditer la photo de profil</div>
+              <button class="bpp-modal-close" onclick="document.getElementById('bppEditModal').classList.remove('bpp-active');">✕</button>
+            </div>
+            <img id="bppModalImg" src="" alt="Photo" class="bpp-modal-img">
+            <div class="bpp-modal-form">
+              <div class="bpp-form-group">
+                <label class="bpp-form-label">Établissement</label>
+                <input type="text" id="bppEditEtabName" class="bpp-form-input" disabled>
+              </div>
+              <div class="bpp-form-group">
+                <label class="bpp-form-label">Remplacer la photo</label>
+                <input type="file" id="bppEditImageInput" class="bpp-file-input" accept="image/*" onchange="bppHandleEditImage(event)">
+                <button class="bpp-btn bpp-btn-secondary bpp-btn-sm" onclick="document.getElementById('bppEditImageInput').click();" style="margin-top:0.4rem;width:100%;">
+                  📁 Choisir une nouvelle image
+                </button>
+              </div>
+              <div class="bpp-form-group">
+                <label class="bpp-form-label">Notes (optionnel)</label>
+                <textarea id="bppEditNotes" class="bpp-form-input" rows="2" style="resize:none;font-family:DM Sans,sans-serif;"></textarea>
+              </div>
+              <div class="bpp-form-actions">
+                <button class="bpp-btn bpp-btn-success" onclick="bppSaveEditImage()">💾 Enregistrer</button>
+                <button class="bpp-btn bpp-btn-secondary" onclick="document.getElementById('bppEditModal').classList.remove('bpp-active');">❌ Annuler</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Reste de la config app (Firebase / paramètres techniques) -->
         <div id="adminAppConfigPanel">Chargement...</div>
 
@@ -51167,6 +51406,396 @@ window._lazyInitSection = function(name) {
     if(Notification.permission !== 'default') return;
     Notification.requestPermission().catch(function(){});
   }
+
+  /* ════════════════════════════════════════════════════════════════
+     ══ GESTION COLLECTIVE PHOTOS DE PROFIL (BPP - Bulk Profile Photos)
+     ════════════════════════════════════════════════════════════════ */
+
+  var _bppState={
+    images:[],
+    selectedEtabs:new Set(),
+    allEtabs:[],
+    editingEtabId:null,
+    editingNewImage:null
+  };
+
+  window.switchBppTab=function(tab){
+    document.querySelectorAll('.bpp-section').forEach(s=>s.classList.remove('bpp-active'));
+    document.querySelectorAll('.bpp-tab').forEach(t=>t.classList.remove('bpp-active'));
+    document.getElementById('bppTab-'+tab).classList.add('bpp-active');
+    event.target.classList.add('bpp-active');
+    if(tab==='assign') _bppLoadEtabs();
+    if(tab==='manage') _bppLoadManage();
+  };
+
+  function _bppMsg(text,type){
+    var m=document.getElementById('bppStatusMsg');
+    if(!m) return;
+    m.className='bpp-status-msg bpp-status-'+(type||'info');
+    m.innerHTML='<span class="bpp-status-icon">'+({success:'✅',error:'❌',info:'ℹ️',warn:'⚠️'}[type]||'ℹ️')+'</span><span>'+text+'</span>';
+    m.style.display='block';
+    if(type==='success'||type==='error') setTimeout(()=>m.style.display='none',3000);
+  }
+
+  window.bppHandleFileSelect=function(e){
+    var files=Array.from(e.target.files||[]);
+    files.forEach(f=>{
+      if(!f.type.startsWith('image/')) return;
+      if(f.size>5242880){_bppMsg('Image '+f.name+' trop volumineuse (max 5MB)','error');return;}
+      var r=new FileReader();
+      r.onload=function(ev){
+        _bppState.images.push({name:f.name,data:ev.target.result,timestamp:Date.now()});
+        _bppRenderGallery();
+      };
+      r.readAsDataURL(f);
+    });
+    document.getElementById('bppFileInput').value='';
+  };
+
+  function _bppRenderGallery(){
+    var cnt=_bppState.images.length;
+    document.getElementById('bppImageCount').textContent=cnt;
+    var gc=document.getElementById('bppGalleryContainer');
+    gc.style.display=cnt>0?'block':'none';
+    var g=document.getElementById('bppGallery');
+    g.innerHTML='';
+    _bppState.images.forEach((img,i)=>{
+      var div=document.createElement('div');
+      div.className='bpp-img-item bpp-selected';
+      div.innerHTML='<img src="'+img.data+'" alt="'+img.name+'"><div class="bpp-img-check">✓</div><div class="bpp-img-order">'+(i+1)+'</div><div class="bpp-img-remove" onclick="event.stopPropagation();_bppRemoveImage('+i+')">✕</div>';
+      div.onclick=()=>div.classList.toggle('bpp-selected');
+      g.appendChild(div);
+    });
+    document.getElementById('bppAssignBtn').disabled=cnt===0;
+  }
+
+  window._bppRemoveImage=function(i){
+    _bppState.images.splice(i,1);
+    _bppRenderGallery();
+  };
+
+  /* ══ Fonction utilitaire : emoji par type établissement ══ */
+  function _bppGetEmojiForType(type){
+    var emojis={
+      'restaurant':'🍽️','resto':'🍽️','pizzeria':'🍕','pâtisserie':'🥐',
+      'bar':'🍺','pub':'🍻','lounge':'🪴','bar-terrasse':'🍹',
+      'hotel':'🏨','auberge':'🛏️',
+      'nightclub':'🎵','boîte':'🎵','discothèque':'💃','disco':'💃','club':'🎵',
+      'cafe':'☕','café':'☕','coffee':'☕',
+      'snack':'🍟','fast-food':'🍔',
+      'salle':'🎪','cérémonies':'🎉','événement':'🎊',
+      'stade':'⚽','sports':'🏆','football':'⚽',
+      'tourisme':'🏛️','attraction':'🎭','musée':'🖼️',
+      'autre':'📍'
+    };
+    return emojis[type?type.toLowerCase():'autre']||'📍';
+  }
+
+  function _bppLoadEtabs(){
+    if(_bppState.allEtabs.length) {_bppRenderEtabs();return;}
+    document.getElementById('bppEtabsList').innerHTML='<div style="text-align:center;color:var(--muted);font-size:0.75rem;padding:1rem;">⏳ Chargement des établissements…</div>';
+    
+    /* ══ FIREBASE : Charger tous les établissements ══ */
+    if(!window.db){
+      _bppMsg('Firebase non initialisé','error');
+      console.error('[BPP] Firebase db not available');
+      return;
+    }
+    
+    window.db.collection('establishments')
+      .orderBy('name')
+      .get()
+      .then(snapshot=>{
+        if(snapshot.empty){
+          document.getElementById('bppEtabsList').innerHTML='<div style="text-align:center;color:var(--muted);font-size:0.75rem;padding:2rem;">📋 Aucun établissement trouvé</div>';
+          return;
+        }
+        
+        _bppState.allEtabs=snapshot.docs.map(doc=>{
+          var data=doc.data();
+          return {
+            id:doc.id,
+            name:data.name||'Sans nom',
+            type:data.type||'autre',
+            emoji:_bppGetEmojiForType(data.type),
+            image:data.profileImageBase64||null,
+            updatedAt:data.imageUpdatedAt||null,
+            updatedBy:data.imageUpdatedBy||null
+          };
+        });
+        
+        console.log('[BPP] ✅ Établissements chargés:',_bppState.allEtabs.length);
+        _bppRenderEtabs();
+      })
+      .catch(err=>{
+        console.error('[BPP] Erreur Firebase:',err);
+        _bppMsg('Erreur chargement: '+err.message,'error');
+        document.getElementById('bppEtabsList').innerHTML='<div style="text-align:center;color:var(--red);font-size:0.75rem;padding:2rem;">❌ '+err.message+'</div>';
+      });
+  }
+
+  function _bppRenderEtabs(){
+    var l=document.getElementById('bppEtabsList');
+    l.innerHTML='';
+    _bppState.allEtabs.forEach(etab=>{
+      var div=document.createElement('div');
+      div.className='bpp-etab-row'+(etab.image?' bpp-filled':'');
+      var hasImg=!!etab.image;
+      div.innerHTML='<div class="bpp-etab-check"></div>'+
+        '<div class="bpp-etab-avatar">'+etab.emoji+'</div>'+
+        '<div class="bpp-etab-info">'+
+          '<div class="bpp-etab-name">'+etab.name+'</div>'+
+          '<div class="bpp-etab-meta">'+
+            '<span class="bpp-etab-type">'+etab.type+'</span>'+
+            '<span class="bpp-etab-status '+(hasImg?'bpp-has-img':'bpp-no-img')+'"></span>'+
+            (hasImg?'<span style="font-size:0.6rem;color:var(--green);">Photo présente</span>':'<span style="font-size:0.6rem;color:var(--amber);">À remplir</span>')+
+          '</div>'+
+        '</div>'+
+        (hasImg?'<div class="bpp-etab-preview"><img src="'+etab.image+'" alt="'+etab.name+'"></div>':'');
+      div.onclick=()=>{
+        if(!etab.image){
+          div.classList.toggle('bpp-checked');
+          if(div.classList.contains('bpp-checked')) _bppState.selectedEtabs.add(etab.id);
+          else _bppState.selectedEtabs.delete(etab.id);
+        }
+      };
+      l.appendChild(div);
+    });
+  }
+
+  window.bppStartAssign=function(){
+    var selected=_bppState.selectedEtabs.size;
+    var images=_bppState.images.length;
+    if(!selected||!images){_bppMsg('Sélectionnez des établissements et des images','error');return;}
+    if(selected>images){_bppMsg('Plus d\'établissements sélectionnés que d\'images','error');return;}
+    document.getElementById('bppProgressWrap').style.display='block';
+    document.getElementById('bppAssignLog').style.display='block';
+    _bppRunAssign();
+  };
+
+  function _bppRunAssign(){
+    var selected=Array.from(_bppState.selectedEtabs);
+    var log=document.getElementById('bppLogContent');
+    log.innerHTML='';
+    var fill=document.getElementById('bppProgressFill');
+    var total=selected.length;
+    var completed=0;
+    var failed=0;
+    
+    if(!window.db||!window.firebase){
+      _bppMsg('Firebase non initialisé','error');
+      return;
+    }
+    
+    var currentUser=window.firebase.auth().currentUser;
+    var userEmail=currentUser?currentUser.email:'admin@ambi241.com';
+    var timestamp=window.firebase.firestore.FieldValue.serverTimestamp();
+    
+    console.log('[BPP] 🚀 Démarrage attribution:',total,'établissements');
+    var _addLog=function(msg,type){
+      var line=document.createElement('div');
+      line.className='bpp-log '+(type?'bpp-log-'+type:'');
+      line.textContent=new Date().toLocaleTimeString('fr')+' — '+msg;
+      log.appendChild(line);
+      log.scrollTop=log.scrollHeight;
+      console.log('[BPP]',msg);
+    };
+    
+    selected.forEach((etabId,idx)=>{
+      setTimeout(()=>{
+        var etab=_bppState.allEtabs.find(e=>e.id===etabId);
+        if(!etab||!_bppState.images[idx]){
+          _addLog('❌ '+etabId+': données manquantes','err');
+          failed++;
+          completed++;
+          return;
+        }
+        
+        _addLog('⏳ '+etab.name+'…','warn');
+        
+        /* ══ FIREBASE : Mise à jour établissement ══ */
+        window.db.collection('establishments').doc(etabId).update({
+          profileImageBase64:_bppState.images[idx].data,
+          imageUpdatedAt:timestamp,
+          imageUpdatedBy:userEmail,
+          imageNotes:'Photo attribuée via gestion collective (Admin)',
+          imageUpdatedType:'bulk'
+        })
+        .then(()=>{
+          etab.image=_bppState.images[idx].data;
+          etab.updatedAt=new Date();
+          etab.updatedBy=userEmail;
+          _addLog('✅ '+etab.name+' ← '+_bppState.images[idx].name,'ok');
+          completed++;
+          var pct=Math.round((completed/total)*100);
+          fill.style.width=pct+'%';
+          document.getElementById('bppProgressPercent').textContent=pct+'%';
+          document.getElementById('bppProgressLabel').textContent='Progression…';
+          
+          if(completed===total){
+            setTimeout(()=>{
+              var msg='';
+              if(failed===0){
+                msg='✅ '+total+' photo(s) attribuée(s) avec succès !';
+              } else {
+                msg='⚠️ '+( total-failed)+'/'+total+' photos réussies ('+failed+' erreur(s))';
+              }
+              _bppMsg(msg,failed===0?'success':'warn');
+              _bppState.selectedEtabs.clear();
+              _addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━','ok');
+              _addLog('Opération terminée','ok');
+              console.log('[BPP] ✅ Attribution complète:',total-failed,'réussies,',failed,'échouées');
+            },300);
+          }
+        })
+        .catch(err=>{
+          _addLog('❌ '+etab.name+': '+err.message,'err');
+          failed++;
+          completed++;
+          var pct=Math.round((completed/total)*100);
+          fill.style.width=pct+'%';
+          document.getElementById('bppProgressPercent').textContent=pct+'%';
+          
+          if(completed===total){
+            setTimeout(()=>{
+              var msg='';
+              if(failed===0){
+                msg='✅ '+total+' photo(s) attribuée(s) avec succès !';
+              } else {
+                msg='⚠️ '+(total-failed)+'/'+total+' photos réussies ('+failed+' erreur(s))';
+              }
+              _bppMsg(msg,failed===0?'success':'warn');
+              _bppState.selectedEtabs.clear();
+            },300);
+          }
+          console.error('[BPP] Erreur:',err);
+        });
+      },idx*300);
+    });
+  }
+
+  function _bppLoadManage(){
+    var l=document.getElementById('bppManageList');
+    var empty=document.getElementById('bppManageEmpty');
+    var withImg=_bppState.allEtabs.filter(e=>e.image);
+    if(!withImg.length){l.style.display='none';empty.style.display='block';return;}
+    l.style.display='flex';
+    empty.style.display='none';
+    l.innerHTML='';
+    withImg.forEach(etab=>{
+      var div=document.createElement('div');
+      div.className='bpp-etab-row';
+      div.innerHTML='<div class="bpp-etab-avatar">'+etab.emoji+'</div>'+
+        '<div class="bpp-etab-info" style="flex:1;">'+
+          '<div class="bpp-etab-name">'+etab.name+'</div>'+
+          '<div class="bpp-etab-meta"><span class="bpp-etab-type">'+etab.type+'</span></div>'+
+        '</div>'+
+        '<div class="bpp-etab-preview"><img src="'+etab.image+'" alt="'+etab.name+'"></div>';
+      div.style.cursor='pointer';
+      div.onclick=()=>_bppOpenEditModal(etab);
+      l.appendChild(div);
+    });
+  }
+
+  function _bppOpenEditModal(etab){
+    _bppState.editingEtabId=etab.id;
+    _bppState.editingNewImage=null;
+    document.getElementById('bppModalImg').src=etab.image;
+    document.getElementById('bppEditEtabName').value=etab.name;
+    document.getElementById('bppEditNotes').value='';
+    document.getElementById('bppEditImageInput').value='';
+    document.getElementById('bppEditModal').classList.add('bpp-active');
+  }
+
+  window.bppHandleEditImage=function(e){
+    var f=e.target.files?.[0];
+    if(!f||!f.type.startsWith('image/')) return;
+    if(f.size>5242880){_bppMsg('Image trop volumineuse','error');return;}
+    var r=new FileReader();
+    r.onload=ev=>{
+      _bppState.editingNewImage=ev.target.result;
+      document.getElementById('bppModalImg').src=ev.target.result;
+    };
+    r.readAsDataURL(f);
+  };
+
+  window.bppSaveEditImage=function(){
+    if(!_bppState.editingEtabId) return;
+    var etab=_bppState.allEtabs.find(e=>e.id===_bppState.editingEtabId);
+    if(!etab) return;
+    
+    if(!_bppState.editingNewImage){
+      _bppMsg('Aucune nouvelle image sélectionnée','info');
+      return;
+    }
+    
+    if(!window.db||!window.firebase){
+      _bppMsg('Firebase non initialisé','error');
+      return;
+    }
+    
+    var currentUser=window.firebase.auth().currentUser;
+    var userEmail=currentUser?currentUser.email:'admin@ambi241.com';
+    var timestamp=window.firebase.firestore.FieldValue.serverTimestamp();
+    var notes=document.getElementById('bppEditNotes').value||'';
+    
+    console.log('[BPP] 💾 Sauvegarde photo:',etab.name);
+    
+    /* ══ FIREBASE : Mise à jour photo établissement ══ */
+    window.db.collection('establishments').doc(_bppState.editingEtabId).update({
+      profileImageBase64:_bppState.editingNewImage,
+      imageUpdatedAt:timestamp,
+      imageUpdatedBy:userEmail,
+      imageNotes:notes||'Modifiée via gestion collective',
+      imageUpdatedType:'manual'
+    })
+    .then(()=>{
+      etab.image=_bppState.editingNewImage;
+      etab.updatedAt=new Date();
+      etab.updatedBy=userEmail;
+      document.getElementById('bppEditModal').classList.remove('bpp-active');
+      _bppLoadManage();
+      _bppMsg('✅ Photo mise à jour avec succès','success');
+      console.log('[BPP] ✅ Photo sauvegardée:',etab.name);
+    })
+    .catch(err=>{
+      _bppMsg('❌ Erreur: '+err.message,'error');
+      console.error('[BPP] Erreur sauvegarde:',err);
+    });
+  };
+
+  window.bppResetForm=function(){
+    _bppState.images=[];
+    _bppState.selectedEtabs.clear();
+    document.getElementById('bppFileInput').value='';
+    document.getElementById('bppGallery').innerHTML='';
+    document.getElementById('bppGalleryContainer').style.display='none';
+    document.getElementById('bppImageCount').textContent='0';
+    document.getElementById('bppProgressWrap').style.display='none';
+    document.getElementById('bppAssignLog').style.display='none';
+    document.getElementById('bppAssignBtn').disabled=true;
+    _bppRenderEtabs();
+    switchBppTab('upload');
+  };
+
+  /* Setup drag & drop */
+  function _setupBppDragDrop(){
+    var zone=document.getElementById('bppUploadZone');
+    if(!zone) return;
+    ['dragenter','dragover','dragleave','drop'].forEach(evt=>
+      zone.addEventListener(evt,e=>e.preventDefault())
+    );
+    zone.addEventListener('dragover',()=>zone.classList.add('bpp-dragover'));
+    zone.addEventListener('dragleave',()=>zone.classList.remove('bpp-dragover'));
+    zone.addEventListener('drop',e=>{
+      zone.classList.remove('bpp-dragover');
+      bppHandleFileSelect({target:{files:e.dataTransfer.files}});
+    });
+  }
+
+  /* Init au chargement */
+  document.addEventListener('DOMContentLoaded',_setupBppDragDrop);
+  if(document.readyState!=='loading') _setupBppDragDrop();
 
   /* ── Initialisation ── */
   function _init(){
