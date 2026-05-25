@@ -16460,7 +16460,7 @@ function buildCompactRow(e, rank, extraClass){
   if(waUrl) html += "<a href='"+waUrl+"' target='_blank' class='cc-btn cc-btn-wa' onclick=\"logContactClick('"+e.id+"','"+escHtml(e.nom).replace(/'/g,"\\'")+"','whatsapp')\">💬 WA</a>";
   if(telUrl) html += "<a href='"+telUrl+"' class='cc-btn cc-btn-tel' onclick=\"logContactClick('"+e.id+"','"+escHtml(e.nom).replace(/'/g,"\\'")+"','telephone')\">📞 Appeler</a>";
   if(e.maps_url) html += "<a href='"+e.maps_url+"' target='_blank' class='cc-btn cc-btn-mail' style='background:rgba(0,229,255,0.1);border-color:rgba(0,229,255,0.3);color:var(--cyan);'>📍 Maps</a>";
-  html += "<button class='cc-btn' style='background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);margin-left:auto;' onclick=\"event.stopPropagation();goToEtab("+e.id+")\">Fiche complète →</button>";
+  html += "<button class='cc-btn' style='background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);color:var(--pink);margin-left:auto;' onclick=\"event.stopPropagation();openFicheEtab("+e.id+")\">Fiche complète →</button>";
   html += "</div>";
 
   // Boutons admin
@@ -19631,6 +19631,211 @@ function goToEtab(id) {
   setTimeout(tryScroll, 250);
 }
 window.goToEtab = goToEtab;
+
+/* ══════════════════════════════════════════════════════════════
+   FICHE COMPLÈTE — Modal de présentation intégrale d'un établissement
+   Accessible via le bouton "Fiche complète →" sur chaque carte.
+══════════════════════════════════════════════════════════════ */
+(function(){
+  /* ── Injecter les styles de la modale ── */
+  var _ficheStyle = document.createElement('style');
+  _ficheStyle.textContent = [
+    '#ficheEtabOverlay{position:fixed;inset:0;z-index:9800;background:rgba(0,0,0,0.82);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.28s;}',
+    '#ficheEtabOverlay.show{opacity:1;pointer-events:all;}',
+    '#ficheEtabPanel{background:var(--surface);border-radius:22px 22px 0 0;width:100%;max-width:520px;max-height:92vh;display:flex;flex-direction:column;transform:translateY(60px);transition:transform 0.32s cubic-bezier(0.34,1.2,0.64,1);overflow:hidden;}',
+    '#ficheEtabOverlay.show #ficheEtabPanel{transform:translateY(0);}',
+    '#ficheEtabHero{position:relative;height:180px;background:#0d0514;flex-shrink:0;}',
+    '#ficheEtabHeroImg{width:100%;height:100%;object-fit:cover;display:block;opacity:0.82;}',
+    '#ficheEtabHeroGrad{position:absolute;inset:0;background:linear-gradient(to top,rgba(13,5,20,0.95) 0%,rgba(13,5,20,0.2) 60%,transparent 100%);}',
+    '#ficheEtabCloseBtn{position:absolute;top:0.75rem;right:0.75rem;background:rgba(0,0,0,0.55);border:none;color:#fff;font-size:1.1rem;width:34px;height:34px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;}',
+    '#ficheEtabHeroInfo{position:absolute;bottom:0.75rem;left:0.9rem;right:3rem;}',
+    '#ficheEtabTitle{font-family:Syne,sans-serif;font-weight:800;font-size:1.18rem;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.7);line-height:1.2;}',
+    '#ficheEtabSub{font-size:0.68rem;color:rgba(255,255,255,0.75);margin-top:0.18rem;}',
+    '#ficheEtabBody{overflow-y:auto;padding:1rem 1rem 2rem;flex:1;}',
+    '.fiche-section{margin-bottom:1.1rem;}',
+    '.fiche-section-title{font-family:Syne,sans-serif;font-size:0.65rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem;padding-bottom:0.28rem;border-bottom:1px solid rgba(255,255,255,0.07);}',
+    '.fiche-chips{display:flex;flex-wrap:wrap;gap:0.35rem;}',
+    '.fiche-chip{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:0.22rem 0.65rem;font-size:0.65rem;color:var(--text);}',
+    '.fiche-stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-bottom:0.8rem;}',
+    '.fiche-stat{background:var(--surface2);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.65rem;text-align:center;}',
+    '.fiche-stat-val{font-family:Syne,sans-serif;font-size:1.1rem;font-weight:800;}',
+    '.fiche-stat-lbl{font-size:0.55rem;color:var(--muted);font-weight:700;text-transform:uppercase;margin-top:0.1rem;letter-spacing:0.04em;}',
+    '.fiche-desc{font-size:0.76rem;color:var(--muted);line-height:1.6;}',
+    '.fiche-info-line{display:flex;align-items:flex-start;gap:0.5rem;margin-bottom:0.42rem;font-size:0.73rem;}',
+    '.fiche-info-icon{flex-shrink:0;font-size:0.9rem;}',
+    '.fiche-info-val{color:var(--text);}',
+    '.fiche-info-val a{color:var(--cyan);text-decoration:none;}',
+    '.fiche-action-row{display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.3rem;}',
+    '.fiche-btn{display:inline-flex;align-items:center;gap:0.4rem;padding:0.55rem 1rem;border-radius:10px;font-family:DM Sans,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;border:none;text-decoration:none;transition:opacity 0.15s;flex:1;justify-content:center;}',
+    '.fiche-btn:active{opacity:0.75;}',
+    '.fiche-btn-wa{background:rgba(37,211,102,0.15);border:1px solid rgba(37,211,102,0.35) !important;color:#25d366 !important;}',
+    '.fiche-btn-tel{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3) !important;color:var(--cyan) !important;}',
+    '.fiche-btn-maps{background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3) !important;color:var(--pink) !important;}',
+    '.fiche-gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:0.3rem;border-radius:10px;overflow:hidden;}',
+    '.fiche-gallery-img{width:100%;aspect-ratio:1;object-fit:cover;cursor:pointer;display:block;}',
+    '.fiche-badge-statut{display:inline-flex;align-items:center;gap:0.3rem;padding:0.2rem 0.6rem;border-radius:20px;font-size:0.62rem;font-weight:800;margin-left:0.4rem;vertical-align:middle;}',
+  ].join('');
+  document.head.appendChild(_ficheStyle);
+
+  /* ── Injecter la structure HTML de la modale ── */
+  var _ficheDiv = document.createElement('div');
+  _ficheDiv.id = 'ficheEtabOverlay';
+  _ficheDiv.innerHTML = [
+    '<div id="ficheEtabPanel">',
+    '  <div id="ficheEtabHero">',
+    '    <img id="ficheEtabHeroImg" src="" alt="">',
+    '    <div id="ficheEtabHeroGrad"></div>',
+    '    <button id="ficheEtabCloseBtn" onclick="closeFicheEtab()">✕</button>',
+    '    <div id="ficheEtabHeroInfo">',
+    '      <div id="ficheEtabTitle"></div>',
+    '      <div id="ficheEtabSub"></div>',
+    '    </div>',
+    '  </div>',
+    '  <div id="ficheEtabBody"></div>',
+    '</div>',
+  ].join('');
+  document.body.appendChild(_ficheDiv);
+
+  /* Fermer en cliquant le fond */
+  _ficheDiv.addEventListener('click', function(ev){
+    if(ev.target === _ficheDiv) closeFicheEtab();
+  });
+})();
+
+window.closeFicheEtab = function(){
+  var ov = document.getElementById('ficheEtabOverlay');
+  if(ov){ ov.classList.remove('show'); }
+};
+
+window.openFicheEtab = function(id){
+  var e = (window.etablissements||[]).find(function(x){ return x.id === id; });
+  if(!e){ return; }
+
+  var ov    = document.getElementById('ficheEtabOverlay');
+  var img   = document.getElementById('ficheEtabHeroImg');
+  var title = document.getElementById('ficheEtabTitle');
+  var sub   = document.getElementById('ficheEtabSub');
+  var body  = document.getElementById('ficheEtabBody');
+  if(!ov||!img||!title||!sub||!body) return;
+
+  /* Photo hero */
+  var permPhoto = (e._fallback_svg) || '';
+  /* Chercher une vraie photo dans les slots locaux */
+  try{
+    var slotKey = 'ambi241_photos_' + e.id;
+    var slotData = localStorage.getItem(slotKey);
+    if(slotData){ var slots = JSON.parse(slotData); if(slots&&slots[0]&&slots[0].url) permPhoto = slots[0].url; }
+  }catch(ex){}
+  if(permPhoto && permPhoto.startsWith('data:image')){ img.src = permPhoto; }
+  else if(permPhoto && (permPhoto.startsWith('http')||permPhoto.startsWith('/'))){ img.src = permPhoto; }
+  else { img.src = ''; img.style.display='none'; }
+
+  /* Status badge */
+  var sc = (function(s){ s=s||'';
+    if(s.indexOf('Bondé')!==-1||s.indexOf('Bonde')!==-1) return {label:'🔴 Bondé',bg:'rgba(255,68,102,0.18)',color:'var(--red)'};
+    if(s.indexOf('Animé')!==-1||s.indexOf('Anime')!==-1) return {label:'🟢 Animé',bg:'rgba(0,255,170,0.14)',color:'var(--green)'};
+    if(s.indexOf('Calme')!==-1) return {label:'🟡 Calme',bg:'rgba(255,215,0,0.14)',color:'var(--amber)'};
+    if(s.indexOf('Fermé')!==-1||s.indexOf('Ferme')!==-1) return {label:'⚫ Fermé',bg:'rgba(255,255,255,0.07)',color:'var(--muted)'};
+    return {label:'ℹ️ '+s,bg:'rgba(255,255,255,0.05)',color:'var(--muted)'};
+  })(e.statut||'');
+
+  title.innerHTML = escHtml(e.nom||'') +
+    '<span class="fiche-badge-statut" style="background:'+sc.bg+';color:'+sc.color+';">'+sc.label+'</span>';
+  sub.textContent = (e.type||'') + (e.quartier ? ' · ' + e.quartier : '');
+  img.style.display = '';
+
+  /* ── Corps de la fiche ── */
+  var h = '';
+
+  /* Stats */
+  var note  = e.note  ? parseFloat(e.note).toFixed(1) : '—';
+  var avis  = e.avis  || 0;
+  var aff   = e.affluence ? e.affluence + '%' : '—';
+  h += '<div class="fiche-stat-row">';
+  h += '<div class="fiche-stat"><div class="fiche-stat-val" style="color:var(--amber);">⭐ '+note+'</div><div class="fiche-stat-lbl">Note</div></div>';
+  h += '<div class="fiche-stat"><div class="fiche-stat-val" style="color:var(--cyan);">'+avis+'</div><div class="fiche-stat-lbl">Avis</div></div>';
+  h += '<div class="fiche-stat"><div class="fiche-stat-val" style="color:var(--green);">'+aff+'</div><div class="fiche-stat-lbl">Affluence</div></div>';
+  h += '</div>';
+
+  /* Description */
+  if(e.description){
+    h += '<div class="fiche-section">';
+    h += '<div class="fiche-section-title">À propos</div>';
+    h += '<div class="fiche-desc">'+escHtml(e.description)+'</div>';
+    h += '</div>';
+  }
+
+  /* Infos pratiques */
+  h += '<div class="fiche-section"><div class="fiche-section-title">Infos pratiques</div>';
+  if(e.quartier)    h += '<div class="fiche-info-line"><span class="fiche-info-icon">📍</span><span class="fiche-info-val">'+escHtml(e.quartier)+'</span></div>';
+  if(e.contact){
+    var waNum = e.contact.replace(/\s/g,'').replace(/\+/g,'');
+    var waMsg = encodeURIComponent('Bonjour '+escHtml(e.nom)+' (via AMBI241)');
+    h += '<div class="fiche-info-line"><span class="fiche-info-icon">📞</span><span class="fiche-info-val"><a href="tel:'+e.contact+'">'+escHtml(e.contact)+'</a></span></div>';
+    h += '<div class="fiche-info-line"><span class="fiche-info-icon">💬</span><span class="fiche-info-val"><a href="https://wa.me/'+waNum+'?text='+waMsg+'" target="_blank">WhatsApp</a></span></div>';
+  }
+  if(e.horaires)    h += '<div class="fiche-info-line"><span class="fiche-info-icon">🕐</span><span class="fiche-info-val">'+escHtml(e.horaires)+'</span></div>';
+  if(e.entree||e.prix_entree) h += '<div class="fiche-info-line"><span class="fiche-info-icon">🎟️</span><span class="fiche-info-val">'+escHtml(e.entree||e.prix_entree||'')+'</span></div>';
+  if(e.ambiance)    h += '<div class="fiche-info-line"><span class="fiche-info-icon">✨</span><span class="fiche-info-val">'+escHtml(e.ambiance)+'</span></div>';
+  if(e.type)        h += '<div class="fiche-info-line"><span class="fiche-info-icon">🏷️</span><span class="fiche-info-val">'+escHtml(e.type)+'</span></div>';
+  h += '</div>';
+
+  /* Tags / spécialités */
+  var tags = [];
+  if(e.tags && Array.isArray(e.tags)) tags = e.tags;
+  else if(e.specialites && Array.isArray(e.specialites)) tags = e.specialites;
+  if(tags.length){
+    h += '<div class="fiche-section"><div class="fiche-section-title">Tags & spécialités</div><div class="fiche-chips">';
+    tags.forEach(function(t){ h += '<span class="fiche-chip">'+escHtml(t)+'</span>'; });
+    h += '</div></div>';
+  }
+
+  /* Galerie photos (slots locaux) */
+  var galleryUrls = [];
+  try{
+    var sk = 'ambi241_photos_' + e.id;
+    var sd = localStorage.getItem(sk);
+    if(sd){ var sl=JSON.parse(sd); sl.forEach(function(s){ if(s&&s.url) galleryUrls.push(s.url); }); }
+  }catch(ex){}
+  if(galleryUrls.length > 1){
+    h += '<div class="fiche-section"><div class="fiche-section-title">Galerie photos</div>';
+    h += '<div class="fiche-gallery">';
+    galleryUrls.forEach(function(u){
+      h += '<img class="fiche-gallery-img" src="'+u+'" alt="" onclick="openFullscreenPhoto(\''+u+'\','+e.id+',\'gallery\',\''+escHtml(e.nom).replace(/'/g,'\\\'')+'\')" loading="lazy">';
+    });
+    h += '</div></div>';
+  }
+
+  /* Boutons d'action */
+  var contact = e.contact||'';
+  var waUrl   = contact ? 'https://wa.me/'+(contact.replace(/\+/g,'').replace(/\s/g,''))+'?text='+encodeURIComponent('Bonjour '+e.nom+' (via AMBI241)') : '';
+  var telUrl  = contact ? 'tel:'+contact : '';
+  var mapsUrl = e.maps_url || ('https://maps.google.com/?q='+encodeURIComponent((e.nom||'')+' '+(e.quartier||'')+' Libreville Gabon'));
+  h += '<div class="fiche-section"><div class="fiche-section-title">Contacts</div>';
+  h += '<div class="fiche-action-row">';
+  if(waUrl)  h += '<a href="'+waUrl+'" target="_blank" class="fiche-btn fiche-btn-wa" style="border:1px solid;">💬 WhatsApp</a>';
+  if(telUrl) h += '<a href="'+telUrl+'" class="fiche-btn fiche-btn-tel" style="border:1px solid;">📞 Appeler</a>';
+  if(mapsUrl)h += '<a href="'+mapsUrl+'" target="_blank" class="fiche-btn fiche-btn-maps" style="border:1px solid;">📍 Maps</a>';
+  h += '</div></div>';
+
+  body.innerHTML = h;
+  ov.classList.add('show');
+  /* Bloquer le scroll de fond */
+  document.body.style.overflow = 'hidden';
+
+  /* Restaurer le scroll à la fermeture */
+  var _restore = function(){
+    document.body.style.overflow = '';
+  };
+  ov._ficheRestore = _restore;
+};
+
+/* Surcharger closeFicheEtab pour restaurer le scroll */
+var _closeFicheOrig = window.closeFicheEtab;
+window.closeFicheEtab = function(){
+  var ov = document.getElementById('ficheEtabOverlay');
+  if(ov){ ov.classList.remove('show'); if(typeof ov._ficheRestore==='function') ov._ficheRestore(); }
+};
 
 // ── Filtre de type dédié (lieux uniquement) ──
 function setTypeFilter(type, el){
@@ -41588,6 +41793,13 @@ window.openDM = function(uid){
 
   _dmCurrentUid    = uid;
   _dmCurrentConvId = _dmConvId(window.currentUserUID, uid);
+
+  /* ── Réinitialiser immédiatement le badge non-lu de cet ami ── */
+  if(window._friendUnreadCounts && _dmCurrentConvId){
+    window._friendUnreadCounts[_dmCurrentConvId] = 0;
+  }
+  /* Re-render la liste d'amis pour effacer le badge rouge sur le bouton 💬 */
+  if(typeof renderFriends === 'function'){ try{ renderFriends(); }catch(e){} }
 
   var avEl=document.getElementById('dmPeerAv');
   var nameEl=document.getElementById('dmPeerName');
