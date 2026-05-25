@@ -51477,18 +51477,23 @@ window._lazyInitSection = function(name) {
   /* ══ Fonction utilitaire : emoji par type établissement ══ */
   function _bppGetEmojiForType(type){
     var emojis={
+      /* minuscules — données brutes Firebase */
       'restaurant':'🍽️','resto':'🍽️','pizzeria':'🍕','pâtisserie':'🥐',
-      'bar':'🍺','pub':'🍻','lounge':'🪴','bar-terrasse':'🍹',
+      'bar':'🍺','pub':'🍻','lounge':'🪴','bar-terrasse':'🍹','bar terrasse':'🍹',
       'hotel':'🏨','auberge':'🛏️',
-      'nightclub':'🎵','boîte':'🎵','discothèque':'💃','disco':'💃','club':'🎵',
+      'nightclub':'🎵','boîte':'🎵','discothèque':'💃','disco':'💃','club':'🎵','discotheque':'💃',
       'cafe':'☕','café':'☕','coffee':'☕',
       'snack':'🍟','fast-food':'🍔',
       'salle':'🎪','cérémonies':'🎉','événement':'🎊',
       'stade':'⚽','sports':'🏆','football':'⚽',
       'tourisme':'🏛️','attraction':'🎭','musée':'🖼️',
-      'autre':'📍'
+      'autre':'📍',
+      /* Majuscules — catégories retournées par getCategory() */
+      'Hotel':'🏨','Bar':'🍺','Bar Terrasse':'🍹','Snack':'🍟',
+      'Restaurant':'🍽️','Discotheque':'💃','Salle':'🎪','Stade':'⚽','Tourisme':'🏛️'
     };
-    return emojis[type?type.toLowerCase():'autre']||'📍';
+    if(!type) return '📍';
+    return emojis[type] || emojis[type.toLowerCase()] || '📍';
   }
 
   function _bppLoadEtabs(){
@@ -51518,11 +51523,13 @@ window._lazyInitSection = function(name) {
     /* ── Construire la liste interne depuis la source globale ── */
     _bppState.allEtabs=src.map(function(e){
       var img=e._photo_profile_approved||e.photo_interieur||e.photo_exterieur||null;
+      var rawType=e.type||e.categorie||'';
+      var catResolved=(typeof getCategory==='function')?getCategory(rawType):rawType||'Bar';
       return {
         id:e.id,
-        name:e.nom||'Sans nom',
-        type:(e.type||'autre').toLowerCase().trim(),
-        emoji:_bppGetEmojiForType(e.type),
+        name:(e.nom||e.name||'Sans nom').trim()||'Sans nom',
+        type:catResolved,
+        emoji:_bppGetEmojiForType(rawType)||_bppGetEmojiForType(catResolved)||'📍',
         image:img,
         _src:e   /* référence directe pour les mises à jour via updateField() */
       };
