@@ -13338,7 +13338,7 @@ function triggerPhotoPermUpload(){
    Sur réseau 3G Libreville (~300ms RTT), gain de ~600-900ms.
    ══════════════════════════════════════════════════════════════ */
 var _ETAB_CACHE_KEY = 'ambi241_etab_cache_v3';
-var _ETAB_CACHE_TTL = 30 * 1000; // 30 secondes — Firestore remplace rapidement
+var _ETAB_CACHE_TTL = 5 * 60 * 1000; // 5 minutes — balance fraîcheur / vitesse
 
 function _saveEtabCache(data) {
   try {
@@ -13387,11 +13387,11 @@ function loadData(){
   }
 
   /* ── ÉTAPE 1 : Afficher le cache immédiatement (rendu instantané) ── */
-  /* FIX v3 : si l'app vient d'être lancée depuis l'écran d'accueil (PWA),
-     ignorer le cache et aller directement sur Firestore pour avoir les données fraîches */
+  /* FIX v4 : utiliser le cache en PWA aussi (stale-while-revalidate)
+     Le cache s'affiche immédiatement, Firestore met à jour en arrière-plan */
   var _isPWA = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
               || window.navigator.standalone === true;
-  var cached = _isPWA ? null : _loadEtabCache();
+  var cached = _loadEtabCache(); // cache utilisé dans tous les modes
 
   if (cached && cached.length > 0) {
     etablissements = cached;
@@ -13404,7 +13404,7 @@ function loadData(){
   /* ── ÉTAPE 2 : Lancer établissements + paiements EN PARALLÈLE ── */
   setSyncing(true);
 
-  var qEtab = window.fbQuery(window.fbCollection(window.db, "etablissements"), window.fbOrderBy("id"));
+  var qEtab = window.fbQuery(window.fbCollection(window.db, "etablissements"), window.fbOrderBy("id"), window.fbLimit(200));
   var qPaie = window.fbQuery(window.fbCollection(window.db, "paiements"), window.fbOrderBy("id"));
 
   Promise.all([
