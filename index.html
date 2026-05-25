@@ -51548,95 +51548,125 @@ window._lazyInitSection = function(name) {
       return;
     }
 
-    /* ══ Grouper par type ══ */
-    var grouped={};
-    _bppState.allEtabs.forEach(etab=>{
-      var t=etab.type||'autre';
-      if(!grouped[t]) grouped[t]=[];
-      grouped[t].push(etab);
-    });
+    /* ══════════════════════════════════════════════════════════════
+       Grouper avec getCategory() — exactement comme la page d'accueil
+       Ordre calqué sur l'affichage des tuiles : Hotel → Bar → Bar Terrasse
+       → Snack → Restaurant → Discotheque → Salle → Stade → Tourisme
+       ══════════════════════════════════════════════════════════════ */
 
-    /* ══ Ordre des catégories connues ══ */
-    var typeOrder=['restaurant','bar','hotel','nightclub','cafe','disco','pub','lounge','snack'];
-    var typeLabels={
-      'restaurant':'🍽️ Restaurants',
-      'bar':'🍺 Bars',
-      'hotel':'🏨 Hôtels',
-      'nightclub':'🎵 Clubs',
-      'cafe':'☕ Cafés',
-      'disco':'💃 Discothèques',
-      'pub':'🍻 Pubs',
-      'lounge':'🪴 Lounges',
-      'snack':'🍕 Snacks / Fast-food'
+    /* Méta par catégorie : icône, couleur, label long */
+    var CAT_META={
+      'Hotel':       {icon:'🏨', color:'#ffa500', label:'Hôtels & Motels'},
+      'Bar':         {icon:'🍺', color:'#ff416c', label:'Bars & Lounges'},
+      'Bar Terrasse':{icon:'🏢', color:'#0052d4', label:'Bar Terrasses & Rooftops'},
+      'Snack':       {icon:'🍟', color:'#00b09b', label:'Snacks & Fast-food'},
+      'Restaurant':  {icon:'🍽️', color:'#f7971e', label:'Restos & Pâtisseries'},
+      'Discotheque': {icon:'🎵', color:'#7b2ff7', label:'Clubs & Discothèques'},
+      'Salle':       {icon:'🎭', color:'#e040fb', label:'Salles de spectacles'},
+      'Stade':       {icon:'⚽', color:'#43a047', label:'Stades & Complexes sportifs'},
+      'Tourisme':    {icon:'🌿', color:'#00acc1', label:'Sites touristiques & Parcs'}
     };
+    var CAT_ORDER=['Hotel','Bar','Bar Terrasse','Snack','Restaurant','Discotheque','Salle','Stade','Tourisme'];
 
-    /* ══ Ajouter les types inconnus à la fin ══ */
-    Object.keys(grouped).sort().forEach(function(t){
-      if(!typeOrder.includes(t)) typeOrder.push(t);
+    /* ── Grouper par catégorie (getCategory = même logique que l'accueil) ── */
+    var grouped={};
+    _bppState.allEtabs.forEach(function(etab){
+      var rawType=(etab._src&&etab._src.type)||etab.type||'';
+      var cat=(typeof getCategory==='function')?getCategory(rawType):rawType||'Bar';
+      if(!grouped[cat]) grouped[cat]=[];
+      grouped[cat].push(etab);
     });
 
-    /* ══ Compteur global ══ */
+    /* Trier les étabs dans chaque groupe par nom */
+    Object.keys(grouped).forEach(function(cat){
+      grouped[cat].sort(function(a,b){
+        return a.name.localeCompare(b.name,'fr',{sensitivity:'base'});
+      });
+    });
+
+    /* Catégories inconnues ajoutées en fin de liste */
+    Object.keys(grouped).forEach(function(cat){
+      if(CAT_ORDER.indexOf(cat)===-1) CAT_ORDER.push(cat);
+    });
+
+    /* ── En-tête global ── */
     var totalCount=_bppState.allEtabs.length;
-    var headerInfo=document.createElement('div');
-    headerInfo.style.cssText='padding:0.5rem 0.7rem 0.8rem;font-size:0.65rem;color:var(--muted);text-align:right;';
-    headerInfo.textContent=totalCount+' établissement'+(totalCount>1?'s':'')+' — '+Object.keys(grouped).length+' catégorie'+(Object.keys(grouped).length>1?'s':'');
-    l.appendChild(headerInfo);
+    var totalNoImg=_bppState.allEtabs.filter(function(e){return !e.image;}).length;
+    var hdr=document.createElement('div');
+    hdr.style.cssText='padding:0.55rem 0.8rem 0.75rem;display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid rgba(255,45,155,0.15);margin-bottom:0.6rem;';
+    hdr.innerHTML='<span style="font-family:Syne,sans-serif;font-size:0.72rem;font-weight:800;color:var(--text);">'
+      +totalCount+' établissements</span>'
+      +'<span style="font-size:0.62rem;color:var(--amber);font-weight:700;">'
+      +totalNoImg+' à remplir</span>';
+    l.appendChild(hdr);
 
-    /* ══ Afficher par catégorie ══ */
-    typeOrder.forEach(function(type){
-      if(!grouped[type]||!grouped[type].length) return;
+    /* ── Rendu par catégorie ── */
+    CAT_ORDER.forEach(function(cat){
+      if(!grouped[cat]||!grouped[cat].length) return;
 
-      var etabs=grouped[type];
-      var label=typeLabels[type]||(type.charAt(0).toUpperCase()+type.slice(1));
-
-      /* ── Titre catégorie avec compteur ── */
-      var titleDiv=document.createElement('div');
-      titleDiv.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:0.75rem 0.7rem 0.45rem;font-family:Syne,sans-serif;font-size:0.78rem;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:0.06em;border-bottom:1px solid rgba(255,45,155,0.18);margin-bottom:0.45rem;';
+      var etabs=grouped[cat];
+      var meta=CAT_META[cat]||{icon:'📍',color:'var(--muted)',label:cat};
       var countNoImg=etabs.filter(function(e){return !e.image;}).length;
-      titleDiv.innerHTML='<span>'+label+'</span>'
-        +'<span style="font-family:DM Sans,sans-serif;font-size:0.6rem;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0;">'
-        +(countNoImg>0?'<span style="color:var(--amber);">'+countNoImg+' à remplir</span>':'<span style="color:var(--green);">✓ complet</span>')
-        +' / '+etabs.length
-        +'</span>';
-      l.appendChild(titleDiv);
+      var allDone=(countNoImg===0);
 
-      /* ── Établissements du groupe ── */
+      /* ── Bandeau de section calqué sur les tuiles de l'accueil ── */
+      var section=document.createElement('div');
+      section.style.cssText='margin-bottom:0.35rem;border-radius:12px;overflow:hidden;border:1.5px solid '+meta.color+'33;';
+
+      /* Titre du groupe */
+      var titleDiv=document.createElement('div');
+      titleDiv.style.cssText='display:flex;align-items:center;gap:0.5rem;padding:0.6rem 0.75rem;background:'+meta.color+'18;border-bottom:1px solid '+meta.color+'33;';
+      titleDiv.innerHTML='<span style="font-size:1rem;">'+meta.icon+'</span>'
+        +'<span style="font-family:Syne,sans-serif;font-size:0.8rem;font-weight:800;color:var(--text);flex:1;text-transform:uppercase;letter-spacing:0.05em;">'+meta.label+'</span>'
+        +'<span style="font-size:0.58rem;font-weight:700;padding:0.2rem 0.5rem;border-radius:20px;background:'+meta.color+'22;color:'+meta.color+';">'
+          +etabs.length
+        +'</span>'
+        +(allDone
+          ?'<span style="font-size:0.58rem;font-weight:700;color:var(--green);margin-left:0.3rem;">✓ complet</span>'
+          :'<span style="font-size:0.58rem;font-weight:700;color:var(--amber);margin-left:0.3rem;">'+countNoImg+' à remplir</span>');
+      section.appendChild(titleDiv);
+
+      /* Rangée des établissements */
+      var rowsWrap=document.createElement('div');
+      rowsWrap.style.cssText='background:rgba(0,0,0,0.18);';
       etabs.forEach(function(etab){
         var div=document.createElement('div');
         div.className='bpp-etab-row'+(etab.image?' bpp-filled':'');
+        div.style.borderLeft='3px solid '+meta.color+'66';
         var hasImg=!!etab.image;
         div.innerHTML='<div class="bpp-etab-check"></div>'
           +'<div class="bpp-etab-avatar">'+etab.emoji+'</div>'
           +'<div class="bpp-etab-info">'
             +'<div class="bpp-etab-name">'+etab.name+'</div>'
             +'<div class="bpp-etab-meta">'
-              +'<span class="bpp-etab-status '+(hasImg?'bpp-has-img':'bpp-no-img')+'"></span>'
+              +'<span style="font-size:0.55rem;color:var(--muted);margin-right:0.3rem;">ID '+etab.id+'</span>'
               +(hasImg
                 ?'<span style="font-size:0.6rem;color:var(--green);">✓ Photo</span>'
                 :'<span style="font-size:0.6rem;color:var(--amber);">À remplir</span>')
             +'</div>'
           +'</div>'
-          +(hasImg?'<div class="bpp-etab-preview"><img src="'+etab.image+'" alt="'+etab.name+'"></div>':'');
+          +(hasImg?'<div class="bpp-etab-preview"><img src="'+etab.image+'" alt="'+etab.name+'" style="width:38px;height:38px;object-fit:cover;border-radius:6px;"></div>':'');
         div.onclick=function(){
           if(!etab.image){
             div.classList.toggle('bpp-checked');
             if(div.classList.contains('bpp-checked')) _bppState.selectedEtabs.add(etab.id);
             else _bppState.selectedEtabs.delete(etab.id);
-            /* Mettre à jour le bouton Attribuer */
             var btn=document.getElementById('bppAssignBtn');
             if(btn) btn.disabled=(_bppState.selectedEtabs.size===0||_bppState.images.length===0);
           }
         };
-        l.appendChild(div);
+        rowsWrap.appendChild(div);
       });
+      section.appendChild(rowsWrap);
+      l.appendChild(section);
 
-      /* ── Séparateur entre groupes ── */
-      var sep=document.createElement('div');
-      sep.style.cssText='height:1px;background:rgba(255,45,155,0.08);margin:0.8rem 0;';
-      l.appendChild(sep);
+      /* Espace entre groupes */
+      var gap=document.createElement('div');
+      gap.style.cssText='height:0.6rem;';
+      l.appendChild(gap);
     });
 
-    console.log('[BPP] ✅ Rendu:',_bppState.allEtabs.length,'établissements groupés par',Object.keys(grouped).length,'catégories');
+    console.log('[BPP] ✅ Rendu:',_bppState.allEtabs.length,'établissements en',Object.keys(grouped).length,'catégories (getCategory)');
   }
 
   window.bppStartAssign=function(){
