@@ -10075,12 +10075,29 @@ if (document.readyState === 'loading') {
 
 <!-- GALERIE OVERLAY -->
 <div class="overlay" id="galerieOverlay" onclick="if(event.target===this)closeGalerie()">
-  <div class="modal" style="width:min(460px,100%);max-height:92vh;position:relative;">
+  <div class="modal" style="width:min(460px,100%);max-height:92vh;position:relative;display:flex;flex-direction:column;overflow:hidden;">
     <button class="modal-close" onclick="closeGalerie()">&#10005;</button>
-    <div id="galerieNom" class="modal-title" style="padding-right:2rem;"></div>
-    <div id="galerieSub" class="modal-sub"></div>
-    <div id="galerieGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:0.9rem;"></div>
-    <div id="galerieAddBar" style="display:none;">
+    <div id="galerieNom" class="modal-title" style="padding-right:2rem;flex-shrink:0;"></div>
+    <div id="galerieSub" class="modal-sub" style="flex-shrink:0;"></div>
+
+    <!-- ══ Barre sélection + téléchargement ══ -->
+    <div id="galerieToolbar" style="display:none;flex-shrink:0;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:0.6rem;padding:0.45rem 0.65rem;background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.2);border-radius:10px;">
+      <span id="galerieSelCount" style="font-size:0.72rem;font-weight:700;color:var(--cyan);">0 sélectionnée(s)</span>
+      <div style="display:flex;gap:0.35rem;">
+        <button onclick="galerieSelAll()" style="font-size:0.65rem;font-weight:700;padding:0.22rem 0.5rem;border-radius:6px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.08);color:var(--cyan);cursor:pointer;font-family:DM Sans,sans-serif;">Tout</button>
+        <button onclick="galerieSelNone()" style="font-size:0.65rem;font-weight:700;padding:0.22rem 0.5rem;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--muted);cursor:pointer;font-family:DM Sans,sans-serif;">Aucune</button>
+        <button id="galerieDownloadBtn" onclick="galerieDownloadSelected()" style="font-size:0.65rem;font-weight:800;padding:0.22rem 0.65rem;border-radius:6px;border:1px solid rgba(0,255,170,0.4);background:rgba(0,255,170,0.1);color:var(--green);cursor:pointer;font-family:Syne,sans-serif;display:flex;align-items:center;gap:0.25rem;opacity:0.4;pointer-events:none;transition:all 0.15s;">⬇️ <span id="galerieDownloadLabel">Télécharger</span></button>
+      </div>
+    </div>
+
+    <div id="galerieGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:0.6rem;overflow-y:auto;flex:1;min-height:0;"></div>
+
+    <!-- ══ Bouton mode sélection ══ -->
+    <div style="flex-shrink:0;margin-bottom:0.6rem;">
+      <button id="galerieSelModeBtn" onclick="galerieToggleSelMode()" style="width:100%;padding:0.6rem 0.8rem;border-radius:10px;border:1.5px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.05);color:var(--cyan);font-family:Syne,sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;transition:all 0.18s;display:flex;align-items:center;justify-content:center;gap:0.35rem;">☑️ Sélectionner pour télécharger</button>
+    </div>
+
+    <div id="galerieAddBar" style="display:none;flex-shrink:0;">
       <!-- input DANS la modal, déclenché par label natif → fiable sur mobile -->
       <input type="file" id="__fileGallery" accept="image/*" style="display:none" onchange="onGalerieFileSelected(this)">
       <label for="__fileGallery" style="display:block;width:100%;padding:0.7rem;border-radius:10px;border:2px dashed rgba(255,45,155,0.4);background:rgba(255,45,155,0.06);color:var(--pink);font-family:Syne,sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;text-align:center;box-sizing:border-box;">&#43; Ajouter une photo <span id="galerieCount" style="font-size:0.75rem;opacity:0.7;font-family:DM Sans,sans-serif;"></span></label>
@@ -20901,6 +20918,210 @@ function deleteGaleriePhoto(index){ _deleteGaleriePhotoByIdx(index); }
 // ══ FIN PROTECTIONS SÉCURITÉ ════════════════════════════════════
 
 setInterval(function(){if(!isAdmin)loadData();},60000);
+
+/* ═══════════════════════════════════════════════════════════════
+   GALERIE — Mode sélection & téléchargement numéroté par classement
+   ═══════════════════════════════════════════════════════════════ */
+(function(){
+
+var _galerieSelMode = false;
+var _galerieSelected = {}; // { photoIndex: true }
+
+/* ── Rang de l'établissement courant dans le classement ── */
+function _galerieRank(eid){
+  var list = (window.etablissements || []).slice().sort(function(a,b){
+    return (b.affluence||0) - (a.affluence||0);
+  });
+  var idx = list.findIndex(function(e){ return String(e.id)===String(eid); });
+  return idx >= 0 ? idx+1 : 0;
+}
+
+/* ── Toggle mode sélection ── */
+window.galerieToggleSelMode = function(){
+  _galerieSelMode = !_galerieSelMode;
+  _galerieSelected = {};
+  var btn = document.getElementById('galerieSelModeBtn');
+  var toolbar = document.getElementById('galerieToolbar');
+  if(_galerieSelMode){
+    if(btn){ btn.style.background='rgba(0,229,255,0.14)'; btn.style.borderColor='rgba(0,229,255,0.6)'; btn.textContent='✕ Quitter la sélection'; }
+    if(toolbar) toolbar.style.display='flex';
+  } else {
+    if(btn){ btn.style.background='rgba(0,229,255,0.05)'; btn.style.borderColor='rgba(0,229,255,0.3)'; btn.innerHTML='☑️ Sélectionner pour télécharger'; }
+    if(toolbar) toolbar.style.display='none';
+  }
+  _galerieRebuildCheckboxes();
+  _galerieUpdateBar();
+};
+
+/* ── Reconstruire les overlays checkbox sur chaque photo ── */
+function _galerieRebuildCheckboxes(){
+  var grid = document.getElementById('galerieGrid');
+  if(!grid) return;
+  var cells = grid.querySelectorAll('[data-galerie-idx]');
+  cells.forEach(function(cell){
+    var existing = cell.querySelector('.galerie-cb-overlay');
+    if(!_galerieSelMode){
+      if(existing) existing.remove();
+      cell.style.cursor = '';
+      return;
+    }
+    if(!existing){
+      var ov = document.createElement('div');
+      ov.className = 'galerie-cb-overlay';
+      ov.style.cssText = 'position:absolute;inset:0;z-index:3;cursor:pointer;transition:background 0.12s;';
+      ov.addEventListener('click', function(e){
+        e.stopPropagation();
+        var idx = parseInt(cell.dataset.galerieIdx);
+        _galerieSelected[idx] = !_galerieSelected[idx];
+        _galerieRefreshCell(cell, idx);
+        _galerieUpdateBar();
+      });
+      cell.appendChild(ov);
+    }
+    var idx = parseInt(cell.dataset.galerieIdx);
+    _galerieRefreshCell(cell, idx);
+  });
+}
+
+function _galerieRefreshCell(cell, idx){
+  var checked = !!_galerieSelected[idx];
+  var ov = cell.querySelector('.galerie-cb-overlay');
+  if(ov) ov.style.background = checked ? 'rgba(0,229,255,0.22)' : 'transparent';
+  // badge check
+  var badge = cell.querySelector('.galerie-cb-badge');
+  if(!badge && _galerieSelMode){
+    badge = document.createElement('div');
+    badge.className = 'galerie-cb-badge';
+    badge.style.cssText = 'position:absolute;top:5px;left:5px;z-index:4;width:20px;height:20px;border-radius:50%;border:2px solid rgba(0,229,255,0.9);background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;font-size:0.7rem;transition:all 0.12s;pointer-events:none;';
+    cell.appendChild(badge);
+  }
+  if(badge){
+    if(!_galerieSelMode){ badge.remove(); return; }
+    badge.style.background = checked ? 'rgba(0,229,255,0.9)' : 'rgba(0,0,0,0.55)';
+    badge.style.borderColor = checked ? 'var(--cyan)' : 'rgba(0,229,255,0.6)';
+    badge.textContent = checked ? '✓' : '';
+  }
+  // bordure cellule
+  cell.style.outline = checked ? '2.5px solid rgba(0,229,255,0.8)' : '';
+  cell.style.outlineOffset = checked ? '-2px' : '';
+}
+
+/* ── Mettre à jour la barre : compteur + activer bouton ── */
+function _galerieUpdateBar(){
+  var count = Object.values(_galerieSelected).filter(Boolean).length;
+  var countEl = document.getElementById('galerieSelCount');
+  var dlBtn = document.getElementById('galerieDownloadBtn');
+  var dlLabel = document.getElementById('galerieDownloadLabel');
+  if(countEl) countEl.textContent = count + ' sélectionnée(s)';
+  if(dlBtn){
+    if(count > 0){
+      dlBtn.style.opacity = '1';
+      dlBtn.style.pointerEvents = 'auto';
+    } else {
+      dlBtn.style.opacity = '0.4';
+      dlBtn.style.pointerEvents = 'none';
+    }
+  }
+  if(dlLabel) dlLabel.textContent = count > 0 ? 'Télécharger ('+count+')' : 'Télécharger';
+}
+
+/* ── Tout sélectionner / désélectionner ── */
+window.galerieSelAll = function(){
+  var grid = document.getElementById('galerieGrid');
+  if(!grid) return;
+  grid.querySelectorAll('[data-galerie-idx]').forEach(function(cell){
+    var idx = parseInt(cell.dataset.galerieIdx);
+    _galerieSelected[idx] = true;
+    _galerieRefreshCell(cell, idx);
+  });
+  _galerieUpdateBar();
+};
+window.galerieSelNone = function(){
+  _galerieSelected = {};
+  var grid = document.getElementById('galerieGrid');
+  if(!grid) return;
+  grid.querySelectorAll('[data-galerie-idx]').forEach(function(cell){
+    _galerieRefreshCell(cell, parseInt(cell.dataset.galerieIdx));
+  });
+  _galerieUpdateBar();
+};
+
+/* ── Téléchargement ── */
+window.galerieDownloadSelected = function(){
+  var eid = window.galerieEtabId;
+  var eidStr = String(eid);
+  var photos = (window._galerieCache && window._galerieCache[eidStr]) || [];
+  var rank = _galerieRank(eid);
+  var rankPrefix = rank > 0 ? String(rank) : eidStr;
+
+  var indices = Object.keys(_galerieSelected)
+    .filter(function(k){ return _galerieSelected[k]; })
+    .map(Number)
+    .sort(function(a,b){ return a-b; });
+
+  if(!indices.length){ if(typeof showToast==='function') showToast('Aucune photo sélectionnée'); return; }
+
+  var dlCount = 0;
+  indices.forEach(function(idx, photoNum){
+    var p = photos[idx];
+    if(!p || !p.url) return;
+    // Nom : rang_numéro.ext  ex: 3_1.jpg, 3_2.jpg
+    var ext = (p.url.match(/\.([a-z]{3,4})(?:[?#]|$)/i)||['','jpg'])[1] || 'jpg';
+    var filename = rankPrefix + '_' + (photoNum+1) + '.' + ext;
+
+    // Créer un lien temporaire
+    setTimeout(function(){
+      var a = document.createElement('a');
+      a.href = p.url;
+      a.download = filename;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      dlCount++;
+      if(dlCount === indices.length){
+        if(typeof showToast==='function') showToast('✅ ' + dlCount + ' photo(s) téléchargée(s)');
+      }
+    }, photoNum * 350); // petit délai entre chaque pour éviter le blocage navigateur
+  });
+};
+
+/* ── Patch renderGalerieGrid : ajouter data-galerie-idx sur chaque cellule ── */
+var _origRenderGalerieGrid = window.renderGalerieGrid;
+window.renderGalerieGrid = function(){
+  // Reset sélection à chaque rechargement
+  _galerieSelected = {};
+  _galerieUpdateBar();
+  if(typeof _origRenderGalerieGrid === 'function') _origRenderGalerieGrid();
+  // Après rendu (async Firebase), patcher les cellules
+  setTimeout(function(){
+    var grid = document.getElementById('galerieGrid');
+    if(!grid) return;
+    // Identifier les cellules photos (aspect-ratio:1, pas la section membres)
+    var cells = Array.from(grid.children).filter(function(el){
+      return el.style && el.style.aspectRatio === '1' || el.style.cssText.indexOf('aspect-ratio:1') !== -1;
+    });
+    // Fallback : chercher les divs avec img enfant direct (hors section membres)
+    if(!cells.length){
+      cells = Array.from(grid.querySelectorAll('div[style*="aspect-ratio"]'));
+    }
+    cells.forEach(function(cell, i){
+      cell.setAttribute('data-galerie-idx', i);
+      cell.style.position = 'relative'; // s'assurer que l'overlay se positionne bien
+    });
+    if(_galerieSelMode) _galerieRebuildCheckboxes();
+  }, 600);
+};
+
+/* ── Reset au closeGalerie ── */
+var _origCloseGalerie = window.closeGalerie;
+window.closeGalerie = function(){
+  if(_galerieSelMode) galerieToggleSelMode(); // quitter le mode sélection
+  if(typeof _origCloseGalerie === 'function') _origCloseGalerie();
+};
+
+})(); // fin module sélection galerie
 
 // ── Expose toutes les fonctions appelées depuis le HTML ──────
 window.switchSection      = switchSection;
