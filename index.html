@@ -227,7 +227,7 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 .bpp-img-item:hover .bpp-img-remove{opacity:1;}
 
 /* ══ LISTE ÉTABLISSEMENTS & ATTRIBUTION ══ */
-.bpp-etabs-list{display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1.3rem;max-height:65vh;overflow-y:auto;padding-right:0.4rem;}
+.bpp-etabs-list{display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1.3rem;max-height:280px;overflow-y:auto;padding-right:0.4rem;}
 .bpp-etab-row{display:flex;align-items:center;gap:0.6rem;padding:0.7rem;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,45,155,0.12);transition:all 0.2s;cursor:pointer;}
 .bpp-etab-row:hover{border-color:rgba(0,255,170,0.3);background:rgba(0,255,170,0.03);}
 .bpp-etab-row.bpp-filled{opacity:0.55;pointer-events:none;}
@@ -26809,9 +26809,9 @@ window.doAssignEtab = doAssignEtab;
               <div class="bpp-upload-zone" id="bppUploadZone" onclick="document.getElementById('bppFileInput').click();">
                 <div class="bpp-upload-icon">📁</div>
                 <div class="bpp-upload-text">Cliquez pour sélectionner ou glissez-déposez des images</div>
-                <div class="bpp-upload-hint">JPEG, PNG, WebP • Max 5MB par image</div>
+                <div class="bpp-upload-hint">JPEG, PNG, WebP, HEIC, AVIF, BMP… tous formats acceptés</div>
               </div>
-              <input type="file" id="bppFileInput" class="bpp-file-input" multiple accept="image/*" onchange="bppHandleFileSelect(event)">
+              <input type="file" id="bppFileInput" class="bpp-file-input" multiple accept="image/*,.heic,.heif,.avif,.bmp,.tiff,.tif,.svg" onchange="bppHandleFileSelect(event)">
             </div>
 
             <div id="bppGalleryContainer" style="display:none;margin-bottom:1.2rem;">
@@ -51439,12 +51439,22 @@ window._lazyInitSection = function(name) {
 
   window.bppHandleFileSelect=function(e){
     var files=Array.from(e.target.files||[]);
-    files.forEach(f=>{
-      if(!f.type.startsWith('image/')) return;
-      if(f.size>5242880){_bppMsg('Image '+f.name+' trop volumineuse (max 5MB)','error');return;}
+    files.forEach(function(f){
+      /* Accepter tout format image sans limite de taille */
+      if(!f.type.startsWith('image/')&&!f.name.match(/\.(jpg|jpeg|png|gif|webp|bmp|tiff?|heic|heif|avif|svg)$/i)){
+        _bppMsg('Fichier ignoré (non image): '+f.name,'warn');
+        return;
+      }
       var r=new FileReader();
+      r.onerror=function(){ _bppMsg('Erreur lecture: '+f.name,'error'); };
       r.onload=function(ev){
-        _bppState.images.push({name:f.name,data:ev.target.result,timestamp:Date.now()});
+        _bppState.images.push({
+          name:f.name,
+          data:ev.target.result,  /* base64 brut, aucune compression */
+          size:f.size,
+          type:f.type||'image/jpeg',
+          timestamp:Date.now()
+        });
         _bppRenderGallery();
       };
       r.readAsDataURL(f);
@@ -51478,20 +51488,17 @@ window._lazyInitSection = function(name) {
   function _bppGetEmojiForType(type){
     var emojis={
       'restaurant':'🍽️','resto':'🍽️','pizzeria':'🍕','pâtisserie':'🥐',
-      'bar':'🍺','pub':'🍻','lounge':'🪴','bar-terrasse':'🍹','bar terrasse':'🍹',
+      'bar':'🍺','pub':'🍻','lounge':'🪴','bar-terrasse':'🍹',
       'hotel':'🏨','auberge':'🛏️',
-      'nightclub':'🎵','boîte':'🎵','discothèque':'💃','disco':'💃','club':'🎵','discotheque':'💃',
+      'nightclub':'🎵','boîte':'🎵','discothèque':'💃','disco':'💃','club':'🎵',
       'cafe':'☕','café':'☕','coffee':'☕',
       'snack':'🍟','fast-food':'🍔',
       'salle':'🎪','cérémonies':'🎉','événement':'🎊',
       'stade':'⚽','sports':'🏆','football':'⚽',
       'tourisme':'🏛️','attraction':'🎭','musée':'🖼️',
-      'autre':'📍',
-      'Hotel':'🏨','Bar':'🍺','Bar Terrasse':'🍹','Snack':'🍟',
-      'Restaurant':'🍽️','Discotheque':'💃','Salle':'🎪','Stade':'⚽','Tourisme':'🏛️'
+      'autre':'📍'
     };
-    if(!type) return '📍';
-    return emojis[type] || emojis[type.toLowerCase()] || '📍';
+    return emojis[type?type.toLowerCase():'autre']||'📍';
   }
 
   function _bppLoadEtabs(){
@@ -51521,15 +51528,13 @@ window._lazyInitSection = function(name) {
     /* ── Construire la liste interne depuis la source globale ── */
     _bppState.allEtabs=src.map(function(e){
       var img=e._photo_profile_approved||e.photo_interieur||e.photo_exterieur||null;
-      var rawType=e.type||e.categorie||'';
-      var catResolved=(typeof getCategory==='function')?getCategory(rawType):rawType||'Bar';
       return {
         id:e.id,
-        name:(e.nom||e.name||'Sans nom').trim()||'Sans nom',
-        type:catResolved,
-        emoji:_bppGetEmojiForType(rawType)||_bppGetEmojiForType(catResolved)||'📍',
+        name:e.nom||'Sans nom',
+        type:(e.type||'autre').toLowerCase().trim(),
+        emoji:_bppGetEmojiForType(e.type),
         image:img,
-        _src:e
+        _src:e   /* référence directe pour les mises à jour via updateField() */
       };
     });
 
@@ -51616,7 +51621,7 @@ window._lazyInitSection = function(name) {
 
       /* ── Bandeau de section calqué sur les tuiles de l'accueil ── */
       var section=document.createElement('div');
-      section.style.cssText='margin-bottom:0.35rem;border-radius:12px;border:1.5px solid '+meta.color+'33;';
+      section.style.cssText='margin-bottom:0.35rem;border-radius:12px;overflow:hidden;border:1.5px solid '+meta.color+'33;';
 
       /* Titre du groupe */
       var titleDiv=document.createElement('div');
@@ -51633,7 +51638,7 @@ window._lazyInitSection = function(name) {
 
       /* Rangée des établissements */
       var rowsWrap=document.createElement('div');
-      rowsWrap.style.cssText='background:rgba(0,0,0,0.18);padding:0.4rem;display:flex;flex-direction:column;gap:0.35rem;border-radius:0 0 10px 10px;';
+      rowsWrap.style.cssText='background:rgba(0,0,0,0.18);';
       etabs.forEach(function(etab){
         var div=document.createElement('div');
         div.className='bpp-etab-row'+(etab.image?' bpp-filled':'');
@@ -51693,55 +51698,62 @@ window._lazyInitSection = function(name) {
     var completed=0;
     var failed=0;
 
-    console.log('[BPP] 🚀 Démarrage attribution:',total,'établissements');
     var _addLog=function(msg,type){
       var line=document.createElement('div');
-      line.className='bpp-log '+(type?'bpp-log-'+type:'');
+      line.style.cssText='padding:0.15rem 0;color:'+(type==='ok'?'var(--green)':type==='err'?'var(--red)':'var(--amber)');
       line.textContent=new Date().toLocaleTimeString('fr')+' — '+msg;
       log.appendChild(line);
       log.scrollTop=log.scrollHeight;
-      console.log('[BPP]',msg);
     };
 
     function _finish(){
       setTimeout(function(){
         var msg=failed===0
-          ?'✅ '+total+' photo(s) attribuée(s) avec succès !'
-          :'⚠️ '+(total-failed)+'/'+total+' photos réussies ('+failed+' erreur(s))';
+          ?'✅ '+total+' photo(s) attribuée(s) !'
+          :'⚠️ '+(total-failed)+'/'+total+' réussies ('+failed+' erreur(s))';
         _bppMsg(msg,failed===0?'success':'warn');
         _bppState.selectedEtabs.clear();
-        _addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━','ok');
-        _addLog('Opération terminée','ok');
+        _addLog('Terminé','ok');
+        /* Rafraîchir la liste + l'app */
+        setTimeout(_bppRenderEtabs,400);
+        if(typeof renderAll==='function') setTimeout(renderAll,300);
+        if(typeof renderHome==='function') setTimeout(renderHome,350);
       },300);
     }
 
     selected.forEach(function(etabId,idx){
       setTimeout(function(){
         var etab=_bppState.allEtabs.find(function(e){return e.id===etabId;});
-        if(!etab||!_bppState.images[idx]){
+        var imgObj=_bppState.images[idx];
+        if(!etab||!imgObj){
           _addLog('❌ '+etabId+': données manquantes','err');
           failed++;
           if(++completed===total) _finish();
           return;
         }
 
-        _addLog('⏳ '+etab.name+'…','warn');
-        var imgData=_bppState.images[idx].data;
+        _addLog('⏳ '+etab.name+' ← '+imgObj.name,'warn');
 
-        /* ══ Utiliser updateField() — fonction native de l'app ══
-           Gère Firebase Modular v10, collection correcte, sync local */
+        /* ══ Sauvegarde directe — aucune compression, format original préservé ══ */
+        var imgData=imgObj.data; /* base64 brut tel que lu par FileReader */
         try{
+          /* 1. Firebase + local via updateField() */
           updateField(etab.id,{
-            photo_interieur: imgData,
-            _photo_profile_approved: imgData
+            photo_interieur:          imgData,
+            _photo_profile_approved:  imgData
           });
-          /* Mettre à jour la référence interne */
+          /* 2. Mise à jour référence interne BPP */
           etab.image=imgData;
           if(etab._src){
             etab._src._photo_profile_approved=imgData;
             etab._src.photo_interieur=imgData;
           }
-          _addLog('✅ '+etab.name+' ← '+_bppState.images[idx].name,'ok');
+          /* 3. localStorage — même clés que le système natif */
+          try{
+            localStorage.setItem('ambi_photo_'+etab.id+'_interieur', imgData);
+            localStorage.setItem('ambi_photo_'+etab.id+'_profile',   imgData);
+          }catch(ls){}
+          _addLog('✅ '+etab.name,'ok');
         }catch(err){
           _addLog('❌ '+etab.name+': '+err.message,'err');
           failed++;
@@ -51753,7 +51765,7 @@ window._lazyInitSection = function(name) {
         document.getElementById('bppProgressLabel').textContent='Progression…';
         if(completed===total) _finish();
 
-      },idx*250);
+      },idx*300); /* 300ms entre chaque pour ne pas saturer Firebase */
     });
   }
 
