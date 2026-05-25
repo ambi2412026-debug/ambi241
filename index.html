@@ -51903,5 +51903,707 @@ window._lazyInitSection = function(name) {
 
 })();
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     ██████████████████████████████████████████████████████████████████████
+     ██  AMBI241 — SYSTÈME DE CACHE PERMANENT  (v2.0)                    ██
+     ██  Stockage local type "dossier caché" — accès hors-ligne garanti  ██
+     ██  Remplacement uniquement par propriétaire ou admin               ██
+     ██████████████████████████████████████████████████████████████████████
+     ═══════════════════════════════════════════════════════════════════════ -->
+<style>
+/* ── AMBI-CACHE : Bannière de statut cache ────────────────────── */
+#ambi-cache-toast{
+  position:fixed;bottom:calc(var(--nav-h) + var(--player-h) + env(safe-area-inset-bottom,0px) + 8px);
+  left:50%;transform:translateX(-50%) translateY(20px);
+  background:rgba(26,10,40,0.97);border:1px solid rgba(0,255,170,0.35);
+  border-radius:12px;padding:0.55rem 1.1rem;font-family:'DM Sans',sans-serif;
+  font-size:0.72rem;font-weight:600;color:var(--green,#00ffaa);
+  display:flex;align-items:center;gap:0.5rem;white-space:nowrap;
+  z-index:99999;opacity:0;transition:opacity 0.3s,transform 0.3s;
+  box-shadow:0 4px 20px rgba(0,0,0,0.5),0 0 12px rgba(0,255,170,0.1);
+  pointer-events:none;max-width:90vw;
+}
+#ambi-cache-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+#ambi-cache-toast.warn{border-color:rgba(255,215,0,0.4);color:var(--amber,#ffd700);}
+#ambi-cache-toast.err{border-color:rgba(255,68,102,0.4);color:var(--red,#ff4466);}
+
+/* ── Indicateur cache sur les cartes établissements ──────────── */
+.ambi-cached-badge{
+  position:absolute;top:6px;right:6px;
+  background:rgba(0,255,170,0.18);border:1px solid rgba(0,255,170,0.4);
+  border-radius:6px;padding:2px 6px;font-size:0.55rem;font-weight:800;
+  color:var(--green,#00ffaa);letter-spacing:0.06em;text-transform:uppercase;
+  backdrop-filter:blur(4px);pointer-events:none;z-index:2;
+}
+.ambi-owner-locked{
+  position:absolute;top:6px;left:6px;
+  background:rgba(255,215,0,0.15);border:1px solid rgba(255,215,0,0.4);
+  border-radius:6px;padding:2px 6px;font-size:0.55rem;font-weight:800;
+  color:var(--amber,#ffd700);letter-spacing:0.04em;
+  backdrop-filter:blur(4px);pointer-events:none;z-index:2;
+}
+
+/* ── Panneau Admin Cache (accessible via console ou bouton admin) */
+#ambi-cache-panel{
+  display:none;position:fixed;inset:0;z-index:100000;
+  background:rgba(10,4,20,0.92);backdrop-filter:blur(8px);
+  align-items:center;justify-content:center;
+}
+#ambi-cache-panel.open{display:flex;}
+.acp-box{
+  background:var(--surface,#230d35);border:1px solid rgba(255,45,155,0.25);
+  border-radius:20px;padding:1.5rem;width:min(460px,95vw);
+  max-height:85vh;overflow-y:auto;
+  box-shadow:0 20px 60px rgba(0,0,0,0.6),0 0 40px rgba(255,45,155,0.08);
+}
+.acp-title{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:800;
+  color:var(--text,#fff0f8);margin-bottom:0.3rem;display:flex;align-items:center;gap:0.5rem;}
+.acp-sub{font-size:0.68rem;color:var(--muted,#b088c0);margin-bottom:1.2rem;line-height:1.5;}
+.acp-stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-bottom:1.2rem;}
+.acp-stat{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);
+  border-radius:12px;padding:0.7rem;text-align:center;}
+.acp-stat-val{font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:var(--cyan,#00e5ff);}
+.acp-stat-lbl{font-size:0.56rem;color:var(--muted);margin-top:0.1rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:0.05em;}
+.acp-list{max-height:220px;overflow-y:auto;margin-bottom:1rem;}
+.acp-item{display:flex;align-items:center;gap:0.7rem;padding:0.5rem;
+  border-radius:10px;border:1px solid rgba(255,255,255,0.06);margin-bottom:0.35rem;
+  background:rgba(255,255,255,0.02);}
+.acp-item-thumb{width:40px;height:40px;border-radius:8px;object-fit:cover;
+  border:1px solid rgba(255,255,255,0.1);flex-shrink:0;}
+.acp-item-info{flex:1;min-width:0;}
+.acp-item-name{font-size:0.72rem;font-weight:700;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.acp-item-meta{font-size:0.6rem;color:var(--muted);margin-top:0.05rem;}
+.acp-item-badge{font-size:0.55rem;font-weight:800;padding:2px 7px;border-radius:5px;
+  text-transform:uppercase;letter-spacing:0.05em;flex-shrink:0;}
+.acp-item-badge.owner{background:rgba(255,215,0,0.15);color:var(--amber);border:1px solid rgba(255,215,0,0.35);}
+.acp-item-badge.admin{background:rgba(255,45,155,0.12);color:var(--pink);border:1px solid rgba(255,45,155,0.3);}
+.acp-item-badge.cached{background:rgba(0,255,170,0.1);color:var(--green);border:1px solid rgba(0,255,170,0.3);}
+.acp-btn-row{display:flex;gap:0.5rem;flex-wrap:wrap;}
+.acp-btn{padding:0.55rem 1rem;border-radius:9px;font-size:0.72rem;font-weight:700;
+  cursor:pointer;border:none;transition:all 0.18s;font-family:'DM Sans',sans-serif;}
+.acp-btn:active{transform:scale(0.96);}
+.acp-btn-close{background:rgba(255,255,255,0.07);color:var(--muted);border:1px solid rgba(255,255,255,0.1);}
+.acp-btn-purge{background:rgba(255,68,102,0.12);color:var(--red,#ff4466);border:1px solid rgba(255,68,102,0.3);}
+.acp-btn-export{background:rgba(0,229,255,0.1);color:var(--cyan);border:1px solid rgba(0,229,255,0.3);}
+.acp-storage-bar{background:rgba(255,255,255,0.06);border-radius:6px;height:6px;
+  margin-bottom:1rem;overflow:hidden;}
+.acp-storage-fill{height:100%;border-radius:6px;transition:width 0.4s;
+  background:linear-gradient(90deg,var(--green),var(--cyan));}
+.acp-storage-lbl{font-size:0.6rem;color:var(--muted);margin-bottom:0.3rem;display:flex;
+  justify-content:space-between;}
+</style>
+
+<!-- Toast feedback cache -->
+<div id="ambi-cache-toast">⚡ Cache chargé</div>
+
+<!-- Panneau Admin Cache -->
+<div id="ambi-cache-panel">
+  <div class="acp-box">
+    <div class="acp-title">🗄️ Cache AMBI241</div>
+    <div class="acp-sub">Données permanentes stockées sur cet appareil — photos et infos des établissements disponibles hors-ligne. Seuls les propriétaires et admins peuvent remplacer une entrée verrouillée.</div>
+    <div class="acp-stat-row">
+      <div class="acp-stat"><div class="acp-stat-val" id="acp-count">—</div><div class="acp-stat-lbl">Établissements</div></div>
+      <div class="acp-stat"><div class="acp-stat-val" id="acp-photos">—</div><div class="acp-stat-lbl">Photos</div></div>
+      <div class="acp-stat"><div class="acp-stat-val" id="acp-size">—</div><div class="acp-stat-lbl">Mo utilisés</div></div>
+    </div>
+    <div class="acp-storage-lbl"><span>Stockage appareil</span><span id="acp-pct">—%</span></div>
+    <div class="acp-storage-bar"><div class="acp-storage-fill" id="acp-bar" style="width:0%"></div></div>
+    <div class="acp-list" id="acp-list"></div>
+    <div class="acp-btn-row">
+      <button class="acp-btn acp-btn-close" onclick="AmbiCache.closePanel()">✕ Fermer</button>
+      <button class="acp-btn acp-btn-export" onclick="AmbiCache.exportCache()">⬇️ Exporter</button>
+      <button class="acp-btn acp-btn-purge" onclick="AmbiCache.confirmPurge()">🗑️ Vider cache</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════
+   AMBI241 — SYSTÈME DE CACHE PERMANENT v2.0
+   ════════════════════════════════════════════════════════════════════════
+   Principe : comme WhatsApp qui stocke médias dans un dossier caché,
+   AMBI241 maintient un cache local sous le préfixe "ambi241_cache__"
+   dans localStorage. Chaque entrée photo ou donnée est :
+     • Persistante  — survit aux rechargements de page
+     • Verrouillée  — ne peut être remplacée que par owner ou admin
+     • Horodatée    — on sait quand la photo a été approuvée
+     • Indexée      — un manifeste liste toutes les clés pour accès rapide
+   ════════════════════════════════════════════════════════════════════════ */
+(function(){
+'use strict';
+
+/* ── Constantes ─────────────────────────────────────────────── */
+const NS        = 'ambi241_cache__';          /* Namespace localStorage (dossier caché) */
+const KEY_IDX   = NS + '__index__';           /* Manifeste de toutes les entrées */
+const KEY_META  = NS + '__meta__';            /* Métadonnées globales */
+const VERSION   = '2.0';
+const MAX_PHOTO = 5 * 1024 * 1024;           /* 5 Mo max par photo */
+
+/* ── Rôles autorisés à remplacer une entrée verrouillée ─────── */
+const OVERRIDE_ROLES = ['admin','owner','superadmin'];
+
+/* ── Utilitaires ────────────────────────────────────────────── */
+function now(){ return Date.now(); }
+function fmtDate(ts){ return new Date(ts).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+function fmtSize(bytes){
+  if(bytes < 1024) return bytes+'o';
+  if(bytes < 1024*1024) return (bytes/1024).toFixed(1)+'Ko';
+  return (bytes/(1024*1024)).toFixed(2)+'Mo';
+}
+function calcLSSize(){
+  var total=0;
+  try{ for(var k in localStorage){ if(k.startsWith(NS)) total+=localStorage[k].length*2; } }catch(e){}
+  return total;
+}
+
+/* ── Toast notification ─────────────────────────────────────── */
+var _toastTimer=null;
+function toast(msg,type,dur){
+  var el=document.getElementById('ambi-cache-toast');
+  if(!el) return;
+  el.textContent=msg;
+  el.className='show'+(type?' '+type:'');
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(function(){ el.className=''; },dur||2800);
+}
+
+/* ── Lire/Écrire l'index ────────────────────────────────────── */
+function readIndex(){
+  try{ return JSON.parse(localStorage.getItem(KEY_IDX)||'{}'); }catch(e){ return {}; }
+}
+function writeIndex(idx){
+  try{ localStorage.setItem(KEY_IDX, JSON.stringify(idx)); }catch(e){ console.warn('[AmbiCache] Index write fail',e); }
+}
+function readMeta(){
+  try{ return JSON.parse(localStorage.getItem(KEY_META)||'{}'); }catch(e){ return {}; }
+}
+function writeMeta(m){
+  try{ localStorage.setItem(KEY_META, JSON.stringify(m)); }catch(e){}
+}
+
+/* ════════════════════════════════════════════════════════════ */
+/* ══ API PUBLIQUE : window.AmbiCache                        ══ */
+/* ════════════════════════════════════════════════════════════ */
+window.AmbiCache = {
+
+  /* ── Sauvegarder une donnée/photo dans le cache permanent ── */
+  set: function(etabId, field, value, opts){
+    /*
+      opts = {
+        role:      'admin'|'owner'|'user'   — rôle de celui qui écrit
+        etabName:  string                   — pour affichage
+        force:     bool                     — force même si verrouillé (admin seulement)
+      }
+    */
+    opts = opts || {};
+    var role = opts.role || 'user';
+    var idx  = readIndex();
+    var key  = NS + etabId + '__' + field;
+    var existingEntry = idx[key];
+
+    /* Vérifier le verrou : si une entrée "owner" existe, seul owner/admin peut remplacer */
+    if(existingEntry && existingEntry.locked && !OVERRIDE_ROLES.includes(role)){
+      toast('🔒 Photo verrouillée — seul le propriétaire peut remplacer','warn',3500);
+      console.warn('[AmbiCache] BLOQUÉ — tentative de remplacement sans droits sur',etabId,field);
+      return false;
+    }
+
+    /* Vérifier la taille si c'est une image base64 */
+    if(typeof value === 'string' && value.startsWith('data:image')){
+      var approxBytes = Math.round(value.length * 0.75);
+      if(approxBytes > MAX_PHOTO){
+        toast('⚠️ Image trop lourde (max 5Mo)','warn');
+        console.warn('[AmbiCache] Image trop grande:',fmtSize(approxBytes));
+        return false;
+      }
+    }
+
+    /* Écrire la donnée */
+    try{
+      localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+    }catch(e){
+      /* localStorage plein — tenter de libérer de l'espace (supprimer les plus anciens non-verrouillés) */
+      console.warn('[AmbiCache] localStorage plein, tentative de libération...');
+      this._freeSpace(200000);
+      try{ localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value)); }
+      catch(e2){ toast('❌ Stockage plein — impossible de sauvegarder','err'); return false; }
+    }
+
+    /* Mettre à jour l'index */
+    var isOwnerRole = (role === 'owner' || role === 'admin' || role === 'superadmin');
+    idx[key] = {
+      etabId:    etabId,
+      field:     field,
+      etabName:  opts.etabName || etabId,
+      savedAt:   now(),
+      role:      role,
+      locked:    isOwnerRole,          /* Verrou si sauvegardé par proprio/admin */
+      isPhoto:   (typeof value === 'string' && value.startsWith('data:image')),
+      size:      typeof value === 'string' ? value.length * 2 : 0
+    };
+    writeIndex(idx);
+
+    /* Mettre à jour les métadonnées globales */
+    var meta = readMeta();
+    meta.lastWrite   = now();
+    meta.totalWrites = (meta.totalWrites || 0) + 1;
+    meta.version     = VERSION;
+    if(!meta.firstInit) meta.firstInit = now();
+    writeMeta(meta);
+
+    console.log('[AmbiCache] ✅ SAUVEGARDÉ',etabId,field,'role:',role,'verrouillé:',isOwnerRole);
+    return true;
+  },
+
+  /* ── Lire une donnée depuis le cache ───────────────────────── */
+  get: function(etabId, field){
+    var key = NS + etabId + '__' + field;
+    try{
+      var raw = localStorage.getItem(key);
+      if(raw === null) return null;
+      /* Si c'est du base64 image, retourner tel quel */
+      if(raw.startsWith('data:image')) return raw;
+      /* Sinon tenter JSON parse */
+      try{ return JSON.parse(raw); }catch(e){ return raw; }
+    }catch(e){ return null; }
+  },
+
+  /* ── Lire toutes les données d'un établissement ────────────── */
+  getEtab: function(etabId){
+    var idx = readIndex();
+    var result = {};
+    for(var key in idx){
+      var entry = idx[key];
+      if(entry.etabId !== etabId) continue;
+      result[entry.field] = {
+        value:   this.get(etabId, entry.field),
+        meta:    entry
+      };
+    }
+    return result;
+  },
+
+  /* ── Appliquer le cache sur un objet établissement ─────────── */
+  applyToEtab: function(etab){
+    if(!etab || !etab.id) return etab;
+    var cached = this.getEtab(etab.id);
+    var applied = 0;
+    for(var field in cached){
+      var val = cached[field].value;
+      if(val !== null && val !== undefined){
+        /* N'écraser que si le serveur n'a pas de valeur OU si le cache est verrouillé (owner) */
+        if(!etab[field] || cached[field].meta.locked){
+          etab[field] = val;
+          applied++;
+        }
+      }
+    }
+    if(applied > 0) console.log('[AmbiCache] 🎯 Cache appliqué sur',etab.name,'—',applied,'champ(s)');
+    return etab;
+  },
+
+  /* ── Supprimer une entrée (admin/owner seulement) ────────────── */
+  remove: function(etabId, field, role){
+    role = role || 'user';
+    var key = NS + etabId + '__' + field;
+    var idx = readIndex();
+    var entry = idx[key];
+    if(entry && entry.locked && !OVERRIDE_ROLES.includes(role)){
+      toast('🔒 Suppression refusée — droits insuffisants','warn');
+      return false;
+    }
+    try{ localStorage.removeItem(key); }catch(e){}
+    delete idx[key];
+    writeIndex(idx);
+    toast('🗑️ Entrée supprimée du cache','warn',2000);
+    return true;
+  },
+
+  /* ── Initialisation au démarrage de l'app ───────────────────── */
+  init: function(){
+    var meta = readMeta();
+    var idx  = readIndex();
+    var count = Object.keys(idx).length;
+    var photos = Object.values(idx).filter(function(e){ return e.isPhoto; }).length;
+    var size  = calcLSSize();
+
+    if(count > 0){
+      console.log('[AmbiCache] 🚀 Cache chargé —',count,'entrées,',photos,'photos,',fmtSize(size));
+      setTimeout(function(){
+        toast('⚡ '+photos+' photo(s) en cache — accès instantané');
+      }, 1800);
+    } else {
+      console.log('[AmbiCache] 📭 Cache vide — première utilisation');
+    }
+
+    /* Hooker updateField() pour intercepter les sauvegardes ──── */
+    this._hookUpdateField();
+
+    /* Hooker le chargement des établissements pour injecter le cache */
+    this._hookRenderAll();
+
+    /* Nettoyer les entrées orphelines (>90 jours sans accès) ─── */
+    this._cleanOld(90);
+
+    meta.appStarts = (meta.appStarts || 0) + 1;
+    meta.lastStart = now();
+    writeMeta(meta);
+  },
+
+  /* ── Intercepter updateField() — la fonction native de l'app── */
+  _hookUpdateField: function(){
+    var self = this;
+    /* Attendre que updateField soit disponible */
+    var attempts = 0;
+    var check = setInterval(function(){
+      attempts++;
+      if(typeof window.updateField === 'function'){
+        clearInterval(check);
+        var original = window.updateField;
+        window.updateField = function(etabId, fields, opts){
+          /* Détecter le rôle depuis l'état de l'app */
+          var role = self._detectRole();
+          /* Appeler l'original en premier */
+          var result = original.apply(this, arguments);
+          /* Ensuite sauvegarder dans le cache permanent */
+          if(fields && typeof fields === 'object'){
+            var photoFields = ['photo_interieur','_photo_profile_approved','photo_exterieur','photo_logo','banner'];
+            var dataFields  = ['name','type','emoji','adresse','horaires','description'];
+            var allTarget   = photoFields.concat(dataFields);
+            allTarget.forEach(function(f){
+              if(fields[f] !== undefined && fields[f] !== null){
+                /* Récupérer le nom de l'établissement depuis l'état global */
+                var etabName = self._getEtabName(etabId);
+                self.set(etabId, f, fields[f], { role: role, etabName: etabName });
+              }
+            });
+          }
+          return result;
+        };
+        console.log('[AmbiCache] 🪝 updateField() hooké avec succès');
+      } else if(attempts > 40){
+        clearInterval(check);
+        console.warn('[AmbiCache] updateField() introuvable après 20s');
+      }
+    }, 500);
+  },
+
+  /* ── Intercepter le rendu des cartes pour y appliquer le cache */
+  _hookRenderAll: function(){
+    var self = this;
+    var attempts = 0;
+    var check = setInterval(function(){
+      attempts++;
+      if(typeof window.renderAll === 'function' || typeof window.renderHome === 'function'){
+        clearInterval(check);
+        /* Patcher renderAll */
+        if(typeof window.renderAll === 'function'){
+          var origRenderAll = window.renderAll;
+          window.renderAll = function(){
+            self._applyCacheToGlobalData();
+            return origRenderAll.apply(this, arguments);
+          };
+        }
+        /* Patcher renderHome */
+        if(typeof window.renderHome === 'function'){
+          var origRenderHome = window.renderHome;
+          window.renderHome = function(){
+            self._applyCacheToGlobalData();
+            return origRenderHome.apply(this, arguments);
+          };
+        }
+        console.log('[AmbiCache] 🪝 Render hooks actifs');
+      } else if(attempts > 60){
+        clearInterval(check);
+      }
+    }, 500);
+  },
+
+  /* ── Appliquer le cache sur toutes les données globales ─────── */
+  _applyCacheToGlobalData: function(){
+    var self = this;
+    /* Tenter d'accéder aux données globales de l'app */
+    var sources = [
+      window._ambiData, window._etabs, window.ambiEtabs,
+      window._allEtabs, window._bppState && window._bppState.allEtabs
+    ];
+    sources.forEach(function(arr){
+      if(!Array.isArray(arr)) return;
+      arr.forEach(function(etab){ self.applyToEtab(etab); });
+    });
+  },
+
+  /* ── Détecter le rôle de l'utilisateur connecté ────────────── */
+  _detectRole: function(){
+    /* Chercher dans les variables globales de l'app */
+    try{
+      if(window._currentUser && window._currentUser.role) return window._currentUser.role;
+      if(window._userRole) return window._userRole;
+      if(window.currentUserRole) return window.currentUserRole;
+      /* Regarder dans localStorage (session persistante) */
+      var session = localStorage.getItem('ambi_session') || localStorage.getItem('ambi_user');
+      if(session){
+        var s = JSON.parse(session);
+        if(s && s.role) return s.role;
+      }
+    }catch(e){}
+    return 'user';
+  },
+
+  /* ── Récupérer le nom d'un établissement ───────────────────── */
+  _getEtabName: function(etabId){
+    try{
+      var sources = [window._ambiData, window._etabs, window.ambiEtabs, window._allEtabs];
+      for(var i=0;i<sources.length;i++){
+        if(Array.isArray(sources[i])){
+          var found = sources[i].find(function(e){ return e && e.id === etabId; });
+          if(found && found.name) return found.name;
+        }
+      }
+    }catch(e){}
+    return etabId;
+  },
+
+  /* ── Libérer de l'espace — supprimer les plus vieux non-verrouillés */
+  _freeSpace: function(targetBytes){
+    var idx = readIndex();
+    var entries = Object.entries(idx)
+      .filter(function(e){ return !e[1].locked; })
+      .sort(function(a,b){ return a[1].savedAt - b[1].savedAt }); /* plus anciens en premier */
+    var freed = 0;
+    for(var i=0;i<entries.length && freed < targetBytes;i++){
+      var key = entries[i][0];
+      var entry = entries[i][1];
+      freed += entry.size || 0;
+      try{ localStorage.removeItem(key); }catch(e){}
+      delete idx[key];
+      console.log('[AmbiCache] 🧹 Libéré:',key);
+    }
+    writeIndex(idx);
+    console.log('[AmbiCache] 🧹 Libéré ~'+fmtSize(freed));
+  },
+
+  /* ── Nettoyer les entrées trop anciennes (si non-verrouillées) */
+  _cleanOld: function(days){
+    var idx  = readIndex();
+    var cutoff = now() - days * 86400000;
+    var removed = 0;
+    for(var key in idx){
+      var entry = idx[key];
+      if(!entry.locked && entry.savedAt < cutoff){
+        try{ localStorage.removeItem(key); }catch(e){}
+        delete idx[key];
+        removed++;
+      }
+    }
+    if(removed > 0){ writeIndex(idx); console.log('[AmbiCache] 🧹 Nettoyage:',removed,'entrées expirées'); }
+  },
+
+  /* ── Ouvrir le panneau admin ──────────────────────────────── */
+  openPanel: function(){
+    document.getElementById('ambi-cache-panel').classList.add('open');
+    this._refreshPanel();
+  },
+  closePanel: function(){
+    document.getElementById('ambi-cache-panel').classList.remove('open');
+  },
+
+  /* ── Rafraîchir les stats du panneau ───────────────────────── */
+  _refreshPanel: function(){
+    var idx   = readIndex();
+    var entries = Object.values(idx);
+    var photos  = entries.filter(function(e){ return e.isPhoto; });
+    var etabs   = new Set(entries.map(function(e){ return e.etabId; }));
+    var size    = calcLSSize();
+    var maxSize = 10 * 1024 * 1024; /* estimation 10Mo quota */
+
+    document.getElementById('acp-count').textContent  = etabs.size;
+    document.getElementById('acp-photos').textContent = photos.length;
+    document.getElementById('acp-size').textContent   = fmtSize(size).replace('Mo','').replace('Ko','k');
+    var pct = Math.min(100, Math.round(size/maxSize*100));
+    document.getElementById('acp-pct').textContent    = pct+'%';
+    document.getElementById('acp-bar').style.width    = pct+'%';
+
+    /* Changer couleur selon utilisation */
+    var bar = document.getElementById('acp-bar');
+    bar.style.background = pct > 80
+      ? 'linear-gradient(90deg,var(--amber),var(--red))'
+      : pct > 50
+        ? 'linear-gradient(90deg,var(--amber),var(--cyan))'
+        : 'linear-gradient(90deg,var(--green),var(--cyan))';
+
+    /* Liste des entrées par établissement */
+    var list = document.getElementById('acp-list');
+    list.innerHTML = '';
+    var byEtab = {};
+    entries.forEach(function(e){
+      if(!byEtab[e.etabId]) byEtab[e.etabId]={name:e.etabName,fields:[],hasPhoto:false,locked:false};
+      byEtab[e.etabId].fields.push(e.field);
+      if(e.isPhoto) byEtab[e.etabId].hasPhoto=true;
+      if(e.locked)  byEtab[e.etabId].locked=true;
+    });
+
+    if(Object.keys(byEtab).length === 0){
+      list.innerHTML='<div style="text-align:center;color:var(--muted);font-size:0.7rem;padding:1.5rem 0;">Aucune donnée en cache</div>';
+      return;
+    }
+
+    Object.entries(byEtab).forEach(function(pair){
+      var etabId = pair[0];
+      var info   = pair[1];
+      /* Récupérer la photo en cache si dispo */
+      var photoSrc = window.AmbiCache.get(etabId,'_photo_profile_approved')
+                  || window.AmbiCache.get(etabId,'photo_interieur') || '';
+
+      var div = document.createElement('div');
+      div.className = 'acp-item';
+      div.innerHTML =
+        (photoSrc ? '<img class="acp-item-thumb" src="'+photoSrc+'" alt="">' :
+          '<div class="acp-item-thumb" style="background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">🏠</div>') +
+        '<div class="acp-item-info">' +
+          '<div class="acp-item-name">'+(info.name||etabId)+'</div>' +
+          '<div class="acp-item-meta">'+info.fields.length+' champ(s) · '+(info.hasPhoto?'📷 photo·':'')+'</div>' +
+        '</div>' +
+        '<span class="acp-item-badge '+(info.locked?'owner':'cached')+'">'+(info.locked?'🔒 Verrouillé':'✅ Libre')+'</span>';
+      list.appendChild(div);
+    });
+  },
+
+  /* ── Exporter le cache en JSON ────────────────────────────── */
+  exportCache: function(){
+    var idx   = readIndex();
+    var meta  = readMeta();
+    var data  = { version: VERSION, exportedAt: new Date().toISOString(), meta: meta, entries: [] };
+    Object.entries(idx).forEach(function(pair){
+      var entry = Object.assign({}, pair[1]);
+      /* Inclure valeur sauf photos (trop lourdes) */
+      if(!entry.isPhoto) entry.value = window.AmbiCache.get(entry.etabId, entry.field);
+      data.entries.push(entry);
+    });
+    var blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    a.href   = url;
+    a.download = 'ambi241-cache-'+new Date().toISOString().slice(0,10)+'.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('⬇️ Export téléchargé','',2500);
+  },
+
+  /* ── Confirmer la purge du cache ──────────────────────────── */
+  confirmPurge: function(){
+    var role = this._detectRole();
+    if(!OVERRIDE_ROLES.includes(role)){
+      toast('🔒 Purge réservée aux admins','warn',3000);
+      return;
+    }
+    if(!confirm('⚠️ Vider tout le cache AMBI241 ?\nCette action est irréversible.\nLes photos et données seront rechargées depuis le serveur à la prochaine connexion.')) return;
+    this.purgeAll(role);
+  },
+
+  /* ── Purger tout le cache (admin seulement) ──────────────── */
+  purgeAll: function(role){
+    if(!OVERRIDE_ROLES.includes(role || '')){
+      toast('🔒 Droits insuffisants','warn'); return false;
+    }
+    var idx = readIndex();
+    Object.keys(idx).forEach(function(key){
+      try{ localStorage.removeItem(key); }catch(e){}
+    });
+    localStorage.removeItem(KEY_IDX);
+    localStorage.removeItem(KEY_META);
+    toast('🗑️ Cache vidé — rechargement au prochain démarrage','warn',4000);
+    setTimeout(function(){ window.AmbiCache.closePanel(); },500);
+    console.log('[AmbiCache] 🗑️ Cache purgé par',role);
+    return true;
+  },
+
+  /* ── Obtenir les stats du cache (pour d'autres modules) ──── */
+  getStats: function(){
+    var idx = readIndex();
+    var entries = Object.values(idx);
+    return {
+      totalEntries : entries.length,
+      photos       : entries.filter(function(e){ return e.isPhoto; }).length,
+      locked       : entries.filter(function(e){ return e.locked; }).length,
+      etabs        : new Set(entries.map(function(e){ return e.etabId; })).size,
+      sizeBytes    : calcLSSize(),
+      sizeStr      : fmtSize(calcLSSize())
+    };
+  }
+
+}; /* fin window.AmbiCache */
+
+/* ════════════════════════════════════════════════════════════
+   DÉMARRAGE AUTOMATIQUE
+   ════════════════════════════════════════════════════════════ */
+function _bootCache(){
+  window.AmbiCache.init();
+
+  /* Compatibilité : alimenter aussi les anciennes clés ambi_photo_* */
+  /* (pour que le code BPP existant continue de fonctionner) */
+  var _origLS = localStorage.setItem.bind(localStorage);
+  /* Patcher localStorage.setItem pour intercepter les anciennes clés BPP */
+  var _origSet = localStorage.setItem;
+  localStorage.setItem = function(key, value){
+    _origSet.call(this, key, value);
+    /* Si c'est une clé photo BPP existante, la dupliquer dans le nouveau cache */
+    if(key && key.startsWith('ambi_photo_') && value && value.startsWith('data:image')){
+      var parts = key.replace('ambi_photo_','').split('_');
+      if(parts.length >= 2){
+        var etabId = parts[0];
+        var field  = parts.slice(1).join('_');
+        var role   = window.AmbiCache._detectRole();
+        /* Ne pas ré-appeler set si déjà dans le nouveau cache (évite boucle infinie) */
+        var newKey = NS + etabId + '__' + field;
+        if(!localStorage.getItem(newKey)){
+          window.AmbiCache.set(etabId, field, value, {role: role});
+        }
+      }
+    }
+  };
+
+  /* Exposer le panneau via raccourci clavier pour admins */
+  document.addEventListener('keydown', function(e){
+    /* Ctrl+Shift+C ou Cmd+Shift+C → ouvrir panneau cache */
+    if((e.ctrlKey||e.metaKey) && e.shiftKey && e.key === 'C'){
+      e.preventDefault();
+      window.AmbiCache.openPanel();
+    }
+  });
+
+  /* Triple-tap sur le logo AMBI241 → ouvrir panneau (pour mobile) */
+  var _tapCount=0, _tapTimer=null;
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    if(t && (t.classList.contains('hero-logo') || t.classList.contains('nav-logo') ||
+       (t.closest && (t.closest('.hero-logo') || t.closest('.nav-logo') || t.closest('[data-cache-open]'))))){
+      _tapCount++;
+      clearTimeout(_tapTimer);
+      _tapTimer = setTimeout(function(){ _tapCount=0; },600);
+      if(_tapCount >= 3){
+        _tapCount=0;
+        window.AmbiCache.openPanel();
+      }
+    }
+  });
+
+  console.log('[AmbiCache] ✅ Système de cache permanent AMBI241 v2.0 initialisé');
+  console.log('[AmbiCache] 📁 Dossier caché: préfixe "'+NS+'" dans localStorage');
+  console.log('[AmbiCache] 🔑 Raccourci admin: Ctrl+Shift+C');
+}
+
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(_bootCache, 800); });
+} else {
+  setTimeout(_bootCache, 800);
+}
+
+})();
+</script>
+<!-- ═══════════════ FIN AMBI241 CACHE SYSTEM v2.0 ════════════════ -->
 </body>
 </html>
