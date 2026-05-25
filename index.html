@@ -5186,13 +5186,30 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 
 /* ── Carte d'ami ── */
 .friend-card{
-  display:flex;align-items:center;gap:0.7rem;
-  padding:0.75rem 1rem;
-  border-bottom:1px solid rgba(255,255,255,0.04);
-  transition:background 0.15s;position:relative;
-  width:100%;
+  display:flex;align-items:center;gap:0.75rem;
+  padding:0.85rem 1rem;
+  background:rgba(255,255,255,0.015);
+  border:1px solid rgba(255,45,155,0.1);
+  border-radius:16px;
+  margin:0 0.75rem 0.55rem;
+  transition:all 0.2s;position:relative;
+  cursor:pointer;
+  box-shadow:0 2px 12px rgba(0,0,0,0.15);
 }
-.friend-card:active{background:rgba(255,255,255,0.03);}
+.friend-card:hover{background:rgba(255,45,155,0.06);border-color:rgba(255,45,155,0.25);transform:translateY(-1px);box-shadow:0 4px 18px rgba(255,45,155,0.12);}
+.friend-card:active{transform:scale(0.98);background:rgba(255,255,255,0.03);}
+/* Badge non-lu sur bouton message */
+.friend-msg-wrap{position:relative;display:inline-flex;}
+.friend-unread-badge{
+  position:absolute;top:-5px;right:-5px;
+  min-width:16px;height:16px;border-radius:8px;
+  background:var(--pink);color:#fff;
+  font-size:0.58rem;font-weight:900;
+  display:flex;align-items:center;justify-content:center;
+  padding:0 3px;border:2px solid var(--bg);
+  animation:pulse 1.8s ease-in-out infinite;
+  pointer-events:none;
+}
 
 /* ── Avatar ── */
 .soc-avatar{
@@ -40415,7 +40432,10 @@ function _socLoadMembresFirebase(){
     var allUsers = [];
     snap.forEach(function(d){
       var data = d.data();
-      if(d.id === meUID) return; // on exclut le membre connecté
+      if(d.id === meUID) return; // on exclut le membre connecté (par UID)
+      /* ✅ FIX: exclure aussi par email pour éviter doublons si UID pas encore sync */
+      var meEmail = (window.currentUserEmail||'').toLowerCase().trim();
+      if(meEmail && data.email && data.email.toLowerCase().trim() === meEmail) return;
       var roleLabel = { admin:'Admin', super_admin:'Super Admin', establishment:'Établissement', chauffeur:'Chauffeur', membre:'Membre Premium', user:'Membre' }[data.role||'user'] || 'Membre';
       var pseudo = data.pseudo || data.displayName || (data.email ? data.email.split('@')[0] : 'Membre');
       var initials = pseudo.slice(0,2).toUpperCase();
@@ -40677,6 +40697,9 @@ window.socSwitchTab = function(tab){
 };
 
 /* ════════════ FRIENDS RENDER ════════════ */
+/* Cache les unread counts par UID ami (peuplé par _dmStartInboxListener) */
+window._friendUnreadCounts = window._friendUnreadCounts || {};
+
 function renderFriends(){
   var el = document.getElementById('friendsList');
   if(!el) return;
@@ -40684,18 +40707,32 @@ function renderFriends(){
     el.innerHTML = '<div class="soc-empty"><div class="soc-empty-icon">👤</div><div class="soc-empty-title">Aucun ami encore</div><div class="soc-empty-sub">Recherche des membres et envoie des demandes d\'amitié !</div></div>';
     return;
   }
-  var h = '';
+  var meUID = window.currentUserUID || '';
+  var h = '<div style="padding:0.5rem 0.75rem 0.2rem;display:flex;align-items:center;justify-content:space-between;"><span style="font-size:0.62rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">'+_friends.length+' ami'+((_friends.length>1)?'s':'')+' 👥</span></div>';
   _friends.forEach(function(f){
-    h += '<div class="friend-card fade-in" onclick="openMemberProfile(\''+f.uid+'\')">';
+    /* ✅ Sécurité: ne jamais afficher soi-même dans sa propre liste */
+    if(meUID && f.uid === meUID) return;
+    var convId = meUID && f.uid ? (meUID < f.uid ? meUID+'_'+f.uid : f.uid+'_'+meUID) : '';
+    var unread = (window._friendUnreadCounts && convId) ? (window._friendUnreadCounts[convId]||0) : 0;
     var dotCls = f.status==='online' ? 'online' : f.status==='away' ? 'away' : 'offline';
-    h += '<div class="soc-avatar">'+f.avatar+'<div class="soc-online-dot '+dotCls+'"></div></div>';
+    var statusLabel = f.status==='online' ? '<span style="color:var(--green);font-size:0.6rem;font-weight:700;">● En ligne</span>' : f.status==='away' ? '<span style="color:var(--amber);font-size:0.6rem;">● Absent</span>' : '<span style="color:var(--muted);font-size:0.6rem;">○ Hors ligne</span>';
+    h += '<div class="friend-card fade-in" onclick="openMemberProfile(\''+f.uid+'\')">';
+    /* Avatar avec glow online */
+    var glowStyle = f.status==='online' ? 'box-shadow:0 0 0 2px var(--green),0 0 10px rgba(0,255,170,0.3);' : '';
+    h += '<div class="soc-avatar" style="'+glowStyle+'">'+f.avatar+'<div class="soc-online-dot '+dotCls+'"></div></div>';
+    /* Info */
     h += '<div class="friend-info">';
     h += '<div class="friend-name">'+esc(f.name)+'</div>';
-    h += '<div class="friend-meta"><span>'+esc(f.etab)+'</span><span class="friend-meta-dot"></span><span>'+f.mutualFriends+' amis communs</span>';
+    h += '<div class="friend-meta" style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;">'+statusLabel+'<span class="friend-meta-dot"></span><span>'+esc(f.etab||'Libreville')+'</span>';
     if(f.tag) h += '<span class="friend-tag">'+esc(f.tag)+'</span>';
     h += '</div></div>';
+    /* Actions */
     h += '<div class="friend-actions">';
+    /* Bouton message avec badge non-lu */
+    h += '<div class="friend-msg-wrap">';
     h += '<button class="friend-act-btn msg" onclick="event.stopPropagation();openDM(\''+f.uid+'\')" title="Message">💬</button>';
+    if(unread > 0) h += '<span class="friend-unread-badge">'+unread+'</span>';
+    h += '</div>';
     h += '<button class="friend-act-btn del" onclick="event.stopPropagation();confirmAction(\'Supprimer '+esc(f.name)+' de tes amis ?\',\'🗑️\',\'Supprimer\',function(){removeFriend(\''+f.uid+'\')})" title="Supprimer">🗑️</button>';
     h += '<button class="friend-act-btn blk" onclick="event.stopPropagation();confirmAction(\'Bloquer '+esc(f.name)+' ?\',\'🚫\',\'Bloquer\',function(){blockUser(\''+f.uid+'\')})" title="Bloquer">🚫</button>';
     h += '</div></div>';
@@ -40707,8 +40744,21 @@ function renderFriends(){
 function renderSuggestions(){
   var el = document.getElementById('suggestionsRow');
   if(!el) return;
+  /* ✅ FIX: Exclure soi-même, amis existants, demandes envoyées, bloqués */
+  var meUID = window.currentUserUID || '';
+  var friendUIDs  = (_friends||[]).map(function(f){ return f.uid; });
+  var outUIDs     = (_requestsOut||[]).map(function(r){ return r.uid; });
+  var blockedUIDs = (_blocked||[]).map(function(b){ return b.uid; });
+  var visible = _suggestions.filter(function(s){
+    if(!s.uid) return false;
+    if(meUID && s.uid === meUID) return false;
+    if(friendUIDs.indexOf(s.uid)  !== -1) return false;
+    if(outUIDs.indexOf(s.uid)     !== -1) return false;
+    if(blockedUIDs.indexOf(s.uid) !== -1) return false;
+    return true;
+  });
   var h = '';
-  _suggestions.forEach(function(s){
+  visible.forEach(function(s){
     h += '<div class="soc-suggest-item">';
     h += '<div class="soc-suggest-avatar">'+s.avatar+'</div>';
     h += '<div class="soc-suggest-name">'+esc(s.name)+'</div>';
@@ -41684,7 +41734,14 @@ function _dmStartInboxListener(meUID){
     /* Calculer le total non-lu reel depuis TOUTES les conversations */
     var unreadKey = 'unread_' + meUID;
     var totalUnread = 0;
-    snap.forEach(function(d){ totalUnread += (d.data()[unreadKey] || 0); });
+    /* ✅ FIX: alimenter aussi les badges par ami pour renderFriends */
+    window._friendUnreadCounts = window._friendUnreadCounts || {};
+    snap.forEach(function(d){
+      var cnt = d.data()[unreadKey] || 0;
+      totalUnread += cnt;
+      /* Stocker par convId pour que renderFriends puisse lire */
+      window._friendUnreadCounts[d.id] = cnt;
+    });
 
     /* Mettre a jour le badge DM avec la vraie valeur */
     var dmBadge = document.getElementById('dmInboxBadge');
@@ -41696,6 +41753,10 @@ function _dmStartInboxListener(meUID){
         dmBadge.textContent = '0';
         dmBadge.style.display = 'none';
       }
+    }
+    /* ✅ FIX: re-render la liste d'amis pour mettre à jour les badges non-lus */
+    if(typeof renderFriends === 'function'){
+      try{ renderFriends(); }catch(e){}
     }
 
     if(!_dmInboxReady){
