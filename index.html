@@ -12980,13 +12980,121 @@ function renderAdmClassement(){
     if(isOverride){
       html += "<button onclick=\"updateField("+e.id+",{_adminOverride:false});\" style='font-size:0.58rem;padding:0.18rem 0.42rem;border-radius:5px;cursor:pointer;border:1px solid rgba(0,229,255,0.35);background:rgba(0,229,255,0.08);color:var(--cyan);font-family:DM Sans,sans-serif;margin-left:auto;'>↺ Libérer</button>";
     }
-    html += "</div></div>";
+    html += "</div>";
+
+    // ── Photo de profil de l'établissement ──
+    var currentPhoto = e._photo_profile_approved || e.photo_interieur || e.photo_exterieur || "";
+    html += "<div style='margin-top:0.55rem;border-top:1px solid rgba(255,255,255,0.06);padding-top:0.5rem;"
+      +"display:flex;align-items:center;gap:0.5rem;'>";
+    // Miniature
+    if(currentPhoto){
+      html += "<img src='"+currentPhoto+"' alt='profil' id='admcls-photo-"+e.id+"' "
+        +"style='width:36px;height:36px;border-radius:8px;object-fit:cover;flex-shrink:0;"
+        +"border:1.5px solid rgba(157,132,255,0.45);'>";
+    } else {
+      html += "<div id='admcls-photo-"+e.id+"' "
+        +"style='width:36px;height:36px;border-radius:8px;flex-shrink:0;"
+        +"background:rgba(157,132,255,0.08);border:1.5px dashed rgba(157,132,255,0.3);"
+        +"display:flex;align-items:center;justify-content:center;font-size:1rem;'>👤</div>";
+    }
+    // Infos + boutons
+    html += "<div style='flex:1;min-width:0;'>";
+    html += "<div style='font-size:0.6rem;color:var(--muted);margin-bottom:0.3rem;'>"
+      +(currentPhoto ? "✅ Photo de profil définie" : "⚠️ Aucune photo de profil")+"</div>";
+    html += "<div style='display:flex;gap:0.3rem;flex-wrap:wrap;'>";
+    // Bouton changer/ajouter
+    html += "<label style='display:inline-flex;align-items:center;gap:0.25rem;font-size:0.6rem;"
+      +"font-weight:700;padding:0.2rem 0.5rem;border-radius:6px;cursor:pointer;"
+      +"border:1px solid rgba(157,132,255,0.4);background:rgba(157,132,255,0.1);color:#9D84FF;"
+      +"font-family:DM Sans,sans-serif;'>"
+      +(currentPhoto ? "🔄 Changer" : "📷 Ajouter")
+      +"<input type='file' accept='image/*' style='display:none;' "
+      +"onchange=\"admClassementSetPhoto(this,"+e.id+")\"></label>";
+    // Bouton supprimer (si photo)
+    if(currentPhoto){
+      html += "<button onclick=\"admClassementRemovePhoto("+e.id+")\" "
+        +"style='font-size:0.6rem;font-weight:700;padding:0.2rem 0.5rem;border-radius:6px;cursor:pointer;"
+        +"border:1px solid rgba(255,68,102,0.35);background:rgba(255,68,102,0.08);color:var(--red);"
+        +"font-family:DM Sans,sans-serif;'>🗑️ Retirer</button>";
+    }
+    html += "</div></div></div>";
+
+    html += "</div>"; // fermeture carte établissement
   });
 
   container.innerHTML = html;
 }
 
 window.renderAdmClassement = renderAdmClassement;
+
+/* ── Upload photo de profil depuis le classement admin ── */
+function admClassementSetPhoto(input, eid){
+  var file = input.files && input.files[0];
+  if(!file) return;
+  // Loader inline sur la miniature
+  var thumbEl = document.getElementById("admcls-photo-"+eid);
+  if(thumbEl) thumbEl.style.opacity = "0.4";
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var img = new Image();
+    img.onload = function(){
+      var MAX=600, w=img.width, h=img.height;
+      if(w>MAX||h>MAX){ if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;} }
+      var canvas=document.createElement("canvas"); canvas.width=w; canvas.height=h;
+      canvas.getContext("2d").drawImage(img,0,0,w,h);
+      var dataUrl = canvas.toDataURL("image/jpeg",0.85);
+      // Sauvegarder dans Firestore sous etablissements/{eid}/photo_profile
+      var eidStr = String(eid);
+      var etab = (typeof etablissements !== "undefined") && etablissements.find(function(x){ return String(x.id)===eidStr; });
+      if(window.db && window.fbAddDoc && window.fbCollection){
+        var data = { url: dataUrl, approved: true, ts: Date.now(), source: "admin_classement" };
+        window.fbAddDoc(window.fbCollection(window.db,"etablissements",eidStr,"photo_profile"), data)
+          .then(function(){
+            if(etab){ etab._photo_profile_approved = dataUrl; }
+            // Mettre à jour la miniature inline
+            if(thumbEl){
+              thumbEl.outerHTML = "<img src='"+dataUrl+"' alt='profil' id='admcls-photo-"+eid+"' "
+                +"style='width:36px;height:36px;border-radius:8px;object-fit:cover;flex-shrink:0;"
+                +"border:1.5px solid rgba(0,255,170,0.5);'>";
+            }
+            showToast("✅ Photo de profil mise à jour — "+((etab&&etab.nom)||eidStr));
+            // Sauvegarder aussi en localStorage pour persistance rapide
+            try{ localStorage.setItem("ambi_photo_"+eid+"_profile", dataUrl); }catch(e){}
+            setTimeout(function(){ renderAdmClassement(); }, 600);
+          })
+          .catch(function(e){ showToast("❌ Erreur Firebase: "+(e.message||"")); if(thumbEl) thumbEl.style.opacity="1"; });
+      } else {
+        // Fallback local si Firebase pas dispo
+        if(etab){ etab._photo_profile_approved = dataUrl; }
+        try{ localStorage.setItem("ambi_photo_"+eid+"_profile", dataUrl); }catch(e){}
+        showToast("✅ Photo mise à jour (local)");
+        setTimeout(function(){ renderAdmClassement(); }, 300);
+      }
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+window.admClassementSetPhoto = admClassementSetPhoto;
+
+/* ── Supprimer la photo de profil depuis le classement admin ── */
+function admClassementRemovePhoto(eid){
+  if(!confirm("Retirer la photo de profil de cet établissement ?")) return;
+  var eidStr = String(eid);
+  var etab = (typeof etablissements !== "undefined") && etablissements.find(function(x){ return String(x.id)===eidStr; });
+  var update = { photo_interieur:"", _photo_profile_approved:"" };
+  if(etab){ etab._photo_profile_approved=""; etab.photo_interieur=""; }
+  try{ localStorage.removeItem("ambi_photo_"+eid+"_profile"); }catch(e){}
+  if(window.db && window.fbUpdateDoc && window.fbDoc){
+    window.fbUpdateDoc(window.fbDoc(window.db,"etablissements",eidStr), update)
+      .then(function(){ showToast("🗑️ Photo retirée"); renderAdmClassement(); })
+      .catch(function(e){ showToast("❌ Erreur: "+(e.message||"")); });
+  } else {
+    showToast("🗑️ Photo retirée (local)");
+    renderAdmClassement();
+  }
+}
+window.admClassementRemovePhoto = admClassementRemovePhoto;
 
 // ══════════════════════════════════════════════════════════════
 // ══  RÉINITIALISATION DU CYCLE DE CLASSEMENT               ══
