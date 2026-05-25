@@ -51495,19 +51495,22 @@ window._lazyInitSection = function(name) {
     if(_bppState.allEtabs.length) {_bppRenderEtabs();return;}
     document.getElementById('bppEtabsList').innerHTML='<div style="text-align:center;color:var(--muted);font-size:0.75rem;padding:1rem;">⏳ Chargement des établissements…</div>';
     
-    /* ══ FIREBASE : Charger tous les établissements ══ */
+    /* ══ FIREBASE : Charger tous les établissements RÉELS ══ */
     if(!window.db){
       _bppMsg('Firebase non initialisé','error');
       console.error('[BPP] Firebase db not available');
+      document.getElementById('bppEtabsList').innerHTML='<div style="text-align:center;color:var(--red);font-size:0.75rem;padding:2rem;">❌ Firebase non disponible</div>';
       return;
     }
     
     window.db.collection('establishments')
+      .orderBy('type')
       .orderBy('name')
       .get()
       .then(snapshot=>{
         if(snapshot.empty){
-          document.getElementById('bppEtabsList').innerHTML='<div style="text-align:center;color:var(--muted);font-size:0.75rem;padding:2rem;">📋 Aucun établissement trouvé</div>';
+          document.getElementById('bppEtabsList').innerHTML='<div style="text-align:center;color:var(--muted);font-size:0.75rem;padding:2rem;">📋 Aucun établissement dans Firebase</div>';
+          console.log('[BPP] ⚠️ Aucun établissement trouvé');
           return;
         }
         
@@ -51537,30 +51540,72 @@ window._lazyInitSection = function(name) {
   function _bppRenderEtabs(){
     var l=document.getElementById('bppEtabsList');
     l.innerHTML='';
+    
+    /* ══ Grouper par type ══ */
+    var grouped={};
     _bppState.allEtabs.forEach(etab=>{
-      var div=document.createElement('div');
-      div.className='bpp-etab-row'+(etab.image?' bpp-filled':'');
-      var hasImg=!!etab.image;
-      div.innerHTML='<div class="bpp-etab-check"></div>'+
-        '<div class="bpp-etab-avatar">'+etab.emoji+'</div>'+
-        '<div class="bpp-etab-info">'+
-          '<div class="bpp-etab-name">'+etab.name+'</div>'+
-          '<div class="bpp-etab-meta">'+
-            '<span class="bpp-etab-type">'+etab.type+'</span>'+
-            '<span class="bpp-etab-status '+(hasImg?'bpp-has-img':'bpp-no-img')+'"></span>'+
-            (hasImg?'<span style="font-size:0.6rem;color:var(--green);">Photo présente</span>':'<span style="font-size:0.6rem;color:var(--amber);">À remplir</span>')+
-          '</div>'+
-        '</div>'+
-        (hasImg?'<div class="bpp-etab-preview"><img src="'+etab.image+'" alt="'+etab.name+'"></div>':'');
-      div.onclick=()=>{
-        if(!etab.image){
-          div.classList.toggle('bpp-checked');
-          if(div.classList.contains('bpp-checked')) _bppState.selectedEtabs.add(etab.id);
-          else _bppState.selectedEtabs.delete(etab.id);
-        }
-      };
-      l.appendChild(div);
+      if(!grouped[etab.type]) grouped[etab.type]=[];
+      grouped[etab.type].push(etab);
     });
+    
+    /* ══ Ordre des catégories ══ */
+    var typeOrder=['restaurant','bar','hotel','nightclub','cafe','disco','pub','lounge','snack'];
+    var typeLabels={
+      'restaurant':'🍽️ Restaurants',
+      'bar':'🍺 Bars',
+      'hotel':'🏨 Hôtels',
+      'nightclub':'🎵 Clubs',
+      'cafe':'☕ Cafés',
+      'disco':'💃 Discothèques',
+      'pub':'🍻 Pubs',
+      'lounge':'🪴 Lounges',
+      'snack':'🍕 Snacks/Fast-food'
+    };
+    
+    /* ══ Afficher par catégorie ══ */
+    typeOrder.forEach(type=>{
+      if(!grouped[type]||!grouped[type].length) return;
+      
+      var etabs=grouped[type];
+      
+      /* Titre catégorie */
+      var titleDiv=document.createElement('div');
+      titleDiv.style.cssText='padding:0.9rem 0.7rem 0.5rem;font-family:Syne,sans-serif;font-size:0.8rem;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:0.06em;border-bottom:1px solid rgba(255,45,155,0.12);margin-bottom:0.5rem;';
+      titleDiv.textContent=typeLabels[type]||type+' ('+etabs.length+')';
+      l.appendChild(titleDiv);
+      
+      /* Établissements du groupe */
+      etabs.forEach(etab=>{
+        var div=document.createElement('div');
+        div.className='bpp-etab-row'+(etab.image?' bpp-filled':'');
+        var hasImg=!!etab.image;
+        div.innerHTML='<div class="bpp-etab-check"></div>'+
+          '<div class="bpp-etab-avatar">'+etab.emoji+'</div>'+
+          '<div class="bpp-etab-info">'+
+            '<div class="bpp-etab-name">'+etab.name+'</div>'+
+            '<div class="bpp-etab-meta">'+
+              '<span class="bpp-etab-status '+(hasImg?'bpp-has-img':'bpp-no-img')+'"></span>'+
+              (hasImg?'<span style="font-size:0.6rem;color:var(--green);">✓ Photo</span>':'<span style="font-size:0.6rem;color:var(--amber);">À remplir</span>')+
+            '</div>'+
+          '</div>'+
+          (hasImg?'<div class="bpp-etab-preview"><img src="'+etab.image+'" alt="'+etab.name+'"></div>':'');
+        div.onclick=()=>{
+          if(!etab.image){
+            div.classList.toggle('bpp-checked');
+            if(div.classList.contains('bpp-checked')) _bppState.selectedEtabs.add(etab.id);
+            else _bppState.selectedEtabs.delete(etab.id);
+          }
+        };
+        l.appendChild(div);
+      });
+      
+      /* Séparateur entre groupes */
+      var sep=document.createElement('div');
+      sep.style.cssText='height:1px;background:rgba(255,45,155,0.08);margin:0.8rem 0;';
+      l.appendChild(sep);
+    });
+    
+    console.log('[BPP] ✅ Rendu:',_bppState.allEtabs.length,'établissements groupés par',Object.keys(grouped).length,'catégories');
   }
 
   window.bppStartAssign=function(){
