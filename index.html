@@ -12866,7 +12866,8 @@ function fmtDist(km){if(km<0.1)return Math.round(km*1000)+" m";if(km<1)return Ma
 function distClass(km){if(km<=0.5)return"dist-close";if(km<=2)return"";return"dist-far";}
 function enrichWithDistances(){if(_gpsState.lat===null)return;etablissements.forEach(function(e){var lat=e.lat,lng=e.lng;if(!lat||!lng){var qc=QUARTIER_COORDS[e.quartier];if(qc){lat=qc[0];lng=qc[1];}}if(lat&&lng){e._distKm=haversineKm(_gpsState.lat,_gpsState.lng,lat,lng);}else{e._distKm=null;}});}
 function filterByRadius(data){if(!_gpsState.active||_gpsState.lat===null)return data;var r=_gpsState.radius;if(r>=999)return data;return data.filter(function(e){return typeof e._distKm==="number"&&e._distKm<=r;});}
-function sortGpsData(data){if(!_gpsState.active)return data;var s=_gpsState.sort;return data.slice().sort(function(a,b){if(s==="distance"){var da=a._distKm!==null?a._distKm:9999;var db=b._distKm!==null?b._distKm:9999;return da-db;}if(s==="affluence")return(b.affluence||0)-(a.affluence||0);if(s==="note")return(b.note||0)-(a.note||0);return 0;});}
+function _etoilesNum(e){var v=e.etoiles||(e.pro_data&&e.pro_data.etoiles)||"";var m=String(v).match(/(\d)/);return m?parseInt(m[1]):0;}
+function sortGpsData(data){if(!_gpsState.active)return data;var s=_gpsState.sort;return data.slice().sort(function(a,b){if(s==="distance"){var da=a._distKm!==null?a._distKm:9999;var db=b._distKm!==null?b._distKm:9999;return da-db;}if(s==="affluence"){var diff=(b.affluence||0)-(a.affluence||0);return diff!==0?diff:_etoilesNum(b)-_etoilesNum(a);}if(s==="note"){var diff=(b.note||0)-(a.note||0);return diff!==0?diff:_etoilesNum(b)-_etoilesNum(a);}return 0;});}
 function getNearbyCount(){if(_gpsState.lat===null||_gpsState.radius>=999)return etablissements.length;return etablissements.filter(function(e){return e._distKm!==null&&e._distKm<=_gpsState.radius;}).length;}
 var CATEGORIES=[
   {key:"Bar",label:"Bar et Lounge",icon:"&#127867;",badge:"cb-bar"},
@@ -15802,6 +15803,7 @@ function filterData(){
     data = _pinMyEtabFirst(data);
     return data;
   }
+  // ── Helper étoiles : voir _etoilesNum() définie globalement ──
   data.sort(function(a,b){
     if(currentSort==="affluence"){
       // Utiliser l'affluence réelle (live) si disponible
@@ -15815,12 +15817,16 @@ function filterData(){
         var lv = window._liveVotes[String(b.id)]||{pos:0,neg:0};
         return Math.max(0,Math.min(100,(b.affluence||0)+Math.min(lp.count*3,30)+(lv.pos*2)-(lv.neg*3)));
       })() : (b.affluence||0);
-      return bLive - aLive;
+      // En cas d'égalité d'affluence, les hôtels sont départagés par leur classement en étoiles
+      if(bLive !== aLive) return bLive - aLive;
+      return _etoilesNum(b) - _etoilesNum(a);
     }
     if(currentSort==="note"){
       var aN = (window._liveRatings && window._liveRatings[String(a.id)] && window._liveRatings[String(a.id)].avis > 0) ? window._liveRatings[String(a.id)].note : (a.note||0);
       var bN = (window._liveRatings && window._liveRatings[String(b.id)] && window._liveRatings[String(b.id)].avis > 0) ? window._liveRatings[String(b.id)].note : (b.note||0);
-      return bN - aN;
+      // En cas d'égalité de note, les hôtels sont départagés par leur classement en étoiles
+      if(bN !== aN) return bN - aN;
+      return _etoilesNum(b) - _etoilesNum(a);
     }
     if(currentSort==="quartier")return(a.quartier||"").localeCompare(b.quartier||"");
     return 0;
@@ -17446,6 +17452,7 @@ function buildCard(e,delay,compact,rank,extraClass){
     "<div class=\"card-num rank-"+(rank===1?'1':rank===2?'2':rank===3?'3':'other')+"\">N°"+(rank!=null?rank:e.id)+"</div>"+
     "<div class=\"card-name\"><button class=\"etab-name-order-btn\" onclick=\"window['_etabOrderBtn_'+"+e.id+"] && window['_etabOrderBtn_'+"+e.id+"]()\" title=\"📋 Réserver à "+e.nom.replace(/"/g,'')+"\" style=\"font-family:'Syne',sans-serif;font-size:inherit;font-weight:inherit;\">"+e.nom+" <span class=\"etab-name-order-pulse\">+</span></button> <span onclick=\"openGalerie("+e.id+")\" title=\"Voir la galerie de "+(e.nom||"").replace(/"/g,'')+"\" style=\"cursor:pointer;display:inline-flex;align-items:center;gap:0.35rem;flex-wrap:wrap;transition:color 0.2s;\"><span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span>"+(e._distKm!=null?"<span class=\"dist-badge "+distClass(e._distKm)+"\">"+fmtDist(e._distKm)+"</span>":"")+"</span></div>"+
     "<span class=\"cat-badge "+ci.badge+"\" style=\"cursor:pointer;\" onclick=\"goToTypeFilter('"+getCategory(e.type)+"')\" title=\"Filtrer par "+ci.label+"\">"+ci.icon+" "+ci.label+"</span>"+
+    (function(){var _ck=getCategory(e.type);var _ev=e.etoiles||(e.pro_data&&e.pro_data.etoiles)||'';var _en=parseInt((_ev.match(/(\d)/)||[])[1])||0;if(_ck==='Hotel'&&_en>0){var _es='';for(var _i=1;_i<=5;_i++)_es+='<span style="color:'+(_i<=_en?'#ffd700':'rgba(255,215,0,0.2)')+'">★</span>';return '<span style="display:inline-flex;align-items:center;gap:0.15rem;background:rgba(255,215,0,0.10);border:1px solid rgba(255,215,0,0.3);border-radius:6px;padding:0.1rem 0.4rem;font-size:0.68rem;font-weight:700;color:#ffd700;margin-left:0.3rem;" title="Classement hôtel">'+_es+'<span style="color:rgba(255,240,180,0.65);font-size:0.6rem;font-weight:600;margin-left:0.1rem;">'+_en+'★</span></span>';}return '';})()+
     "<div style=\"font-size:0.7rem;color:var(--cyan);margin-top:0.2rem;cursor:pointer;display:inline-flex;align-items:center;gap:0.2rem;\" onclick=\"goToQuartier('"+e.quartier.replace(/'/g,"")+"')\">&#128205; "+e.quartier+"<span style='font-size:0.55rem;opacity:0.6;'> ›</span></div>"+
     "</div>"+(e.statut ? "<span class=\"status-pill "+sc+"\">"+e.statut+"</span>" : "<span class=\"status-pill\">—</span>")+"</div>"+
     affBar+
