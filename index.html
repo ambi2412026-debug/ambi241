@@ -13646,11 +13646,15 @@ function _loadEtabCache() {
 function _processEtabData(firebaseData) {
   /* Dédoublonnage par id */
   var _seenIds = {};
-  return firebaseData.filter(function(e) {
+  var deduped = firebaseData.filter(function(e) {
     if (!e.id || _seenIds[e.id]) return false;
     _seenIds[e.id] = true;
     return true;
   });
+  /* NOTE : les doublons par nom/type/quartier (id distincts) sont
+     gérés à l'affichage dans filterData() pour que l'admin
+     puisse toujours voir et gérer tous les enregistrements. */
+  return deduped;
 }
 
 function _renderAfterLoad() {
@@ -15764,6 +15768,32 @@ function filterData(){
     if(isAdmin) return ms&&mt;
     return ms&&mt&&mv;
   });
+
+  // ── DÉDUPLICATION (visiteurs uniquement) : même nom+type+quartier → garder le meilleur ──
+  if(!isAdmin){
+    // Passe 1 : pour chaque clé, trouver l'id du meilleur établissement
+    var _bestForKey = {};
+    data.forEach(function(e){
+      var _nom = (e.nom||"").toLowerCase().replace(/\s+/g,"").normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+      var _key = _nom + "|" + (e.type||"").toLowerCase().trim() + "|" + (e.quartier||"").toLowerCase().trim();
+      var score = (e.affluence||0) + (e.note||0)*10 + (estPaiementConfirme(e)?50:0);
+      if(!_bestForKey[_key] || score > _bestForKey[_key].score){
+        _bestForKey[_key] = { id: e.id, score: score };
+      }
+    });
+    // Passe 2 : ne garder que les meilleurs
+    var _keptKeys = {};
+    data = data.filter(function(e){
+      var _nom = (e.nom||"").toLowerCase().replace(/\s+/g,"").normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+      var _key = _nom + "|" + (e.type||"").toLowerCase().trim() + "|" + (e.quartier||"").toLowerCase().trim();
+      if(_keptKeys[_key]) return false;  // doublon déjà traité
+      if(_bestForKey[_key] && _bestForKey[_key].id === e.id){
+        _keptKeys[_key] = true;
+        return true;
+      }
+      return false;
+    });
+  }
   // ── GPS : filtrer par rayon si mode actif ──
   if(typeof _gpsState !== "undefined" && _gpsState.active && _gpsState.lat !== null){
     data = filterByRadius(data);
