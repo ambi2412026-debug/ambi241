@@ -18823,7 +18823,7 @@ function updateGpsBtn() {
   var sub  = document.getElementById("gpsNearbySubtxt");
   var badge = document.getElementById("gpsNearbyBadge");
   var pulse = document.getElementById("gpsNearbyPulse");
-  if (!btn) return;
+  if (!btn || !sub) return;
 
   btn.classList.remove("active","locating","error-state");
 
@@ -18841,14 +18841,23 @@ function updateGpsBtn() {
     if (badge) badge.style.display = "none";
     return;
   }
-  if (_gpsState.active && _gpsState.lat !== null) {
+  /* ── FIX : active=true suffit pour garder l'état — lat peut arriver après ── */
+  if (_gpsState.active || _gpsState.lat !== null) {
     btn.classList.add("active");
-    var nearby = getNearbyCount();
-    sub.textContent = nearby + " lieu" + (nearby > 1 ? "x" : "") + " dans " +
-      (_gpsState.radius >= 999 ? "tous" : (_gpsState.radius < 1 ? (_gpsState.radius*1000)+"m" : _gpsState.radius+"km"));
-    if (pulse) pulse.style.display = "block";
-    if (badge) { badge.textContent = nearby; badge.style.display = nearby > 0 ? "" : "none"; }
+    if (_gpsState.lat !== null) {
+      var nearby = getNearbyCount();
+      var rLbl = _gpsState.radius >= 999 ? "tous" : (_gpsState.radius < 1 ? (_gpsState.radius*1000)+"m" : _gpsState.radius+"km");
+      sub.textContent = nearby + " lieu" + (nearby > 1 ? "x" : "") + " dans " + rLbl;
+      if (pulse) pulse.style.display = "block";
+      if (badge) { badge.textContent = nearby; badge.style.display = nearby > 0 ? "" : "none"; }
+    } else {
+      /* position pas encore arrivée mais mode actif : garder indicateur neutre */
+      sub.textContent = "Localisation en cours...";
+      if (pulse) pulse.style.display = "block";
+      if (badge) badge.style.display = "none";
+    }
   } else {
+    /* Mode désactivé — réinitialiser uniquement si l'utilisateur a explicitement fermé */
     sub.textContent = "Trouver les lieux proches de votre position";
     if (pulse) pulse.style.display = "none";
     if (badge) badge.style.display = "none";
@@ -22008,29 +22017,45 @@ function adminAddFirebase(){
   });
 }
 function deleteEtablissement(id){
-  var etab=etablissements.find(function(x){return x.id===id;});
-  if(!etab){showToast("Établissement introuvable");return;}
-  if(!isAdmin && !canEditPhotos(etab)){showToast("Accès refusé");return;}
-  if(!confirm("Supprimer définitivement \""+etab.nom+"\" ? Cette action est irréversible.")){return;}
-  // Si pas de _docId : suppression locale uniquement (pas encore dans Firebase)
-  if(!etab._docId){
-    etablissements=etablissements.filter(function(x){return x.id!==id;});
-    renderStats();renderAll();renderHome();if(_currentAdmTab==="etabl")renderAdmEtabl();
-    showToast("✅ Supprimé localement");return;
+  /* ── Tolérer id numérique ou string ── */
+  var etab = etablissements.find(function(x){ return x.id == id; }); // == intentionnel (number vs string)
+  if(!etab){ showToast("Établissement introuvable"); return; }
+  if(!isAdmin && !canEditPhotos(etab)){ showToast("Accès refusé"); return; }
+  if(!confirm("Supprimer définitivement \""+etab.nom+"\" ? Cette action est irréversible.")){ return; }
+
+  /* ── Récupérer le vrai docId Firestore ── */
+  var docId = etab._docId || null;
+
+  /* Si pas de _docId, tenter de le reconstruire depuis l'id numérique */
+  if(!docId && etab.id){
+    docId = "etab_" + String(etab.id).padStart(3,"0");
   }
-  var docRef=window.fbDoc(window.db,"etablissements",etab._docId);
-  if(window.fbDeleteDoc){
-    showToast("Suppression en cours...");
-    window.fbDeleteDoc(docRef).then(function(){
-      etablissements=etablissements.filter(function(x){return x.id!==id;});
-      renderStats();renderAll();renderHome();if(_currentAdmTab==="etabl")renderAdmEtabl();
-      showToast("✅ Établissement supprimé !");
-    }).catch(function(err){
-      showToast("Erreur suppression: "+err.message);
-    });
-  } else {
-    showToast("Suppression Firebase non disponible");
+
+  /* Suppression locale uniquement si aucun docId exploitable */
+  if(!docId){
+    etablissements = etablissements.filter(function(x){ return x.id != id; });
+    renderStats(); renderAll(); renderHome();
+    if(_currentAdmTab==="etabl") renderAdmEtabl();
+    showToast("✅ Supprimé localement");
+    return;
   }
+
+  if(!window.fbDeleteDoc || !window.fbDoc || !window.db){
+    showToast("❌ Firebase non disponible");
+    return;
+  }
+
+  showToast("Suppression en cours...");
+  var docRef = window.fbDoc(window.db, "etablissements", docId);
+  window.fbDeleteDoc(docRef).then(function(){
+    etablissements = etablissements.filter(function(x){ return x.id != id; });
+    renderStats(); renderAll(); renderHome();
+    if(_currentAdmTab==="etabl") renderAdmEtabl();
+    showToast("✅ \""+etab.nom+"\" supprimé !");
+  }).catch(function(err){
+    console.error("[AMBI241] deleteEtablissement error:", err, "docId:", docId);
+    showToast("❌ Erreur suppression : " + (err.message || err.code || "inconnue"));
+  });
 }
 window.deleteEtablissement=deleteEtablissement;
 
