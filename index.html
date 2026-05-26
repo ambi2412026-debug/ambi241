@@ -2952,7 +2952,85 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .cr-score-bar{flex:1;background:rgba(255,255,255,0.07);border-radius:100px;height:5px;overflow:hidden;}
 .cr-score-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--pink),var(--amber));}
 
-/* ══ GPS / PRÈS DE CHEZ VOUS ══ */
+/* ══ BOUTON "PRÈS DE MOI" dans la barre de tri ══ */
+.sort-btn-nearby{
+  position:relative;
+  border-color:rgba(0,229,255,0.35) !important;
+  color:var(--cyan) !important;
+}
+.sort-btn-nearby.active{
+  background:linear-gradient(135deg,rgba(0,255,170,0.18),rgba(0,229,255,0.12)) !important;
+  border-color:var(--green) !important;
+  color:var(--green) !important;
+  box-shadow:0 0 14px rgba(0,255,170,0.22);
+}
+.sort-btn-nearby.locating{
+  border-color:rgba(255,215,0,0.5) !important;
+  color:var(--amber) !important;
+  animation:nameGreenBlink 0.8s infinite;
+}
+
+/* ══ SECTION ÉPINGLÉE "PRÈS DE CHEZ MOI" ══ */
+@keyframes nearbyRowPulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(0,255,170,0.0), inset 0 0 0 0 rgba(0,255,170,0.0);}
+  50%{box-shadow:0 0 10px 1px rgba(0,255,170,0.22), inset 0 0 6px 0 rgba(0,255,170,0.08);}
+}
+@keyframes nearbyBadgePulse{
+  0%,100%{opacity:1;transform:scale(1);}
+  50%{opacity:0.65;transform:scale(0.92);}
+}
+.compact-pinned-header{
+  display:flex;align-items:center;gap:0.5rem;
+  padding:0.5rem 0.75rem;
+  background:linear-gradient(135deg,rgba(0,255,170,0.09),rgba(0,229,255,0.05));
+  border:1px solid rgba(0,255,170,0.28);
+  border-bottom:none;
+  border-radius:14px 14px 0 0;
+  font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;
+  color:var(--green);letter-spacing:0.04em;
+}
+.compact-pinned-header .cph-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--green);
+  animation:pulse 1.4s infinite;
+  flex-shrink:0;
+}
+.compact-pinned-header .cph-count{
+  margin-left:auto;
+  background:rgba(0,255,170,0.18);
+  border:1px solid rgba(0,255,170,0.35);
+  border-radius:100px;padding:0.06rem 0.4rem;
+  font-size:0.62rem;color:var(--green);
+}
+.compact-row.row-pinned-nearby{
+  border-left:3px solid var(--green) !important;
+  background:rgba(0,255,170,0.04);
+  animation:nearbyRowPulse 2.2s ease-in-out infinite;
+}
+.compact-row.row-pinned-nearby .cr-name{
+  animation:nameGreenBlink 2s ease-in-out infinite;
+  font-weight:800;
+}
+.cr-nearby-badge{
+  display:inline-flex;align-items:center;gap:0.15rem;
+  font-size:0.52rem;font-weight:800;
+  background:rgba(0,255,170,0.15);
+  border:1px solid rgba(0,255,170,0.35);
+  color:var(--green);
+  border-radius:100px;padding:0.08rem 0.32rem;
+  flex-shrink:0;white-space:nowrap;
+  animation:nearbyBadgePulse 2s ease-in-out infinite;
+}
+.compact-pinned-divider{
+  display:flex;align-items:center;gap:0.5rem;
+  padding:0.45rem 0.75rem;
+  background:rgba(255,255,255,0.02);
+  border-top:1px solid rgba(255,255,255,0.06);
+  border-bottom:none;
+  font-size:0.62rem;color:var(--muted);font-weight:700;font-family:'DM Sans',sans-serif;
+  letter-spacing:0.04em;
+}
+
 .gps-nearby-btn{display:flex;align-items:center;gap:0.5rem;width:100%;padding:0.75rem 1rem;border-radius:14px;border:2px solid rgba(0,229,255,0.35);background:linear-gradient(135deg,rgba(0,229,255,0.08),rgba(0,255,170,0.06));color:var(--cyan);font-family:'Syne',sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;transition:all 0.25s;margin-bottom:0.9rem;position:relative;overflow:hidden;}
 .gps-nearby-btn:active{transform:scale(0.97);}
 .gps-nearby-btn.active{background:linear-gradient(135deg,rgba(0,229,255,0.18),rgba(0,255,170,0.12));border-color:var(--cyan);box-shadow:0 0 20px rgba(0,229,255,0.25);}
@@ -8257,11 +8335,12 @@ if (document.readyState === 'loading') {
           <button class="sort-btn active" data-sort="affluence">Affluence</button>
           <button class="sort-btn" data-sort="note">Note</button>
           <button class="sort-btn" data-sort="quartier">Quartier</button>
+          <button class="sort-btn sort-btn-nearby" id="nearbyPinBtn" data-sort="nearby" onclick="toggleNearbyPin(this)" title="Épingler les établissements à moins de 1 km en tête de liste">&#128205; Près de moi</button>
         </div>
         <div style="display:flex;flex-direction:column;align-items:center;gap:0.15rem;">
           <div class="view-btns">
-            <button class="view-btn active" data-view="liste" title="Vue cartes complètes">&#8801;</button>
-            <button class="view-btn" data-view="compact" title="Vue compacte — lignes condensées">&#9776;</button>
+            <button class="view-btn" data-view="liste" title="Vue cartes complètes">&#8801;</button>
+            <button class="view-btn active" data-view="compact" title="Vue compacte — lignes condensées">&#9776;</button>
             <button class="view-btn" data-view="groupe" title="Vue par catégorie">&#9783;</button>
             <button class="view-btn" data-view="carte" title="Carte interactive">&#128205;</button>
           </div>
@@ -12668,7 +12747,7 @@ window.revokeAdmin       = revokeAdmin;
 window.transferOwnership = transferOwnership;
 var currentStatus="all";
 var currentSort="affluence";
-var currentView="liste";
+var currentView="compact";
 var soireePhotos={};
 var etablissements=[];
 
@@ -16557,6 +16636,111 @@ function buildLiveDispoBar(e, canManage){
   return html;
 }
 
+/* ══════════════════════════════════════════════════════
+   ══ SYSTÈME ÉPINGLAGE "PRÈS DE CHEZ MOI" (≤1 km)   ══
+   ══════════════════════════════════════════════════════ */
+var _nearbyPinActive = false;
+var NEARBY_PIN_KM = 1; // rayon fixe : 1 km
+
+/* Toggle : demande la géoloc si pas encore acquise, active/désactive l'épinglage */
+function toggleNearbyPin(btn){
+  if(_nearbyPinActive){
+    // Désactiver
+    _nearbyPinActive = false;
+    if(btn){ btn.classList.remove("active"); btn.textContent = "📍 Près de moi"; }
+    renderAll();
+    return;
+  }
+  // Activer — vérifier si GPS déjà connu
+  if(typeof _gpsState !== "undefined" && _gpsState.lat !== null){
+    _nearbyPinActive = true;
+    if(btn){ btn.classList.add("active"); btn.textContent = "📍 Près de moi ✓"; }
+    enrichWithDistances();
+    renderAll();
+    return;
+  }
+  // Demander la géolocalisation
+  if(btn){ btn.classList.add("locating"); btn.textContent = "⏳ Localisation…"; }
+  if(!navigator.geolocation){
+    if(btn){ btn.classList.remove("locating"); btn.textContent = "📍 Près de moi"; }
+    if(typeof toast === "function") toast("❌ Géolocalisation non disponible","warn",3000);
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    function(pos){
+      if(typeof _gpsState !== "undefined"){
+        _gpsState.lat    = pos.coords.latitude;
+        _gpsState.lng    = pos.coords.longitude;
+        _gpsState.active = true;
+        _gpsState._method = "GPS";
+        if(typeof _gpsState.radius === "undefined") _gpsState.radius = NEARBY_PIN_KM;
+      }
+      enrichWithDistances();
+      _nearbyPinActive = true;
+      var b = document.getElementById("nearbyPinBtn");
+      if(b){ b.classList.remove("locating"); b.classList.add("active"); b.textContent = "📍 Près de moi ✓"; }
+      if(typeof toast === "function") toast("📍 Position acquise — lieux proches épinglés","",2800);
+      renderAll();
+    },
+    function(err){
+      var b = document.getElementById("nearbyPinBtn");
+      if(b){ b.classList.remove("locating"); b.textContent = "📍 Près de moi"; }
+      var msg = err.code === 1 ? "Permission GPS refusée" : "Impossible d'obtenir la position";
+      if(typeof toast === "function") toast("❌ "+msg,"warn",3500);
+    },
+    { enableHighAccuracy:true, timeout:8000, maximumAge:60000 }
+  );
+}
+window.toggleNearbyPin = toggleNearbyPin;
+
+/* Construire la section épinglée dans la vue compacte */
+function buildNearbyPinnedSection(allData, globalSortedData){
+  if(!_nearbyPinActive) return { pinnedIds:[], html:"" };
+  if(typeof _gpsState === "undefined" || _gpsState.lat === null) return { pinnedIds:[], html:"" };
+
+  /* Trouver les établissements à ≤ NEARBY_PIN_KM km */
+  var pinned = [];
+  allData.forEach(function(e){
+    if(typeof e._distKm === "number" && e._distKm <= NEARBY_PIN_KM){
+      pinned.push(e);
+    }
+  });
+  if(!pinned.length) return { pinnedIds:[], html:"" };
+
+  /* Conserver l'ordre du classement global, juste extraire et afficher en tête */
+  pinned.sort(function(a,b){ return (a._distKm||9999)-(b._distKm||9999); });
+
+  /* Trouver le rang original de chaque épingle dans globalSortedData */
+  var rankMap = {};
+  globalSortedData.forEach(function(e,i){ rankMap[e.id] = i+1; });
+
+  var html = "";
+  /* Header section */
+  html += "<div class='compact-pinned-header'>"
+        + "<div class='cph-dot'></div>"
+        + "📍 Près de chez vous — &lt; "+NEARBY_PIN_KM+" km"
+        + "<span class='cph-count'>"+pinned.length+" lieu"+(pinned.length>1?"x":"")+"</span>"
+        + "</div>";
+
+  var pinnedIds = [];
+  pinned.forEach(function(e){
+    pinnedIds.push(e.id);
+    var origRank = rankMap[e.id] || "?";
+    var distStr = e._distKm < 0.1 ? Math.round(e._distKm*1000)+"m" : (e._distKm).toFixed(2)+"km";
+    /* Utiliser buildCompactRow avec classe épinglée, puis injecter badge distance */
+    var rowHtml = buildCompactRow(e, origRank, "card-prox-near row-pinned-nearby");
+    /* Injecter badge distance après le nom dans la ligne condensée */
+    rowHtml = rowHtml.replace(
+      /<div class='cr-name([^']*)'>([^<]*)<\/div>/,
+      "<div class='cr-name$1'>$2</div><span class='cr-nearby-badge'>📡 "+distStr+"</span>"
+    );
+    html += rowHtml;
+  });
+
+  return { pinnedIds:pinnedIds, html:html };
+}
+window.buildNearbyPinnedSection = buildNearbyPinnedSection;
+
 function buildCompactRow(e, rank, extraClass){
   extraClass = extraClass || "";
   var cat  = getCategory(e.type);
@@ -18372,8 +18556,27 @@ function renderAllImmediate(){
     // GPS actif → trier par distance d'abord + classe proche
     if(gpsActive) data = sortGpsData(data);
     var PROX_KM_C = (gpsActive && typeof _gpsState !== "undefined") ? (_gpsState.radius >= 999 ? 3 : _gpsState.radius) : 0;
-    html+="<div class=\"compact-list\">";
+
+    // ── ÉPINGLAGE "PRÈS DE CHEZ MOI" (≤1km) ──────────────────────────
+    var _pinnedResult = (typeof buildNearbyPinnedSection === "function") ? buildNearbyPinnedSection(data, data) : { pinnedIds:[], html:"" };
+    var _pinnedIds = _pinnedResult.pinnedIds;
+    var _hasPinned = _pinnedIds.length > 0;
+
+    html += "<div class=\"compact-list\">";
+
+    if(_hasPinned){
+      // Injecter la section épinglée en tête (hors du compact-list standard)
+      html += _pinnedResult.html;
+      // Séparateur avant le reste de la liste
+      var _remainCount = data.length - _pinnedIds.length;
+      if(_remainCount > 0){
+        html += "<div class='compact-pinned-divider'>&#128205; "+ _remainCount +" autre"+ (_remainCount>1?"s":"") +" établissement"+ (_remainCount>1?"s":"") +"</div>";
+      }
+    }
+
+    // Reste de la liste (hors épinglés)
     data.forEach(function(e,i){
+      if(_hasPinned && _pinnedIds.indexOf(e.id) !== -1) return; // déjà épinglé en tête
       var _ec = (gpsActive && typeof e._distKm === "number" && e._distKm <= PROX_KM_C) ? "card-prox-near" : "";
       html+=buildCompactRow(e,i+1,_ec);
     });
