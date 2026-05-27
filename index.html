@@ -44272,8 +44272,16 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
   function igmSelectAll(val) {
     _igmSelectedIds.clear();
-    if(val) _igmResults.filter(function(r){ return !r.isExisting; }).forEach(function(r){ _igmSelectedIds.add(r.place_id); });
-    igmRenderResults();
+    if(val) _igmResults.forEach(function(r){ _igmSelectedIds.add(r.place_id); });
+    /* Mise à jour visuelle sans re-render complet (préserve le scroll) */
+    document.querySelectorAll('#igmResultsList .igm-result-card').forEach(function(card){
+      var id = card.getAttribute('data-igm-id');
+      var sel = _igmSelectedIds.has(id);
+      card.classList.toggle('igm-rc-sel', sel);
+      var chk = card.querySelector('.igm-rc-check');
+      if(chk) chk.textContent = sel ? '✓' : '';
+    });
+    igmUpdateCount();
   }
   window.igmSelectAll = igmSelectAll;
 
@@ -44295,20 +44303,28 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
   ──────────────────────────────────────────────────────────────────── */
   async function igmFetchGooglePhoto(placeId) {
     try {
-      var mapsUrl = 'https://www.google.com/maps/place/?q=place_id:' + encodeURIComponent(placeId);
-      var proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(mapsUrl);
+      /* Utilise la clé Google Maps déjà présente dans l'app */
+      var apiKey = (typeof GPLACES_API_KEY !== 'undefined') ? GPLACES_API_KEY : 'AIzaSyCx3hD28Lb9EtUrawHbTnM-6vmXdgO1ABw';
+      /* Étape 1 : récupérer la photo_reference via Place Details API */
+      var detailsUrl = 'https://maps.googleapis.com/maps/api/place/details/json'
+        + '?place_id=' + encodeURIComponent(placeId)
+        + '&fields=photos'
+        + '&key=' + apiKey;
+      var proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(detailsUrl);
       var ctrl = new AbortController();
-      var tid = setTimeout(function(){ ctrl.abort(); }, 2000);
+      var tid = setTimeout(function(){ ctrl.abort(); }, 5000);
       var resp = await fetch(proxyUrl, { signal: ctrl.signal });
       clearTimeout(tid);
       if(!resp.ok) return '';
       var data = await resp.json();
-      var html = data.contents || '';
-      /* Cherche la première image og:image ou meta image Google Maps */
-      var m = html.match(/["']https:\/\/lh\d\.googleusercontent\.com\/[^"']+["']/)
-             || html.match(/["']https:\/\/maps\.googleapis\.com\/maps\/api\/place\/photo[^"']+["']/);
-      if(m) return m[0].replace(/^["']|["']$/g,'');
-      return '';
+      var parsed;
+      try { parsed = JSON.parse(data.contents || '{}'); } catch(e){ return ''; }
+      var photos = parsed.result && parsed.result.photos;
+      if(!photos || !photos.length) return '';
+      /* Étape 2 : construire l'URL de la photo (maxwidth 800px) */
+      var ref = photos[0].photo_reference;
+      return 'https://maps.googleapis.com/maps/api/place/photo'
+        + '?maxwidth=800&photo_reference=' + encodeURIComponent(ref) + '&key=' + apiKey;
     } catch(e) { return ''; }
   }
 
@@ -44686,7 +44702,19 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
   }
   window.igm2Toggle=igm2Toggle;
 
-  function igm2SelectAll(v){_sel2.clear();if(v)_r2.filter(function(r){return !r.isExisting;}).forEach(function(r){_sel2.add(r.place_id);});igm2Render();}
+  function igm2SelectAll(v){
+    _sel2.clear();
+    if(v) _r2.forEach(function(r){ _sel2.add(r.place_id); });
+    /* Mise à jour visuelle sans re-render complet (préserve le scroll) */
+    document.querySelectorAll('#igm2ResultsList .igm-result-card').forEach(function(card){
+      var id=card.getAttribute('data-i2');
+      var sel=_sel2.has(id);
+      card.classList.toggle('igm-rc-sel',sel);
+      var chk=card.querySelector('.igm-rc-check');
+      if(chk) chk.textContent=sel?'✓':'';
+    });
+    igm2Count();
+  }
   window.igm2SelectAll=igm2SelectAll;
 
   function igm2Count(){var e=document.getElementById('igm2SelectedCount');if(e)e.textContent=_sel2.size;}
