@@ -4886,28 +4886,15 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 /* ═══ AMBI241 — Animations Féminines & Luxe v2.1 (stable) ═══ */
 
 /* ── Keyframes légers ── */
-@keyframes floatPetal{
-  0%{transform:translate3d(0,0,0) rotate(0deg);opacity:.85}
-  50%{transform:translate3d(8px,-45px,0) rotate(150deg);opacity:.5}
-  100%{transform:translate3d(-4px,-88px,0) rotate(320deg);opacity:0}
-}
-@keyframes heartFloat{
-  0%{transform:translate3d(0,0,0) scale(.6);opacity:1}
-  60%{transform:translate3d(0,-52px,0) scale(1.2);opacity:.8}
-  100%{transform:translate3d(4px,-85px,0) scale(.8);opacity:0}
-}
-@keyframes starPop{
-  0%{transform:translate3d(0,0,0) scale(.4) rotate(0deg);opacity:1}
-  100%{transform:translate3d(var(--gx,18px),var(--gy,-36px),0) scale(1) rotate(200deg);opacity:0}
-}
-@keyframes pearlShimmer{
-  0%{transform:translateX(-110%) skewX(-15deg);opacity:0}
-  40%{opacity:.35}
-  100%{transform:translateX(260%) skewX(-15deg);opacity:0}
-}
 @keyframes navBloom{
   0%{transform:scale(0) translate3d(0,0,0);opacity:.7}
   100%{transform:scale(3) translate3d(0,0,0);opacity:0}
+}
+@keyframes softBounce{
+  0%{transform:scale(1)}
+  40%{transform:scale(1.18)}
+  70%{transform:scale(.94)}
+  100%{transform:scale(1)}
 }
 @keyframes softBounce{
   0%{transform:scale(1)}
@@ -4942,17 +4929,6 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 }
 
 /* ── Click burst ── */
-.ambi-burst{
-  position:fixed;pointer-events:none;z-index:9986;
-  will-change:transform,opacity;
-  animation:heartFloat .85s ease-out forwards;user-select:none;
-}
-.ambi-star{
-  position:fixed;pointer-events:none;z-index:9986;
-  will-change:transform,opacity;
-  animation:starPop .65s ease-out forwards;user-select:none;
-}
-
 /* ── Nav bloom ── */
 .nav-bloom{
   position:absolute;bottom:50%;left:50%;
@@ -37919,69 +37895,11 @@ document.addEventListener('DOMContentLoaded', function(){
   });
 });
 
-/* ─── Floating particles (6 max, 3.5s d'intervalle) ─── */
-var EMOJI = ['🌸','✨','💫','💖','🌺','⭐','🌷'];
-var pool = [];
-var MAX_P = 6;
-function spawnParticle(){
-  if(pool.length >= MAX_P) return;
-  var el = document.createElement('span');
-  el.className = 'ambi-particle';
-  el.textContent = EMOJI[Math.floor(Math.random()*EMOJI.length)];
-  var x = 5 + Math.random()*88;
-  var dur = 7 + Math.random()*6;
-  var sz = 11 + Math.random()*9;
-  el.style.cssText = 'left:'+x+'vw;bottom:-18px;font-size:'+sz+'px;'
-    +'animation:floatPetal '+dur+'s ease-in-out forwards;opacity:'+(0.4+Math.random()*0.45)+';';
-  document.body.appendChild(el);
-  pool.push(el);
-  setTimeout(function(){
-    el.remove();
-    pool = pool.filter(function(p){return p!==el;});
-  }, dur*1000);
-}
-spawnParticle();
-setTimeout(spawnParticle, 1600);
-setInterval(spawnParticle, 3500);
+/* ─── Floating particles DÉSACTIVÉES pour optimiser la performance ─── */
+/* Animation floatPetal supprimée */
 
-/* ─── Click/tap burst (throttlé à 1/350ms, léger) ─── */
-var HEARTS = ['💖','💕','✨','💫','🌸'];
-var STARS  = ['✦','✧','⋆','·'];
-var _lastBurst = 0;
-function doBurst(x, y){
-  var now = Date.now();
-  if(now - _lastBurst < 350) return;
-  _lastBurst = now;
-  /* 1 cœur */
-  var h = document.createElement('span');
-  h.className = 'ambi-burst';
-  h.textContent = HEARTS[Math.floor(Math.random()*HEARTS.length)];
-  h.style.cssText = 'left:'+(x-10)+'px;top:'+(y-12)+'px;font-size:'+(14+Math.random()*8)+'px;';
-  document.body.appendChild(h);
-  setTimeout(function(){h.remove();}, 920);
-  /* 3 micro-étoiles */
-  for(var i=0;i<3;i++){
-    (function(i){
-      setTimeout(function(){
-        var s = document.createElement('span');
-        s.className = 'ambi-star';
-        s.textContent = STARS[i%STARS.length];
-        var ang = (Math.PI*2/3)*i;
-        var d = 20+Math.random()*22;
-        s.style.cssText = 'left:'+(x-5)+'px;top:'+(y-5)+'px;'
-          +'--gx:'+(Math.cos(ang)*d)+'px;--gy:'+(-Math.abs(Math.sin(ang)*d)-8)+'px;'
-          +'font-size:'+(9+Math.random()*5)+'px;'
-          +'color:'+(['#ff2d9b','#ffd700','#cc44ff'][i])+';';
-        document.body.appendChild(s);
-        setTimeout(function(){s.remove();}, 700);
-      }, i*60);
-    })(i);
-  }
-}
-document.addEventListener('pointerdown', function(e){
-  var t = e.target.closest('button,a,.card,.type-tile,.top6-card,.fchip,.nav-item,.hero-btn,.pin-key');
-  if(t) doBurst(e.clientX, e.clientY);
-}, {passive:true});
+/* ─── Click/tap burst DÉSACTIVÉ pour optimiser la performance ─── */
+/* Explosions d'étoiles supprimées */
 
 /* ─── Nav bloom + icon bounce ─── */
 document.addEventListener('DOMContentLoaded', function(){
