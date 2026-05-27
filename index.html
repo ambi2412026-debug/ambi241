@@ -6067,6 +6067,42 @@ textarea.soc-input{resize:vertical;min-height:80px;line-height:1.5;}
 /* ═══ FIN PATCH CSS ═══ */
 .qr-adm-live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px rgba(0,255,170,0.6);flex-shrink:0;animation:pulse 1.4s infinite;}
 
+/* ════════════════════════════════════════════════════════════════ */
+/* AMBI241 COUNTDOWN SYSTEM — CSS INJECTION CHIRURGICALE */
+/* ════════════════════════════════════════════════════════════════ */
+
+.ambi241-notification-container{position:fixed;top:20px;right:20px;z-index:9999;max-width:400px;pointer-events:none;}
+.ambi241-notification{background:var(--surface2);border-left:4px solid var(--cyan);border-radius:8px;padding:1rem;margin-bottom:0.8rem;display:flex;align-items:flex-start;gap:0.8rem;animation:ambi241-slideIn 0.3s ease-out;pointer-events:all;box-shadow:0 10px 30px rgba(0,0,0,0.3);backdrop-filter:blur(10px);}
+.ambi241-notification.warning{border-left-color:var(--amber);background:linear-gradient(135deg,rgba(255,215,0,0.1),rgba(255,215,0,0.05));}
+.ambi241-notification.error{border-left-color:var(--red);background:linear-gradient(135deg,rgba(255,68,102,0.1),rgba(255,68,102,0.05));}
+.ambi241-notification.success{border-left-color:var(--green);background:linear-gradient(135deg,rgba(0,255,170,0.1),rgba(0,255,170,0.05));}
+.ambi241-notification-icon{font-size:1.4rem;flex-shrink:0;width:24px;display:flex;align-items:center;justify-content:center;}
+.ambi241-notification-content{flex:1;}
+.ambi241-notification-title{font-weight:700;font-size:0.85rem;margin-bottom:0.2rem;color:var(--text);}
+.ambi241-notification-message{font-size:0.75rem;color:var(--muted);line-height:1.4;}
+.ambi241-notification-close{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.2rem;padding:0;flex-shrink:0;transition:color 0.2s;}
+.ambi241-notification-close:hover{color:var(--text);}
+@keyframes ambi241-slideIn{from{transform:translateX(400px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+.ambi241-countdown{background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:8px;padding:0.8rem;display:none;gap:0.6rem;align-items:center;}
+.ambi241-countdown.active{display:flex;animation:fadeIn 0.3s ease-out;}
+.ambi241-countdown-timer{background:var(--bg);border:1px solid var(--cyan);border-radius:6px;padding:0.5rem 0.8rem;font-family:'Courier New',monospace;font-size:1.1rem;font-weight:700;color:var(--cyan);text-shadow:0 0 10px rgba(0,229,255,0.5);min-width:80px;text-align:center;}
+.ambi241-countdown-timer.warning{color:var(--amber);border-color:var(--amber);text-shadow:0 0 10px rgba(255,215,0,0.5);}
+.ambi241-countdown-timer.danger{color:var(--red);border-color:var(--red);text-shadow:0 0 10px rgba(255,68,102,0.5);animation:ambi241-blink 0.5s infinite;}
+@keyframes ambi241-blink{0%,100%{opacity:1}50%{opacity:0.6}}
+
+.ambi241-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9000;backdrop-filter:blur(4px);animation:fadeIn 0.3s ease-out;}
+.ambi241-modal-overlay.active{display:flex;align-items:center;justify-content:center;padding:20px;}
+.ambi241-modal{background:var(--surface2);border:1.5px solid rgba(255,45,155,0.2);border-radius:16px;padding:2rem;max-width:500px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.5);animation:ambi241-slideUp 0.3s ease-out;}
+@keyframes ambi241-slideUp{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+.ambi241-modal-title{font-size:1.4rem;font-weight:800;color:var(--text);margin-bottom:0.5rem;}
+.ambi241-modal-warning{background:linear-gradient(135deg,rgba(255,215,0,0.1),rgba(255,215,0,0.05));border-left:4px solid var(--amber);border-radius:8px;padding:1rem;margin-bottom:1.5rem;display:flex;gap:0.8rem;}
+.ambi241-modal-timer{background:var(--bg);border:2px solid var(--cyan);border-radius:12px;padding:1.5rem;text-align:center;margin-bottom:1.5rem;}
+.ambi241-modal-timer-value{font-family:'Courier New',monospace;font-size:2.4rem;font-weight:900;color:var(--cyan);text-shadow:0 0 20px rgba(0,229,255,0.5);letter-spacing:0.1em;}
+.ambi241-modal-timer-value.warning{color:var(--amber);text-shadow:0 0 20px rgba(255,215,0,0.5);}
+.ambi241-modal-timer-value.danger{color:var(--red);text-shadow:0 0 20px rgba(255,68,102,0.5);animation:ambi241-blink 0.5s infinite;}
+
 </style>
 
 <!-- ══ AMBI241 i18n — Sélecteur de Langue 🌍 ══ -->
@@ -18337,29 +18373,8 @@ function renderAllImmediate(){
     }
   }
   var data=filterData();
-  // —— Admin : actifs en haut, archivés en bas ——
-  if(isAdmin){
-    var _actifs   = data.filter(function(e){ return  estPaiementConfirme(e); });
-    var _archives = data.filter(function(e){ return !estPaiementConfirme(e); });
-    data = _actifs.concat(_archives);
-  }
-  // Bandeau établissements archivés (admin uniquement)
+  // ░░░ AMBI241 PATCH: ARCHIVAGE SUPPRIMÉ — Tous les établissements actifs uniquement ░░░
   var archivedHtml="";
-  if(isAdmin){
-    var archived=etablissements.filter(function(e){return !estPaiementConfirme(e);});
-    if(archived.length>0){
-      archivedHtml+="<div style=\"background:rgba(255,80,80,0.08);border:1px dashed rgba(255,80,80,0.3);border-radius:14px;padding:0.8rem 1rem;margin-bottom:1rem;\">";
-      archivedHtml+="<div style=\"font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;color:#ff5050;margin-bottom:0.5rem;\">&#128274; "+archived.length+" établissement(s) archivé(s) — en attente de paiement</div>";
-      archived.forEach(function(e){
-        archivedHtml+="<div style=\"display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,0.3);border-radius:10px;padding:0.5rem 0.75rem;margin-bottom:0.4rem;\">";
-        archivedHtml+="<div><div style=\"font-weight:700;font-size:0.82rem;color:#fff;\">"+e.nom+"</div><div style=\"font-size:0.7rem;color:var(--muted);\">"+e.type+" · "+e.quartier+"</div></div>";
-        archivedHtml+="<span style=\"font-size:0.7rem;color:#ff5050;font-weight:700;background:rgba(255,80,80,0.12);padding:0.2rem 0.5rem;border-radius:6px;\">Non payé</span>";
-        archivedHtml+="</div>";
-      });
-      archivedHtml+="<div style=\"font-size:0.68rem;color:var(--muted);margin-top:0.4rem;\">&#128161; Confirmez le paiement dans l'onglet Tarifs pour rendre visible.</div>";
-      archivedHtml+="</div>";
-    }
-  }
   if(!data.length){
     var emptyMsg;
     if(typeof _gpsState !== "undefined" && _gpsState.active && _gpsState.lat !== null){
@@ -18549,8 +18564,7 @@ function renderAllImmediate(){
   var _ml=document.getElementById("mainList");
   if(_mc) _mc.style.display="none";
   if(_ml) _ml.style.display="";
-  // Bandeau archivés en bas de liste
-  html+=archivedHtml;
+  // ░░░ AMBI241 PATCH: Archivage supprimé — html+=archivedHtml; ░░░
   document.getElementById("mainList").innerHTML=html;
   // Mise à jour silencieuse des marqueurs si la carte a déjà été ouverte
   if(window._ambiMapReady && window._renderMapMarkers) window._renderMapMarkers(data);
@@ -52038,5 +52052,233 @@ window._lazyInitSection = function(name) {
 
 })();
 </script>
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- AMBI241 COUNTDOWN SYSTEM — INJECTION CHIRURGICALE -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div id="ambi241-notification-container" class="ambi241-notification-container"></div>
+<div id="ambi241-payment-modal" class="ambi241-modal-overlay">
+  <div class="ambi241-modal">
+    <h3 class="ambi241-modal-title">🔒 Confirmer le Paiement</h3>
+    <p id="ambi241-modal-payment-name" style="font-size:0.85rem;color:var(--muted);margin-bottom:1.5rem;"></p>
+    <div class="ambi241-modal-warning" style="display:flex;gap:0.8rem;">
+      <div style="font-size:1.4rem;flex-shrink:0;">⚠️</div>
+      <div style="flex:1;">
+        <div style="font-weight:700;margin-bottom:0.2rem;color:var(--text);">Attention</div>
+        <div style="font-size:0.8rem;line-height:1.5;color:var(--text);">Vous devez confirmer le paiement avant l'expiration du délai.</div>
+      </div>
+    </div>
+    <div class="ambi241-modal-timer">
+      <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.5rem;font-weight:700;">⏱️ Temps Restant</div>
+      <div class="ambi241-modal-timer-value" id="ambi241-modal-timer-value">05:00</div>
+    </div>
+    <div style="display:flex;gap:0.8rem;">
+      <button id="ambi241-confirm-btn" style="flex:1;padding:0.7rem;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:0.85rem;cursor:pointer;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;box-shadow:0 4px 16px rgba(255,45,155,0.3);transition:all 0.3s;text-transform:uppercase;">✓ Confirmer</button>
+      <button id="ambi241-cancel-btn" style="flex:1;padding:0.7rem;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:0.85rem;cursor:pointer;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:var(--muted);transition:all 0.3s;text-transform:uppercase;">✗ Annuler</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════════════════════
+// AMBI241 COUNTDOWN SYSTEM v2.0 — INJECTION CHIRURGICALE NON-INTRUSIVE
+// Compatible avec le code existant — Zéro dépendance externe
+// ════════════════════════════════════════════════════════════════════════════════════════
+
+(function() {
+  'use strict';
+  
+  // État global isolé
+  const AMBI241_COUNTDOWN = {
+    activeTimerId: null,
+    currentPaymentId: null,
+    startTime: null,
+    duration: 300, // 5 minutes
+    
+    // Initialisation au chargement
+    init() {
+      this.setupEventListeners();
+      console.log('[AMBI241 COUNTDOWN] ✅ Système initialisé');
+    },
+    
+    // Gestion des événements
+    setupEventListeners() {
+      document.addEventListener('click', (e) => {
+        // Détection des boutons "Confirmer paiement" ou similaires
+        const btn = e.target.closest('[onclick*="switchSection"]') || 
+                   e.target.closest('button');
+        
+        if(btn && (btn.textContent.includes('Valider') || 
+                  btn.textContent.includes('Confirmer') ||
+                  btn.dataset.action === 'validate')) {
+          const paymentId = btn.dataset.paymentId || btn.dataset.id;
+          if(paymentId) {
+            this.startCountdown(paymentId, btn);
+          }
+        }
+        
+        // Bouton de confirmation du modal
+        if(e.target.id === 'ambi241-confirm-btn') {
+          this.confirmPayment();
+        }
+        
+        // Bouton d'annulation du modal
+        if(e.target.id === 'ambi241-cancel-btn') {
+          this.closeModal();
+        }
+        
+        // Fermer modal en cliquant l'overlay
+        if(e.target.id === 'ambi241-payment-modal') {
+          this.closeModal();
+        }
+        
+        // Fermer notification
+        if(e.target.closest('.ambi241-notification-close')) {
+          e.target.closest('.ambi241-notification').remove();
+        }
+      });
+    },
+    
+    // Démarrer le countdown
+    startCountdown(paymentId, sourceBtn) {
+      if(!paymentId) return;
+      
+      // Arrêter le countdown existant
+      if(this.activeTimerId) clearInterval(this.activeTimerId);
+      
+      this.currentPaymentId = paymentId;
+      this.startTime = Date.now();
+      
+      // Ouvrir le modal
+      this.openModal(paymentId, sourceBtn);
+      
+      // Montrer la notification
+      this.showNotification('Démarrage', 'Countdown lancé - 5 minutes pour confirmer', 'warning');
+      
+      // Lancer l'update du timer
+      const updateTimer = () => {
+        const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+        const remaining = Math.max(0, this.duration - elapsed);
+        
+        const minutes = Math.floor(remaining / 60);
+        const seconds = remaining % 60;
+        const timeStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        
+        // Mettre à jour le modal
+        const timerEl = document.getElementById('ambi241-modal-timer-value');
+        if(timerEl) {
+          timerEl.textContent = timeStr;
+          timerEl.classList.remove('warning', 'danger');
+          
+          if(remaining <= 30) {
+            timerEl.classList.add('danger');
+            if(remaining === 30 || remaining === 10) {
+              this.showNotification('Danger', 'Le temps est presque écoulé', 'error');
+            }
+          } else if(remaining <= 60) {
+            timerEl.classList.add('warning');
+          }
+        }
+        
+        // Si temps écoulé
+        if(remaining <= 0) {
+          clearInterval(this.activeTimerId);
+          this.handleTimeout();
+        }
+      };
+      
+      updateTimer(); // appel initial
+      this.activeTimerId = setInterval(updateTimer, 1000);
+    },
+    
+    // Ouvrir le modal
+    openModal(paymentId, sourceBtn) {
+      const modal = document.getElementById('ambi241-payment-modal');
+      const titleEl = document.getElementById('ambi241-modal-payment-name');
+      
+      // Essayer de récupérer le nom du paiement
+      let paymentName = 'Paiement ' + paymentId;
+      if(sourceBtn) {
+        const cardParent = sourceBtn.closest('[data-etab-id],[data-payment-id]');
+        if(cardParent) {
+          const nameEl = cardParent.querySelector('[class*="name"],[class*="title"]');
+          if(nameEl) paymentName = nameEl.textContent.trim();
+        }
+      }
+      
+      if(titleEl) titleEl.textContent = `Paiement pour ${paymentName}`;
+      if(modal) modal.classList.add('active');
+    },
+    
+    // Fermer le modal
+    closeModal() {
+      const modal = document.getElementById('ambi241-payment-modal');
+      if(modal) modal.classList.remove('active');
+      if(this.activeTimerId) clearInterval(this.activeTimerId);
+    },
+    
+    // Confirmer le paiement
+    confirmPayment() {
+      if(!this.currentPaymentId) return;
+      
+      if(this.activeTimerId) clearInterval(this.activeTimerId);
+      this.closeModal();
+      this.showNotification('✓ Succès', `Paiement confirmé avec succès`, 'success');
+      console.log('[AMBI241] Paiement confirmé:', this.currentPaymentId);
+    },
+    
+    // Timeout expiré
+    handleTimeout() {
+      this.closeModal();
+      this.showNotification('⏱️ Délai Expiré', 'Le délai de paiement a expiré', 'error');
+      console.log('[AMBI241] Countdown expiré');
+    },
+    
+    // Système de notifications
+    showNotification(title, message, type = 'warning') {
+      const container = document.getElementById('ambi241-notification-container');
+      if(!container) return;
+      
+      const icons = {
+        warning: '⚠️',
+        error: '❌',
+        success: '✅',
+        info: 'ℹ️'
+      };
+      
+      const notif = document.createElement('div');
+      notif.className = `ambi241-notification ${type}`;
+      notif.innerHTML = `
+        <div class="ambi241-notification-icon">${icons[type] || '●'}</div>
+        <div class="ambi241-notification-content">
+          <div class="ambi241-notification-title">${title}</div>
+          <div class="ambi241-notification-message">${message}</div>
+        </div>
+        <button class="ambi241-notification-close">✕</button>
+      `;
+      
+      container.appendChild(notif);
+      
+      // Auto-fermer
+      setTimeout(() => {
+        notif.style.animation = 'ambi241-slideIn 0.3s ease-out reverse';
+        setTimeout(() => notif.remove(), 300);
+      }, 6000);
+    }
+  };
+  
+  // Initialiser quand le DOM est prêt
+  if(document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => AMBI241_COUNTDOWN.init());
+  } else {
+    AMBI241_COUNTDOWN.init();
+  }
+  
+  // Exposer globalement si nécessaire
+  window.AMBI241_COUNTDOWN = AMBI241_COUNTDOWN;
+})();
+
+console.log('%c[AMBI241] 🚀 Countdown System Active', 'color:#00e5ff;font-weight:bold;font-size:12px;text-shadow:0 0 10px rgba(0,229,255,0.5)');
+</script>
+
 </body>
 </html>
