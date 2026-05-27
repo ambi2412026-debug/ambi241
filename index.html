@@ -44282,6 +44282,35 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
   }
 
   /* ── IMPORT FIREBASE ── */
+  /* ── PHOTO PRINCIPALE GOOGLE MAPS ─────────────────────────────────────
+     Tente de récupérer l'URL de la 1ère photo Google Maps d'un lieu.
+     Utilise un proxy CORS public (allorigins) pour contourner la limite
+     navigateur. Timeout 2 s → on continue sans photo si ça échoue.
+     Aucune clé API requise, aucun quota consommé.
+     La photo est stockée comme URL externe (pas téléchargée) :
+     conforme aux CGU Google Maps Embed / Place Photos.
+     photoSource='google_import' + photoLockedBy=['owner','admin']
+     permettent de protéger la photo jusqu'à revendication du gérant.
+  ──────────────────────────────────────────────────────────────────── */
+  async function igmFetchGooglePhoto(placeId) {
+    try {
+      var mapsUrl = 'https://www.google.com/maps/place/?q=place_id:' + encodeURIComponent(placeId);
+      var proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(mapsUrl);
+      var ctrl = new AbortController();
+      var tid = setTimeout(function(){ ctrl.abort(); }, 2000);
+      var resp = await fetch(proxyUrl, { signal: ctrl.signal });
+      clearTimeout(tid);
+      if(!resp.ok) return '';
+      var data = await resp.json();
+      var html = data.contents || '';
+      /* Cherche la première image og:image ou meta image Google Maps */
+      var m = html.match(/["']https:\/\/lh\d\.googleusercontent\.com\/[^"']+["']/)
+             || html.match(/["']https:\/\/maps\.googleapis\.com\/maps\/api\/place\/photo[^"']+["']/);
+      if(m) return m[0].replace(/^["']|["']$/g,'');
+      return '';
+    } catch(e) { return ''; }
+  }
+
   async function igmStartImport() {
     var toImport = _igmResults.filter(function(r){ return _igmSelectedIds.has(r.place_id); });
     if(!toImport.length){ if(typeof showToast==='function') showToast('⚠️ Aucun établissement sélectionné'); return; }
@@ -44324,6 +44353,15 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       if(det) det.textContent = (i+1) + '/' + toImport.length;
 
       var newId = ++maxId;
+
+      /* ── Récupération photo principale Google Maps (non bloquante) ── */
+      var googlePhoto = '';
+      if(r.place_id) {
+        try { googlePhoto = await igmFetchGooglePhoto(r.place_id); } catch(e) {}
+        if(googlePhoto) ilog('📸 Photo trouvée pour ' + r.nom, 'ok');
+        else ilog('🖼️ Pas de photo pour ' + r.nom, '');
+      }
+
       var doc = {
         id: newId,
         nom: r.nom,
@@ -44341,12 +44379,17 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
         place_id: r.place_id,
         maps_url: "https://www.google.com/maps/place/?q=place_id:" + r.place_id,
         photo_interieur: "",
-        photo_exterieur: ""
+        photo_exterieur: "",
+        /* ── Photo de profil importée Google Maps ── */
+        photo_principale: googlePhoto,
+        photoSource: googlePhoto ? 'google_import' : '',
+        photoLockedBy: googlePhoto ? ['owner','admin'] : [],
+        photoImportedAt: googlePhoto ? new Date().toISOString() : null
       };
 
       try {
         await window.fbAddDoc(window.fbCollection(window.db, "etablissements"), doc);
-        ilog('✅ [' + newId + '] ' + r.nom + ' (' + IGM_CAT_CONFIG[r.catKey].label + ')', 'ok');
+        ilog('✅ [' + newId + '] ' + r.nom + ' (' + IGM_CAT_CONFIG[r.catKey].label + ')' + (googlePhoto ? ' 📸' : ''), 'ok');
         imported++;
       } catch(e) {
         ilog('❌ Erreur ' + r.nom + ': ' + e.message, 'err');
@@ -44677,6 +44720,22 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     });
     window._igm2Max=maxId;
 
+    /* ── Récupérer les photos en parallèle (limite 3 simultanées) ── */
+    il('🔍 Récupération photos Google Maps...','ok');
+    var photoMap={};
+    for(var pi=0;pi<docs.length;pi+=3){
+      var chunk=docs.slice(pi,pi+3);
+      var photoResults=await Promise.allSettled(chunk.map(function(d){
+        return d.place_id ? (typeof igmFetchGooglePhoto==='function' ? igmFetchGooglePhoto(d.place_id) : Promise.resolve('')) : Promise.resolve('');
+      }));
+      chunk.forEach(function(d,ci){
+        var res=photoResults[ci];
+        photoMap[d.place_id]=(res.status==='fulfilled'&&res.value)?res.value:'';
+      });
+    }
+    var photosFound=Object.values(photoMap).filter(function(v){return v;}).length;
+    il('📸 '+photosFound+'/'+docs.length+' photos récupérées.', photosFound>0?'ok':'warn');
+
     var total=docs.length, done=0;
     var updateProg=function(){
       done++;
@@ -44690,13 +44749,15 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       var batch=docs.slice(i,i+IGM2_IMPORT_BATCH);
       var batchResults=await Promise.allSettled(
         batch.map(function(doc){
-          var d={id:doc.id,nom:doc.nom,type:doc.type,quartier:doc.quartier,ambiance:doc.ambiance,statut:doc.statut,note:doc.note,avis:doc.avis,contact:doc.contact,paiement:doc.paiement,affluence:doc.affluence,lat:doc.lat,lng:doc.lng,place_id:doc.place_id,maps_url:doc.maps_url,photo_interieur:doc.photo_interieur,photo_exterieur:doc.photo_exterieur};
+          var gPhoto=photoMap[doc.place_id]||'';
+          var d={id:doc.id,nom:doc.nom,type:doc.type,quartier:doc.quartier,ambiance:doc.ambiance,statut:doc.statut,note:doc.note,avis:doc.avis,contact:doc.contact,paiement:doc.paiement,affluence:doc.affluence,lat:doc.lat,lng:doc.lng,place_id:doc.place_id,maps_url:doc.maps_url,photo_interieur:doc.photo_interieur,photo_exterieur:doc.photo_exterieur,photo_principale:gPhoto,photoSource:gPhoto?'google_import':'',photoLockedBy:gPhoto?['owner','admin']:[],photoImportedAt:gPhoto?new Date().toISOString():null};
           return window.fbAddDoc(window.fbCollection(window.db,"etablissements"),d).then(function(){return doc;});
         })
       );
       for(var bi=0;bi<batchResults.length;bi++){
         var br=batchResults[bi];
-        if(br.status==='fulfilled'){il('✅ ['+br.value.id+'] '+br.value.nom+' ('+CFG2[br.value.catKey].label+')','ok');imp++;}
+        var hasPhoto=!!(photoMap[batch[bi].place_id]);
+        if(br.status==='fulfilled'){il('✅ ['+br.value.id+'] '+br.value.nom+' ('+CFG2[br.value.catKey].label+')'+(hasPhoto?' 📸':''),'ok');imp++;}
         else{il('❌ '+batch[bi].nom+': '+(br.reason&&br.reason.message||'erreur'),'err');err++;}
         updateProg();
       }
