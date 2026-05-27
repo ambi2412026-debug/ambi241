@@ -8177,8 +8177,8 @@ if (document.readyState === 'loading') {
         </div>
         <div style="display:flex;flex-direction:column;align-items:center;gap:0.15rem;">
           <div class="view-btns">
-            <button class="view-btn active" data-view="liste" title="Vue cartes complètes">&#8801;</button>
-            <button class="view-btn" data-view="compact" title="Vue compacte — lignes condensées">&#9776;</button>
+            <button class="view-btn" data-view="liste" title="Vue cartes complètes">&#8801;</button>
+            <button class="view-btn active" data-view="compact" title="Vue compacte — lignes condensées">&#9776;</button>
             <button class="view-btn" data-view="groupe" title="Vue par catégorie">&#9783;</button>
             <button class="view-btn" data-view="carte" title="Carte interactive">&#128205;</button>
           </div>
@@ -12585,7 +12585,7 @@ window.revokeAdmin       = revokeAdmin;
 window.transferOwnership = transferOwnership;
 var currentStatus="all";
 var currentSort="affluence";
-var currentView="liste";
+var currentView="compact";
 var soireePhotos={};
 var etablissements=[];
 
@@ -16521,7 +16521,7 @@ function buildCompactRow(e, rank, extraClass){
   var html = "";
 
   // ─ Ligne condensée ─
-  html += "<div class='compact-row"+(extraClass?" "+extraClass:"")+"' id='cr-"+e.id+"' onclick='toggleCompactDetail("+e.id+")'>";
+  html += "<div class='compact-row"+(extraClass?" "+extraClass:"")+"' id='cr-"+e.id+"' onclick='openFicheEtab("+e.id+")'>";
   html += "<div class='cr-rank "+rankCls+"'>"+rank+"</div>";
   html += "<div class='cr-icon'>"+ci.icon+"</div>";
   html += "<div class='cr-name"+_nameCls+"'>"+escHtml(e.nom)+"</div>";
@@ -19827,19 +19827,15 @@ window.openFicheEtab = function(id){
   var body  = document.getElementById('ficheEtabBody');
   if(!ov||!img||!title||!sub||!body) return;
 
-  /* Photo hero */
-  var permPhoto = (e._fallback_svg) || '';
-  /* Chercher une vraie photo dans les slots locaux */
-  try{
-    var slotKey = 'ambi241_photos_' + e.id;
-    var slotData = localStorage.getItem(slotKey);
-    if(slotData){ var slots = JSON.parse(slotData); if(slots&&slots[0]&&slots[0].url) permPhoto = slots[0].url; }
-  }catch(ex){}
-  if(permPhoto && permPhoto.startsWith('data:image')){ img.src = permPhoto; }
-  else if(permPhoto && (permPhoto.startsWith('http')||permPhoto.startsWith('/'))){ img.src = permPhoto; }
-  else { img.src = ''; img.style.display='none'; }
+  /* ── Photo hero : toutes sources disponibles ── */
+  var permPhoto = e._photo_profile_approved || e.photo_interieur || e.photo_exterieur || '';
+  if(!permPhoto){ try{ var _gp=getGooglePhotoUrl(e,'exterieur'); if(_gp) permPhoto=_gp; }catch(ex){} }
+  if(!permPhoto){ try{ var slotKey='ambi241_photos_'+e.id; var slotData=localStorage.getItem(slotKey); if(slotData){ var slots=JSON.parse(slotData); if(slots&&slots[0]&&slots[0].url) permPhoto=slots[0].url; } }catch(ex){} }
+  if(!permPhoto && e._fallback_svg) permPhoto = e._fallback_svg;
+  if(permPhoto){ img.src=permPhoto; img.style.display=''; }
+  else { img.src=''; img.style.display='none'; }
 
-  /* Status badge */
+  /* ── Status badge ── */
   var sc = (function(s){ s=s||'';
     if(s.indexOf('Bondé')!==-1||s.indexOf('Bonde')!==-1) return {label:'🔴 Bondé',bg:'rgba(255,68,102,0.18)',color:'var(--red)'};
     if(s.indexOf('Animé')!==-1||s.indexOf('Anime')!==-1) return {label:'🟢 Animé',bg:'rgba(0,255,170,0.14)',color:'var(--green)'};
@@ -19851,22 +19847,61 @@ window.openFicheEtab = function(id){
   title.innerHTML = escHtml(e.nom||'') +
     '<span class="fiche-badge-statut" style="background:'+sc.bg+';color:'+sc.color+';">'+sc.label+'</span>';
   sub.textContent = (e.type||'') + (e.quartier ? ' · ' + e.quartier : '');
-  img.style.display = '';
 
-  /* ── Corps de la fiche ── */
+  /* ══════════════════════════════════════════
+     ══ CORPS COMPLET DE LA FICHE           ══
+     ══════════════════════════════════════════ */
   var h = '';
 
-  /* Stats */
+  /* ── 1. Événement flash (si actif) ── */
+  var evt = e.event_flash;
+  if(evt && evt.texte){
+    var evtNow = Date.now();
+    var evtExpire = evt.expire || (evt.ts + (evt.duree||6)*3600000);
+    if(evtNow < evtExpire){
+      var evtLeft = evtExpire - evtNow;
+      var evtH = Math.floor(evtLeft/3600000);
+      var evtM = Math.floor((evtLeft%3600000)/60000);
+      var evtStr = evtH>0 ? 'Expire dans '+evtH+'h '+evtM+'min' : 'Expire dans '+evtM+' min';
+      h += '<div style="background:linear-gradient(135deg,rgba(255,45,155,0.15),rgba(204,68,255,0.1));border:1.5px solid rgba(255,45,155,0.4);border-radius:12px;padding:0.75rem 0.9rem;margin-bottom:0.9rem;display:flex;gap:0.6rem;align-items:flex-start;">';
+      h += '<span style="font-size:1.3rem;flex-shrink:0;">🎤</span>';
+      h += '<div><div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;color:var(--pink);">Événement ce soir</div>';
+      h += '<div style="font-size:0.8rem;color:var(--text);margin-top:0.15rem;">'+escHtml(evt.texte)+'</div>';
+      if(evt.detail) h += '<div style="font-size:0.68rem;color:var(--muted);margin-top:0.1rem;">'+escHtml(evt.detail)+'</div>';
+      h += '<div style="font-size:0.62rem;color:var(--amber);margin-top:0.25rem;">⏱ '+evtStr+'</div>';
+      h += '</div></div>';
+    }
+  }
+
+  /* ── 2. Stats clés (note, avis, affluence, score) ── */
   var note  = e.note  ? parseFloat(e.note).toFixed(1) : '—';
   var avis  = e.avis  || 0;
-  var aff   = e.affluence ? e.affluence + '%' : '—';
-  h += '<div class="fiche-stat-row">';
+  var affNum = parseInt(e.affluence)||0;
+  var affLabel = affNum ? affNum+'%' : '—';
+  var affColor = affNum>70?'var(--red)':affNum>40?'var(--amber)':'var(--green)';
+  var scoreVal = (function(){ try{ return Math.round(statusClass(e.statut).score||0); }catch(ex){ return 0; } })();
+  h += '<div class="fiche-stat-row" style="grid-template-columns:repeat(4,1fr);">';
   h += '<div class="fiche-stat"><div class="fiche-stat-val" style="color:var(--amber);">⭐ '+note+'</div><div class="fiche-stat-lbl">Note</div></div>';
   h += '<div class="fiche-stat"><div class="fiche-stat-val" style="color:var(--cyan);">'+avis+'</div><div class="fiche-stat-lbl">Avis</div></div>';
-  h += '<div class="fiche-stat"><div class="fiche-stat-val" style="color:var(--green);">'+aff+'</div><div class="fiche-stat-lbl">Affluence</div></div>';
+  h += '<div class="fiche-stat"><div class="fiche-stat-val" style="color:'+affColor+';">'+affLabel+'</div><div class="fiche-stat-lbl">Affluence</div></div>';
+  h += '<div class="fiche-stat"><div class="fiche-stat-val" style="color:var(--purple);">'+scoreVal+'</div><div class="fiche-stat-lbl">Score</div></div>';
   h += '</div>';
 
-  /* Description */
+  /* Barre d'affluence */
+  if(affNum){
+    h += '<div style="padding:0 0.1rem 0.8rem;">';
+    h += '<div style="display:flex;justify-content:space-between;font-size:0.62rem;color:var(--muted);margin-bottom:0.3rem;"><span>Affluence en temps réel</span><span style="color:'+affColor+';font-weight:800;">'+affNum+'%</span></div>';
+    h += '<div style="background:rgba(255,255,255,0.07);border-radius:100px;height:7px;overflow:hidden;">';
+    h += '<div style="height:100%;border-radius:100px;background:linear-gradient(90deg,var(--green),'+affColor+');width:'+affNum+'%;transition:width 0.5s;"></div>';
+    h += '</div></div>';
+  }
+
+  /* ── 3. Bouton voter ── */
+  h += '<div style="margin-bottom:0.9rem;">';
+  h += '<button onclick="event.stopPropagation();closeFicheEtab();setTimeout(function(){openRatingModal('+e.id+');},200);" style="width:100%;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;border:none;border-radius:12px;padding:0.65rem;font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.4rem;">🗳️ Voter — donner mon avis</button>';
+  h += '</div>';
+
+  /* ── 4. Description ── */
   if(e.description){
     h += '<div class="fiche-section">';
     h += '<div class="fiche-section-title">À propos</div>';
@@ -19874,22 +19909,40 @@ window.openFicheEtab = function(id){
     h += '</div>';
   }
 
-  /* Infos pratiques */
+  /* ── 5. Infos pratiques complètes ── */
   h += '<div class="fiche-section"><div class="fiche-section-title">Infos pratiques</div>';
-  if(e.quartier)    h += '<div class="fiche-info-line"><span class="fiche-info-icon">📍</span><span class="fiche-info-val">'+escHtml(e.quartier)+'</span></div>';
-  if(e.contact){
-    var waNum = e.contact.replace(/\s/g,'').replace(/\+/g,'');
-    var waMsg = encodeURIComponent('Bonjour '+escHtml(e.nom)+' (via AMBI241)');
-    h += '<div class="fiche-info-line"><span class="fiche-info-icon">📞</span><span class="fiche-info-val"><a href="tel:'+e.contact+'">'+escHtml(e.contact)+'</a></span></div>';
-    h += '<div class="fiche-info-line"><span class="fiche-info-icon">💬</span><span class="fiche-info-val"><a href="https://wa.me/'+waNum+'?text='+waMsg+'" target="_blank">WhatsApp</a></span></div>';
-  }
-  if(e.horaires)    h += '<div class="fiche-info-line"><span class="fiche-info-icon">🕐</span><span class="fiche-info-val">'+escHtml(e.horaires)+'</span></div>';
+  if(e.quartier)       h += '<div class="fiche-info-line"><span class="fiche-info-icon">📍</span><span class="fiche-info-val">'+escHtml(e.quartier)+'</span></div>';
+  if(e.adresse)        h += '<div class="fiche-info-line"><span class="fiche-info-icon">🏠</span><span class="fiche-info-val">'+escHtml(e.adresse)+'</span></div>';
+  if(e.horaires)       h += '<div class="fiche-info-line"><span class="fiche-info-icon">🕐</span><span class="fiche-info-val">'+escHtml(e.horaires)+'</span></div>';
   if(e.entree||e.prix_entree) h += '<div class="fiche-info-line"><span class="fiche-info-icon">🎟️</span><span class="fiche-info-val">'+escHtml(e.entree||e.prix_entree||'')+'</span></div>';
-  if(e.ambiance)    h += '<div class="fiche-info-line"><span class="fiche-info-icon">✨</span><span class="fiche-info-val">'+escHtml(e.ambiance)+'</span></div>';
-  if(e.type)        h += '<div class="fiche-info-line"><span class="fiche-info-icon">🏷️</span><span class="fiche-info-val">'+escHtml(e.type)+'</span></div>';
+  if(e.prix_moy||e.prix_moyen) h += '<div class="fiche-info-line"><span class="fiche-info-icon">💰</span><span class="fiche-info-val">Prix moyen : '+escHtml(e.prix_moy||e.prix_moyen||'')+'</span></div>';
+  if(e.capacite)       h += '<div class="fiche-info-line"><span class="fiche-info-icon">👥</span><span class="fiche-info-val">Capacité : '+escHtml(String(e.capacite))+'</span></div>';
+  if(e.ambiance)       h += '<div class="fiche-info-line"><span class="fiche-info-icon">✨</span><span class="fiche-info-val">'+escHtml(e.ambiance)+'</span></div>';
+  if(e.type)           h += '<div class="fiche-info-line"><span class="fiche-info-icon">🏷️</span><span class="fiche-info-val">'+escHtml(e.type)+'</span></div>';
+  if(e.wifi===true||e.wifi==='oui') h += '<div class="fiche-info-line"><span class="fiche-info-icon">📶</span><span class="fiche-info-val" style="color:var(--green);">WiFi disponible</span></div>';
+  if(e.parking===true||e.parking==='oui') h += '<div class="fiche-info-line"><span class="fiche-info-icon">🅿️</span><span class="fiche-info-val" style="color:var(--cyan);">Parking disponible</span></div>';
+  if(e.terrasse===true||e.terrasse==='oui') h += '<div class="fiche-info-line"><span class="fiche-info-icon">🌿</span><span class="fiche-info-val">Terrasse</span></div>';
+  if(e.climatisation===true||e.climatisation==='oui') h += '<div class="fiche-info-line"><span class="fiche-info-icon">❄️</span><span class="fiche-info-val">Climatisation</span></div>';
   h += '</div>';
 
-  /* Tags / spécialités */
+  /* ── 6. Contacts ── */
+  var contact = e.contact||'';
+  var waUrl   = contact ? 'https://wa.me/'+(contact.replace(/\+/g,'').replace(/\s/g,''))+'?text='+encodeURIComponent('Bonjour '+e.nom+' (via AMBI241)') : '';
+  var telUrl  = contact ? 'tel:'+contact : '';
+  var mapsUrl = e.maps_url || ('https://maps.google.com/?q='+encodeURIComponent((e.nom||'')+' '+(e.quartier||'')+' Libreville Gabon'));
+  h += '<div class="fiche-section"><div class="fiche-section-title">Contacts & accès</div>';
+  if(contact) h += '<div class="fiche-info-line"><span class="fiche-info-icon">📞</span><span class="fiche-info-val"><a href="tel:'+contact+'" style="color:var(--cyan);">'+escHtml(contact)+'</a></span></div>';
+  if(e.email)  h += '<div class="fiche-info-line"><span class="fiche-info-icon">📧</span><span class="fiche-info-val"><a href="mailto:'+e.email+'" style="color:var(--cyan);">'+escHtml(e.email)+'</a></span></div>';
+  if(e.site||e.website) h += '<div class="fiche-info-line"><span class="fiche-info-icon">🌐</span><span class="fiche-info-val"><a href="'+(e.site||e.website)+'" target="_blank" style="color:var(--cyan);">'+escHtml(e.site||e.website||'')+'</a></span></div>';
+  if(e.instagram) h += '<div class="fiche-info-line"><span class="fiche-info-icon">📸</span><span class="fiche-info-val"><a href="https://instagram.com/'+e.instagram.replace(/@/g,'')+'" target="_blank" style="color:#e1306c;">@'+escHtml(e.instagram.replace(/@/g,''))+'</a></span></div>';
+  if(e.facebook)  h += '<div class="fiche-info-line"><span class="fiche-info-icon">👍</span><span class="fiche-info-val"><a href="'+e.facebook+'" target="_blank" style="color:#4267b2;">Facebook</a></span></div>';
+  h += '<div class="fiche-action-row" style="margin-top:0.7rem;">';
+  if(waUrl)  h += '<a href="'+waUrl+'" target="_blank" class="fiche-btn fiche-btn-wa" style="border:1px solid;display:flex;align-items:center;gap:0.3rem;">💬 WhatsApp</a>';
+  if(telUrl) h += '<a href="'+telUrl+'" class="fiche-btn fiche-btn-tel" style="border:1px solid;display:flex;align-items:center;gap:0.3rem;">📞 Appeler</a>';
+  if(mapsUrl)h += '<a href="'+mapsUrl+'" target="_blank" class="fiche-btn fiche-btn-maps" style="border:1px solid;display:flex;align-items:center;gap:0.3rem;">📍 Maps</a>';
+  h += '</div></div>';
+
+  /* ── 7. Tags & spécialités ── */
   var tags = [];
   if(e.tags && Array.isArray(e.tags)) tags = e.tags;
   else if(e.specialites && Array.isArray(e.specialites)) tags = e.specialites;
@@ -19899,33 +19952,32 @@ window.openFicheEtab = function(id){
     h += '</div></div>';
   }
 
-  /* Galerie photos (slots locaux) */
+  /* ── 8. Galerie photos complète (profil + locaux + Google) ── */
   var galleryUrls = [];
+  if(e._photo_profile_approved) galleryUrls.push(e._photo_profile_approved);
+  if(e.photo_interieur && galleryUrls.indexOf(e.photo_interieur)===-1) galleryUrls.push(e.photo_interieur);
+  if(e.photo_exterieur && galleryUrls.indexOf(e.photo_exterieur)===-1) galleryUrls.push(e.photo_exterieur);
   try{
     var sk = 'ambi241_photos_' + e.id;
     var sd = localStorage.getItem(sk);
-    if(sd){ var sl=JSON.parse(sd); sl.forEach(function(s){ if(s&&s.url) galleryUrls.push(s.url); }); }
+    if(sd){ var sl=JSON.parse(sd); sl.forEach(function(s){ if(s&&s.url&&galleryUrls.indexOf(s.url)===-1) galleryUrls.push(s.url); }); }
   }catch(ex){}
-  if(galleryUrls.length > 1){
-    h += '<div class="fiche-section"><div class="fiche-section-title">Galerie photos</div>';
+  if(galleryUrls.length){
+    h += '<div class="fiche-section"><div class="fiche-section-title">📷 Galerie photos</div>';
     h += '<div class="fiche-gallery">';
     galleryUrls.forEach(function(u){
-      h += '<img class="fiche-gallery-img" src="'+u+'" alt="" onclick="openFullscreenPhoto(\''+u+'\','+e.id+',\'gallery\',\''+escHtml(e.nom).replace(/'/g,'\\\'')+'\')" loading="lazy">';
+      h += '<img class="fiche-gallery-img" src="'+u+'" alt="" onclick="openFullscreenPhoto(\''+u.replace(/'/g,'\\\'')+'\','+e.id+',\'gallery\',\''+escHtml(e.nom).replace(/'/g,'\\\'')+'\')" loading="lazy" style="cursor:pointer;">';
     });
     h += '</div></div>';
   }
 
-  /* Boutons d'action */
-  var contact = e.contact||'';
-  var waUrl   = contact ? 'https://wa.me/'+(contact.replace(/\+/g,'').replace(/\s/g,''))+'?text='+encodeURIComponent('Bonjour '+e.nom+' (via AMBI241)') : '';
-  var telUrl  = contact ? 'tel:'+contact : '';
-  var mapsUrl = e.maps_url || ('https://maps.google.com/?q='+encodeURIComponent((e.nom||'')+' '+(e.quartier||'')+' Libreville Gabon'));
-  h += '<div class="fiche-section"><div class="fiche-section-title">Contacts</div>';
-  h += '<div class="fiche-action-row">';
-  if(waUrl)  h += '<a href="'+waUrl+'" target="_blank" class="fiche-btn fiche-btn-wa" style="border:1px solid;">💬 WhatsApp</a>';
-  if(telUrl) h += '<a href="'+telUrl+'" class="fiche-btn fiche-btn-tel" style="border:1px solid;">📞 Appeler</a>';
-  if(mapsUrl)h += '<a href="'+mapsUrl+'" target="_blank" class="fiche-btn fiche-btn-maps" style="border:1px solid;">📍 Maps</a>';
-  h += '</div></div>';
+  /* ── 9. Bouton modifier (si responsable/admin) ── */
+  var _canMgFiche = (typeof isAdmin!=='undefined'&&isAdmin)||(typeof isResponsable!=='undefined'&&isResponsable(e.id));
+  if(_canMgFiche){
+    h += '<div class="fiche-section" style="padding-top:0;">';
+    h += '<button onclick="event.stopPropagation();closeFicheEtab();setTimeout(function(){openEditPanel('+e.id+');},200);" style="width:100%;background:rgba(255,215,0,0.1);border:1.5px solid rgba(255,215,0,0.3);color:var(--amber);border-radius:12px;padding:0.6rem;font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;">✏️ Modifier cet établissement</button>';
+    h += '</div>';
+  }
 
   body.innerHTML = h;
   ov.classList.add('show');
