@@ -13544,6 +13544,10 @@ function _renderAfterLoad() {
   document.getElementById("errorBanner").innerHTML = "";
   rebuildPaiements();
   etablissements.forEach(function(e) { applyDynamicStatus(e); });
+  /* BUG FIX — recalculer _distKm sur le nouveau tableau (Firebase ou cache)
+     car les objets sont recréés et ne contiennent plus les distances calculées
+     avant le rechargement. Sans ça, filterByRadius() trouve 0 résultats. */
+  if (typeof enrichWithDistances === 'function') enrichWithDistances();
   setSyncing(false);
   if (typeof invalidateScoreCache === 'function') invalidateScoreCache();
   /* Un seul renderAll couvre tout — évite 4 passes DOM successives */
@@ -13570,6 +13574,10 @@ function loadData(){
   if (cached && cached.length > 0) {
     etablissements = cached;
     etablissements.forEach(function(e) { applyDynamicStatus(e); });
+    /* BUG FIX — recalculer _distKm après restauration du cache :
+       JSON.parse recrée de nouveaux objets sans les propriétés calculées (_distKm),
+       donc filterByRadius() renverrait 0 résultats si le GPS est actif. */
+    if (typeof enrichWithDistances === 'function') enrichWithDistances();
     rebuildPaiements();
     renderAll(); renderHome(); renderStats(); renderPayments();
     /* Pas de setSyncing(true) ici pour ne pas flasher le spinner si cache frais */
