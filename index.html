@@ -2695,6 +2695,38 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 }
 .top6-card.tourisme:hover{border-color:rgba(0,80,90,0.48);box-shadow:0 4px 12px rgba(0,96,100,0.3);}
 
+/* BUG-FIX: classes manquantes pour les catégories salle-cer, salle-sp, nature, monument, patisserie
+   Sans ces règles, les cards affichaient un style par défaut sans identité visuelle. */
+.top6-card.salle-cer{
+  border-color:rgba(192,57,43,0.28);
+  background:linear-gradient(90deg,#fce4ec,#f8bbd0);
+}
+.top6-card.salle-cer:hover{border-color:rgba(160,40,30,0.5);box-shadow:0 4px 12px rgba(192,57,43,0.3);}
+
+.top6-card.salle-sp{
+  border-color:rgba(106,27,154,0.28);
+  background:linear-gradient(90deg,#f3e5f5,#e1bee7);
+}
+.top6-card.salle-sp:hover{border-color:rgba(90,20,140,0.5);box-shadow:0 4px 12px rgba(106,27,154,0.3);}
+
+.top6-card.nature{
+  border-color:rgba(46,125,50,0.28);
+  background:linear-gradient(90deg,#e8f5e9,#c8e6c9);
+}
+.top6-card.nature:hover{border-color:rgba(30,100,40,0.5);box-shadow:0 4px 12px rgba(46,125,50,0.3);}
+
+.top6-card.monument{
+  border-color:rgba(121,85,72,0.28);
+  background:linear-gradient(90deg,#efebe9,#d7ccc8);
+}
+.top6-card.monument:hover{border-color:rgba(90,60,50,0.5);box-shadow:0 4px 12px rgba(121,85,72,0.3);}
+
+.top6-card.patisserie{
+  border-color:rgba(230,81,0,0.28);
+  background:linear-gradient(90deg,#fff3e0,#ffe0b2);
+}
+.top6-card.patisserie:hover{border-color:rgba(200,70,0,0.5);box-shadow:0 4px 12px rgba(230,81,0,0.3);}
+
 
 /* ── Numéro rang — design podium ── */
 .t6c-rank{
@@ -7975,7 +8007,7 @@ if (document.readyState === 'loading') {
         </div>
         <button class="top6-see-all" onclick="switchSection('etablissements',document.querySelectorAll('.nav-item')[1])">Voir tous ›</button>
       </div>
-      <div class="top6-grid" id="topLieux"></div>
+      <div class="top6-grid" id="topLieux"><div class="tdm-skeleton"><div class="tdm-skel-card"></div><div class="tdm-skel-card"></div><div class="tdm-skel-card"></div><div class="tdm-skel-card"></div></div></div>
     </div>
 
     <!-- ══ SECTION REJOINDRE AMBI241 ══ -->
@@ -13062,14 +13094,20 @@ function updateSyncTime(){
   document.getElementById("syncTime").textContent=new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
 }
 
-// RENDER HOME — avec debounce
+// RENDER HOME — avec debounce + rAF pour rendu immédiat si données prêtes
 var _renderHomeTimer = null;
 var _renderHomeOrig = null;
 function renderHome(){
   if(_renderHomeTimer) clearTimeout(_renderHomeTimer);
-  /* PERF-FIX: debounce 100ms (était 16ms) — évite les rafales de rendus
-     quand renderAll()+renderHome()+renderStats() sont appelés en cascade. */
-  _renderHomeTimer = setTimeout(renderHomeImmediate, 100);
+  /* PERF-FIX: si les données sont déjà disponibles (cache ou Firebase), utiliser
+     requestAnimationFrame pour un rendu au prochain frame (~16ms) plutôt que
+     le setTimeout 100ms qui retardait l'affichage sur mobile lent.
+     Le debounce 100ms reste seulement quand les données ne sont pas encore prêtes. */
+  if(typeof etablissements !== 'undefined' && etablissements && etablissements.length > 0){
+    _renderHomeTimer = requestAnimationFrame(function(){ _renderHomeTimer = null; renderHomeImmediate(); });
+  } else {
+    _renderHomeTimer = setTimeout(renderHomeImmediate, 100);
+  }
 }
 function renderHomeImmediate(){
   var d = etablissements;
@@ -13226,12 +13264,19 @@ function renderHomeImmediate(){
       "Salle Spectacle":"🎭","Site Naturel":"🌳","Monument":"🏛️"
     };
 
+    /* PERF + ROBUSTESSE: try/catch autour du rendu pour éviter qu'une erreur future
+       sur une carte laisse topEl bloqué sur le skeleton indéfiniment. */
+    try {
     topEl.innerHTML = topSix.map(function(e, i){
       if(!e) return '';
       /* PERF-FIX: utiliser _cat pré-calculé */
       var cat = e._cat || getCategory(e.type);
       var label = categoryLabels[cat] || "BAR";
       var icon = categoryIcons[cat] || "🏢";
+      /* BUG-FIX: cardClass était utilisé sans être défini → ReferenceError silencieuse
+         → topEl.innerHTML échouait → bloqué sur "⌛ Chargement..." indéfiniment.
+         On le dérive maintenant de categoryClasses[cat] avec fallback "bar". */
+      var cardClass = categoryClasses[cat] || "bar";
       var note = e.note ? e.note.toFixed(1) : "—";
       var statut = e.statut || "";
       var heatIcon = statut.indexOf("Bonde") !== -1 ? "🔴" 
@@ -13249,6 +13294,10 @@ function renderHomeImmediate(){
         + '<div class="t6c-right">'+note+'<span class="t6c-arrow"> →</span></div>'
         + '</div>';
     }).join("");
+    } catch(renderErr) {
+      console.error('[AMBI241] renderHomeImmediate topLieux crash:', renderErr);
+      topEl.innerHTML = '<div style="text-align:center;padding:1.5rem 1rem;color:var(--muted);font-size:0.75rem;">Erreur d\'affichage — rechargez la page.</div>';
+    }
   } else if(topEl) {
     topEl.innerHTML = '<div style="text-align:center;padding:1.5rem 1rem;color:var(--muted);font-size:0.75rem;">⏳ Chargement...</div>';
   }
@@ -45194,22 +45243,34 @@ console.log('[AMBI241] ✅ Patch v4 — Firebase admin retry + performance mobil
 (function(){
   'use strict';
   document.addEventListener('DOMContentLoaded',function(){
-    document.querySelectorAll('*').forEach(function(el){
-      if(el.children.length===0&&el.textContent.trim()==='⌛ Chargement...'&&!el._ambiPatched){
-        el._ambiPatched=true;
-        var parent=el.parentElement;if(!parent)return;
-        var skel=document.createElement('div');
-        skel.className='tdm-skeleton';
-        skel.innerHTML='<div class="tdm-skel-card"></div><div class="tdm-skel-card"></div><div class="tdm-skel-card"></div>';
-        var skelId='_skel_'+Math.random().toString(36).slice(2);skel.id=skelId;
-        el.style.display='none';parent.insertBefore(skel,el);
-        setTimeout(function(){
-          var s=document.getElementById(skelId);
-          if(s){s.style.transition='opacity .4s';s.style.opacity='0';setTimeout(function(){if(s.parentElement)s.remove();},400);}
-          if(el.style.display==='none'){el.style.display='';el.textContent='— Aucun résultat pour l\'instant';}
-        },5000);
-      }
-    });
+    /* BUG-FIX: l'ancien patch cherchait '⌛ Chargement...' pour injecter le skeleton,
+       mais topLieux ne contenait jamais ce texte — il était juste vide, donc le bug
+       cardClass le laissait vide indéfiniment sans aucun feedback visuel.
+       Maintenant topLieux est initialisé avec le skeleton HTML directement dans le DOM.
+       Ce patch observe topLieux et retire le skeleton dès que renderHomeImmediate y injecte
+       du vrai contenu (top6-card), sans attendre 5s. */
+    var topLieuxEl = document.getElementById('topLieux');
+    if(topLieuxEl && typeof MutationObserver !== 'undefined'){
+      var _topObs = new MutationObserver(function(){
+        /* Si le premier enfant est une vraie card (pas un skeleton), observer terminé */
+        if(topLieuxEl.querySelector('.top6-card')){
+          var skel = topLieuxEl.querySelector('.tdm-skeleton');
+          if(skel){ skel.style.transition='opacity .3s'; skel.style.opacity='0'; setTimeout(function(){ if(skel.parentElement) skel.remove(); },300); }
+          _topObs.disconnect();
+        }
+      });
+      _topObs.observe(topLieuxEl,{childList:true,subtree:false});
+      /* Fallback 8s — si les données n'arrivent jamais (réseau coupé) */
+      setTimeout(function(){
+        _topObs.disconnect();
+        var skel=topLieuxEl.querySelector('.tdm-skeleton');
+        if(skel){skel.style.transition='opacity .4s';skel.style.opacity='0';setTimeout(function(){if(skel.parentElement)skel.remove();},400);}
+        if(!topLieuxEl.querySelector('.top6-card') && !topLieuxEl.querySelector('[style]')){
+          topLieuxEl.innerHTML='<div style="text-align:center;padding:1.5rem 1rem;color:var(--muted);font-size:0.75rem;">Aucun établissement disponible pour le moment.</div>';
+        }
+      },8000);
+    }
+    /* Lazy-load images hors des 3 premières */
     document.querySelectorAll('img:not([loading])').forEach(function(img,i){if(i>2){img.setAttribute('loading','lazy');img.setAttribute('decoding','async');}});
   });
   var _orig=window.setInterval,_n=0;
@@ -45218,7 +45279,7 @@ console.log('[AMBI241] ✅ Patch v4 — Firebase admin retry + performance mobil
     return _orig.apply(window,arguments);
   };
   setTimeout(function(){document.querySelectorAll('.live-dot,.heb-dot,.dispo-updated-dot,.cef-live,.hero-eyebrow-dot').forEach(function(d){d.style.willChange='auto';});},10000);
-  console.log('[AMBI241] Patch performance OK');
+  console.log('[AMBI241] Patch performance v2 OK — cardClass bug fixed');
 })();
 </script>
 
