@@ -8798,6 +8798,9 @@ if (document.readyState === 'loading') {
               <div class="igm-progress-label"><span id="igmProgressLabel">0%</span><span id="igmProgressDetail"></span></div>
             </div>
             <div class="igm-log-wrap" id="igmLogWrap"></div>
+            <div style="margin-top:0.8rem;">
+              <button class="igm-btn igm-btn-outline" id="igmCancelSearchBtn" onclick="igmCancelSearch()">⛔ Annuler la recherche</button>
+            </div>
           </div>
         </div>
 
@@ -8833,6 +8836,9 @@ if (document.readyState === 'loading') {
               <div class="igm-progress-label"><span id="igmImportProgressLabel">0%</span><span id="igmImportProgressDetail"></span></div>
             </div>
             <div class="igm-log-wrap" id="igmImportLog"></div>
+            <div id="igmImportCancelWrap" style="margin-top:0.8rem;">
+              <button class="igm-btn igm-btn-outline" onclick="igmCancelImport()">⛔ Annuler l'import</button>
+            </div>
             <div id="igmImportDone" style="display:none;margin-top:1.2rem;">
               <div style="text-align:center;padding:1.5rem;">
                 <div style="font-size:2.5rem;margin-bottom:0.5rem;">🎉</div>
@@ -12078,68 +12084,88 @@ function filterByRadius(data){if(!_gpsState.active||_gpsState.lat===null)return 
 function sortGpsData(data){if(!_gpsState.active)return data;var s=_gpsState.sort;return data.slice().sort(function(a,b){if(s==="distance"){var da=a._distKm!==null?a._distKm:9999;var db=b._distKm!==null?b._distKm:9999;return da-db;}if(s==="affluence")return(b.affluence||0)-(a.affluence||0);if(s==="note")return(b.note||0)-(a.note||0);return 0;});}
 function getNearbyCount(){if(_gpsState.lat===null||_gpsState.radius>=999)return etablissements.length;return etablissements.filter(function(e){return e._distKm!==null&&e._distKm<=_gpsState.radius;}).length;}
 var CATEGORIES=[
-  {key:"Bar",label:"Bar et Lounge",icon:"&#127867;",badge:"cb-bar"},
-  {key:"Discotheque",label:"Discotheque et Club",icon:"&#127925;",badge:"cb-club"},
-  {key:"Restaurant",label:"Restaurant, Café et Maquis",icon:"&#127374;",badge:"cb-resto"},
-  {key:"Bar Terrasse",label:"Bar Terrasse et Rooftop",icon:"&#127970;",badge:"cb-roof"},
-  {key:"Snack",label:"Snack-Bar",icon:"&#127839;",badge:"cb-snack"},
-  {key:"Hotel",label:"Hôtel / Motel",icon:"&#127968;",badge:"cb-hotel"},
-  {key:"Salle",label:"Salle de spectacles &amp; cérémonies",icon:"&#127914;",badge:"cb-salle"},
-  {key:"Stade",label:"Stade de Football",icon:"&#9917;",badge:"cb-stade"},
-  {key:"Tourisme",label:"Site touristique &amp; Parc national",icon:"&#127981;",badge:"cb-tourisme"}
+  {key:"Bar",           label:"Bar et Lounge",                icon:"&#127867;", badge:"cb-bar"},
+  {key:"Discotheque",   label:"Discotheque et Club",          icon:"&#127925;", badge:"cb-club"},
+  {key:"Restaurant",    label:"Restaurant, Café et Maquis",   icon:"&#127374;", badge:"cb-resto"},
+  {key:"Bar Terrasse",  label:"Bar Terrasse et Rooftop",      icon:"&#127970;", badge:"cb-roof"},
+  {key:"Snack",         label:"Snack-Bar",                    icon:"&#127839;", badge:"cb-snack"},
+  {key:"Hotel",         label:"Hôtel / Motel",                icon:"&#127968;", badge:"cb-hotel"},
+  {key:"Patisserie",    label:"Pâtisserie &amp; Boulangerie", icon:"🎂",        badge:"cb-patisserie"},
+  {key:"Salle Ceremonie",label:"Salle de Cérémonie",         icon:"💍",         badge:"cb-salle-cer"},
+  {key:"Salle Spectacle",label:"Salle de Spectacle",         icon:"🎭",         badge:"cb-salle-sp"},
+  {key:"Stade",         label:"Stade de Football",            icon:"&#9917;",   badge:"cb-stade"},
+  {key:"Site Naturel",  label:"Site Naturel &amp; Parc",      icon:"🌳",        badge:"cb-nature"},
+  {key:"Monument",      label:"Monument Historique",          icon:"🏛️",        badge:"cb-monument"}
 ];
 
+/* ── Normalise une chaîne : minuscule + retire accents + espaces superflus ── */
+function _normStr(s){
+  if(!s) return '';
+  return String(s).toLowerCase().trim()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/\s+/g,' ');
+}
+
 function getCategory(type){
-  if(!type)return "Bar";
-  var t=type.toLowerCase().trim();
+  if(!type) return "Bar";
+  var t = _normStr(type);
 
   // ── 1. Correspondances exactes (priorité absolue) ──
   var exact={
-    "hotel":"Hotel","hôtel":"Hotel","motel":"Hotel",
-    "discotheque":"Discotheque","discothèque":"Discotheque","nightclub":"Discotheque","night club":"Discotheque",
-    "snack":"Snack","snack-bar":"Snack",
+    "hotel":"Hotel","motel":"Hotel","residence":"Hotel","lodge":"Hotel","resort":"Hotel",
+    "discotheque":"Discotheque","nightclub":"Discotheque","night club":"Discotheque",
+    "snack":"Snack","snack-bar":"Snack","fast food":"Snack",
     "bar terrasse":"Bar Terrasse","bar-terrasse":"Bar Terrasse","rooftop":"Bar Terrasse","rooftop bar":"Bar Terrasse",
-    "restaurant":"Restaurant","café":"Restaurant","cafe":"Restaurant","brasserie":"Restaurant","pizzeria":"Restaurant",
+    "restaurant":"Restaurant","cafe":"Restaurant","brasserie":"Restaurant","pizzeria":"Restaurant","maquis":"Restaurant","bistro":"Restaurant",
+    "patisserie":"Patisserie","boulangerie":"Patisserie","salon de the":"Patisserie","bakery":"Patisserie","pastry":"Patisserie",
     "bar":"Bar","lounge":"Bar","bar lounge":"Bar","pub":"Bar","taverne":"Bar",
-    "salle":"Salle","salle de spectacle":"Salle","salle de cérémonie":"Salle","salle de ceremonie":"Salle","salle polyvalente":"Salle","centre culturel":"Salle","théâtre":"Salle","cinema":"Salle","cinéma":"Salle","auditorium":"Salle",
+    "salle de ceremonie":"Salle Ceremonie","salle de mariage":"Salle Ceremonie","salle des fetes":"Salle Ceremonie","salle polyvalente":"Salle Ceremonie","banquet hall":"Salle Ceremonie",
+    "salle de spectacle":"Salle Spectacle","theatre":"Salle Spectacle","cinema":"Salle Spectacle","auditorium":"Salle Spectacle","concert hall":"Salle Spectacle",
     "stade":"Stade","stade de football":"Stade","stade football":"Stade","terrain football":"Stade","complexe sportif":"Stade",
-    "tourisme":"Tourisme","site touristique":"Tourisme","parc national":"Tourisme","parc naturel":"Tourisme","réserve":"Tourisme","reserve":"Tourisme","musée":"Tourisme","musee":"Tourisme","monument":"Tourisme","plage":"Tourisme","cascade":"Tourisme"
+    "parc naturel":"Site Naturel","reserve naturelle":"Site Naturel","parc national":"Site Naturel","plage":"Site Naturel","cascade":"Site Naturel","foret":"Site Naturel",
+    "monument":"Monument","memorial":"Monument","musee":"Monument","monument historique":"Monument","site historique":"Monument","ruines":"Monument",
+    "site touristique":"Monument","tourisme":"Monument"
   };
-  if(exact[t])return exact[t];
+  if(exact[t]) return exact[t];
 
-  // ── 2. Hôtels & Résidences (avant tout : évite faux positifs avec "bar de l'hôtel") ──
-  if(/h[oô]tel\s*\d|\d\s*[eé]toile|palace hotel|h[oô]tel\s*(suites|resort|lodge|inn|plaza)/.test(t))return "Hotel";
-  if(t.indexOf("h\u00f4tel")!==-1||t.indexOf("hotel")!==-1||t.indexOf("motel")!==-1||t.indexOf("r\u00e9sidence")!==-1||t.indexOf("residence")!==-1||t.indexOf("resort")!==-1||t.indexOf("lodge")!==-1)return "Hotel";
+  // ── 2. Hôtels & Résidences ──
+  if(t.indexOf("hotel")!==-1||t.indexOf("motel")!==-1||t.indexOf("residence")!==-1||t.indexOf("resort")!==-1||t.indexOf("lodge")!==-1) return "Hotel";
 
-  // ── 3. Discothèques / Clubs ──
-  // "nightclub" ou "club" seul (mais pas "bar lounge club" → vérifier que "bar" N'est PAS le mot dominant)
-  if(t.indexOf("disco")!==-1||t.indexOf("nightclub")!==-1||t.indexOf("night club")!==-1)return "Discotheque";
-  // "club" seul, seulement si pas accompagné de "bar" ou "snack"
-  if(t.indexOf("club")!==-1&&t.indexOf("bar")===-1&&t.indexOf("snack")===-1)return "Discotheque";
+  // ── 3. Pâtisseries & Boulangeries (avant Restaurant) ──
+  if(t.indexOf("patisserie")!==-1||t.indexOf("boulangerie")!==-1||t.indexOf("bakery")!==-1||t.indexOf("pastry")!==-1||t.indexOf("salon de the")!==-1) return "Patisserie";
 
-  // ── 4. Bar Terrasse / Rooftop (avant Bar et Snack) ──
-  if(t.indexOf("terrasse")!==-1||t.indexOf("rooftop")!==-1||t.indexOf("bar terrasse")!==-1||t.indexOf("bar-terrasse")!==-1)return "Bar Terrasse";
+  // ── 4. Discothèques / Clubs ──
+  if(t.indexOf("disco")!==-1||t.indexOf("nightclub")!==-1||t.indexOf("night club")!==-1) return "Discotheque";
+  if(t.indexOf("club")!==-1&&t.indexOf("bar")===-1&&t.indexOf("snack")===-1) return "Discotheque";
 
-  // ── 5. Snack (avant Bar pour éviter "snack-bar" → Bar) ──
-  if(t.indexOf("snack")!==-1)return "Snack";
+  // ── 5. Bar Terrasse / Rooftop ──
+  if(t.indexOf("terrasse")!==-1||t.indexOf("rooftop")!==-1) return "Bar Terrasse";
 
-  // ── 6. Restaurants & Cafés (avant Bar pour éviter "bar restaurant" → Bar) ──
-  // Si "restaurant" ou "resto" est présent ET "bar" aussi → Restaurant (lieu mixte classé resto)
-  if(t.indexOf("restaurant")!==-1||t.indexOf("resto")!==-1||t.indexOf("p\u00e2tisserie")!==-1||t.indexOf("patisserie")!==-1||t.indexOf("brasserie")!==-1||t.indexOf("pizzeria")!==-1||t.indexOf("bistro")!==-1||t.indexOf("caf\u00e9")!==-1||t.indexOf("cafe")!==-1||t.indexOf("maquis")!==-1)return "Restaurant";
+  // ── 6. Snack ──
+  if(t.indexOf("snack")!==-1||t.indexOf("fast food")!==-1) return "Snack";
 
-  // ── 7. Bars & Lounges ──
-  if(t.indexOf("bar")!==-1||t.indexOf("lounge")!==-1||t.indexOf("pub")!==-1||t.indexOf("taverne")!==-1)return "Bar";
+  // ── 7. Restaurants & Cafés ──
+  if(t.indexOf("restaurant")!==-1||t.indexOf("resto")!==-1||t.indexOf("brasserie")!==-1||t.indexOf("pizzeria")!==-1||t.indexOf("bistro")!==-1||t.indexOf("cafe")!==-1||t.indexOf("maquis")!==-1) return "Restaurant";
 
-  // ── 8. Salles de spectacles & cérémonies ──
-  if(t.indexOf("salle")!==-1||t.indexOf("spectacle")!==-1||t.indexOf("c\u00e9r\u00e9monie")!==-1||t.indexOf("ceremonie")!==-1||t.indexOf("th\u00e9\u00e2tre")!==-1||t.indexOf("cin\u00e9ma")!==-1||t.indexOf("auditorium")!==-1||t.indexOf("culturel")!==-1)return "Salle";
+  // ── 8. Bars & Lounges ──
+  if(t.indexOf("bar")!==-1||t.indexOf("lounge")!==-1||t.indexOf("pub")!==-1||t.indexOf("taverne")!==-1) return "Bar";
 
-  // ── 9. Stades de Football ──
-  if(t.indexOf("stade")!==-1||t.indexOf("terrain")!==-1||t.indexOf("complexe sportif")!==-1||t.indexOf("foot")!==-1)return "Stade";
+  // ── 9. Salles de Cérémonies (avant Spectacle) ──
+  if(t.indexOf("ceremonie")!==-1||t.indexOf("mariage")!==-1||t.indexOf("fete")!==-1||t.indexOf("banquet")!==-1||t.indexOf("polyvalent")!==-1) return "Salle Ceremonie";
 
-  // ── 10. Sites touristiques & Parcs nationaux ──
-  if(t.indexOf("touristique")!==-1||t.indexOf("parc")!==-1||t.indexOf("r\u00e9serve")!==-1||t.indexOf("reserve")!==-1||t.indexOf("mus\u00e9e")!==-1||t.indexOf("monument")!==-1||t.indexOf("plage")!==-1||t.indexOf("cascade")!==-1)return "Tourisme";
+  // ── 10. Salles de Spectacle ──
+  if(t.indexOf("spectacle")!==-1||t.indexOf("theatre")!==-1||t.indexOf("cinema")!==-1||t.indexOf("auditorium")!==-1||t.indexOf("concert")!==-1||t.indexOf("salle")!==-1) return "Salle Spectacle";
 
-  // ── 11. Fallback ──
+  // ── 11. Stades ──
+  if(t.indexOf("stade")!==-1||t.indexOf("terrain")!==-1||t.indexOf("foot")!==-1||t.indexOf("complexe sportif")!==-1) return "Stade";
+
+  // ── 12. Monuments Historiques ──
+  if(t.indexOf("monument")!==-1||t.indexOf("memorial")!==-1||t.indexOf("musee")!==-1||t.indexOf("historique")!==-1||t.indexOf("ruines")!==-1) return "Monument";
+
+  // ── 13. Sites Naturels & Parcs ──
+  if(t.indexOf("parc")!==-1||t.indexOf("reserve")!==-1||t.indexOf("plage")!==-1||t.indexOf("cascade")!==-1||t.indexOf("foret")!==-1||t.indexOf("nature")!==-1||t.indexOf("touristique")!==-1) return "Site Naturel";
+
+  // ── 14. Fallback ──
   return "Bar";
 }
 function getCatInfo(key){
@@ -26613,6 +26639,9 @@ window.doAssignEtab = doAssignEtab;
               <div class="igm-progress-label"><span id="igm2ProgressLabel">0%</span><span id="igm2ProgressDetail"></span></div>
             </div>
             <div class="igm-log-wrap" id="igm2LogWrap"></div>
+            <div style="margin-top:0.8rem;">
+              <button class="igm-btn igm-btn-outline" id="igm2CancelSearchBtn" onclick="igm2CancelSearch()">⛔ Annuler la recherche</button>
+            </div>
           </div>
         </div>
 
@@ -26648,6 +26677,9 @@ window.doAssignEtab = doAssignEtab;
               <div class="igm-progress-label"><span id="igm2ImportProgressLabel">0%</span><span id="igm2ImportProgressDetail"></span></div>
             </div>
             <div class="igm-log-wrap" id="igm2ImportLog"></div>
+            <div id="igm2ImportCancelWrap" style="margin-top:0.8rem;">
+              <button class="igm-btn igm-btn-outline" onclick="igm2CancelImport()">⛔ Annuler l'import</button>
+            </div>
             <div id="igm2ImportDone" style="display:none;margin-top:1.2rem;">
               <div style="text-align:center;padding:1.5rem;">
                 <div style="font-size:2.5rem;margin-bottom:0.5rem;">🎉</div>
@@ -43115,37 +43147,46 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
   // ══ MOTEUR OSM — Nominatim + Overpass (100% gratuit, sans clé API) ══
   var _igmResults = [];
   var _igmSelectedIds = new Set();
-  var _igmSelectedCats = new Set(['Hotel','Bar','Bar Terrasse','Snack','Restaurant','Discotheque','Salle','Stade','Tourisme']);
+  var _igmSelectedCats = new Set(['Hotel','Bar','Bar Terrasse','Snack','Restaurant','Patisserie','Discotheque','Salle Ceremonie','Salle Spectacle','Stade','Site Naturel','Monument']);
 
   // Mapping catégorie → tags Overpass OSM + mots-clés Nominatim
   var IGM_CAT_CONFIG = {
-    "Hotel":        {label:"Hôtels & Motels",  icon:"🏨",
+    "Hotel":          {label:"Hôtels & Motels",           icon:"🏨",
       overpassTags: [["tourism","hotel"],["tourism","motel"],["tourism","guest_house"],["tourism","hostel"]],
       queries:["hotel Libreville","motel Libreville","lodge Libreville","résidence Libreville"]},
-    "Bar":          {label:"Bars",             icon:"🍺",
+    "Bar":            {label:"Bars",                       icon:"🍺",
       overpassTags: [["amenity","bar"],["amenity","pub"],["amenity","lounge"]],
       queries:["bar Libreville","pub Libreville","lounge Libreville"]},
-    "Bar Terrasse": {label:"Bar Terrasses",    icon:"🍹",
+    "Bar Terrasse":   {label:"Bar Terrasses",              icon:"🍹",
       overpassTags: [["amenity","bar"],["amenity","pub"]],
       queries:["bar terrasse Libreville","rooftop bar Libreville"]},
-    "Snack":        {label:"Snacks",           icon:"🍟",
+    "Snack":          {label:"Snacks",                     icon:"🍟",
       overpassTags: [["amenity","fast_food"],["amenity","snack_bar"],["amenity","food_court"]],
       queries:["snack Libreville","fast food Libreville","maquis Libreville"]},
-    "Restaurant":   {label:"Restos & Pâtiss.",icon:"🍽️",
-      overpassTags: [["amenity","restaurant"],["amenity","cafe"],["shop","bakery"]],
-      queries:["restaurant Libreville","patisserie Libreville","café Libreville"]},
-    "Discotheque":  {label:"Clubs",            icon:"🎵",
+    "Restaurant":     {label:"Restaurants & Cafés",        icon:"🍽️",
+      overpassTags: [["amenity","restaurant"],["amenity","cafe"]],
+      queries:["restaurant Libreville","café Libreville"]},
+    "Patisserie":     {label:"Pâtisseries & Boulangeries", icon:"🎂",
+      overpassTags: [["shop","bakery"],["shop","pastry"],["amenity","cafe"]],
+      queries:["patisserie Libreville","boulangerie Libreville","salon de thé Libreville"]},
+    "Discotheque":    {label:"Clubs",                      icon:"🎵",
       overpassTags: [["amenity","nightclub"],["amenity","music_venue"]],
       queries:["nightclub Libreville","discothèque Libreville","boite de nuit Libreville"]},
-    "Salle":        {label:"Salles & Cérémonies", icon:"🎪",
-      overpassTags: [["amenity","events_venue"],["amenity","community_centre"],["amenity","conference_centre"],["leisure","hall"]],
-      queries:["salle des fêtes Libreville","salle cérémonie Libreville","palais des congrès Libreville","salle événement Libreville"]},
-    "Stade":        {label:"Stades Football",  icon:"⚽",
+    "Salle Ceremonie":{label:"Salles de Cérémonies",       icon:"💍",
+      overpassTags: [["amenity","events_venue"],["amenity","community_centre"],["amenity","banquet_hall"]],
+      queries:["salle cérémonie Libreville","salle mariage Libreville","salle des fêtes Libreville"]},
+    "Salle Spectacle":{label:"Salles de Spectacle",        icon:"🎭",
+      overpassTags: [["amenity","theatre"],["amenity","cinema"],["amenity","concert_hall"]],
+      queries:["salle spectacle Libreville","théâtre Libreville","cinéma Libreville"]},
+    "Stade":          {label:"Stades Football",            icon:"⚽",
       overpassTags: [["leisure","stadium"],["leisure","sports_centre"],["sport","soccer"]],
       queries:["stade football Libreville","terrain football Libreville","stade Libreville"]},
-    "Tourisme":     {label:"Sites Touristiques", icon:"🏛️",
-      overpassTags: [["tourism","attraction"],["tourism","museum"],["tourism","viewpoint"],["historic","monument"],["leisure","park"]],
-      queries:["site touristique Libreville","musée Libreville","monument Libreville","parc national Gabon","cascade Gabon"]}
+    "Site Naturel":   {label:"Sites Naturels & Parcs",     icon:"🌳",
+      overpassTags: [["leisure","park"],["leisure","nature_reserve"],["natural","beach"],["tourism","viewpoint"]],
+      queries:["parc naturel Gabon","plage Libreville","réserve naturelle Gabon","cascade Gabon"]},
+    "Monument":       {label:"Monuments Historiques",      icon:"🏛️",
+      overpassTags: [["historic","monument"],["historic","memorial"],["tourism","museum"],["historic","ruins"]],
+      queries:["monument Libreville","musée Libreville","mémorial Gabon","site touristique Libreville"]}
   };
 
   var IGM_QUARTIERS = ["Centre-ville","Akanda","Glass","Libreville","Louis","Owendo","Nombakélé","Batterie IV","PK5","PK8","PK12","Angondjé","Nzeng-Ayong","La Sablière"];
@@ -43166,7 +43207,10 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       var maxId = 0;
       snap.forEach(function(d){
         var data = d.data();
-        if(data.nom) existing.add(data.nom.toLowerCase().trim());
+        if(data.nom){
+          existing.add(_normStr(data.nom));
+          existing.add(data.nom.toLowerCase().trim());
+        }
         if(data.place_id) existing.add(data.place_id);
         if(data.id && data.id > maxId) maxId = data.id;
       });
@@ -43327,7 +43371,10 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
   function igmIsExisting(place) {
     if(!window._igmExisting) return false;
     if(place.place_id && window._igmExisting.has(place.place_id)) return true;
-    if(place.name && window._igmExisting.has(place.name.toLowerCase().trim())) return true;
+    if(place.name){
+      if(window._igmExisting.has(place.name.toLowerCase().trim())) return true;
+      if(window._igmExisting.has(_normStr(place.name))) return true;
+    }
     return false;
   }
 
@@ -43383,6 +43430,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       if(typeof showToast==='function') showToast('⚠️ Sélectionne au moins une catégorie');
       return;
     }
+    window._igmSearchCancelled = false;
     igmSetStep(2);
     _igmResults = [];
     var seen = new Set();
@@ -43396,6 +43444,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
     try {
       for(var ci=0; ci<cats.length; ci++){
+        if(window._igmSearchCancelled){igmLog('⛔ Recherche annulée par l\'utilisateur.','warn');igmSetStep(1);return;}
         var catKey = cats[ci];
         var cfg    = IGM_CAT_CONFIG[catKey];
         igmLog('📂 Catégorie : ' + cfg.label);
@@ -43412,6 +43461,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
         // ── 2. Nominatim : recherche textuelle ──
         for(var qi=0; qi<cfg.queries.length; qi++){
+          if(window._igmSearchCancelled){igmLog('⛔ Recherche annulée.','warn');igmSetStep(1);return;}
           var q = cfg.queries[qi];
           done++;
           igmSetProgress((done/totalQ)*100, 'Nominatim : "' + q + '"', done+'/'+totalQ+' requêtes');
@@ -43453,6 +43503,12 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     }
   }
   window.igmStartSearch = igmStartSearch;
+
+  function igmCancelSearch(){
+    window._igmSearchCancelled = true;
+    if(typeof showToast==='function') showToast('⛔ Annulation en cours...');
+  }
+  window.igmCancelSearch = igmCancelSearch;
 
   /* ── Afficher les résultats ── */
   function igmShowResults() {
@@ -43539,7 +43595,10 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     /* Forcer un refresh du token pour s'assurer que les claims sont à jour */
     try { await window.auth.currentUser.getIdToken(true); } catch(e) { console.warn('[IGM] Token refresh failed:', e); }
 
+    window._igmImportCancelled = false;
     igmSetStep(4);
+    var cancelWrap = document.getElementById('igmImportCancelWrap');
+    if(cancelWrap) cancelWrap.style.display = 'block';
     var logWrap = document.getElementById('igmImportLog');
 
     function ilog(msg, type) {
@@ -43555,6 +43614,10 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     ilog('🚀 Import de ' + toImport.length + ' établissements...', 'ok');
 
     for(var i=0; i<toImport.length; i++){
+      if(window._igmImportCancelled){
+        ilog('⛔ Import annulé après ' + imported + ' importé(s).','warn');
+        break;
+      }
       var r = toImport[i];
       var pct = ((i+1)/toImport.length)*100;
       var fill = document.getElementById('igmImportProgressFill');
@@ -43596,6 +43659,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       await new Promise(function(res){ setTimeout(res, 150); });
     }
 
+    if(cancelWrap) cancelWrap.style.display = 'none';
     window._igmMaxId = maxId;
     ilog('🎉 Terminé ! ' + imported + ' importés, ' + errors + ' erreur(s).', 'ok');
     var sumEl = document.getElementById('igmImportSummary');
@@ -43610,6 +43674,12 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     }
   }
   window.igmStartImport = igmStartImport;
+
+  function igmCancelImport(){
+    window._igmImportCancelled = true;
+    if(typeof showToast==='function') showToast('⛔ Import annulé');
+  }
+  window.igmCancelImport = igmCancelImport;
 
   console.log('[AMBI241] ✅ Import Google Maps Panel — chargé');
 })();
@@ -43675,7 +43745,10 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       var ex=new Set(), maxId=0;
       snap.forEach(function(d){
         var v=d.data();
-        if(v.nom) ex.add(v.nom.toLowerCase().trim());
+        if(v.nom){
+          ex.add(_normStr(v.nom));
+          ex.add(v.nom.toLowerCase().trim());
+        }
         if(v.place_id) ex.add(v.place_id);
         if(v.id&&v.id>maxId) maxId=v.id;
       });
@@ -43750,7 +43823,12 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
   function igm2IsEx(p){
     if(!window._igm2Ex) return false;
-    return (p.place_id&&window._igm2Ex.has(p.place_id))||(p.name&&window._igm2Ex.has(p.name.toLowerCase().trim()));
+    if(p.place_id&&window._igm2Ex.has(p.place_id)) return true;
+    if(p.name){
+      if(window._igm2Ex.has(p.name.toLowerCase().trim())) return true;
+      if(window._igm2Ex.has(_normStr(p.name))) return true;
+    }
+    return false;
   }
 
   function igm2Qrt(addr){
@@ -43808,6 +43886,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
   async function igm2StartSearch(){
     if(!_cats2.size){if(typeof showToast==='function')showToast('⚠️ Sélectionne au moins une catégorie');return;}
+    window._igm2SearchCancelled = false;
     igm2Step(2); _r2=[]; var seen=new Set();
     var cats=Array.from(_cats2);
     var allQueries=[]; for(var ci=0;ci<cats.length;ci++){var c=cats[ci];if(!CFG2[c]){igm2Log('⚠️ Catégorie inconnue ignorée : '+c,'warn');continue;}CFG2[c].queries.forEach(function(q){allQueries.push({q:q,cat:c});});}
@@ -43817,6 +43896,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
     // 1 — Overpass par catégorie
     for(var ci2=0;ci2<cats.length;ci2++){
+      if(window._igm2SearchCancelled){igm2Log('⛔ Recherche annulée.','warn');igm2Step(1);return;}
       var catKey=cats[ci2], cfg=CFG2[catKey];
       if(!cfg||!cfg.overpassTags) continue;
       try{
@@ -43836,6 +43916,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
     // 2 — Nominatim par requête texte
     for(var ti=0;ti<allQueries.length;ti++){
+      if(window._igm2SearchCancelled){igm2Log('⛔ Recherche annulée.','warn');igm2Step(1);return;}
       var task=allQueries[ti]; done++;
       igm2Prog(Math.round((done/total)*100),'Nominatim "'+task.q+'"',done+'/'+total+' requêtes');
       igm2Log('  → Nominatim "'+task.q+'"');
@@ -43864,6 +43945,12 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     setTimeout(igm2ShowResults,400);
   }
   window.igm2StartSearch=igm2StartSearch;
+
+  function igm2CancelSearch(){
+    window._igm2SearchCancelled = true;
+    if(typeof showToast==='function') showToast('⛔ Annulation en cours...');
+  }
+  window.igm2CancelSearch=igm2CancelSearch;
 
   function igm2ShowResults(){
     igm2Step(3);
@@ -43920,7 +44007,10 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     }
     /* Forcer un refresh du token pour s'assurer que les claims sont à jour */
     try { await window.auth.currentUser.getIdToken(true); } catch(e) { console.warn('[IGM2] Token refresh failed:', e); }
+    window._igm2ImportCancelled = false;
     igm2Step(4);
+    var cancelWrap2 = document.getElementById('igm2ImportCancelWrap');
+    if(cancelWrap2) cancelWrap2.style.display = 'block';
     var lw=document.getElementById('igm2ImportLog');
     function il(msg,type){var l=document.createElement('div');l.className='igm-log-line'+(type?' igm-'+type:'');l.textContent=new Date().toLocaleTimeString('fr')+' — '+msg;lw.appendChild(l);lw.scrollTop=lw.scrollHeight;}
     var maxId=window._igm2Max||100, imp=0, err=0;
@@ -43943,6 +44033,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
     /* Traiter par lots parallèles */
     for(var i=0;i<docs.length;i+=IGM2_IMPORT_BATCH){
+      if(window._igm2ImportCancelled){il('⛔ Import annulé après '+imp+' importé(s).','warn');break;}
       var batch=docs.slice(i,i+IGM2_IMPORT_BATCH);
       var batchResults=await Promise.allSettled(
         batch.map(function(doc){
@@ -43958,6 +44049,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       }
     }
 
+    if(cancelWrap2) cancelWrap2.style.display = 'none';
     il('🎉 Terminé ! '+imp+' importés, '+err+' erreur(s).','ok');
     var sm=document.getElementById('igm2ImportSummary'); if(sm) sm.textContent=imp+' établissements ajoutés · '+err+' erreur(s)';
     var dn=document.getElementById('igm2ImportDone'); if(dn) dn.style.display='block';
@@ -43966,6 +44058,12 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     if(typeof window.admRefreshEtabl==='function') setTimeout(function(){window.admRefreshEtabl();},1200);
   }
   window.igm2StartImport=igm2StartImport;
+
+  function igm2CancelImport(){
+    window._igm2ImportCancelled = true;
+    if(typeof showToast==='function') showToast('⛔ Import annulé');
+  }
+  window.igm2CancelImport=igm2CancelImport;
 
   console.log('[AMBI241] ✅ Import Maps (dashboard réel) — chargé');
 })();
