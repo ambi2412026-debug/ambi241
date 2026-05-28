@@ -27,9 +27,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
         crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
 <!-- PERF: Cormorant Garamond supprimé (6 variantes inutiles), Syne réduit à 700+800 -->
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Playfair+Display:wght@600;700;800&display=swap"
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Playfair+Display:wght@600;700;800&family=Cinzel:wght@700;800;900&display=swap"
       rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet"></noscript>
+<noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Playfair+Display:wght@600;700;800&family=Cinzel:wght@700;800;900&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""></noscript>
 <style>
@@ -2316,21 +2316,22 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 
 .types-grid{
   display:grid;
-  grid-template-columns:repeat(2,1fr);
-  gap:0.65rem;
+  grid-template-columns:repeat(3,1fr);
+  gap:0.3rem;
 }
-/* Centrer la dernière tuile quand elle est seule sur sa ligne */
-.types-grid .type-tile:last-child:nth-child(odd){
-  grid-column: 1 / -1;
-  width: calc(50% - 0.325rem);
-  margin: 0 auto;
+/* 3 colonnes × 4 rangées = 12 tuiles exactement — pas de décalage */
+.types-grid .type-tile:last-child:nth-child(3n-2),
+.types-grid .type-tile:last-child:nth-child(3n-1){
+  grid-column: auto;
+  width: auto;
+  margin: 0;
 }
 
 /* ── BASE CARTE ── */
 .type-tile{
   position:relative;
-  border-radius:20px;
-  padding:1.3rem 0.8rem 1.1rem;
+  border-radius:14px;
+  padding:0.8rem 0.3rem 0.7rem;
   text-align:center;
   cursor:pointer;
   transition:transform 0.25s cubic-bezier(.34,1.3,.64,1), box-shadow 0.25s ease;
@@ -2341,7 +2342,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   flex-direction:column;
   align-items:center;
   justify-content:center;
-  min-height:140px;
+  min-height:112px;
   animation:tileEntree 0.5s ease both;
   border:2px solid transparent;
 }
@@ -2352,6 +2353,12 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .type-tile:nth-child(4){animation-delay:0.26s;}
 .type-tile:nth-child(5){animation-delay:0.33s;}
 .type-tile:nth-child(6){animation-delay:0.40s;}
+.type-tile:nth-child(7){animation-delay:0.47s;}
+.type-tile:nth-child(8){animation-delay:0.54s;}
+.type-tile:nth-child(9){animation-delay:0.61s;}
+.type-tile:nth-child(10){animation-delay:0.68s;}
+.type-tile:nth-child(11){animation-delay:0.75s;}
+.type-tile:nth-child(12){animation-delay:0.82s;}
 
 /* Reflet haut de carte */
 .type-tile::before{
@@ -2448,10 +2455,60 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 }
 .type-tile-tourisme:hover{box-shadow:0 12px 32px rgba(0,96,100,0.55);}
 
+/* ══ PÂTISSERIES — rose framboise ══ */
+.type-tile-patisserie{
+  background:linear-gradient(145deg,#c01060 0%,#ff6b9d 50%,#ffb3d1 100%);
+  border-color:rgba(192,16,96,0.55);
+  box-shadow:0 6px 22px rgba(192,16,96,0.38), inset 0 1px 0 rgba(255,255,255,0.28);
+}
+.type-tile-patisserie:hover{box-shadow:0 12px 32px rgba(192,16,96,0.55);}
+.type-tile-patisserie .tt-name{color:#fff;text-shadow:0 1px 6px rgba(100,0,40,0.45);}
+.type-tile-patisserie .tt-count{background:rgba(192,16,96,0.22);color:#fff;border-color:rgba(255,179,209,0.45);}
+
+/* ══ SALLES CÉRÉMONIES — bordeaux rubis ══ */
+.type-tile-salle-cer{
+  background:linear-gradient(145deg,#880033 0%,#e91e63 50%,#f48fb1 100%);
+  border-color:rgba(136,0,51,0.55);
+  box-shadow:0 6px 22px rgba(136,0,51,0.38), inset 0 1px 0 rgba(255,255,255,0.28);
+}
+.type-tile-salle-cer:hover{box-shadow:0 12px 32px rgba(136,0,51,0.55);}
+.type-tile-salle-cer .tt-name{color:#fff;text-shadow:0 1px 6px rgba(80,0,30,0.45);}
+.type-tile-salle-cer .tt-count{background:rgba(136,0,51,0.22);color:#fff;border-color:rgba(244,143,177,0.45);}
+
+/* ══ SALLES SPECTACLE — orange scène ══ */
+.type-tile-salle-sp{
+  background:linear-gradient(145deg,#b03000 0%,#ff6b35 50%,#ffb08a 100%);
+  border-color:rgba(176,48,0,0.55);
+  box-shadow:0 6px 22px rgba(176,48,0,0.38), inset 0 1px 0 rgba(255,255,255,0.28);
+}
+.type-tile-salle-sp:hover{box-shadow:0 12px 32px rgba(176,48,0,0.55);}
+.type-tile-salle-sp .tt-name{color:#fff;text-shadow:0 1px 6px rgba(80,20,0,0.45);}
+.type-tile-salle-sp .tt-count{background:rgba(176,48,0,0.22);color:#fff;border-color:rgba(255,176,138,0.45);}
+
+/* ══ SITES NATURELS — vert forêt ══ */
+.type-tile-nature{
+  background:linear-gradient(145deg,#004d2a 0%,#00c853 50%,#69f0ae 100%);
+  border-color:rgba(0,77,42,0.55);
+  box-shadow:0 6px 22px rgba(0,77,42,0.38), inset 0 1px 0 rgba(255,255,255,0.28);
+}
+.type-tile-nature:hover{box-shadow:0 12px 32px rgba(0,77,42,0.55);}
+.type-tile-nature .tt-name{color:#002610;text-shadow:0 1px 0 rgba(105,240,174,0.5),0 2px 4px rgba(0,0,0,0.18);}
+.type-tile-nature .tt-count{background:rgba(0,77,42,0.22);color:#003d1a;border-color:rgba(105,240,174,0.5);}
+
+/* ══ MONUMENTS — or antique ══ */
+.type-tile-monument{
+  background:linear-gradient(145deg,#7a5500 0%,#d4a853 50%,#ffe082 100%);
+  border-color:rgba(122,85,0,0.55);
+  box-shadow:0 6px 22px rgba(122,85,0,0.38), inset 0 1px 0 rgba(255,255,255,0.28);
+}
+.type-tile-monument:hover{box-shadow:0 12px 32px rgba(122,85,0,0.55);}
+.type-tile-monument .tt-name{color:#2a1800;text-shadow:0 1px 0 rgba(255,220,100,0.5),0 2px 4px rgba(0,0,0,0.18);}
+.type-tile-monument .tt-count{background:rgba(122,85,0,0.22);color:#3d2800;border-color:rgba(255,224,130,0.5);}
+
 /* ── ICÔNE ── */
 .tt-icon{
-  font-size:1.8rem;
-  margin-bottom:0.45rem;
+  font-size:1.5rem;
+  margin-bottom:0.28rem;
   line-height:1;
   position:relative;
   z-index:2;
@@ -2460,26 +2517,30 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 
 /* ── NOM ── */
 .tt-name{
-  font-family:'Playfair Display',Georgia,serif;
+  font-family:'Cinzel',serif;
   font-weight:700;
-  font-size:1.0rem;
+  font-size:0.56rem;
   color:#fff;
-  text-transform:capitalize;
-  letter-spacing:0.01em;
+  text-transform:uppercase;
+  letter-spacing:0.04em;
   position:relative;
   z-index:2;
-  text-shadow:0 1px 4px rgba(0,0,0,0.20);
-  line-height:1.3;
+  text-shadow:0 1px 3px rgba(0,0,0,0.60), 0 2px 8px rgba(0,0,0,0.30);
+  line-height:1.30;
   width:100%;
+  padding:0 0.2rem;
   text-align:center;
-  word-break:break-word;
-  hyphens:auto;
+  word-break:normal;
+  overflow-wrap:normal;
+  hyphens:none;
+  overflow:visible;
+  white-space:normal;
 }
 /* Fonds CLAIRS → texte foncé */
-.type-tile-hotel    .tt-name{color:#3d1800;text-shadow:0 1px 0 rgba(255,220,120,0.5);}
-.type-tile-bar      .tt-name{color:#5c0020;text-shadow:0 1px 0 rgba(255,180,190,0.4);}
-.type-tile-snack    .tt-name{color:#003d1a;text-shadow:0 1px 0 rgba(120,255,180,0.4);}
-.type-tile-resto    .tt-name{color:#3d1e00;text-shadow:0 1px 0 rgba(255,210,100,0.4);}
+.type-tile-hotel    .tt-name{color:#2a0e00;text-shadow:0 1px 0 rgba(255,220,120,0.5),0 2px 4px rgba(0,0,0,0.18);}
+.type-tile-bar      .tt-name{color:#3d0010;text-shadow:0 1px 0 rgba(255,180,190,0.5),0 2px 4px rgba(0,0,0,0.18);}
+.type-tile-snack    .tt-name{color:#002610;text-shadow:0 1px 0 rgba(120,255,180,0.5),0 2px 4px rgba(0,0,0,0.15);}
+.type-tile-resto    .tt-name{color:#2a1200;text-shadow:0 1px 0 rgba(255,210,100,0.5),0 2px 4px rgba(0,0,0,0.15);}
 /* Fonds FONCÉS → texte blanc */
 .type-tile-bar-terrasse .tt-name{color:#fff;text-shadow:0 1px 6px rgba(0,30,100,0.45);}
 .type-tile-disco        .tt-name{color:#fff;text-shadow:0 1px 6px rgba(60,0,120,0.45);}
@@ -2492,11 +2553,11 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  margin-top:0.42rem;
+  margin-top:0.28rem;
   font-family:'DM Sans',sans-serif;
-  font-size:0.68rem;
+  font-size:0.58rem;
   font-weight:700;
-  padding:0.14rem 0.65rem;
+  padding:0.10rem 0.45rem;
   border-radius:100px;
   position:relative;
   z-index:2;
@@ -2524,6 +2585,11 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .tt-count-salle{background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.38);box-shadow:inset 0 1px 0 rgba(255,255,255,0.25);}
 .tt-count-stade{background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.38);box-shadow:inset 0 1px 0 rgba(255,255,255,0.25);}
 .tt-count-tourisme{background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.38);box-shadow:inset 0 1px 0 rgba(255,255,255,0.25);}
+.tt-count-patisserie{background:rgba(192,16,96,0.14);color:#c01060;border:1px solid rgba(192,16,96,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.45);}
+.tt-count-salle-cer{background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.38);box-shadow:inset 0 1px 0 rgba(255,255,255,0.25);}
+.tt-count-salle-sp{background:rgba(176,48,0,0.14);color:#b03000;border:1px solid rgba(176,48,0,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.45);}
+.tt-count-nature{background:rgba(0,77,42,0.14);color:#004d2a;border:1px solid rgba(0,77,42,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.45);}
+.tt-count-monument{background:rgba(122,85,0,0.14);color:#7a5500;border:1px solid rgba(122,85,0,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.45);}
 
 /* ══ TOP 3 LIEUX ══ */
 .home-top6-section{
@@ -9449,28 +9515,43 @@ if (document.readyState === 'loading') {
               </div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Restaurant" onclick="igmToggleCat(this)">
                 <span class="igm-cat-icon">🍽️</span>
-                <div class="igm-cat-name">Restos & Pâtisseries</div>
+                <div class="igm-cat-name">Restaurants & Cafés</div>
                 <div class="igm-cat-count" id="igm-cnt-Restaurant">—</div>
+              </div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Patisserie" onclick="igmToggleCat(this)">
+                <span class="igm-cat-icon">🎂</span>
+                <div class="igm-cat-name">Pâtisseries & Boulangeries</div>
+                <div class="igm-cat-count" id="igm-cnt-Patisserie">—</div>
               </div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Discotheque" onclick="igmToggleCat(this)">
                 <span class="igm-cat-icon">🎵</span>
                 <div class="igm-cat-name">Clubs</div>
                 <div class="igm-cat-count" id="igm-cnt-Discotheque">—</div>
               </div>
-              <div class="igm-cat-btn igm-cat-sel" data-key="Salle" onclick="igmToggleCat(this)">
-                <span class="igm-cat-icon">🎪</span>
-                <div class="igm-cat-name">Salles & Cérémonies</div>
-                <div class="igm-cat-count" id="igm-cnt-Salle">—</div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Salle Ceremonie" onclick="igmToggleCat(this)">
+                <span class="igm-cat-icon">💍</span>
+                <div class="igm-cat-name">Salles de Cérémonies</div>
+                <div class="igm-cat-count" id="igm-cnt-Salle Ceremonie">—</div>
+              </div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Salle Spectacle" onclick="igmToggleCat(this)">
+                <span class="igm-cat-icon">🎭</span>
+                <div class="igm-cat-name">Salles de Spectacle</div>
+                <div class="igm-cat-count" id="igm-cnt-Salle Spectacle">—</div>
               </div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Stade" onclick="igmToggleCat(this)">
                 <span class="igm-cat-icon">⚽</span>
                 <div class="igm-cat-name">Stades Football</div>
                 <div class="igm-cat-count" id="igm-cnt-Stade">—</div>
               </div>
-              <div class="igm-cat-btn igm-cat-sel" data-key="Tourisme" onclick="igmToggleCat(this)">
+              <div class="igm-cat-btn igm-cat-sel" data-key="Site Naturel" onclick="igmToggleCat(this)">
+                <span class="igm-cat-icon">🌳</span>
+                <div class="igm-cat-name">Sites Naturels & Parcs</div>
+                <div class="igm-cat-count" id="igm-cnt-Site Naturel">—</div>
+              </div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Monument" onclick="igmToggleCat(this)">
                 <span class="igm-cat-icon">🏛️</span>
-                <div class="igm-cat-name">Sites Touristiques</div>
-                <div class="igm-cat-count" id="igm-cnt-Tourisme">—</div>
+                <div class="igm-cat-name">Monuments Historiques</div>
+                <div class="igm-cat-count" id="igm-cnt-Monument">—</div>
               </div>
             </div>
             <button class="igm-btn igm-btn-primary" onclick="igmStartSearch()">🔍 Lancer la recherche OpenStreetMap</button>
@@ -13807,7 +13888,7 @@ function renderHomeImmediate(){
     });
 
     // Grouper par catégorie et trouver le meilleur de chaque
-    var categories = ["Hotel", "Bar", "Bar Terrasse", "Snack", "Restaurant", "Discotheque", "Salle", "Stade", "Tourisme"];
+    var categories = ["Hotel","Bar","Bar Terrasse","Snack","Restaurant","Patisserie","Discotheque","Salle Ceremonie","Salle Spectacle","Stade","Site Naturel","Monument"];
     var categoryMap = {};
     categories.forEach(function(cat){ categoryMap[cat] = null; });
 
@@ -13844,9 +13925,9 @@ function renderHomeImmediate(){
       "Salle Spectacle":"salle-sp","Site Naturel":"nature","Monument":"monument"
     };
     var categoryLabels = {
-      "Bar":"BAR","Discotheque":"CLUBS","Restaurant":"RESTOS & PÂTISS.",
+      "Bar":"BAR","Discotheque":"CLUBS","Restaurant":"RESTOS & CAFÉS",
       "Bar Terrasse":"TERRASSE","Snack":"SNACKS","Hotel":"HÔTELS & MOTELS",
-      "Salle":"SALLES & CÉRÉM.","Stade":"STADES FOOT","Tourisme":"SITES TOURIST.",
+      "Stade":"STADES FOOT",
       "Patisserie":"PÂTISSERIES","Salle Ceremonie":"SALLES CÉRÉM.",
       "Salle Spectacle":"SALLES SPECTACLE","Site Naturel":"SITES NATURELS","Monument":"MONUMENTS"
     };
@@ -27197,11 +27278,14 @@ window.doAssignEtab = doAssignEtab;
               <div class="igm-cat-btn igm-cat-sel" data-key="Bar" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🍺</span><div class="igm-cat-name">Bars</div><div class="igm-cat-count" id="igm2-cnt-Bar">—</div></div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Bar Terrasse" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🍹</span><div class="igm-cat-name">Bar Terrasses</div><div class="igm-cat-count" id="igm2-cnt-Bar Terrasse">—</div></div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Snack" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🍟</span><div class="igm-cat-name">Snacks</div><div class="igm-cat-count" id="igm2-cnt-Snack">—</div></div>
-              <div class="igm-cat-btn igm-cat-sel" data-key="Restaurant" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🍽️</span><div class="igm-cat-name">Restos & Pâtisseries</div><div class="igm-cat-count" id="igm2-cnt-Restaurant">—</div></div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Restaurant" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🍽️</span><div class="igm-cat-name">Restaurants & Cafés</div><div class="igm-cat-count" id="igm2-cnt-Restaurant">—</div></div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Patisserie" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🎂</span><div class="igm-cat-name">Pâtisseries & Boulangeries</div><div class="igm-cat-count" id="igm2-cnt-Patisserie">—</div></div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Discotheque" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🎵</span><div class="igm-cat-name">Clubs</div><div class="igm-cat-count" id="igm2-cnt-Discotheque">—</div></div>
-              <div class="igm-cat-btn igm-cat-sel" data-key="Salle" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🎪</span><div class="igm-cat-name">Salles & Cérémonies</div><div class="igm-cat-count" id="igm2-cnt-Salle">—</div></div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Salle Ceremonie" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">💍</span><div class="igm-cat-name">Salles de Cérémonies</div><div class="igm-cat-count" id="igm2-cnt-Salle Ceremonie">—</div></div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Salle Spectacle" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🎭</span><div class="igm-cat-name">Salles de Spectacle</div><div class="igm-cat-count" id="igm2-cnt-Salle Spectacle">—</div></div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Stade" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">⚽</span><div class="igm-cat-name">Stades Football</div><div class="igm-cat-count" id="igm2-cnt-Stade">—</div></div>
-              <div class="igm-cat-btn igm-cat-sel" data-key="Tourisme" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🏛️</span><div class="igm-cat-name">Sites Touristiques</div><div class="igm-cat-count" id="igm2-cnt-Tourisme">—</div></div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Site Naturel" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🌳</span><div class="igm-cat-name">Sites Naturels & Parcs</div><div class="igm-cat-count" id="igm2-cnt-Site Naturel">—</div></div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Monument" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🏛️</span><div class="igm-cat-name">Monuments Historiques</div><div class="igm-cat-count" id="igm2-cnt-Monument">—</div></div>
             </div>
             <button class="igm-btn igm-btn-primary" onclick="igm2StartSearch()">🔍 Lancer la recherche Google Maps</button>
           </div>
