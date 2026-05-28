@@ -2817,13 +2817,18 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 /* ══ STATS STRIP ACCUEIL (4 chips) ══ */
 .home-stats-strip{
   display:grid;grid-template-columns:repeat(4,1fr);gap:0.5rem;
-  margin-bottom:1.2rem;
+  margin:0 auto 1.2rem auto;
   padding:0 1rem;
+  width:100%;
+  max-width:480px;
+  justify-items:center;
   animation:fadeUp 0.6s 0.1s ease both;
 }
 .hss-chip{
   background:var(--surface);border:1px solid rgba(255,255,255,0.07);
   border-radius:12px;padding:0.7rem 0.5rem;text-align:center;
+  width:100%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
   cursor:pointer;transition:transform 0.15s,border-color 0.2s,box-shadow 0.2s;
   -webkit-tap-highlight-color:transparent;user-select:none;
 }
@@ -5986,8 +5991,12 @@ textarea.soc-input{resize:vertical;min-height:80px;line-height:1.5;}
 .qr-card-icon:active{transform:scale(0.96);}
 .qr-card-icon.qr-locked{border-color:rgba(255,45,155,0.5);background:rgba(40,0,30,0.72);}
 .qr-card-icon.qr-locked span{color:var(--pink)!important;}
-/* Fix: overflow:hidden + contain:layout sur .card clippait l'icône QR positionnée en absolute */
-.card{position:relative;overflow:visible !important;contain:style !important;}
+/* Fix: overflow:hidden + contain:layout sur .card clippait l'icône QR positionnée en absolute
+   CORRECTION BUG AFFICHAGE : on ne touche plus à overflow ni contain sur .card (ça cassait
+   le layout des cartes — images coupées, contenu débordant à droite).
+   L'icône QR utilise désormais un z-index élevé + clip-path:none sur son propre parent. */
+.card{position:relative;}
+.qr-card-icon{overflow:visible;}
 .qr-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.82);backdrop-filter:blur(14px);z-index:9990;display:none;align-items:center;justify-content:center;padding:1rem;}
 .qr-modal-overlay.open{display:flex;}
 .qr-modal-sheet{background:linear-gradient(145deg,#1e0a30,#230d35);border:1.5px solid rgba(0,229,255,0.3);border-radius:24px;padding:1.4rem;width:min(400px,100%);max-height:92vh;overflow-y:auto;position:relative;animation:qrPopIn 0.35s cubic-bezier(0.34,1.56,0.64,1);}
@@ -27015,11 +27024,12 @@ window.doAssignEtab = doAssignEtab;
 .kpi-lbl{font-size:0.6rem;color:var(--muted);margin-top:0.2rem;text-transform:uppercase;letter-spacing:0.04em;}
 .sec-title{font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;color:var(--amber);text-transform:uppercase;letter-spacing:0.08em;display:flex;align-items:center;gap:0.4rem;margin-bottom:0.65rem;}
 .sec-title::after{content:'';flex:1;height:1px;background:rgba(255,215,0,0.12);}
-.card{background:var(--surface,#150a22);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:1rem;margin-bottom:0.75rem;}
-.card.amber-border{border-color:rgba(255,215,0,0.25);}
-.card.cyan-border{border-color:rgba(0,229,255,0.2);}
-.card.pink-border{border-color:rgba(255,45,155,0.25);}
-.card-title{font-family:'Syne',sans-serif;font-weight:700;font-size:0.85rem;margin-bottom:0.6rem;display:flex;align-items:center;gap:0.4rem;}
+/* BUG-FIX: scoped pour éviter d'écraser .card de la liste d'établissements */
+.adm-content .card{background:var(--surface,#150a22);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:1rem;margin-bottom:0.75rem;overflow:hidden;}
+.adm-content .card.amber-border{border-color:rgba(255,215,0,0.25);}
+.adm-content .card.cyan-border{border-color:rgba(0,229,255,0.2);}
+.adm-content .card.pink-border{border-color:rgba(255,45,155,0.25);}
+.adm-content .card-title,.card-title{font-family:'Syne',sans-serif;font-weight:700;font-size:0.85rem;margin-bottom:0.6rem;display:flex;align-items:center;gap:0.4rem;}
 .btn{padding:0.55rem 1rem;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;border:none;transition:all 0.15s;display:inline-flex;align-items:center;justify-content:center;gap:0.35rem;}
 .btn:active{transform:scale(0.96);opacity:0.85;}
 .btn-primary{background:linear-gradient(135deg,var(--amber),var(--pink,#ff2d9b));color:#000;}
@@ -42913,8 +42923,38 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     } catch(e) { console.warn('[AMBI241] Firebase save error:', e); return null; }
   }
 
+  /* ── Convertir un blob/objectURL en base64 data-URI ── */
+  function _blobToBase64(url) {
+    return new Promise(function(resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.responseType = 'blob';
+      xhr.onload = function() {
+        var reader = new FileReader();
+        reader.onloadend = function() { resolve(reader.result); };
+        reader.onerror = reject;
+        reader.readAsDataURL(xhr.response);
+      };
+      xhr.onerror = reject;
+      xhr.open('GET', url);
+      xhr.send();
+    });
+  }
+
+  /* ── Uploader une vidéo blob vers Firebase Storage ── */
+  async function _uploadVideoToStorage(blobUrl, pubId) {
+    try {
+      if(!window.fbStorage || !window.fbStorageRef || !window.fbUploadBytes || !window.fbGetDownloadURL) return null;
+      var resp = await fetch(blobUrl);
+      var blob = await resp.blob();
+      var ref = window.fbStorageRef(window.fbStorage, 'publications/' + pubId + '/video.' + (blob.type.split('/')[1] || 'mp4'));
+      await window.fbUploadBytes(ref, blob);
+      var url = await window.fbGetDownloadURL(ref);
+      return url;
+    } catch(e) { console.warn('[AMBI241] video upload error:', e); return null; }
+  }
+
   /* ── Soumettre publication ── */
-  window.socSubmitNewPub = function() {
+  window.socSubmitNewPub = async function() {
     var ta = document.getElementById('socPubTextarea');
     var text = ta ? ta.value.trim() : '';
     // Sondage : vérifier question
@@ -42941,6 +42981,30 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     var ts = Date.now();
     var pubId = 'sp_new_'+ts;
 
+    // ── Collecter les photos en base64 ──
+    var photos = [];
+    var photoEls = document.querySelectorAll('#socPubMediaPreview > div:not(#socPubVideoPreviewDiv):not(#socPubGifPreviewItem)');
+    for(var _pi = 0; _pi < photoEls.length; _pi++) {
+      var _img = photoEls[_pi].querySelector('img');
+      if(!_img) continue;
+      var _src = _img.src || '';
+      if(_src.startsWith('blob:')) {
+        try { _src = await _blobToBase64(_src); } catch(e) { console.warn('[AMBI241] photo base64 error:', e); }
+      }
+      if(_src) photos.push(_src);
+    }
+
+    // ── Uploader la vidéo vers Firebase Storage ──
+    var videoURL = null;
+    if(_spState.videoPreviewUrl) {
+      if(_spState.videoPreviewUrl.startsWith('blob:')) {
+        videoURL = await _uploadVideoToStorage(_spState.videoPreviewUrl, pubId);
+        if(!videoURL) videoURL = _spState.videoPreviewUrl; // fallback blob local
+      } else {
+        videoURL = _spState.videoPreviewUrl;
+      }
+    }
+
     // Construire objet publication
     var pubData = {
       id: pubId,
@@ -42953,7 +43017,9 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       etabName: etabName,
       location: _spState.location,
       gifUrl: _spState.gifUrl || null,
-      hasVideo: !!_spState.videoPreviewUrl,
+      photos: photos,
+      videoURL: videoURL || null,
+      hasVideo: !!videoURL,
       author: pseudo,
       authorUid: uid,
       authorLetter: letter,
@@ -42972,24 +43038,21 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
     // Construire le HTML feed
     var mediaHtml = '';
-    var imgs = document.querySelectorAll('#socPubMediaPreview img:not([style*="height:100"])'); // hack: photos uniquement
-    // Preview vidéo
-    if(_spState.videoPreviewUrl) {
+    // Preview vidéo (utilise videoURL persistant, pas le blob local)
+    if(videoURL) {
       mediaHtml += '<div style="border-radius:12px;overflow:hidden;margin:0.6rem 0;border:1.5px solid rgba(0,229,255,0.25);">'
-        +'<video src="'+_spState.videoPreviewUrl+'" controls style="width:100%;max-height:240px;display:block;background:#000;" playsinline></video></div>';
+        +'<video src="'+videoURL+'" controls style="width:100%;max-height:240px;display:block;background:#000;" playsinline></video></div>';
     }
     // GIF
     if(_spState.gifUrl) {
       mediaHtml += '<div style="border-radius:12px;overflow:hidden;margin:0.6rem 0;"><img src="'+_spState.gifUrl+'" style="width:100%;max-height:200px;object-fit:cover;display:block;"></div>';
     }
-    // Photos
-    var photoEls = document.querySelectorAll('#socPubMediaPreview > div:not(#socPubVideoPreviewDiv):not(#socPubGifPreviewItem)');
-    if(photoEls.length) {
-      var cols = photoEls.length===1?'1fr':(photoEls.length===2?'1fr 1fr':'1fr 1fr 1fr');
+    // Photos (utilise le tableau base64 déjà collecté)
+    if(photos.length) {
+      var cols = photos.length===1?'1fr':(photos.length===2?'1fr 1fr':'1fr 1fr 1fr');
       mediaHtml += '<div style="display:grid;grid-template-columns:'+cols+';gap:4px;margin:0.6rem 0;border-radius:12px;overflow:hidden;">';
-      photoEls.forEach(function(el){
-        var img = el.querySelector('img');
-        if(img) mediaHtml += '<img src="'+img.src+'" style="width:100%;height:110px;object-fit:cover;">';
+      photos.forEach(function(src){
+        mediaHtml += '<img src="'+src+'" style="width:100%;height:110px;object-fit:cover;">';
       });
       mediaHtml += '</div>';
     }
@@ -43050,6 +43113,9 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
     socClosePubModal();
     if(typeof window.showToast==='function') window.showToast('🚀 Publication partagée !');
+
+    // Déclencher les effets secondaires (compteur, feed refresh) via événement — sans chaîne de wrappers
+    document.dispatchEvent(new Event('socPubSubmitted'));
 
     // Sauvegarde Firebase (async, non bloquant)
     _socPubSaveFirebase(pubData).then(function(fid){
@@ -44350,10 +44416,11 @@ window.socSwitchTab = function(tab) {
 /* ═══════════════════════════════════════════════
    RAFRAÎCHIR LE FEED LIVE après une nouvelle publication
 ═══════════════════════════════════════════════ */
-var _origSocSubmit = window.socSubmitNewPub;
-window.socSubmitNewPub = function() {
-  if (typeof _origSocSubmit === 'function') _origSocSubmit();
-  // Incrémenter compteur local
+/* ═══════════════════════════════════════════════
+   COMPTEUR QUOTIDIEN localStorage — appelé directement
+   (plus de chaîne fragile via wrapper de socSubmitNewPub)
+═══════════════════════════════════════════════ */
+document.addEventListener('socPubSubmitted', function() {
   if (window.currentUserUID) {
     var dayKey = 'pubday_' + window.currentUserUID + '_' + new Date().toISOString().slice(0,10);
     try {
@@ -44361,7 +44428,7 @@ window.socSubmitNewPub = function() {
       localStorage.setItem(dayKey, c + 1);
     } catch(e) {}
   }
-};
+});
 
 console.log('[AMBI241] ✅ Module publication & live chargé v2');
 })();
@@ -44565,12 +44632,10 @@ console.log('[AMBI241] ✅ Module publication & live chargé v2');
     _startSocFeed();
   };
 
-  /* ── Après une nouvelle publication, rafraîchir le feed ── */
-  var _origSocSubmitFeed = window.socSubmitNewPub;
-  window.socSubmitNewPub = function(){
-    if(typeof _origSocSubmitFeed === 'function') _origSocSubmitFeed();
+  /* ── Après une nouvelle publication, rafraîchir le feed via événement ── */
+  document.addEventListener('socPubSubmitted', function() {
     setTimeout(_renderSocFeed, 800);
-  };
+  });
 
   /* ── Démarrage automatique : si le pane publications est déjà actif ou
         quand l'utilisateur se connecte ── */
