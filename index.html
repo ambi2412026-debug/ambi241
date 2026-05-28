@@ -13853,7 +13853,8 @@ function renderHomeImmediate(){
   /* ── Stats strip (4 tuiles) ── */
   var statsEl = document.getElementById("statsRowHome");
   if(statsEl){
-    var actifs  = d.filter(function(e){ return e.paiement && e.paiement.indexOf("Actif") !== -1; }).length;
+    /* PATCH : plus d'archivage — tous les lieux sont actifs */
+    var actifs  = d.length;
     var bondes  = d.filter(function(e){ return e.statut  && e.statut.indexOf("Bonde") !== -1;  }).length;
     var calmes  = d.filter(function(e){ return e.statut  && e.statut.indexOf("Calme") !== -1;  }).length;
     var chips   = [
@@ -14557,8 +14558,9 @@ function renderVisitors(){
 
 function renderStatsAdmin(){
   var d=etablissements;
-  var actifs=d.filter(function(e){return e.paiement&&e.paiement.indexOf("Actif")!==-1;}).length;
-  var inactifs=d.length-actifs;
+  /* PATCH : plus d'archivage — tous les établissements sont actifs */
+  var actifs=d.length;
+  var inactifs=0;
   var bondes=d.filter(function(e){return e.statut&&e.statut.indexOf("Bonde")!==-1;}).length;
   var animes=d.filter(function(e){return e.statut&&e.statut.indexOf("Anime")!==-1;}).length;
   var calmes=d.filter(function(e){return e.statut&&e.statut.indexOf("Calme")!==-1;}).length;
@@ -15866,7 +15868,8 @@ function closeLightbox(){document.getElementById("lightbox").classList.remove("s
 // RENDER STATS
 function renderStats(){
   var d=etablissements;if(!d.length)return;
-  var actifs=d.filter(function(e){return e.paiement&&e.paiement.indexOf("Actif")!==-1;}).length;
+  /* PATCH : plus d'archivage — tous les lieux sont actifs */
+  var actifs=d.length;
   var bondes=d.filter(function(e){return e.statut&&e.statut.indexOf("Bonde")!==-1;}).length;
   var avg=(d.reduce(function(s,e){return s+(e.note||0);},0)/d.length).toFixed(1);
   var chips=[
@@ -18763,7 +18766,7 @@ function toggleConfirme(index){
     window.fbUpdateDoc(docRef,{statut:newStatut}).then(function(){
       paiements[index].statut=newStatut;
       renderPayments();renderAll();renderHome();
-      showToast(newStatut==="Confirme"?"✅ Paiement confirmé — abonnement activé":"⏳ Remis en attente — établissement archivé");
+      showToast(newStatut==="Confirme"?"✅ Paiement confirmé — abonnement activé":"⏳ Remis en attente");
     }).catch(function(){
       paiements[index].statut=newStatut;
       renderPayments();renderAll();renderHome();
@@ -18772,7 +18775,7 @@ function toggleConfirme(index){
   } else {
     paiements[index].statut=newStatut;
     renderPayments();renderAll();renderHome();
-    showToast(newStatut==="Confirme"?"✅ Paiement confirmé — abonnement activé":"⏳ Remis en attente — établissement archivé");
+    showToast(newStatut==="Confirme"?"✅ Paiement confirmé — abonnement activé":"⏳ Remis en attente");
   }
 }
 window.toggleConfirme=toggleConfirme;
@@ -23836,69 +23839,75 @@ if(typeof window._admEtablArchivesOpen === 'undefined') window._admEtablArchives
 
 function renderAdmEtabl(){
   var d=etablissements;
-  
-  // TRI : établissements ACTIFS en haut, ARCHIVÉS en bas
-  var actifs = [];
-  var archives = [];
-  d.forEach(function(e){
-    if(e.paiement && (e.paiement.indexOf("Actif")!==-1 || e.paiement.indexOf("Confirme")!==-1)){
-      actifs.push(e);
-    } else {
-      archives.push(e);
-    }
-  });
 
+  /* ── PATCH : plus d'archivage — tous les établissements sont actifs ── */
   var isCompact = window._admEtablCompact;
 
   var html="<div style='margin-bottom:0.8rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;'>";
-  html+="<span style='font-size:0.72rem;color:var(--muted);'><strong style='color:var(--green);'>"+actifs.length+" actif(s)</strong> · <strong style='color:var(--red);'>"+archives.length+" archivé(s)</strong> · "+d.length+" total</span>";
+  html+="<span style='font-size:0.72rem;color:var(--muted);'><strong style='color:var(--green);'>"+d.length+" actif(s)</strong> · "+d.length+" total</span>";
   html+="<div style='display:flex;gap:0.4rem;align-items:center;'>";
-  // Toggle vue compact/détaillé
+  /* Bouton activer tous (mass-update Firebase) */
+  html+="<button onclick=\"activerTousEtablissements()\" style='font-size:0.65rem;font-weight:700;padding:0.3rem 0.7rem;border-radius:20px;cursor:pointer;font-family:DM Sans,sans-serif;border:1px solid rgba(0,255,170,0.4);background:rgba(0,255,170,0.12);color:var(--green);'>✅ Activer tous</button>";
+  /* Toggle compact/détaillé */
   html+="<button onclick=\"window._admEtablCompact=!window._admEtablCompact;renderAdmEtabl();\" style='display:flex;align-items:center;gap:0.3rem;font-size:0.65rem;font-weight:700;padding:0.3rem 0.65rem;border-radius:20px;cursor:pointer;font-family:DM Sans,sans-serif;transition:all 0.2s;border:1px solid "+(isCompact?"rgba(157,132,255,0.5)":"rgba(255,255,255,0.12)")+";background:"+(isCompact?"rgba(157,132,255,0.15)":"rgba(255,255,255,0.04)")+";color:"+(isCompact?"#9D84FF":"var(--muted)")+";'>"+(isCompact?"<span style='font-size:0.75rem;'>≡</span> Détaillé":"<span style='font-size:0.75rem;'>⊟</span> Compact")+"</button>";
   html+="<input id='admSearchEtabl' type='text' placeholder='Rechercher...' oninput='admFilterEtabl()' style='background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);font-size:0.78rem;padding:0.4rem 0.7rem;width:130px;'>";
   html+="</div>";
   html+="</div>";
 
-  // ── SECTION ACTIFS ──────────────────────────────────────────
-  if(actifs.length > 0){
-    var actifsOpen = window._admEtablActifsOpen;
+  /* ── SECTION UNIQUE — tous les établissements ── */
+  if(d.length > 0){
+    var open = window._admEtablActifsOpen;
     html+="<div style='margin:0.8rem 0 0.4rem;'>";
     html+="<button onclick=\"window._admEtablActifsOpen=!window._admEtablActifsOpen;renderAdmEtabl();\" style='width:100%;display:flex;align-items:center;gap:0.5rem;padding:0.55rem 0.75rem;background:rgba(0,255,170,0.08);border:none;border-left:3px solid var(--green);border-radius:6px;cursor:pointer;text-align:left;transition:background 0.2s;'>";
-    html+="<span style='font-size:0.9rem;color:var(--green);font-weight:700;transition:transform 0.2s;display:inline-block;transform:"+(actifsOpen?"rotate(90deg)":"rotate(0deg)")+";'>›</span>";
+    html+="<span style='font-size:0.9rem;color:var(--green);font-weight:700;transition:transform 0.2s;display:inline-block;transform:"+(open?"rotate(90deg)":"rotate(0deg)")+";'>›</span>";
     html+="<span style='font-size:0.75rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.05em;flex:1;'>✓ Établissements Actifs</span>";
-    html+="<span style='font-size:0.65rem;background:rgba(0,255,170,0.15);color:var(--green);border-radius:20px;padding:0.1rem 0.5rem;font-weight:700;'>"+actifs.length+"</span>";
+    html+="<span style='font-size:0.65rem;background:rgba(0,255,170,0.15);color:var(--green);border-radius:20px;padding:0.1rem 0.5rem;font-weight:700;'>"+d.length+"</span>";
     html+="</button></div>";
 
-    if(actifsOpen){
+    if(open){
       if(isCompact){
-        html += _renderEtablCompact(actifs, false);
+        html += _renderEtablCompact(d, false);
       } else {
-        actifs.forEach(function(e){ html += _renderEtablCard(e, false); });
-      }
-    }
-  }
-
-  // ── SECTION ARCHIVÉS ────────────────────────────────────────
-  if(archives.length > 0){
-    var archivesOpen = window._admEtablArchivesOpen;
-    html+="<div style='margin:1rem 0 0.4rem;'>";
-    html+="<button onclick=\"window._admEtablArchivesOpen=!window._admEtablArchivesOpen;renderAdmEtabl();\" style='width:100%;display:flex;align-items:center;gap:0.5rem;padding:0.55rem 0.75rem;background:rgba(255,68,102,0.08);border:none;border-left:3px solid var(--red);border-radius:6px;cursor:pointer;text-align:left;transition:background 0.2s;'>";
-    html+="<span style='font-size:0.9rem;color:var(--red);font-weight:700;transition:transform 0.2s;display:inline-block;transform:"+(archivesOpen?"rotate(90deg)":"rotate(0deg)")+";'>›</span>";
-    html+="<span style='font-size:0.75rem;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:0.05em;flex:1;'>📦 Établissements Archivés</span>";
-    html+="<span style='font-size:0.65rem;background:rgba(255,68,102,0.15);color:var(--red);border-radius:20px;padding:0.1rem 0.5rem;font-weight:700;'>"+archives.length+"</span>";
-    html+="</button></div>";
-
-    if(archivesOpen){
-      if(isCompact){
-        html += _renderEtablCompact(archives, true);
-      } else {
-        archives.forEach(function(e){ html += _renderEtablCard(e, true); });
+        d.forEach(function(e){ html += _renderEtablCard(e, false); });
       }
     }
   }
 
   document.getElementById("adminEtablList").innerHTML=html;
 }
+
+/* ── Activer tous les établissements en masse sur Firebase ── */
+function activerTousEtablissements(){
+  if(!isAdmin){ showToast("Admin requis"); return; }
+  if(!window.db || !window.fbUpdateDoc || !window.fbDoc){ showToast("Firebase non prêt"); return; }
+  var aActiver = etablissements.filter(function(e){
+    return !e.paiement || (e.paiement.indexOf("Actif")===-1 && e.paiement.indexOf("Confirme")===-1);
+  });
+  if(aActiver.length === 0){ showToast("✅ Tous déjà actifs !"); return; }
+  showToast("⏳ Activation de "+aActiver.length+" établissements...");
+  var done=0, errors=0;
+  aActiver.forEach(function(e){
+    if(!e._docId){ errors++; return; }
+    window.fbUpdateDoc(window.fbDoc(window.db, "etablissements", e._docId), { paiement: "Actif (Admin)" })
+      .then(function(){
+        e.paiement = "Actif (Admin)";
+        done++;
+        if(done+errors === aActiver.length){
+          showToast("✅ "+done+" établissements activés !"+(errors?" ("+errors+" erreurs)":""));
+          renderAdmEtabl();
+        }
+      })
+      .catch(function(err){
+        console.error("Erreur activation:", e.nom, err);
+        errors++;
+        if(done+errors === aActiver.length){
+          showToast("⚠️ "+done+" activés, "+errors+" erreurs");
+          renderAdmEtabl();
+        }
+      });
+  });
+}
+window.activerTousEtablissements = activerTousEtablissements;
 
 /* ── Vue COMPACTE : une ligne par établissement, expandable ── */
 function _renderEtablCompact(list, isArchived){
@@ -23911,7 +23920,7 @@ function _renderEtablCompact(list, isArchived){
     // Ligne compacte cliquable
     html+="<button onclick=\"(function(){var el=document.getElementById('"+expandId+"');if(el){el.style.display=el.style.display==='none'?'block':'none';var arr=el.previousSibling.querySelector('.adm-ec-arrow');if(arr)arr.style.transform=el.style.display==='none'?'rotate(0deg)':'rotate(90deg)';}})()\" style='width:100%;display:flex;align-items:center;gap:0.5rem;padding:0.55rem 0.7rem;background:transparent;border:none;cursor:pointer;text-align:left;'>";
     html+="<span class='adm-ec-arrow' style='font-size:0.75rem;color:var(--muted);display:inline-block;transform:rotate(0deg);transition:transform 0.2s;'>›</span>";
-    html+="<span style='font-size:0.78rem;font-weight:700;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;'>"+(isArchived?"🔒 ":"")+e.nom+"</span>";
+    html+="<span style='font-size:0.78rem;font-weight:700;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;'>"+e.nom+"</span>";
     html+="<span style='font-size:0.58rem;color:var(--muted);white-space:nowrap;margin-right:0.3rem;'>"+e.type+"</span>";
     html+="<span style='font-size:0.6rem;font-weight:700;color:"+sc+";white-space:nowrap;border:1px solid "+sc+";border-radius:20px;padding:0.06rem 0.35rem;background:rgba(0,0,0,0.2);'>"+( e.statut?(e.statut.replace("Ouvert - ","")):"–")+"</span>";
     html+="</button>";
