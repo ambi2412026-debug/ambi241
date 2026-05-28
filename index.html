@@ -11146,10 +11146,11 @@ function _subscribeAllEtabs() {
   var actifs = etablissements.filter(function(e){
     return e.paiement === "Confirme" || e.paiement === "Actif" || estPaiementConfirme(e);
   });
-  /* Bug2-FIX: Cap à 15 max — chaque _subscribeEtab ouvre 3 onSnapshot Firestore
-   * (presences + votes + ratings). 30+ etabs = 90+ WebSocket listeners simultanés
-   * sur mobile → saturation mémoire → crash navigateur ("Aïe aïe aïe"). */
-  var MAX_SUBS = 15;
+  /* Bug2-FIX: Cap à 8 max — chaque _subscribeEtab ouvre 3 onSnapshot Firestore
+   * (presences + votes + ratings). 15 etabs = 45 WebSocket listeners simultanés
+   * sur mobile → saturation réseau 3G/4G → lenteur générale.
+   * PERF-FIX: réduit à 8 (24 listeners max) pour mobile. */
+  var MAX_SUBS = 8;
   if(actifs.length === 0) actifs = etablissements.slice(0, Math.min(MAX_SUBS, etablissements.length));
   actifs = actifs.slice(0, MAX_SUBS);
   actifs.forEach(function(e) { _subscribeEtab(e.id); });
@@ -11158,10 +11159,11 @@ function _subscribeAllEtabs() {
 // Appeler dès que Firebase est prêt + après chaque loadData
 window._subscribeAllEtabs = _subscribeAllEtabs;
 
-// Abonnement immédiat (les établissements locaux sont déjà chargés)
+// PERF-FIX: délai augmenté 800ms→3000ms — évite que les 24 onSnapshot WebSocket
+// s'ouvrent pendant le premier chargement Firebase, ce qui ralentissait le rendu.
 setTimeout(function() {
   _subscribeAllEtabs();
-}, 800);
+}, 3000);
 
 </script>
 
@@ -11776,7 +11778,13 @@ function loadPhotoProfile(eid, callback) {
 // Charger toutes les photos profils au démarrage (avec délai pour éviter le flooding Firebase)
 function loadAllPhotoProfiles() {
   if (!window.db || !etablissements) return;
-  var list = etablissements.slice(0);
+  /* PERF-FIX: charger uniquement les photos des établissements actifs (paiement confirmé).
+     Avant : getDocs pour TOUS les étabs → N requêtes Firebase inutiles.
+     Maintenant : seulement les étabs payés, espacés par requestIdleCallback. */
+  var list = etablissements.filter(function(e) {
+    return e.paiement && (e.paiement.indexOf("Actif") !== -1 || e.paiement === "Confirme");
+  });
+  if (list.length === 0) list = etablissements.slice(0, 20); /* fallback si aucun actif */
   var idx = 0;
   /* Utiliser requestIdleCallback si dispo — charge les photos uniquement quand
      le navigateur est inactif, sans jamais bloquer le thread UI principal */
@@ -13618,11 +13626,19 @@ function _loadEtabCache() {
 function _processEtabData(firebaseData) {
   /* Dédoublonnage par id */
   var _seenIds = {};
-  return firebaseData.filter(function(e) {
+  var filtered = firebaseData.filter(function(e) {
     if (!e.id || _seenIds[e.id]) return false;
     _seenIds[e.id] = true;
     return true;
   });
+  /* PERF-FIX: pré-calculer la catégorie une seule fois par établissement.
+     getCategory() fait des regex + lookups à chaque appel — sans cache,
+     avec 12 catégories × N étabs × plusieurs rendus, le coût explose.
+     _cat est réutilisé partout à la place de getCategory(e.type). */
+  filtered.forEach(function(e) {
+    e._cat = getCategory(e.type);
+  });
+  return filtered;
 }
 
 function _renderAfterLoad() {
@@ -13650,15 +13666,19 @@ function loadData(){
   }
 
   /* ── ÉTAPE 1 : Afficher le cache immédiatement (rendu instantané) ── */
-  /* FIX v3 : si l'app vient d'être lancée depuis l'écran d'accueil (PWA),
-     ignorer le cache et aller directement sur Firestore pour avoir les données fraîches */
-  var _isPWA = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
-              || window.navigator.standalone === true;
-  var cached = _isPWA ? null : _loadEtabCache();
+  /* PERF-FIX v4 : on affiche TOUJOURS le cache d'abord (même en PWA) pour un
+     démarrage instantané. Firebase met ensuite à jour en arrière-plan silencieusement.
+     L'ancien comportement PWA=null forçait un écran vide + sablier à chaque lancement. */
+  var cached = _loadEtabCache();
 
   if (cached && cached.length > 0) {
     etablissements = cached;
-    etablissements.forEach(function(e) { applyDynamicStatus(e); });
+    etablissements.forEach(function(e) {
+      applyDynamicStatus(e);
+      /* PERF-FIX: JSON.parse recrée de nouveaux objets sans _cat calculé.
+         Le recalculer ici évite que getCategory() soit appelé à chaque rendu. */
+      if (!e._cat) e._cat = getCategory(e.type);
+    });
     /* BUG FIX — recalculer _distKm après restauration du cache :
        JSON.parse recrée de nouveaux objets sans les propriétés calculées (_distKm),
        donc filterByRadius() renverrait 0 résultats si le GPS est actif. */
@@ -13705,16 +13725,18 @@ function loadData(){
     if (typeof window._subscribeAllEtabs === "function") { window._subscribeAllEtabs(); }
 
     /* ── Photos en arrière-plan — délais échelonnés pour ne pas saturer le réseau ── */
-    setTimeout(loadAllPhotoProfiles, 2500);
+    /* PERF-FIX: délais augmentés (2.5s→5s et 3.5s→6s) pour laisser le rendu initial
+       se terminer avant de lancer les requêtes photos Firebase. */
+    setTimeout(loadAllPhotoProfiles, 5000);
     setTimeout(function() {
       if (typeof loadSlotPhotosAsync === 'function' && etablissements && etablissements.length) {
         var actifs = etablissements.filter(function(e) { return estPaiementConfirme(e); });
         actifs.slice(0, 10).forEach(function(e, i) {
-          /* Espacer les requêtes de 200ms chacune pour ne pas saturer la bande passante 3G */
-          setTimeout(function() { if (e.id) loadSlotPhotosAsync(e.id); }, i * 200);
+          /* Espacer les requêtes de 300ms chacune (était 200ms) */
+          setTimeout(function() { if (e.id) loadSlotPhotosAsync(e.id); }, i * 300);
         });
       }
-    }, 3500);
+    }, 6000);
 
   }).catch(function(err) {
     console.error("Firebase loadData:", err);
@@ -13785,7 +13807,9 @@ var _renderHomeTimer = null;
 var _renderHomeOrig = null;
 function renderHome(){
   if(_renderHomeTimer) clearTimeout(_renderHomeTimer);
-  _renderHomeTimer = setTimeout(renderHomeImmediate, 16);
+  /* PERF-FIX: debounce 100ms (était 16ms) — évite les rafales de rendus
+     quand renderAll()+renderHome()+renderStats() sont appelés en cascade. */
+  _renderHomeTimer = setTimeout(renderHomeImmediate, 100);
 }
 function renderHomeImmediate(){
   var d = etablissements;
@@ -13861,7 +13885,8 @@ function renderHomeImmediate(){
       {key:"Monument",        icon:"🏛️",       name:"Monuments Historiques",       cls:"monument",    countCls:"tt-count-monument"}
     ];
     typesEl.innerHTML = typesDef.map(function(t){
-      var count = d.filter(function(e){ return getCategory(e.type) === t.key; }).length;
+      /* PERF-FIX: e._cat pré-calculé dans _processEtabData — évite N×12 appels getCategory() */
+      var count = d.filter(function(e){ return (e._cat || getCategory(e.type)) === t.key; }).length;
       return '<div class="type-tile type-tile-'+t.cls+'" onclick="goToTypeFilter(\''+t.key+'\')" title="Voir les '+t.name+'">'
         + '<div class="tt-icon">'+t.icon+'</div>'
         + '<div class="tt-name">'+t.name+'</div>'
@@ -13893,7 +13918,8 @@ function renderHomeImmediate(){
     categories.forEach(function(cat){ categoryMap[cat] = null; });
 
     scored.forEach(function(e){
-      var cat = getCategory(e.type);
+      /* PERF-FIX: utiliser _cat pré-calculé */
+      var cat = e._cat || getCategory(e.type);
       if(categories.indexOf(cat) === -1) return; // ignorer catégories non gérées
       if(!categoryMap[cat] || e._score > categoryMap[cat]._score){
         categoryMap[cat] = e;
@@ -13941,8 +13967,8 @@ function renderHomeImmediate(){
 
     topEl.innerHTML = topSix.map(function(e, i){
       if(!e) return '';
-      var cat = getCategory(e.type);
-      var cardClass = categoryClasses[cat] || "bar";
+      /* PERF-FIX: utiliser _cat pré-calculé */
+      var cat = e._cat || getCategory(e.type);
       var label = categoryLabels[cat] || "BAR";
       var icon = categoryIcons[cat] || "🏢";
       var note = e.note ? e.note.toFixed(1) : "—";
@@ -15874,8 +15900,8 @@ function filterData(){
       ||e.nom.toLowerCase().indexOf(q)!==-1
       ||(e.quartier&&e.quartier.toLowerCase().indexOf(q)!==-1)
       ||(e.description&&e.description.toLowerCase().indexOf(q)!==-1);
-    // ── Filtre de catégorie : comparaison stricte via getCategory ──
-    var mt=currentType==="all"||(getCategory(e.type)===currentType);
+    // ── Filtre de catégorie : utiliser _cat pré-calculé (PERF-FIX) ──
+    var mt=currentType==="all"||((e._cat || getCategory(e.type))===currentType);
     var mv=currentStatus==="all"||(e.statut&&e.statut.indexOf(currentStatus)!==-1);
     // Admin voit tout (actifs + archivés) pour pouvoir les trier
     if(isAdmin) return ms&&mt;
@@ -16660,7 +16686,7 @@ function buildEtabProfilePanel(e){
   stats.push({icon:"🪑", val:(e.capacite_totale||0), lbl:"places"});
   stats.push({icon:"🏆", val:(e.nb_vip||0), lbl:"VIP"});
   // Chambres uniquement pour hôtels
-  var cat = getCategory(e.type);
+  var cat = e._cat || getCategory(e.type); // PERF-FIX
   if(cat==="Hotel" || (e.type||"").toLowerCase().indexOf("hôtel")!==-1 || (e.type||"").toLowerCase().indexOf("hotel")!==-1 || e.nb_chambres>0)
     stats.push({icon:"🛏️", val:(e.nb_chambres||0), lbl:"chambres"});
 
@@ -16755,7 +16781,7 @@ function buildLiveDispoBar(e, canManage){
 
 function buildCompactRow(e, rank, extraClass){
   extraClass = extraClass || "";
-  var cat  = getCategory(e.type);
+  var cat = e._cat || getCategory(e.type); // PERF-FIX
   var ci   = getCatInfo(cat);
   var sc   = computeRankScore(e);
   var aff  = e.affluence || 0;
@@ -16881,7 +16907,7 @@ window.toggleCompactDetail = function(eid){
 function buildCard(e,delay,compact,rank,extraClass){
   delay=delay||0;compact=compact||false;extraClass=extraClass||"";
   var sc=statusClass(e.statut);
-  var cat=getCategory(e.type);
+  var cat=e._cat || getCategory(e.type); // PERF-FIX
   var ci=getCatInfo(cat);
   var aff=e.affluence||0;
   var affColor=aff>70?"var(--red)":aff>40?"var(--amber)":"var(--green)";
@@ -17073,7 +17099,7 @@ function buildCard(e,delay,compact,rank,extraClass){
     // ══════════════════════════════════════════════════
     // ══  ESPACE GÉRANT PRO — Panneau complet         ══
     // ══════════════════════════════════════════════════
-    var cat = getCategory(e.type);
+    var cat = e._cat || getCategory(e.type); // PERF-FIX
     var isHotel = cat === "Hotel";
     var isResto = cat === "Restaurant" || cat === "Snack";
     var isBar   = cat === "Bar" || cat === "Bar Terrasse" || cat === "Discotheque";
@@ -17408,7 +17434,7 @@ function buildCard(e,delay,compact,rank,extraClass){
     );
   };
   // ── Classe CSS par type pour bordure colorée ──
-  var _catKey=(getCategory(e.type)||"Bar");
+  var _catKey=(e._cat || getCategory(e.type)||"Bar"); // PERF-FIX
   var _typeClass="type-bar";
   if(_catKey==="Restaurant")_typeClass="type-restaurant";
   else if(_catKey==="Discotheque")_typeClass="type-discotheque";
@@ -17427,7 +17453,7 @@ function buildCard(e,delay,compact,rank,extraClass){
     "<div class=\"card-row1\"><div>"+
     "<div class=\"card-num rank-"+(rank===1?'1':rank===2?'2':rank===3?'3':'other')+"\">N°"+(rank!=null?rank:e.id)+"</div>"+
     "<div class=\"card-name\"><button class=\"etab-name-order-btn\" onclick=\"window['_etabOrderBtn_'+"+e.id+"] && window['_etabOrderBtn_'+"+e.id+"]()\" title=\"📋 Réserver à "+e.nom.replace(/"/g,'')+"\" style=\"font-family:'Syne',sans-serif;font-size:inherit;font-weight:inherit;\">"+e.nom+" <span class=\"etab-name-order-pulse\">+</span></button> <span onclick=\"openGalerie("+e.id+")\" title=\"Voir la galerie de "+(e.nom||"").replace(/"/g,'')+"\" style=\"cursor:pointer;display:inline-flex;align-items:center;gap:0.35rem;flex-wrap:wrap;transition:color 0.2s;\"><span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span>"+(e._distKm!=null?"<span class=\"dist-badge "+distClass(e._distKm)+"\">"+fmtDist(e._distKm)+"</span>":"")+"</span></div>"+
-    "<span class=\"cat-badge "+ci.badge+"\" style=\"cursor:pointer;\" onclick=\"goToTypeFilter('"+getCategory(e.type)+"')\" title=\"Filtrer par "+ci.label+"\">"+ci.icon+" "+ci.label+"</span>"+
+    "<span class=\"cat-badge "+ci.badge+"\" style=\"cursor:pointer;\" onclick=\"goToTypeFilter('"+e._cat||getCategory(e.type)+"')\" title=\"Filtrer par "+ci.label+"\">"+ci.icon+" "+ci.label+"</span>"+
     "<div style=\"font-size:0.7rem;color:var(--cyan);margin-top:0.2rem;cursor:pointer;display:inline-flex;align-items:center;gap:0.2rem;\" onclick=\"goToQuartier('"+e.quartier.replace(/'/g,"")+"')\">&#128205; "+e.quartier+"<span style='font-size:0.55rem;opacity:0.6;'> ›</span></div>"+
     "</div>"+(e.statut ? "<span class=\"status-pill "+sc+"\">"+e.statut+"</span>" : "<span class=\"status-pill\">—</span>")+"</div>"+
     affBar+
@@ -17468,8 +17494,8 @@ function buildCard(e,delay,compact,rank,extraClass){
       return html;
     })()+
     "<div class=\"card-ambiance\"><span class=\"lbl\">Ambiance</span><span class=\"val\">"+e.ambiance+"</span></div>"+
-    (e.description && getCategory(e.type)==="Hotel" ? "<div style=\"font-size:0.72rem;color:var(--muted);line-height:1.5;padding:0.4rem 0.7rem;background:rgba(0,229,255,0.04);border-radius:8px;margin:0.4rem 0;border-left:2px solid rgba(0,229,255,0.3);\">&#127968; "+e.description+"</div>" : "")+
-    (getCategory(e.type)==="Terrasse" || (e.type||"").toLowerCase().indexOf("terrasse")!==-1 ? "<div style=\"padding:0.3rem 0.7rem 0;\"><span class='meteo-terrasse-badge' style='font-size:0.65rem;font-weight:700;'>🌡️ Météo chargement...</span></div>" : "")+
+    (e.description && (e._cat||getCategory(e.type))==="Hotel" ? "<div style=\"font-size:0.72rem;color:var(--muted);line-height:1.5;padding:0.4rem 0.7rem;background:rgba(0,229,255,0.04);border-radius:8px;margin:0.4rem 0;border-left:2px solid rgba(0,229,255,0.3);\">&#127968; "+e.description+"</div>" : "")+
+    ((e._cat||getCategory(e.type))==="Terrasse" || (e.type||"").toLowerCase().indexOf("terrasse")!==-1 ? "<div style=\"padding:0.3rem 0.7rem 0;\"><span class='meteo-terrasse-badge' style='font-size:0.65rem;font-weight:700;'>🌡️ Météo chargement...</span></div>" : "")+
     mapsBtn+
     "</div>"+soireeHtml+
     presRow+
@@ -18607,7 +18633,7 @@ function renderAllImmediate(){
       if(farAll.length > 0){
         // Grouper les lointains par catégorie
         var farGroups = {};
-        farAll.forEach(function(e){ var c=getCategory(e.type); if(!farGroups[c]) farGroups[c]=[]; farGroups[c].push(e); });
+        farAll.forEach(function(e){ var c=e._cat || getCategory(e.type); if(!farGroups[c]) farGroups[c]=[]; farGroups[c].push(e); });
         html += "<div class=\"proximity-section-header prox-far\" style=\"margin-top:" + (nearAll.length > 0 ? "0.8rem" : "0") + ";\">"
               + "<div class=\"prox-dot prox-dot-far\"></div>"
               + "&#128205; " + farAll.length + " lieu" + (farAll.length > 1 ? "x" : "") + " plus éloigné" + (farAll.length > 1 ? "s" : "")
@@ -18626,7 +18652,7 @@ function renderAllImmediate(){
       }
     } else {
       var groups={};
-      data.forEach(function(e){var c=getCategory(e.type);if(!groups[c])groups[c]=[];groups[c].push(e);});
+      data.forEach(function(e){var c=e._cat || getCategory(e.type); if(!groups[c])groups[c]=[];groups[c].push(e);});
       var catHtml="";
       // Compteur global pour numérotation continue entre catégories
       var globalRank=0;
