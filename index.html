@@ -20646,10 +20646,58 @@ window.openFicheEtab = function(id){
   if(mapsUrl)h += '<a href="'+mapsUrl+'" target="_blank" class="fiche-btn fiche-btn-maps" style="border:1px solid;">📍 Maps</a>';
   h += '</div></div>';
 
+  /* ── QR Vote + votes live ── */
+  h += '<div class="fiche-section">';
+  h += '<div class="fiche-section-title">📲 QR Vote · Ambiance en direct</div>';
+
+  /* Boutons de vote rapide */
+  var _lv = (window._liveVotes && window._liveVotes[String(e.id)]) || {pos:0,neg:0};
+  var _totalVotes = (_lv.pos||0) + (_lv.neg||0);
+  var _pctPos = _totalVotes > 0 ? Math.round((_lv.pos/_totalVotes)*100) : 0;
+
+  h += '<div style="display:flex;gap:0.6rem;margin-bottom:0.8rem;">';
+  h += '<button onclick="if(typeof ambiQrVote===\'function\'){ambiQrVote('+e.id+',\'pos\');this.style.transform=\'scale(0.92)\';setTimeout(function(){document.getElementById(\'ficheQrVotePos_'+e.id+'\').textContent=parseInt(document.getElementById(\'ficheQrVotePos_'+e.id+'\').textContent||0)+1;},300);}" '
+    + 'style="flex:1;padding:0.75rem 0.5rem;border-radius:14px;border:1.5px solid rgba(0,255,170,0.45);background:rgba(0,255,170,0.12);color:var(--green);font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.35rem;transition:all 0.2s;">'
+    + '🔥 Animé <span id="ficheQrVotePos_'+e.id+'" style="font-size:0.75rem;opacity:0.8;">'+((_lv.pos)||0)+'</span>'
+    + '</button>';
+  h += '<button onclick="if(typeof ambiQrVote===\'function\'){ambiQrVote('+e.id+',\'neg\');this.style.transform=\'scale(0.92)\';setTimeout(function(){document.getElementById(\'ficheQrVoteNeg_'+e.id+'\').textContent=parseInt(document.getElementById(\'ficheQrVoteNeg_'+e.id+'\').textContent||0)+1;},300);}" '
+    + 'style="flex:1;padding:0.75rem 0.5rem;border-radius:14px;border:1.5px solid rgba(255,68,102,0.35);background:rgba(255,68,102,0.1);color:var(--red);font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.35rem;transition:all 0.2s;">'
+    + '💤 Calme <span id="ficheQrVoteNeg_'+e.id+'" style="font-size:0.75rem;opacity:0.8;">'+((_lv.neg)||0)+'</span>'
+    + '</button>';
+  h += '</div>';
+
+  /* Barre de progression votes */
+  if(_totalVotes > 0){
+    h += '<div style="margin-bottom:0.7rem;">';
+    h += '<div style="display:flex;justify-content:space-between;font-size:0.62rem;color:var(--muted);margin-bottom:0.25rem;">'
+       + '<span>🔥 '+_pctPos+'% Animé</span><span>'+_totalVotes+' vote'+ (_totalVotes>1?'s':'') +'</span></div>';
+    h += '<div style="height:6px;background:rgba(255,255,255,0.07);border-radius:10px;overflow:hidden;">'
+       + '<div style="height:100%;width:'+_pctPos+'%;background:linear-gradient(90deg,var(--green),var(--cyan));border-radius:10px;transition:width 0.6s ease;"></div></div>';
+    h += '</div>';
+  }
+
+  /* Bouton ouvrir QR code complet */
+  h += '<button onclick="closeFicheEtab();setTimeout(function(){if(typeof ambiQrOpenModal===\'function\')ambiQrOpenModal('+e.id+');},200);" '
+    + 'style="width:100%;padding:0.7rem;border-radius:12px;border:1.5px solid rgba(0,229,255,0.4);background:rgba(0,229,255,0.08);color:var(--cyan);font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.5rem;transition:all 0.2s;">'
+    + '📱 Ouvrir le QR Code complet</button>';
+  h += '</div>';
+
   body.innerHTML = h;
   ov.classList.add('show');
   /* Bloquer le scroll de fond */
   document.body.style.overflow = 'hidden';
+
+  /* Charger les vrais votes QR depuis Firebase après ouverture */
+  setTimeout(function(){
+    if(typeof qrLoadVoteCount === 'function'){
+      qrLoadVoteCount(e.id, function(data){
+        var posEl = document.getElementById('ficheQrVotePos_'+e.id);
+        var negEl = document.getElementById('ficheQrVoteNeg_'+e.id);
+        if(posEl) posEl.textContent = data.pos || 0;
+        if(negEl) negEl.textContent = data.neg || 0;
+      });
+    }
+  }, 300);
 
   /* Restaurer le scroll à la fermeture */
   var _restore = function(){
@@ -22664,19 +22712,21 @@ function _startApp(){
     renderStats(); renderAll(); renderHome(); updateSyncTime();
   }
 }
-// ── Démarrage : afficher un skeleton léger au lieu des 65 hardcodés ──
-// Firebase chargera les vraies données en <2s — pas besoin de pré-remplir
-etablissements = [];
+// ── Démarrage : charger immédiatement les données locales + Firebase en parallèle ──
+// FIX : utiliser getDefaults() pour affichage instantané — Firebase met à jour dès qu'il répond
+etablissements = getDefaults();
 rebuildPaiements();
 loadSuperAdmin();
-// Afficher un indicateur de chargement plutôt que les faux 65 lieux
+// Afficher les données locales immédiatement (pas de skeleton vide)
 (function(){
   var ml = document.getElementById("mainList");
-  if(ml) ml.innerHTML = '<div style="text-align:center;padding:3rem 1rem;color:var(--muted);">'
-    +'<div style="font-size:2rem;margin-bottom:0.8rem;">⏳</div>'
-    +'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;color:var(--cyan);">Chargement des lieux...</div>'
-    +'<div style="font-size:0.72rem;margin-top:0.4rem;">Connexion à Firebase en cours</div>'
-    +'</div>';
+  if(ml && (!etablissements || !etablissements.length)) {
+    ml.innerHTML = '<div style="text-align:center;padding:3rem 1rem;color:var(--muted);">'
+      +'<div style="font-size:2rem;margin-bottom:0.8rem;">⏳</div>'
+      +'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;color:var(--cyan);">Chargement des lieux...</div>'
+      +'<div style="font-size:0.72rem;margin-top:0.4rem;">Connexion à Firebase en cours</div>'
+      +'</div>';
+  }
 })();
 renderStats(); renderHome(); renderPayments();
 setTimeout(initMeteo, 500);
@@ -22709,7 +22759,7 @@ setTimeout(function(){
     }
     _renderAfterLoad();
   }
-}, 12000);
+}, 5000);
 
 // ══════════════════════════════════════════════════════════════
 // ══ COLLECTE DE DONNÉES COMMUNAUTAIRES (Firebase)           ══
