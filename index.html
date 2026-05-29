@@ -61,6 +61,30 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
   overflow-x: auto !important;
 }
 
+/* ══ BLOQUER la propagation du swipe horizontal vers la navigation ══
+   Tous les conteneurs avec scroll horizontal doivent contenir
+   leur geste pour ne pas déclencher le changement de page ══════════ */
+.top6-grid,
+.soiree-grid,
+.stats-scroll,
+.soc-suggest-row,
+.fav-scroll,
+.igm-steps,
+.notif-filter-row,
+.taxi-tabs,
+.soc-tabs,
+.socpub-filter-row,
+.header-guide-bar,
+.demo-nav-profil,
+.af-filter-row,
+.tdm-skeleton,
+.types-grid,
+[class*='scroll'],
+[class*='Scroll'] {
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+}
+
 /* ══════════════════════════════════════════════════════════════
    ══ OPTION 1 — FLASH ÉVÉNEMENT (bandeau dans la carte)       ══
    ══════════════════════════════════════════════════════════════ */
@@ -2209,7 +2233,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 
 .home-types-section{
   margin: 0.8rem 0 1.4rem;
-  padding: 0 0.75rem;
+  padding: 0 0.15rem;
   animation: fadeUp 0.6s 0.15s ease both;
 }
 .home-section-label{
@@ -2223,24 +2247,27 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 
 .types-grid{
   display:grid;
-  grid-template-columns:repeat(3,1fr);
-  gap:0.55rem;
+  grid-template-columns:repeat(6,1fr);
+  gap:0.3rem;
 }
-/* Centrer la dernière tuile si elle est seule sur sa ligne (3col → 3n+1 last) */
-.types-grid .type-tile:last-child:nth-child(3n+1){
-  grid-column: 2 / 3;
+/* Tuile standard : 2 colonnes sur 6 = 1/3 de la largeur */
+.types-grid .type-tile{
+  grid-column: span 2;
 }
-.types-grid .type-tile:last-child:nth-child(3n+2){
-  grid-column: 2 / 4;
-  width: auto;
-  margin: 0;
+/* Tuile LARGE (texte long) : 3 colonnes sur 6 = 1/2 de la largeur */
+.types-grid .type-tile.tt-wide{
+  grid-column: span 3;
+}
+/* Tuile PLEINE LARGEUR (dernière seule) */
+.types-grid .type-tile.tt-full{
+  grid-column: span 6;
 }
 
 /* ── BASE CARTE ── */
 .type-tile{
   position:relative;
   border-radius:16px;
-  padding:0.75rem 0.4rem 0.7rem;
+  padding:0.55rem 0.1rem 0.5rem;
   text-align:center;
   cursor:pointer;
   transition:transform 0.25s cubic-bezier(.34,1.3,.64,1), box-shadow 0.25s ease;
@@ -2250,11 +2277,51 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   display:flex;
   flex-direction:column;
   align-items:center;
-  justify-content:center;
-  min-height:110px;
+  justify-content:space-between;
+  /* Hauteur adaptative : grandit si le texte est long */
+  min-height:108px;
+  height:auto;
   animation:tileEntree 0.5s ease both;
   border:2px solid transparent;
 }
+
+/* ── TUILE LARGE : layout horizontal icone + texte/badge ── */
+.type-tile.tt-wide{
+  flex-direction:row;
+  align-items:center;
+  justify-content:flex-start;
+  padding:0.55rem 0.7rem 0.55rem 0.65rem;
+  gap:0.55rem;
+  min-height:88px;
+  text-align:left;
+}
+.type-tile.tt-wide .tt-icon{
+  font-size:2rem;
+  margin-bottom:0;
+  flex-shrink:0;
+}
+.type-tile.tt-wide .tt-text-block{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:0.2rem;
+  flex:1;
+  min-width:0;
+}
+.type-tile.tt-wide .tt-name{
+  text-align:left;
+  font-size:clamp(0.75rem,3.2vw,0.95rem);
+  line-height:1.15;
+  width:100%;
+  white-space:normal;
+  overflow:visible;
+  padding:0;
+}
+.type-tile.tt-wide .tt-count{
+  margin-top:0;
+  align-self:flex-start;
+}
+
 /* Entrée en cascade */
 .type-tile:nth-child(1){animation-delay:0.04s;}
 .type-tile:nth-child(2){animation-delay:0.09s;}
@@ -2456,51 +2523,134 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   box-shadow:inset 0 1px 0 rgba(255,255,255,0.25);
 }
 .tt-icon{
-  font-size:2rem;
-  margin-bottom:0.2rem;
+  font-size:1.7rem;
+  margin-bottom:0.05rem;
   line-height:1;
   position:relative;
   z-index:2;
   filter:drop-shadow(0 2px 6px rgba(0,0,0,0.28));
+  flex-shrink:0;
 }
 
 /* ── NOM EN MAJUSCULES ── */
 .tt-name{
   font-family:'Syne',sans-serif;
   font-weight:800;
-  font-size:0.55rem;
+  font-size:clamp(0.62rem, 2.6vw, 0.75rem);
   color:#fff;
   text-transform:uppercase;
   letter-spacing:0.01em;
   position:relative;
   z-index:2;
-  text-shadow:0 1px 4px rgba(0,0,0,0.28);
-  line-height:1.25;
+  text-shadow:0 1px 4px rgba(0,0,0,0.35);
+  line-height:1.2;
   width:100%;
   text-align:center;
+  /* Retour à la ligne entre mots — PAS de césure mid-caractère. */
   white-space:normal;
   word-break:normal;
   overflow-wrap:normal;
   hyphens:none;
+  -webkit-hyphens:none;
+  padding:0 0.25rem;
+  overflow:hidden;
 }
-/* Fonds CLAIRS → texte foncé */
-.type-tile-hotel    .tt-name{color:#3d1800;text-shadow:0 1px 0 rgba(255,220,120,0.5);}
-.type-tile-bar      .tt-name{color:#4a0018;text-shadow:0 1px 0 rgba(255,180,190,0.4);}
-.type-tile-snack    .tt-name{color:#003d1a;text-shadow:0 1px 0 rgba(120,255,180,0.4);}
-.type-tile-resto    .tt-name{color:#3d1e00;text-shadow:0 1px 0 rgba(255,210,100,0.4);}
-/* Fonds FONCÉS → texte blanc */
-.type-tile-bar-terrasse .tt-name{color:#fff;text-shadow:0 1px 6px rgba(0,30,100,0.45);}
-.type-tile-disco        .tt-name{color:#fff;text-shadow:0 1px 6px rgba(60,0,120,0.45);}
-.type-tile-salle        .tt-name{color:#fff;text-shadow:0 1px 6px rgba(80,0,0,0.45);}
-.type-tile-stade        .tt-name{color:#fff;text-shadow:0 1px 6px rgba(0,50,0,0.45);}
-.type-tile-tourisme     .tt-name{color:#fff;text-shadow:0 1px 6px rgba(0,40,50,0.45);}
+/* ══════════════════════════════════════════════════
+   ══  TEXTES TUILES — COULEURS LUXE CONTRASTÉES   ══
+   ══════════════════════════════════════════════════ */
+
+/* HÔTELS — or profond : texte brun doré avec reflet métallique */
+.type-tile-hotel .tt-name{
+  color:#3a1200;
+  text-shadow:0 1px 0 rgba(255,230,100,0.9),0 2px 10px rgba(255,160,0,0.5),0 0 20px rgba(255,200,0,0.2);
+}
+/* BARS — rose fuchsia : texte blanc néon rose électrique */
+.type-tile-bar .tt-name{
+  color:#fff;
+  text-shadow:0 0 8px rgba(255,20,100,1),0 0 16px rgba(255,20,100,0.6),0 1px 0 rgba(255,200,220,0.5);
+}
+/* SNACKS — vert émeraude : texte vert foncé brillant */
+.type-tile-snack .tt-name{
+  color:#001a0a;
+  text-shadow:0 1px 0 rgba(100,255,180,0.9),0 2px 8px rgba(0,200,100,0.4),0 0 18px rgba(0,255,150,0.2);
+}
+/* RESTAURANTS — ambre : texte brun acajou doré */
+.type-tile-resto .tt-name{
+  color:#3a1200;
+  text-shadow:0 1px 0 rgba(255,220,80,0.9),0 2px 10px rgba(255,150,0,0.5),0 0 18px rgba(255,180,0,0.2);
+}
+/* PÂTISSERIES — rose bonbon : texte blanc avec halo magenta */
+.type-tile-patisserie .tt-name{
+  color:#fff;
+  text-shadow:0 0 10px rgba(255,50,180,1),0 0 20px rgba(255,50,180,0.5),0 1px 0 rgba(255,200,230,0.6);
+}
+/* BAR TERRASSE — bleu saphir : texte cyan lumineux */
+.type-tile-bar-terrasse .tt-name{
+  color:#e0f8ff;
+  text-shadow:0 0 10px rgba(80,200,255,1),0 0 20px rgba(0,150,255,0.6),0 1px 0 rgba(200,240,255,0.5);
+}
+/* CLUBS — violet néon : texte lilas avec halo violet */
+.type-tile-disco .tt-name{
+  color:#f0d0ff;
+  text-shadow:0 0 12px rgba(200,80,255,1),0 0 24px rgba(160,0,255,0.6),0 1px 0 rgba(255,220,255,0.4);
+}
+/* SALLES CÉRÉMONIES — rouge bordeaux : texte or lumineux */
+.type-tile-salle .tt-name{
+  color:#ffe8a0;
+  text-shadow:0 0 10px rgba(255,200,50,0.9),0 0 20px rgba(255,120,50,0.5),0 1px 0 rgba(255,240,180,0.5);
+}
+/* SALLES SPECTACLE — pourpre : texte or scintillant */
+.type-tile-spectacle .tt-name{
+  color:#ffd700;
+  text-shadow:0 0 12px rgba(255,215,0,0.9),0 0 24px rgba(255,150,0,0.5),0 1px 0 rgba(255,250,200,0.5);
+}
+/* STADES — vert gazon : texte blanc herbe fraîche */
+.type-tile-stade .tt-name{
+  color:#e8ffe8;
+  text-shadow:0 0 10px rgba(80,255,120,0.9),0 0 20px rgba(0,200,60,0.5),0 1px 0 rgba(200,255,200,0.5);
+}
+/* SITES NATURELS — forêt : texte vert lime lumineux */
+.type-tile-natureparc .tt-name{
+  color:#ccffcc;
+  text-shadow:0 0 10px rgba(100,255,100,0.9),0 0 20px rgba(30,160,30,0.5),0 1px 0 rgba(200,255,200,0.5);
+}
+/* MONUMENTS — or antique : texte crème nacré */
+.type-tile-monument .tt-name{
+  color:#fff8e8;
+  text-shadow:0 0 10px rgba(220,180,100,0.9),0 0 18px rgba(160,110,50,0.5),0 1px 0 rgba(255,240,200,0.5);
+}
+/* PHARMACIES — vert médical : texte mint éclatant */
+.type-tile-pharmacie .tt-name{
+  color:#e0fff8;
+  text-shadow:0 0 10px rgba(0,220,180,0.9),0 0 20px rgba(0,160,140,0.5),0 1px 0 rgba(150,255,230,0.5);
+}
+/* SUPERMARCHÉS — bleu marine : texte bleu ciel néon */
+.type-tile-supermarche .tt-name{
+  color:#e0f2ff;
+  text-shadow:0 0 10px rgba(80,180,255,0.9),0 0 20px rgba(0,100,220,0.5),0 1px 0 rgba(200,230,255,0.5);
+}
+/* STATIONS SERVICE — rouge carburant : texte orange brûlant */
+.type-tile-station .tt-name{
+  color:#fff0d8;
+  text-shadow:0 0 10px rgba(255,160,50,0.9),0 0 20px rgba(220,50,30,0.5),0 1px 0 rgba(255,210,160,0.5);
+}
+/* CLINIQUES — bleu santé : texte cyan blanc pur */
+.type-tile-clinique .tt-name{
+  color:#e8f8ff;
+  text-shadow:0 0 12px rgba(80,210,255,0.9),0 0 22px rgba(0,120,220,0.5),0 1px 0 rgba(200,240,255,0.5);
+}
+/* SITES TOURISTIQUES — bleu-vert : texte cyan aqua */
+.type-tile-tourisme .tt-name{
+  color:#dfffff;
+  text-shadow:0 0 12px rgba(0,230,220,0.9),0 0 22px rgba(0,140,130,0.5),0 1px 0 rgba(150,255,245,0.5);
+}
 
 /* ── BADGE COMPTEUR ── */
 .tt-count{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  margin-top:0.22rem;
+  margin-top:0.15rem;
   font-family:'DM Sans',sans-serif;
   font-size:0.6rem;
   font-weight:700;
@@ -2533,7 +2683,81 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .tt-count-stade{background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.38);box-shadow:inset 0 1px 0 rgba(255,255,255,0.25);}
 .tt-count-tourisme{background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.38);box-shadow:inset 0 1px 0 rgba(255,255,255,0.25);}
 
+
+/* ── ACCENT DÉCORATIF sur les tuiles larges ── */
+.type-tile.tt-wide::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:50%;
+  background:linear-gradient(180deg,rgba(255,255,255,0.28) 0%,transparent 100%);
+  pointer-events:none;z-index:1;border-radius:inherit;
+}
+/* Ligne d'accent verticale gauche sur tuiles larges */
+.type-tile.tt-wide .tt-icon{
+  position:relative;
+}
+.type-tile.tt-wide .tt-icon::after{
+  content:'';
+  position:absolute;
+  right:-0.28rem;
+  top:10%;
+  height:80%;
+  width:2px;
+  background:rgba(255,255,255,0.35);
+  border-radius:2px;
+}
+
 /* ══ TOP 3 LIEUX ══ */
+
+/* ── TUILE HÉRO (pleine largeur) ── */
+.type-tile.tt-full{
+  flex-direction:row;
+  align-items:center;
+  justify-content:flex-start;
+  padding:0.7rem 1.2rem 0.7rem 1rem;
+  gap:0.9rem;
+  min-height:80px;
+  text-align:left;
+}
+.type-tile.tt-full .tt-icon{
+  font-size:2.5rem;
+  margin-bottom:0;
+  flex-shrink:0;
+}
+.type-tile.tt-full .tt-text-block{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:0.25rem;
+  flex:1;
+  min-width:0;
+}
+.type-tile.tt-full .tt-name{
+  text-align:left;
+  font-size:clamp(0.88rem,4vw,1.1rem);
+  line-height:1.1;
+  width:100%;
+  overflow:visible;
+  padding:0;
+}
+.tt-wide-bottom{
+  display:flex;
+  align-items:center;
+  gap:0.5rem;
+}
+.tt-hero-badge{
+  display:inline-flex;
+  align-items:center;
+  padding:0.12rem 0.55rem;
+  border-radius:100px;
+  font-family:'DM Sans',sans-serif;
+  font-size:0.62rem;
+  font-weight:700;
+  background:rgba(255,255,255,0.22);
+  border:1px solid rgba(255,255,255,0.45);
+  color:#fff;
+  letter-spacing:0.03em;
+  white-space:nowrap;
+}
+
 .home-top6-section{
   margin-bottom:0.9rem;
   animation:fadeUp 0.6s 0.25s ease both;
@@ -2574,6 +2798,9 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   scroll-snap-type:x mandatory;
   -webkit-overflow-scrolling:touch;
   scrollbar-width:none;
+  /* Empêcher le swipe horizontal de déclencher la navigation entre pages */
+  touch-action:pan-x pan-y;
+  overscroll-behavior-x:contain;
 }
 .top6-grid::-webkit-scrollbar{display:none;}
 .top6-card{
@@ -3096,6 +3323,39 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .card.type-tourisme{border:2px solid #ffcc00;box-shadow:0 0 12px rgba(255,204,0,0.28),inset 0 0 10px rgba(255,204,0,0.06);}
 .card.type-tourisme:hover{border-color:#ffd633;box-shadow:0 0 22px rgba(255,204,0,0.45),inset 0 0 12px rgba(255,204,0,0.1);}
 
+/* ── 8 Nouvelles catégories ── */
+/* Spectacle — Pourpre scène */
+.card.type-spectacle{border:2px solid #ba68c8;box-shadow:0 0 12px rgba(186,104,200,0.28),inset 0 0 10px rgba(186,104,200,0.06);}
+.card.type-spectacle:hover{border-color:#ce93d8;box-shadow:0 0 22px rgba(186,104,200,0.48),inset 0 0 12px rgba(186,104,200,0.1);}
+
+/* NatureParc — Vert forêt */
+.card.type-natureparc{border:2px solid #66bb6a;box-shadow:0 0 12px rgba(102,187,106,0.28),inset 0 0 10px rgba(102,187,106,0.06);}
+.card.type-natureparc:hover{border-color:#81c784;box-shadow:0 0 22px rgba(102,187,106,0.45),inset 0 0 12px rgba(102,187,106,0.1);}
+
+/* Monument — Beige antique */
+.card.type-monument{border:2px solid #bcaaa4;box-shadow:0 0 12px rgba(188,170,164,0.28),inset 0 0 10px rgba(188,170,164,0.06);}
+.card.type-monument:hover{border-color:#d7ccc8;box-shadow:0 0 22px rgba(188,170,164,0.45),inset 0 0 12px rgba(188,170,164,0.1);}
+
+/* Pharmacie — Vert médical */
+.card.type-pharmacie{border:2px solid #4db6ac;box-shadow:0 0 12px rgba(77,182,172,0.28),inset 0 0 10px rgba(77,182,172,0.06);}
+.card.type-pharmacie:hover{border-color:#80cbc4;box-shadow:0 0 22px rgba(77,182,172,0.45),inset 0 0 12px rgba(77,182,172,0.1);}
+
+/* Supermarché — Bleu commerce */
+.card.type-supermarche{border:2px solid #64b5f6;box-shadow:0 0 12px rgba(100,181,246,0.28),inset 0 0 10px rgba(100,181,246,0.06);}
+.card.type-supermarche:hover{border-color:#90caf9;box-shadow:0 0 22px rgba(100,181,246,0.45),inset 0 0 12px rgba(100,181,246,0.1);}
+
+/* Station Service — Rouge carburant */
+.card.type-station{border:2px solid #ef9a9a;box-shadow:0 0 12px rgba(239,154,154,0.28),inset 0 0 10px rgba(239,154,154,0.06);}
+.card.type-station:hover{border-color:#ffcdd2;box-shadow:0 0 22px rgba(239,154,154,0.45),inset 0 0 12px rgba(239,154,154,0.1);}
+
+/* Clinique — Bleu santé */
+.card.type-clinique{border:2px solid #4fc3f7;box-shadow:0 0 12px rgba(79,195,247,0.28),inset 0 0 10px rgba(79,195,247,0.06);}
+.card.type-clinique:hover{border-color:#81d4fa;box-shadow:0 0 22px rgba(79,195,247,0.45),inset 0 0 12px rgba(79,195,247,0.1);}
+
+/* Pâtisserie — Rose bonbon */
+.card.type-patisserie{border:2px solid #f06292;box-shadow:0 0 12px rgba(240,98,146,0.28),inset 0 0 10px rgba(240,98,146,0.06);}
+.card.type-patisserie:hover{border-color:#f48fb1;box-shadow:0 0 22px rgba(240,98,146,0.45),inset 0 0 12px rgba(240,98,146,0.1);}
+
 
 
 /* ══ AVATAR SYSTÈME COMPLET ══ */
@@ -3403,6 +3663,18 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .cb-roof{background:rgba(0,229,255,0.12);color:var(--cyan);border:1px solid rgba(0,229,255,0.25);}
 .cb-snack{background:rgba(0,255,170,0.12);color:var(--green);border:1px solid rgba(0,255,170,0.25);}
 .cb-hotel{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.28);color:var(--cyan);}
+/* ── Badges 8 nouvelles catégories ── */
+.cb-salle{background:rgba(192,57,43,0.12);color:#ff7055;border:1px solid rgba(192,57,43,0.3);}
+.cb-stade{background:rgba(26,122,26,0.12);color:#4cdf70;border:1px solid rgba(26,122,26,0.3);}
+.cb-tourisme{background:rgba(0,96,100,0.12);color:#4dd0e1;border:1px solid rgba(0,96,100,0.3);}
+.cb-patisserie{background:rgba(233,30,140,0.12);color:#f06292;border:1px solid rgba(233,30,140,0.3);}
+.cb-spectacle{background:rgba(74,0,128,0.12);color:#ba68c8;border:1px solid rgba(74,0,128,0.3);}
+.cb-natureparc{background:rgba(27,94,32,0.12);color:#66bb6a;border:1px solid rgba(27,94,32,0.3);}
+.cb-monument{background:rgba(93,64,55,0.12);color:#bcaaa4;border:1px solid rgba(93,64,55,0.3);}
+.cb-pharmacie{background:rgba(0,105,92,0.12);color:#4db6ac;border:1px solid rgba(0,105,92,0.3);}
+.cb-supermarche{background:rgba(21,101,192,0.12);color:#64b5f6;border:1px solid rgba(21,101,192,0.3);}
+.cb-station{background:rgba(183,28,28,0.12);color:#ef9a9a;border:1px solid rgba(183,28,28,0.3);}
+.cb-clinique{background:rgba(1,87,155,0.12);color:#4fc3f7;border:1px solid rgba(1,87,155,0.3);}
 
 /* ══ CONTACT BUTTONS ══ */
 .card-contact-row{display:flex;gap:0.4rem;padding:0.55rem 0.9rem;flex-wrap:wrap;border-top:1px solid rgba(255,255,255,0.05);align-items:center;width:100%;box-sizing:border-box;overflow:hidden;}
@@ -7183,7 +7455,7 @@ if (document.readyState === 'loading') {
   <div class="modal" style="position:relative;max-height:92vh;overflow-y:auto;">
     <button class="modal-close" onclick="document.getElementById('etablModal').classList.remove('show')">&#10005;</button>
     <div style="text-align:center;margin-bottom:1rem;">
-      <div style="font-size:2rem">&#127968;</div>
+      <div style="font-size:2rem">&#127976;</div>
       <div class="modal-title">Inscrire mon etablissement</div>
       <div class="modal-sub">Remplissez ce formulaire. Validation apres paiement au nom : <strong style="color:var(--pink);">KOZANGUE ESSONO PATRICK BERTIN</strong></div>
     </div>
@@ -7251,7 +7523,7 @@ if (document.readyState === 'loading') {
       <!-- Honeypot anti-bot : invisible pour les humains, rempli automatiquement par les bots -->
       <input type="text" id="_hp_website" name="_hp_website" tabindex="-1" autocomplete="off"
         style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;">
-      <div style="font-size:0.68rem;color:var(--amber);font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.8rem;">&#127968; Informations</div>
+      <div style="font-size:0.68rem;color:var(--amber);font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.8rem;">&#127976; Informations</div>
       <div class="field"><label>Nom de l etablissement <span class="req">*</span></label><input type="text" name="nom_etablissement" placeholder="Ex: Miami Club" required maxlength="60"></div>
       <div class="field-row">
         <div class="field"><label>Type <span class="req">*</span></label>
@@ -7915,7 +8187,111 @@ if (document.readyState === 'loading') {
     <div class="home-types-section">
       <div class="home-section-label">Types d'établissements</div>
       <div class="types-grid" id="typesGrid">
-        <!-- généré par renderHome -->
+        <!-- ── RANGÉE 1 : Hôtels · Bars · Bar Terrasses ── -->
+        <div class="type-tile type-tile-hotel" onclick="goToTypeFilter('Hotel')" title="Hôtels & Motels">
+          <div class="tt-icon">&#127976;</div>
+          <div class="tt-name">Hôtels & Motels</div>
+          <div class="tt-count tt-count-hotel" id="ttc-hotel">0</div>
+        </div>
+        <div class="type-tile type-tile-bar" onclick="goToTypeFilter('Bar')" title="Bars">
+          <div class="tt-icon">&#127867;</div>
+          <div class="tt-name">Bars</div>
+          <div class="tt-count tt-count-bar" id="ttc-bar">0</div>
+        </div>
+        <div class="type-tile type-tile-bar-terrasse" onclick="goToTypeFilter('Bar Terrasse')" title="Bar Terrasses">
+          <div class="tt-icon">&#127796;</div>
+          <div class="tt-name">Bar Terrasses</div>
+          <div class="tt-count tt-count-bar-terrasse" id="ttc-bar-terrasse">0</div>
+        </div>
+        <!-- ── RANGÉE 2 : Snacks · Restaurants · Pâtisseries ── -->
+        <div class="type-tile type-tile-snack" onclick="goToTypeFilter('Snack')" title="Snacks">
+          <div class="tt-icon">&#127870;</div>
+          <div class="tt-name">Snacks</div>
+          <div class="tt-count tt-count-snack" id="ttc-snack">0</div>
+        </div>
+        <div class="type-tile type-tile-resto" onclick="goToTypeFilter('Restaurant')" title="Restaurants">
+          <div class="tt-icon">&#127869;</div>
+          <div class="tt-name">Restaurants</div>
+          <div class="tt-count tt-count-resto" id="ttc-resto">0</div>
+        </div>
+        <div class="type-tile type-tile-patisserie" onclick="goToTypeFilter('Patisserie')" title="Pâtisseries">
+          <div class="tt-icon">&#127874;</div>
+          <div class="tt-name">Pâtisseries</div>
+          <div class="tt-count tt-count-patisserie" id="ttc-patisserie">0</div>
+        </div>
+        <!-- ── RANGÉE 3 : Clubs · Monuments · Cliniques ── -->
+        <div class="type-tile type-tile-disco" onclick="goToTypeFilter('Discotheque')" title="Clubs">
+          <div class="tt-icon">&#127925;</div>
+          <div class="tt-name">Clubs</div>
+          <div class="tt-count tt-count-disco" id="ttc-disco">0</div>
+        </div>
+        <div class="type-tile type-tile-monument" onclick="goToTypeFilter('Monument')" title="Monuments">
+          <div class="tt-icon">&#127963;</div>
+          <div class="tt-name">Monuments</div>
+          <div class="tt-count tt-count-monument" id="ttc-monument">0</div>
+        </div>
+        <div class="type-tile type-tile-clinique" onclick="goToTypeFilter('Clinique')" title="Cliniques">
+          <div class="tt-icon">&#127973;</div>
+          <div class="tt-name">Cliniques</div>
+          <div class="tt-count tt-count-clinique" id="ttc-clinique">0</div>
+        </div>
+        <!-- ── RANGÉE 4 : Pharmacies · Supermarchés · Stades ── -->
+        <div class="type-tile type-tile-pharmacie" onclick="goToTypeFilter('Pharmacie')" title="Pharmacies">
+          <div class="tt-icon">&#128138;</div>
+          <div class="tt-name">Pharmacies</div>
+          <div class="tt-count tt-count-pharmacie" id="ttc-pharmacie">0</div>
+        </div>
+        <div class="type-tile type-tile-supermarche" onclick="goToTypeFilter('Supermarche')" title="Supermarchés">
+          <div class="tt-icon">&#128722;</div>
+          <div class="tt-name">Supermarchés</div>
+          <div class="tt-count tt-count-supermarche" id="ttc-supermarche">0</div>
+        </div>
+        <div class="type-tile type-tile-stade" onclick="goToTypeFilter('Stade')" title="Stades Football">
+          <div class="tt-icon">&#9917;</div>
+          <div class="tt-name">Stades Football</div>
+          <div class="tt-count tt-count-stade" id="ttc-stade">0</div>
+        </div>
+        <!-- ── RANGÉE 5 : Salles Cérémonies · Salles Spectacle (larges) ── -->
+        <div class="type-tile type-tile-salle tt-wide" onclick="goToTypeFilter('Salle')" title="Salles Cérémonies">
+          <div class="tt-icon">&#128141;</div>
+          <div class="tt-text-block">
+            <div class="tt-name">Salles Cérémonies</div>
+            <div class="tt-wide-bottom"><div class="tt-count tt-count-salle" id="ttc-salle">0</div></div>
+          </div>
+        </div>
+        <div class="type-tile type-tile-spectacle tt-wide" onclick="goToTypeFilter('Spectacle')" title="Salles Spectacle">
+          <div class="tt-icon">&#127914;</div>
+          <div class="tt-text-block">
+            <div class="tt-name">Salles Spectacle</div>
+            <div class="tt-wide-bottom"><div class="tt-count tt-count-spectacle" id="ttc-spectacle">0</div></div>
+          </div>
+        </div>
+        <!-- ── RANGÉE 6 : Sites Naturels · Stations Service (larges) ── -->
+        <div class="type-tile type-tile-natureparc tt-wide" onclick="goToTypeFilter('NatureParc')" title="Sites Naturels">
+          <div class="tt-icon">&#127795;</div>
+          <div class="tt-text-block">
+            <div class="tt-name">Sites Naturels</div>
+            <div class="tt-wide-bottom"><div class="tt-count tt-count-natureparc" id="ttc-natureparc">0</div></div>
+          </div>
+        </div>
+        <div class="type-tile type-tile-station tt-wide" onclick="goToTypeFilter('Station')" title="Stations Service">
+          <div class="tt-icon">&#9981;</div>
+          <div class="tt-text-block">
+            <div class="tt-name">Stations Service</div>
+            <div class="tt-wide-bottom"><div class="tt-count tt-count-station" id="ttc-station">0</div></div>
+          </div>
+        </div>
+        <!-- ── RANGÉE 7 : Sites Touristiques (pleine largeur) ── -->
+        <div class="type-tile type-tile-tourisme tt-full" onclick="goToTypeFilter('Tourisme')" title="Sites Touristiques">
+          <div class="tt-icon">&#128506;</div>
+          <div class="tt-text-block">
+            <div class="tt-name">Sites Touristiques</div>
+            <div class="tt-wide-bottom">
+              <div class="tt-count tt-count-tourisme" id="ttc-tourisme">0</div>
+              <span class="tt-hero-badge">Explorer &#8594;</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -8219,14 +8595,22 @@ if (document.readyState === 'loading') {
     <div class="filter-row" id="typeChips">
       <div class="fchip active" data-type="all" onclick="setTypeFilter('all',this)">&#10024; Tous</div>
       <div class="fchip" data-type="Bar" onclick="setTypeFilter('Bar',this)">&#127867; Bar &amp; Lounge</div>
-      <div class="fchip" data-type="Bar Terrasse" onclick="setTypeFilter('Bar Terrasse',this)">&#127970; Bar Terrasse</div>
+      <div class="fchip" data-type="Bar Terrasse" onclick="setTypeFilter('Bar Terrasse',this)">&#127796; Bar Terrasse</div>
       <div class="fchip" data-type="Discotheque" onclick="setTypeFilter('Discotheque',this)">&#127925; Disco &amp; Club</div>
-      <div class="fchip" data-type="Restaurant" onclick="setTypeFilter('Restaurant',this)">&#127374; Resto &amp; Café</div>
-      <div class="fchip" data-type="Snack" onclick="setTypeFilter('Snack',this)">&#127839; Snack</div>
-      <div class="fchip" data-type="Hotel" onclick="setTypeFilter('Hotel',this)">&#127968; Hôtels &amp; Motels</div>
-      <div class="fchip" data-type="Salle" onclick="setTypeFilter('Salle',this)">&#127914; Salles &amp; Cérémonies</div>
+      <div class="fchip" data-type="Restaurant" onclick="setTypeFilter('Restaurant',this)">&#127869; Resto &amp; Café</div>
+      <div class="fchip" data-type="Snack" onclick="setTypeFilter('Snack',this)">&#127870; Snack</div>
+      <div class="fchip" data-type="Hotel" onclick="setTypeFilter('Hotel',this)">&#127976; Hôtels &amp; Motels</div>
+      <div class="fchip" data-type="Patisserie" onclick="setTypeFilter('Patisserie',this)">&#127874; Pâtisseries</div>
+      <div class="fchip" data-type="Salle" onclick="setTypeFilter('Salle',this)">&#128141; Salles Cérémonies</div>
+      <div class="fchip" data-type="Spectacle" onclick="setTypeFilter('Spectacle',this)">&#127914; Salles Spectacle</div>
       <div class="fchip" data-type="Stade" onclick="setTypeFilter('Stade',this)">&#9917; Stades Football</div>
-      <div class="fchip" data-type="Tourisme" onclick="setTypeFilter('Tourisme',this)">&#127981; Sites Touristiques</div>
+      <div class="fchip" data-type="NatureParc" onclick="setTypeFilter('NatureParc',this)">&#127795; Sites Naturels</div>
+      <div class="fchip" data-type="Monument" onclick="setTypeFilter('Monument',this)">&#127963; Monuments</div>
+      <div class="fchip" data-type="Pharmacie" onclick="setTypeFilter('Pharmacie',this)">&#128138; Pharmacies</div>
+      <div class="fchip" data-type="Supermarche" onclick="setTypeFilter('Supermarche',this)">&#128722; Supermarchés</div>
+      <div class="fchip" data-type="Station" onclick="setTypeFilter('Station',this)">&#9981; Stations Service</div>
+      <div class="fchip" data-type="Clinique" onclick="setTypeFilter('Clinique',this)">&#127973; Cliniques</div>
+      <div class="fchip" data-type="Tourisme" onclick="setTypeFilter('Tourisme',this)">&#128506; Sites Touristiques</div>
     </div>
     <div class="filter-row">
       <div class="fchip schip-all active" data-status="all">Tous statuts</div>
@@ -10245,7 +10629,7 @@ if (document.readyState === 'loading') {
     <div class="footer-desc">AMBI241 est le premier annuaire d'ambiance en temps réel de Libreville. Trouvez facilement les meilleurs bars, discos, restaurants et bar terrasses de la ville.</div>
     <div class="footer-grid">
       <div class="footer-col">
-        <h4 data-i18n="footer_about">&#127968; A propos</h4>
+        <h4 data-i18n="footer_about">&#127976; A propos</h4>
         <p><strong style="color:var(--text);">AMBI241</strong></p>
         <p>Annuaire d ambiance nocturne</p>
         <p>Libreville, Gabon</p>
@@ -10399,7 +10783,7 @@ window.closePhotoViewer = closePhotoViewer;
 </div>
 
 <nav class="bottom-nav">
-  <button class="nav-item active" onclick="switchSection('accueil',this)"><span class="nav-icon">&#127968;</span>Accueil</button>
+  <button class="nav-item active" onclick="switchSection('accueil',this)"><span class="nav-icon">&#127976;</span>Accueil</button>
   <button class="nav-item" onclick="switchSection('etablissements',this)"><span class="nav-icon">&#128269;</span>Lieux</button>
   <button class="nav-item" id="navProfilBtn" onclick="navHandleProfil(this)"><span class="nav-unread-badge" id="navBadgeProfil"></span><span class="nav-icon" id="navProfilIcon">&#128273;</span><span id="navProfilLabel">Connexion</span></button>
   <button class="nav-item" onclick="switchSection('social',this)"><span class="nav-unread-badge" id="navBadgeForum"></span><span class="nav-icon">👥</span>Forum</button>
@@ -11343,10 +11727,10 @@ function generateFallbackPhoto(type, nom) {
   var cfg = {
     disco:    { g1:"#1a0028", g2:"#3d0066", ic:"&#9835;", label:"DISCOTH\u00c8QUE", c1:"#cc44ff", c2:"#ff2d9b" },
     bar:      { g1:"#0d1a00", g2:"#1a3300", ic:"&#127866;", label:"BAR",         c1:"#00ffaa", c2:"#00e5ff" },
-    resto:    { g1:"#1a0d00", g2:"#331a00", ic:"&#127374;", label:"RESTAURANT",  c1:"#ffd700", c2:"#ff9500" },
+    resto:    { g1:"#1a0d00", g2:"#331a00", ic:"&#127869;", label:"RESTAURANT",  c1:"#ffd700", c2:"#ff9500" },
     lounge:   { g1:"#0d001a", g2:"#1a0033", ic:"&#127870;", label:"LOUNGE",      c1:"#cc44ff", c2:"#00e5ff" },
-    snack:    { g1:"#001a0d", g2:"#003320", ic:"&#127828;", label:"SNACK-BAR",   c1:"#00ffaa", c2:"#ffd700" },
-    default:  { g1:"#0d0014", g2:"#1a0028", ic:"&#127968;", label:"\u00c9TABLISSEMENT",c1:"#ff2d9b", c2:"#cc44ff" }
+    snack:    { g1:"#001a0d", g2:"#003320", ic:"&#127870;", label:"SNACK-BAR",   c1:"#00ffaa", c2:"#ffd700" },
+    default:  { g1:"#0d0014", g2:"#1a0028", ic:"&#127976;", label:"\u00c9TABLISSEMENT",c1:"#ff2d9b", c2:"#cc44ff" }
   };
 
   var v;
@@ -12821,13 +13205,21 @@ function getNearbyCount(){if(_gpsState.lat===null||_gpsState.radius>=999)return 
 var CATEGORIES=[
   {key:"Bar",label:"Bar et Lounge",icon:"&#127867;",badge:"cb-bar"},
   {key:"Discotheque",label:"Discotheque et Club",icon:"&#127925;",badge:"cb-club"},
-  {key:"Restaurant",label:"Restaurant, Café et Maquis",icon:"&#127374;",badge:"cb-resto"},
-  {key:"Bar Terrasse",label:"Bar Terrasse et Rooftop",icon:"&#127970;",badge:"cb-roof"},
-  {key:"Snack",label:"Snack-Bar",icon:"&#127839;",badge:"cb-snack"},
-  {key:"Hotel",label:"Hôtel / Motel",icon:"&#127968;",badge:"cb-hotel"},
-  {key:"Salle",label:"Salle de spectacles &amp; cérémonies",icon:"&#127914;",badge:"cb-salle"},
+  {key:"Restaurant",label:"Restaurant, Café et Maquis",icon:"&#127869;",badge:"cb-resto"},
+  {key:"Bar Terrasse",label:"Bar Terrasse et Rooftop",icon:"&#127796;",badge:"cb-roof"},
+  {key:"Snack",label:"Snack-Bar",icon:"&#127870;",badge:"cb-snack"},
+  {key:"Hotel",label:"Hôtel / Motel",icon:"&#127976;",badge:"cb-hotel"},
+  {key:"Salle",label:"Salle de cérémonies",icon:"&#128141;",badge:"cb-salle"},
+  {key:"Spectacle",label:"Salle de spectacle",icon:"&#127914;",badge:"cb-spectacle"},
   {key:"Stade",label:"Stade de Football",icon:"&#9917;",badge:"cb-stade"},
-  {key:"Tourisme",label:"Site touristique &amp; Parc national",icon:"&#127981;",badge:"cb-tourisme"}
+  {key:"NatureParc",label:"Sites Naturels &amp; Parcs",icon:"&#127795;",badge:"cb-natureparc"},
+  {key:"Monument",label:"Monument Historique",icon:"&#127963;",badge:"cb-monument"},
+  {key:"Pharmacie",label:"Pharmacie",icon:"&#128138;",badge:"cb-pharmacie"},
+  {key:"Supermarche",label:"Supermarché",icon:"&#128722;",badge:"cb-supermarche"},
+  {key:"Station",label:"Station Service",icon:"&#9981;",badge:"cb-station"},
+  {key:"Clinique",label:"Clinique / Hôpital",icon:"&#127973;",badge:"cb-clinique"},
+  {key:"Patisserie",label:"Pâtisserie &amp; Boulangerie",icon:"&#127874;",badge:"cb-patisserie"},
+  {key:"Tourisme",label:"Site touristique &amp; Parc national",icon:"&#128506;",badge:"cb-tourisme"}
 ];
 
 function getCategory(type){
@@ -12842,45 +13234,75 @@ function getCategory(type){
     "bar terrasse":"Bar Terrasse","bar-terrasse":"Bar Terrasse","rooftop":"Bar Terrasse","rooftop bar":"Bar Terrasse",
     "restaurant":"Restaurant","café":"Restaurant","cafe":"Restaurant","brasserie":"Restaurant","pizzeria":"Restaurant",
     "bar":"Bar","lounge":"Bar","bar lounge":"Bar","pub":"Bar","taverne":"Bar",
-    "salle":"Salle","salle de spectacle":"Salle","salle de cérémonie":"Salle","salle de ceremonie":"Salle","salle polyvalente":"Salle","centre culturel":"Salle","théâtre":"Salle","cinema":"Salle","cinéma":"Salle","auditorium":"Salle",
+    "salle de cérémonie":"Salle","salle de ceremonie":"Salle","salle de reception":"Salle","salle polyvalente":"Salle","centre culturel":"Salle",
+    "salle de spectacle":"Spectacle","théâtre":"Spectacle","theater":"Spectacle","cinema":"Spectacle","cinéma":"Spectacle","auditorium":"Spectacle","salle de concert":"Spectacle",
     "stade":"Stade","stade de football":"Stade","stade football":"Stade","terrain football":"Stade","complexe sportif":"Stade",
-    "tourisme":"Tourisme","site touristique":"Tourisme","parc national":"Tourisme","parc naturel":"Tourisme","réserve":"Tourisme","reserve":"Tourisme","musée":"Tourisme","musee":"Tourisme","monument":"Tourisme","plage":"Tourisme","cascade":"Tourisme"
+    "site naturel":"NatureParc","parc naturel":"NatureParc","parc national":"NatureParc","réserve naturelle":"NatureParc","cascade":"NatureParc","foret":"NatureParc","forêt":"NatureParc","plage":"NatureParc","lac":"NatureParc",
+    "monument":"Monument","monument historique":"Monument","musée":"Monument","musee":"Monument","patrimoine":"Monument","cathédrale":"Monument","église":"Monument","eglise":"Monument",
+    "pharmacie":"Pharmacie","pharmacy":"Pharmacie","officine":"Pharmacie",
+    "supermarché":"Supermarche","supermarche":"Supermarche","supérette":"Supermarche","superette":"Supermarche","épicerie":"Supermarche","epicerie":"Supermarche","boutique alimentation":"Supermarche",
+    "station service":"Station","station-service":"Station","pompe à essence":"Station","pompe essence":"Station","station essence":"Station",
+    "clinique":"Clinique","hôpital":"Clinique","hopital":"Clinique","centre médical":"Clinique","dispensaire":"Clinique","cabinet médical":"Clinique","maternité":"Clinique",
+    "pâtisserie":"Patisserie","patisserie":"Patisserie","boulangerie":"Patisserie","salon de thé":"Patisserie","tearoom":"Patisserie",
+    "tourisme":"Tourisme","site touristique":"Tourisme","réserve":"Tourisme","reserve":"Tourisme"
   };
   if(exact[t])return exact[t];
 
-  // ── 2. Hôtels & Résidences (avant tout : évite faux positifs avec "bar de l'hôtel") ──
+  // ── 2. Hôtels & Résidences ──
   if(/h[oô]tel\s*\d|\d\s*[eé]toile|palace hotel|h[oô]tel\s*(suites|resort|lodge|inn|plaza)/.test(t))return "Hotel";
   if(t.indexOf("h\u00f4tel")!==-1||t.indexOf("hotel")!==-1||t.indexOf("motel")!==-1||t.indexOf("r\u00e9sidence")!==-1||t.indexOf("residence")!==-1||t.indexOf("resort")!==-1||t.indexOf("lodge")!==-1)return "Hotel";
 
-  // ── 3. Discothèques / Clubs ──
-  // "nightclub" ou "club" seul (mais pas "bar lounge club" → vérifier que "bar" N'est PAS le mot dominant)
+  // ── 3. Pharmacies (avant toute autre chose) ──
+  if(t.indexOf("pharmac")!==-1||t.indexOf("officine")!==-1)return "Pharmacie";
+
+  // ── 4. Cliniques / Hôpitaux ──
+  if(t.indexOf("clinique")!==-1||t.indexOf("h\u00f4pital")!==-1||t.indexOf("hopital")!==-1||t.indexOf("m\u00e9dical")!==-1||t.indexOf("medical")!==-1||t.indexOf("dispensaire")!==-1||t.indexOf("maternit")!==-1)return "Clinique";
+
+  // ── 5. Supermarchés ──
+  if(t.indexOf("superm")!==-1||t.indexOf("sup\u00e9r")!==-1||t.indexOf("supér")!==-1||t.indexOf("\u00e9picerie")!==-1||t.indexOf("epicerie")!==-1||t.indexOf("alimentation")!==-1)return "Supermarche";
+
+  // ── 6. Stations Service ──
+  if(t.indexOf("station")!==-1||t.indexOf("essence")!==-1||t.indexOf("carburant")!==-1||t.indexOf("pompe")!==-1)return "Station";
+
+  // ── 7. Monuments / Musées (avant Tourisme) ──
+  if(t.indexOf("monument")!==-1||t.indexOf("mus\u00e9e")!==-1||t.indexOf("musee")!==-1||t.indexOf("patrimoine")!==-1||t.indexOf("cath\u00e9")!==-1||t.indexOf("cathe")!==-1||(t.indexOf("\u00e9glise")!==-1||t.indexOf("eglise")!==-1))return "Monument";
+
+  // ── 8. Sites naturels / Parcs (avant Tourisme) ──
+  if(t.indexOf("parc")!==-1||t.indexOf("r\u00e9serve")!==-1||t.indexOf("reserve")!==-1||t.indexOf("cascade")!==-1||t.indexOf("for\u00eat")!==-1||t.indexOf("foret")!==-1||t.indexOf("plage")!==-1||t.indexOf("lac")!==-1||t.indexOf("naturel")!==-1)return "NatureParc";
+
+  // ── 9. Pâtisseries ──
+  if(t.indexOf("p\u00e2tiss")!==-1||t.indexOf("patiss")!==-1||t.indexOf("boulang")!==-1||t.indexOf("salon de th")!==-1)return "Patisserie";
+
+  // ── 10. Discothèques / Clubs ──
   if(t.indexOf("disco")!==-1||t.indexOf("nightclub")!==-1||t.indexOf("night club")!==-1)return "Discotheque";
-  // "club" seul, seulement si pas accompagné de "bar" ou "snack"
   if(t.indexOf("club")!==-1&&t.indexOf("bar")===-1&&t.indexOf("snack")===-1)return "Discotheque";
 
-  // ── 4. Bar Terrasse / Rooftop (avant Bar et Snack) ──
-  if(t.indexOf("terrasse")!==-1||t.indexOf("rooftop")!==-1||t.indexOf("bar terrasse")!==-1||t.indexOf("bar-terrasse")!==-1)return "Bar Terrasse";
+  // ── 11. Bar Terrasse / Rooftop ──
+  if(t.indexOf("terrasse")!==-1||t.indexOf("rooftop")!==-1)return "Bar Terrasse";
 
-  // ── 5. Snack (avant Bar pour éviter "snack-bar" → Bar) ──
+  // ── 12. Snack ──
   if(t.indexOf("snack")!==-1)return "Snack";
 
-  // ── 6. Restaurants & Cafés (avant Bar pour éviter "bar restaurant" → Bar) ──
-  // Si "restaurant" ou "resto" est présent ET "bar" aussi → Restaurant (lieu mixte classé resto)
-  if(t.indexOf("restaurant")!==-1||t.indexOf("resto")!==-1||t.indexOf("p\u00e2tisserie")!==-1||t.indexOf("patisserie")!==-1||t.indexOf("brasserie")!==-1||t.indexOf("pizzeria")!==-1||t.indexOf("bistro")!==-1||t.indexOf("caf\u00e9")!==-1||t.indexOf("cafe")!==-1||t.indexOf("maquis")!==-1)return "Restaurant";
+  // ── 13. Restaurants & Cafés ──
+  if(t.indexOf("restaurant")!==-1||t.indexOf("resto")!==-1||t.indexOf("brasserie")!==-1||t.indexOf("pizzeria")!==-1||t.indexOf("bistro")!==-1||t.indexOf("caf\u00e9")!==-1||t.indexOf("cafe")!==-1||t.indexOf("maquis")!==-1)return "Restaurant";
 
-  // ── 7. Bars & Lounges ──
+  // ── 14. Bars & Lounges ──
   if(t.indexOf("bar")!==-1||t.indexOf("lounge")!==-1||t.indexOf("pub")!==-1||t.indexOf("taverne")!==-1)return "Bar";
 
-  // ── 8. Salles de spectacles & cérémonies ──
-  if(t.indexOf("salle")!==-1||t.indexOf("spectacle")!==-1||t.indexOf("c\u00e9r\u00e9monie")!==-1||t.indexOf("ceremonie")!==-1||t.indexOf("th\u00e9\u00e2tre")!==-1||t.indexOf("cin\u00e9ma")!==-1||t.indexOf("auditorium")!==-1||t.indexOf("culturel")!==-1)return "Salle";
+  // ── 15. Salles de spectacle ──
+  if(t.indexOf("cin\u00e9ma")!==-1||t.indexOf("cinema")!==-1||t.indexOf("th\u00e9\u00e2tre")!==-1||t.indexOf("theatre")!==-1||t.indexOf("auditorium")!==-1||t.indexOf("concert")!==-1||(t.indexOf("spectacle")!==-1&&t.indexOf("salle")!==-1))return "Spectacle";
 
-  // ── 9. Stades de Football ──
+  // ── 16. Salles de cérémonies ──
+  if(t.indexOf("salle")!==-1||t.indexOf("c\u00e9r\u00e9monie")!==-1||t.indexOf("ceremonie")!==-1||t.indexOf("r\u00e9ception")!==-1||t.indexOf("reception")!==-1||t.indexOf("culturel")!==-1)return "Salle";
+
+  // ── 17. Stades de Football ──
   if(t.indexOf("stade")!==-1||t.indexOf("terrain")!==-1||t.indexOf("complexe sportif")!==-1||t.indexOf("foot")!==-1)return "Stade";
 
-  // ── 10. Sites touristiques & Parcs nationaux ──
-  if(t.indexOf("touristique")!==-1||t.indexOf("parc")!==-1||t.indexOf("r\u00e9serve")!==-1||t.indexOf("reserve")!==-1||t.indexOf("mus\u00e9e")!==-1||t.indexOf("monument")!==-1||t.indexOf("plage")!==-1||t.indexOf("cascade")!==-1)return "Tourisme";
+  // ── 18. Sites touristiques ──
+  if(t.indexOf("touristique")!==-1||t.indexOf("tourisme")!==-1)return "Tourisme";
 
-  // ── 11. Fallback ──
+  // ── 19. Fallback ──
+  console.warn("[AMBI241] getCategory: type inconnu \"" + type + "\" → fallback Bar");
   return "Bar";
 }
 function getCatInfo(key){
@@ -13599,6 +14021,23 @@ function _processEtabData(firebaseData) {
   return firebaseData.filter(function(e) {
     if (!e.id || _seenIds[e.id]) return false;
     _seenIds[e.id] = true;
+    /* ── Normalisation type : garantir une string valide pour getCategory ── */
+    if (!e.type || typeof e.type !== "string") {
+      console.warn("[AMBI241] ⚠️ Étab #" + e.id + " (" + (e.nom||"?") + ") — type manquant → fallback 'Bar'");
+      e.type = "Bar";
+    }
+    /* ── Normalisation statut : garantir la forme "Ouvert - X" pour filterData ── */
+    if (!e.statut || typeof e.statut !== "string") {
+      e.statut = "Ouvert - Calme";
+    } else if (e.statut === "Bonde" || e.statut === "Bondé") {
+      e.statut = "Ouvert - Bonde";
+    } else if (e.statut === "Anime" || e.statut === "Animé") {
+      e.statut = "Ouvert - Anime";
+    } else if (e.statut === "Calme") {
+      e.statut = "Ouvert - Calme";
+    }
+    /* ── paiement par défaut si absent ── */
+    if (!e.paiement) e.paiement = "Actif (Admin)";
     return true;
   });
 }
@@ -13697,6 +14136,49 @@ function loadData(){
     _renderAfterLoad();
   });
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   LISTENER TEMPS RÉEL — onSnapshot sur la collection "etablissements"
+   Garantit que tout ajout / modification / suppression dans Firestore
+   (console, autre client, script) est immédiatement reflété dans les
+   filtres et l'affichage, sans recharger l'app.
+   ══════════════════════════════════════════════════════════════════ */
+var _etabSnapshotUnsub = null;
+
+function _startEtabLiveListener() {
+  /* Guard — Firebase pas encore prêt */
+  if (!window.db || typeof window.fbOnSnapshot !== "function" ||
+      typeof window.fbCollection !== "function" || typeof window.fbQuery !== "function") {
+    setTimeout(_startEtabLiveListener, 500);
+    return;
+  }
+  /* Éviter les doublons de listener */
+  if (_etabSnapshotUnsub) { _etabSnapshotUnsub(); _etabSnapshotUnsub = null; }
+
+  var q = window.fbQuery(window.fbCollection(window.db, "etablissements"), window.fbOrderBy("id"));
+  _etabSnapshotUnsub = window.fbOnSnapshot(q, function(snap) {
+    var firebaseData = [];
+    snap.forEach(function(d) { firebaseData.push(Object.assign({ _docId: d.id }, d.data())); });
+    if (!firebaseData.length) return; /* Pas de données — ne pas écraser avec du vide */
+    var processed = _processEtabData(firebaseData);
+    /* Mettre à jour seulement si données différentes (éviter les re-renders inutiles) */
+    if (JSON.stringify(processed.map(function(e){return e.id+":"+(e.statut||"")+(e.affluence||0);}))
+        !== JSON.stringify(etablissements.map(function(e){return e.id+":"+(e.statut||"")+(e.affluence||0);}))) {
+      etablissements = processed;
+      _saveEtabCache(processed);
+      _renderAfterLoad();
+      console.log("[AMBI241] 🔄 Sync Firestore live — " + processed.length + " établissements");
+    }
+  }, function(err) {
+    console.warn("[AMBI241] ⚠️ onSnapshot etablissements:", err.message);
+  });
+}
+
+/* Démarrer le listener une fois Firebase prêt */
+(function _waitAndStartListener(){
+  if (window.__firebaseReady && window.db) { _startEtabLiveListener(); }
+  else { setTimeout(_waitAndStartListener, 400); }
+})();
 
 function updateField(id,fields){
   setSyncing(true);
@@ -13813,36 +14295,57 @@ function renderHomeImmediate(){
     }).join("");
   }
 
-  /* ── Grille types d'établissements ── */
+  /* ── Grille types d'établissements ── mise à jour compteurs uniquement ── */
   var typesEl = document.getElementById("typesGrid");
   if(typesEl){
-    var typesDef = [
-      {key:"Hotel",      icon:"&#127968;", name:"Hôtels & Motels",        cls:"hotel",       countCls:"tt-count-hotel"},
-      {key:"Bar",        icon:"&#127867;", name:"Bars",                    cls:"bar",         countCls:"tt-count-bar"},
-      {key:"Bar Terrasse",icon:"&#127970;",name:"Bar Terrasses",           cls:"bar-terrasse",countCls:"tt-count-bar-terrasse"},
-      {key:"Snack",      icon:"&#127839;", name:"Snacks",                  cls:"snack",       countCls:"tt-count-snack"},
-      {key:"Restaurant", icon:"&#127374;", name:"Restaurants",             cls:"resto",       countCls:"tt-count-resto"},
-      {key:"Patisserie", icon:"&#127874;", name:"Pâtisseries",             cls:"patisserie",  countCls:"tt-count-patisserie"},
-      {key:"Discotheque",icon:"&#127925;", name:"Clubs",                   cls:"disco",       countCls:"tt-count-disco"},
-      {key:"Salle",      icon:"&#128141;", name:"Salles Cérémonies",       cls:"salle",       countCls:"tt-count-salle"},
-      {key:"Spectacle",  icon:"&#127914;", name:"Salles Spectacle",        cls:"spectacle",   countCls:"tt-count-spectacle"},
-      {key:"Stade",      icon:"&#9917;",   name:"Stades Football",         cls:"stade",       countCls:"tt-count-stade"},
-      {key:"NatureParc", icon:"&#127795;", name:"Sites Naturels",          cls:"natureparc",  countCls:"tt-count-natureparc"},
-      {key:"Monument",   icon:"&#127963;", name:"Monuments",               cls:"monument",    countCls:"tt-count-monument"},
-      {key:"Pharmacie",  icon:"&#128138;", name:"Pharmacies",              cls:"pharmacie",   countCls:"tt-count-pharmacie"},
-      {key:"Supermarche",icon:"&#128722;", name:"Supermarchés",            cls:"supermarche", countCls:"tt-count-supermarche"},
-      {key:"Station",    icon:"&#9981;",   name:"Stations Service",        cls:"station",     countCls:"tt-count-station"},
-      {key:"Clinique",   icon:"&#127973;", name:"Cliniques",               cls:"clinique",    countCls:"tt-count-clinique"},
-      {key:"Tourisme",   icon:"&#127981;", name:"Sites Touristiques",      cls:"tourisme",    countCls:"tt-count-tourisme"}
+    /* Mapping key → id du badge compteur */
+    var countMap = [
+      {key:"Hotel",       id:"ttc-hotel"},
+      {key:"Bar",         id:"ttc-bar"},
+      {key:"Bar Terrasse",id:"ttc-bar-terrasse"},
+      {key:"Snack",       id:"ttc-snack"},
+      {key:"Restaurant",  id:"ttc-resto"},
+      {key:"Patisserie",  id:"ttc-patisserie"},
+      {key:"Discotheque", id:"ttc-disco"},
+      {key:"Monument",    id:"ttc-monument"},
+      {key:"Clinique",    id:"ttc-clinique"},
+      {key:"Pharmacie",   id:"ttc-pharmacie"},
+      {key:"Supermarche", id:"ttc-supermarche"},
+      {key:"Stade",       id:"ttc-stade"},
+      {key:"Salle",       id:"ttc-salle"},
+      {key:"Spectacle",   id:"ttc-spectacle"},
+      {key:"NatureParc",  id:"ttc-natureparc"},
+      {key:"Station",     id:"ttc-station"},
+      {key:"Tourisme",    id:"ttc-tourisme"}
     ];
-    typesEl.innerHTML = typesDef.map(function(t){
-      var count = d.filter(function(e){ return getCategory(e.type) === t.key; }).length;
-      return '<div class="type-tile type-tile-'+t.cls+'" onclick="goToTypeFilter(\''+t.key+'\')" title="Voir les '+t.name+'">'
-        + '<div class="tt-icon">'+t.icon+'</div>'
-        + '<div class="tt-name">'+t.name+'</div>'
-        + '<div class="tt-count '+t.countCls+'">'+count+'</div>'
-        + '</div>';
-    }).join("");
+    countMap.forEach(function(m){
+      var count = d.filter(function(e){ return getCategory(e.type) === m.key; }).length;
+      var el = document.getElementById(m.id);
+      if(el) el.textContent = count;
+    });
+
+        (function fitTileLabels(){
+      var BASE_PX = 12.0;
+      var MIN_PX  = 8.5;
+      var STEP    = 0.5;
+      var labels  = typesEl.querySelectorAll('.tt-name');
+      labels.forEach(function(el){
+        el.style.fontSize = '';
+        var tile = el.closest('.type-tile');
+        if(!tile) return;
+        /* Les tuiles larges ont suffisamment de place : pas besoin de réduire */
+        if(tile.classList.contains('tt-wide')) return;
+        var availW = tile.clientWidth - 4;
+        var fs = BASE_PX;
+        el.style.fontSize = fs + 'px';
+        var maxIter = 22;
+        while(maxIter-- > 0 && fs > MIN_PX){
+          if(el.scrollWidth <= availW && el.scrollHeight <= el.clientHeight + 2) break;
+          fs -= STEP;
+          el.style.fontSize = fs + 'px';
+        }
+      });
+    })();
   }
 
   /* ── Top 6 meilleur de chaque catégorie ── */
@@ -14223,6 +14726,9 @@ function renderUserPayDashboard(){
       html+='<div>';
       html+='<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.92rem;color:var(--text);">'+echeanceStr+'</div>';
       html+='<div style="font-size:0.68rem;margin-top:0.2rem;color:'+joursColor+';font-weight:700;">'+joursLabel+'</div>';
+      if(joursRestants!==null && joursRestants>=0){
+        html+='<div id="payLiveCountdown" style="font-family:\'Syne\',monospace;font-weight:800;font-size:0.78rem;color:'+joursColor+';margin-top:0.35rem;letter-spacing:0.06em;">⏱ …</div>';
+      }
       html+='</div>';
       html+='<div style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);border-radius:20px;padding:0.25rem 0.6rem;font-size:0.65rem;font-weight:700;color:var(--cyan);">'+planLabel+'</div>';
       html+='</div></div>';
@@ -14278,6 +14784,29 @@ function renderUserPayDashboard(){
   }
 
   el.innerHTML=html;
+
+  /* ── Compte à rebours live (HH:MM:SS) ── */
+  if(echeance && joursRestants !== null && joursRestants >= 0){
+    if(window._payCountdownTimer) clearInterval(window._payCountdownTimer);
+    var _ecTs = echeance.getTime();
+    var _joursColor = joursRestants < 0 ? "var(--red)" : joursRestants <= 7 ? "var(--amber)" : "var(--green)";
+    function _tickCountdown(){
+      var cdEl = document.getElementById("payLiveCountdown");
+      if(!cdEl){ clearInterval(window._payCountdownTimer); return; }
+      var diff = Math.max(0, _ecTs - Date.now());
+      if(diff === 0){ cdEl.textContent = "⏱ 00:00:00"; clearInterval(window._payCountdownTimer); return; }
+      var totalSec = Math.floor(diff / 1000);
+      var hh = Math.floor(totalSec / 3600);
+      var mm = Math.floor((totalSec % 3600) / 60);
+      var ss = totalSec % 60;
+      cdEl.textContent = "⏱ "
+        + (hh < 10 ? "0" : "") + hh + "h "
+        + (mm < 10 ? "0" : "") + mm + "m "
+        + (ss < 10 ? "0" : "") + ss + "s";
+    }
+    _tickCountdown();
+    window._payCountdownTimer = setInterval(_tickCountdown, 1000);
+  }
 }
 window.renderUserPayDashboard=renderUserPayDashboard;
 
@@ -15735,9 +16264,10 @@ function filterData(){
       ||(e.description&&e.description.toLowerCase().indexOf(q)!==-1);
     // ── Filtre de catégorie : comparaison stricte via getCategory ──
     var mt=currentType==="all"||(getCategory(e.type)===currentType);
-    var mv=currentStatus==="all"||(e.statut&&e.statut.indexOf(currentStatus)!==-1);
-    // Admin voit tout (actifs + archivés) pour pouvoir les trier
-    if(isAdmin) return ms&&mt;
+    // ── Filtre de statut : fallback "Calme" si statut absent ──
+    var _statut = e.statut || "Ouvert - Calme";
+    var mv=currentStatus==="all"||(_statut.indexOf(currentStatus)!==-1);
+    // Tout le monde (admin inclus) voit uniquement les actifs filtrés
     return ms&&mt&&mv;
   });
   // ── GPS : filtrer par rayon si mode actif ──
@@ -16934,8 +17464,13 @@ function buildCard(e,delay,compact,rank,extraClass){
     // ══════════════════════════════════════════════════
     var cat = getCategory(e.type);
     var isHotel = cat === "Hotel";
-    var isResto = cat === "Restaurant" || cat === "Snack";
+    var isResto = cat === "Restaurant" || cat === "Snack" || cat === "Patisserie";
     var isBar   = cat === "Bar" || cat === "Bar Terrasse" || cat === "Discotheque";
+    var isSalle = cat === "Salle" || cat === "Spectacle";
+    var isStade = cat === "Stade";
+    var isNature = cat === "NatureParc" || cat === "Tourisme" || cat === "Monument";
+    var isPharmacieOuClinique = cat === "Pharmacie" || cat === "Clinique";
+    var isSuperStaStation = cat === "Supermarche" || cat === "Station";
     var pd = (e.pro_data) || {};
     var pdDispo = pd.dispo || {};
     var isOpen = (e.statut||"").indexOf("Ouvert") !== -1;
@@ -16965,8 +17500,18 @@ function buildCard(e,delay,compact,rank,extraClass){
     ep = "<div class='pro-panel' id='proPan-"+e.id+"'>";
 
     // ── Header ──
+    var proIcon = isHotel ? "🏨" : isResto ? "🍽️" : isBar ? "🍺"
+      : isSalle ? "🎭" : isStade ? "⚽" : isNature ? "🌿"
+      : isPharmacieOuClinique ? "🏥" : isSuperStaStation ? "🛒"
+      : cat === "Patisserie" ? "🎂" : "🏪";
+    var defOuv = isPharmacieOuClinique ? "07:30" : isSuperStaStation ? "07:00"
+      : isHotel ? "00:00" : isNature ? "07:00"
+      : isSalle || isStade ? "16:00" : "18:00";
+    var defFerm = isPharmacieOuClinique ? "20:00" : isSuperStaStation ? "21:00"
+      : isHotel ? "23:59" : isNature ? "18:00"
+      : isSalle || isStade ? "23:00" : "02:00";
     ep += "<div class='pro-panel-header'>"
-      +"<div class='pro-panel-logo'>🏪</div>"
+      +"<div class='pro-panel-logo'>"+proIcon+"</div>"
       +"<div class='pro-panel-title-col'>"
       +"<div class='pro-panel-title'>Espace Gérant Pro</div>"
       +"<div class='pro-panel-sub'>"+escHtml(e.nom)+" · "+escHtml(e.quartier||"")+"</div>"
@@ -17030,6 +17575,30 @@ function buildCard(e,delay,compact,rank,extraClass){
       ep += proDispoCard("boissons", "🍾", "Stock bouteilles", 9999);
       ep += proDispoCard("cocktails","🍹", "Cocktails", 999);
     }
+    if(isSalle) {
+      ep += proDispoCard("billets",     "🎟️", "Billets disponibles", 9999);
+      ep += proDispoCard("loges_vip",   "🌟", "Loges VIP", 99);
+      ep += proDispoCard("sonorisation","🎤", "Podiums/Scènes", 9);
+    }
+    if(isStade) {
+      ep += proDispoCard("billets",     "🎟️", "Billets matchs", 9999);
+      ep += proDispoCard("tribunes_vip","🏆", "Tribune VIP", 999);
+      ep += proDispoCard("parkings",    "🅿️", "Places parking", 999);
+    }
+    if(isNature) {
+      ep += proDispoCard("guides",      "🧭", "Guides dispo", 99);
+      ep += proDispoCard("visites",     "🗺️", "Créneaux visites", 99);
+      ep += proDispoCard("parkings",    "🅿️", "Places parking", 999);
+    }
+    if(isPharmacieOuClinique) {
+      ep += proDispoCard("medecins",    "👨‍⚕️", "Médecins présents", 99);
+      ep += proDispoCard("file_med",    "🩺", "Patients en attente", 999);
+      ep += proDispoCard("stock_meds",  "💊", "Stock médicaments", 9999);
+    }
+    if(isSuperStaStation) {
+      ep += proDispoCard("caisses",     "🧾", "Caisses ouvertes", 99);
+      ep += proDispoCard("stock_items", "📦", "Niveaux stock", 9999);
+    }
     ep += "</div>"; // fin grille
 
     // Indicateurs libres (système existant)
@@ -17037,10 +17606,24 @@ function buildCard(e,delay,compact,rank,extraClass){
       +"<div id='dispoManagerGrid_"+e.id+"'>"+buildDispoManagerGrid(e)+"</div>"
       +"<button class='dispo-add-item-btn' onclick='openDispoItemModal("+e.id+")'>+ Ajouter un indicateur (plat, chambre, place…)</button>";
 
-    // Promo du jour
-    ep += "<div class='pro-sec' style='margin-top:0.85rem;'>🏷️ Offre spéciale du jour</div>"
+    // Promo du jour — placeholder adapté au domaine
+    var promoPlaceholder = isHotel ? "Ex: Chambre standard à 25000 XAF | Petit-dej offert | Réservation en ligne…"
+      : isResto ? "Ex: Menu du jour 3500 XAF | Livraison offerte | Spécial dimanche…"
+      : isPharmacieOuClinique ? "Ex: Vaccination grippe dispo | Médecin présent 8h-18h | Service urgences…"
+      : isSuperStaStation ? "Ex: Promo week-end : -20% légumes | Carburant disponible | Ouvert 24h/24…"
+      : isSalle ? "Ex: Salle disponible ce samedi | Tarif soirée 150000 XAF | Repas inclus…"
+      : isStade ? "Ex: Match ce soir 20h | Billets disponibles | Entraînement ouvert au public…"
+      : isNature ? "Ex: Visite guidée 9h30 | Entrée gratuite ce dimanche | Nouveau sentier ouvert…"
+      : "Ex: Happy hour 18h-20h | 2 cocktails = 1 offert | Menu à 5000 XAF…";
+    var promoLabel = isPharmacieOuClinique ? "🏥 Annonce du jour (soins, disponibilités…)"
+      : isSuperStaStation ? "🛒 Promo & info du jour"
+      : isSalle || isStade ? "📣 Annonce / Événement du jour"
+      : isNature ? "🌿 Info visite du jour"
+      : "🏷️ Offre spéciale du jour";
+
+    ep += "<div class='pro-sec' style='margin-top:0.85rem;'>"+promoLabel+"</div>"
       +"<div style='display:flex;gap:0.4rem;align-items:flex-start;'>"
-      +"<textarea id='proPromo-"+e.id+"' placeholder='Ex: Happy hour 18h-20h | 2 cocktails = 1 offert | Menu à 5000 XAF…' maxlength='120' rows='2' "
+      +"<textarea id='proPromo-"+e.id+"' placeholder='"+promoPlaceholder+"' maxlength='120' rows='2' "
       +"style='flex:1;background:rgba(255,215,0,0.04);border:1px solid rgba(255,215,0,0.18);border-radius:9px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.76rem;padding:0.5rem 0.65rem;resize:none;outline:none;'>"+escHtml(pd.promo_jour||"")+"</textarea>"
       +"<button onclick='proSavePromo("+e.id+")' style='background:linear-gradient(135deg,rgba(255,215,0,0.2),rgba(255,45,155,0.12));border:1.5px solid rgba(255,215,0,0.42);color:var(--amber);font-family:Syne,sans-serif;font-weight:800;font-size:0.7rem;padding:0.55rem 0.65rem;border-radius:9px;cursor:pointer;white-space:nowrap;'>💾 Publier</button>"
       +"</div>"
@@ -17054,21 +17637,26 @@ function buildCard(e,delay,compact,rank,extraClass){
     // Horaires
     ep += "<div class='pro-sec'>🕒 Horaires du jour</div>"
       +"<div style='display:flex;gap:0.45rem;align-items:center;flex-wrap:wrap;margin-bottom:0.8rem;'>"
-      +"<input type='time' id='proHOuv-"+e.id+"' value='"+(e.ouverture||"18:00")+"' style='background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.18);border-radius:8px;color:var(--text);font-size:0.8rem;padding:0.38rem 0.5rem;'>"
+      +"<input type='time' id='proHOuv-"+e.id+"' value='"+(e.ouverture||defOuv)+"' style='background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.18);border-radius:8px;color:var(--text);font-size:0.8rem;padding:0.38rem 0.5rem;'>"
       +"<span style='color:var(--muted);font-size:0.78rem;'>→</span>"
-      +"<input type='time' id='proHFerm-"+e.id+"' value='"+(e.fermeture||"02:00")+"' style='background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.18);border-radius:8px;color:var(--text);font-size:0.8rem;padding:0.38rem 0.5rem;'>"
+      +"<input type='time' id='proHFerm-"+e.id+"' value='"+(e.fermeture||defFerm)+"' style='background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.18);border-radius:8px;color:var(--text);font-size:0.8rem;padding:0.38rem 0.5rem;'>"
       +"<button onclick='proSaveHoraires("+e.id+")' style='background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.28);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.72rem;padding:0.4rem 0.75rem;border-radius:8px;cursor:pointer;'>💾 Sauver</button>"
       +"</div>";
 
-    // Événement ce soir
-    ep += "<div class='pro-sec'>📣 Événement ce soir</div>";
+    // Événement ce soir — libellé adapté
+    var evtLabel = isSalle || isStade ? "📣 Programmer un événement"
+      : isPharmacieOuClinique ? "📣 Annonce urgente (permanence, rupture...)"
+      : isSuperStaStation ? "📣 Alerte stock / Service exceptionnel"
+      : isNature ? "📣 Alerte / Info visite"
+      : "📣 Événement ce soir";
+    ep += "<div class='pro-sec'>"+evtLabel+"</div>";
     if(evtActif){
       ep += "<div style='background:rgba(255,45,155,0.07);border:1px solid rgba(255,45,155,0.28);border-radius:9px;padding:0.55rem 0.75rem;display:flex;align-items:center;gap:0.45rem;margin-bottom:0.7rem;'>"
         +"<span style='font-size:0.73rem;color:var(--green);flex:1;'>✅ "+escHtml((e.event_flash.texte||"").substring(0,50))+"</span>"
         +"<button onclick='clearEventFlash("+e.id+")' style='background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.28);color:var(--red);font-size:0.62rem;font-weight:700;padding:0.18rem 0.5rem;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;'>✕ Retirer</button>"
         +"</div>";
     } else {
-      ep += "<button onclick='openEventFlashModal("+e.id+")' style='width:100%;margin-bottom:0.7rem;padding:0.58rem;border-radius:10px;border:1.5px solid rgba(255,45,155,0.42);background:linear-gradient(135deg,rgba(255,45,155,0.12),rgba(204,68,255,0.07));color:var(--pink);font-family:Syne,sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer;'>📣 Annoncer un événement ce soir</button>";
+      ep += "<button onclick='openEventFlashModal("+e.id+")' style='width:100%;margin-bottom:0.7rem;padding:0.58rem;border-radius:10px;border:1.5px solid rgba(255,45,155,0.42);background:linear-gradient(135deg,rgba(255,45,155,0.12),rgba(204,68,255,0.07));color:var(--pink);font-family:Syne,sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer;'>"+evtLabel+"</button>";
     }
 
     // Message d'ambiance
@@ -17275,7 +17863,15 @@ function buildCard(e,delay,compact,rank,extraClass){
   else if(_catKey==="Snack")_typeClass="type-snack";
   else if(_catKey==="Bar Terrasse")_typeClass="type-terrasse";
   else if(_catKey==="Salle")_typeClass="type-salle";
+  else if(_catKey==="Spectacle")_typeClass="type-spectacle";
   else if(_catKey==="Stade")_typeClass="type-stade";
+  else if(_catKey==="NatureParc")_typeClass="type-natureparc";
+  else if(_catKey==="Monument")_typeClass="type-monument";
+  else if(_catKey==="Pharmacie")_typeClass="type-pharmacie";
+  else if(_catKey==="Supermarche")_typeClass="type-supermarche";
+  else if(_catKey==="Station")_typeClass="type-station";
+  else if(_catKey==="Clinique")_typeClass="type-clinique";
+  else if(_catKey==="Patisserie")_typeClass="type-patisserie";
   else if(_catKey==="Tourisme")_typeClass="type-tourisme";
 
   return "<div class=\"card "+_typeClass+(extraClass?" "+extraClass:"")+"\" id=\"card-etab-"+e.id+"\" style=\"animation-delay:"+delay+"s;"+(e._isPinned&&!isAdmin?"box-shadow:0 0 18px rgba(255,45,155,0.18);":"")+(eventFlashHtml?"":"")+"\">"+ 
@@ -17327,7 +17923,7 @@ function buildCard(e,delay,compact,rank,extraClass){
       return html;
     })()+
     "<div class=\"card-ambiance\"><span class=\"lbl\">Ambiance</span><span class=\"val\">"+e.ambiance+"</span></div>"+
-    (e.description && getCategory(e.type)==="Hotel" ? "<div style=\"font-size:0.72rem;color:var(--muted);line-height:1.5;padding:0.4rem 0.7rem;background:rgba(0,229,255,0.04);border-radius:8px;margin:0.4rem 0;border-left:2px solid rgba(0,229,255,0.3);\">&#127968; "+e.description+"</div>" : "")+
+    (e.description && getCategory(e.type)==="Hotel" ? "<div style=\"font-size:0.72rem;color:var(--muted);line-height:1.5;padding:0.4rem 0.7rem;background:rgba(0,229,255,0.04);border-radius:8px;margin:0.4rem 0;border-left:2px solid rgba(0,229,255,0.3);\">&#127976; "+e.description+"</div>" : "")+
     (getCategory(e.type)==="Terrasse" || (e.type||"").toLowerCase().indexOf("terrasse")!==-1 ? "<div style=\"padding:0.3rem 0.7rem 0;\"><span class='meteo-terrasse-badge' style='font-size:0.65rem;font-weight:700;'>🌡️ Météo chargement...</span></div>" : "")+
     mapsBtn+
     "</div>"+soireeHtml+
@@ -17495,7 +18091,7 @@ function renderOneComment(e, c){
   var initials = getInitials(pseudo);
   var color = avatarColor(pseudo);
   var authorClass = c.isOwner ? "comment-author is-owner" : (c.isAdmin ? "comment-author is-admin-tag" : "comment-author");
-  var badgeHtml = c.isOwner ? "<span class=\"comment-badge badge-owner\">&#127968; Propriétaire</span>" :
+  var badgeHtml = c.isOwner ? "<span class=\"comment-badge badge-owner\">&#127976; Propriétaire</span>" :
                   c.isAdmin ? "<span class=\"comment-badge badge-admin\">&#128272; Admin</span>" : "";
 
   var html = "<div class=\"comment-item\" id=\"citem-"+c.id+"\">";
@@ -18334,29 +18930,6 @@ function renderAllImmediate(){
     }
   }
   var data=filterData();
-  // —— Admin : actifs en haut, archivés en bas ——
-  if(isAdmin){
-    var _actifs   = data.filter(function(e){ return  estPaiementConfirme(e); });
-    var _archives = data.filter(function(e){ return !estPaiementConfirme(e); });
-    data = _actifs.concat(_archives);
-  }
-  // Bandeau établissements archivés (admin uniquement)
-  var archivedHtml="";
-  if(isAdmin){
-    var archived=etablissements.filter(function(e){return !estPaiementConfirme(e);});
-    if(archived.length>0){
-      archivedHtml+="<div style=\"background:rgba(255,80,80,0.08);border:1px dashed rgba(255,80,80,0.3);border-radius:14px;padding:0.8rem 1rem;margin-bottom:1rem;\">";
-      archivedHtml+="<div style=\"font-family:Syne,sans-serif;font-weight:800;font-size:0.82rem;color:#ff5050;margin-bottom:0.5rem;\">&#128274; "+archived.length+" établissement(s) archivé(s) — en attente de paiement</div>";
-      archived.forEach(function(e){
-        archivedHtml+="<div style=\"display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,0.3);border-radius:10px;padding:0.5rem 0.75rem;margin-bottom:0.4rem;\">";
-        archivedHtml+="<div><div style=\"font-weight:700;font-size:0.82rem;color:#fff;\">"+e.nom+"</div><div style=\"font-size:0.7rem;color:var(--muted);\">"+e.type+" · "+e.quartier+"</div></div>";
-        archivedHtml+="<span style=\"font-size:0.7rem;color:#ff5050;font-weight:700;background:rgba(255,80,80,0.12);padding:0.2rem 0.5rem;border-radius:6px;\">Non payé</span>";
-        archivedHtml+="</div>";
-      });
-      archivedHtml+="<div style=\"font-size:0.68rem;color:var(--muted);margin-top:0.4rem;\">&#128161; Confirmez le paiement dans l'onglet Tarifs pour rendre visible.</div>";
-      archivedHtml+="</div>";
-    }
-  }
   if(!data.length){
     var emptyMsg;
     if(typeof _gpsState !== "undefined" && _gpsState.active && _gpsState.lat !== null){
@@ -18366,7 +18939,7 @@ function renderAllImmediate(){
     } else {
       emptyMsg = "<div style=\"text-align:center;padding:3rem;color:var(--muted)\">Aucun etablissement visible</div>";
     }
-    document.getElementById("mainList").innerHTML=archivedHtml+emptyMsg;
+    document.getElementById("mainList").innerHTML=emptyMsg;
     return;
   }
   // ── GPS banner dans la liste ──
@@ -18541,13 +19114,9 @@ function renderAllImmediate(){
     if(window.openAmbiMap) setTimeout(function(){ window.openAmbiMap(); },50);
     return;
   }
-  // Autres vues : s'assurer que la carte est masquée et la liste visible
-  var _mc=document.getElementById("mapContainer");
-  var _ml=document.getElementById("mainList");
+  // Injecter la liste finale
   if(_mc) _mc.style.display="none";
   if(_ml) _ml.style.display="";
-  // Bandeau archivés en bas de liste
-  html+=archivedHtml;
   document.getElementById("mainList").innerHTML=html;
   // Mise à jour silencieuse des marqueurs si la carte a déjà été ouverte
   if(window._ambiMapReady && window._renderMapMarkers) window._renderMapMarkers(data);
@@ -20168,7 +20737,7 @@ document.addEventListener("change",function(e){
     // Ne pas déclencher si l'utilisateur fait défiler dans un overlay/modal ou élément scrollable
     if(e.target.closest(".overlay,.modal,.adm-dash-overlay,.notif-panel")) return;
     // Ne pas déclencher si on est dans un élément avec scroll horizontal
-    var scrollable = e.target.closest("[class*='scroll'],[class*='Scroll'],select,input,textarea,.types-grid,.soc-cat-row,.filter-row,.section-tabs-p");
+    var scrollable = e.target.closest("[class*='scroll'],[class*='Scroll'],select,input,textarea,.types-grid,.soc-cat-row,.filter-row,.section-tabs-p,.top6-grid,.soiree-grid,.stats-scroll,.soc-suggest-row,.fav-scroll,.header-guide-bar,.af-filter-row,.demo-nav-profil,.socpub-filter-row,.igm-steps,.notif-filter-row,.taxi-tabs");
     if(scrollable) return;
     var t=e.touches[0];
     _touchStartX=t.clientX;
@@ -20179,7 +20748,7 @@ document.addEventListener("change",function(e){
   document.addEventListener("touchend",function(e){
     if(!_touchStartTime) return;
     if(e.target.closest(".overlay,.modal,.adm-dash-overlay,.notif-panel")) return;
-    var scrollable = e.target.closest("[class*='scroll'],[class*='Scroll'],select,input,textarea,.types-grid,.soc-cat-row,.filter-row,.section-tabs-p");
+    var scrollable = e.target.closest("[class*='scroll'],[class*='Scroll'],select,input,textarea,.types-grid,.soc-cat-row,.filter-row,.section-tabs-p,.top6-grid,.soiree-grid,.stats-scroll,.soc-suggest-row,.fav-scroll,.header-guide-bar,.af-filter-row,.demo-nav-profil,.socpub-filter-row,.igm-steps,.notif-filter-row,.taxi-tabs");
     if(scrollable) return;
     var t=e.changedTouches[0];
     var dx=t.clientX-_touchStartX;
@@ -21820,6 +22389,8 @@ function adminAddFirebase(){
     ["aaPhotoIntFile","aaPhotoExtFile"].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=""; });
     ["aaPreviewInt","aaPreviewExt"].forEach(function(id){ var el=document.getElementById(id); if(el) el.style.display="none"; });
     ["aaPhotoIntName","aaPhotoExtName"].forEach(function(id){ var el=document.getElementById(id); if(el) el.textContent="Aucun fichier"; });
+    /* Invalider le cache pour garantir que loadData récupère les données fraîches */
+    try { localStorage.removeItem(_ETAB_CACHE_KEY); } catch(e) {}
     loadData();
     setTimeout(function(){closeAdminAddModal();},1500);
   }).catch(function(err){
@@ -22255,29 +22826,8 @@ window.openLegalModal = openLegalModal;
 window.closeLegalModal = closeLegalModal;
 
 
-// ── SWIPE MOBILE pour naviguer entre sections ─────────────────
-(function(){
-  var startX=0, startY=0;
-  var mainEl = document.querySelector("main");
-  if(!mainEl) return;
-  mainEl.addEventListener("touchstart", function(e){
-    startX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
-  }, {passive:true});
-  mainEl.addEventListener("touchend", function(e){
-    var dx = e.changedTouches[0].clientX - startX;
-    var dy = e.changedTouches[0].clientY - startY;
-    if(Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx)*0.8) return;
-    var navBtns = document.querySelectorAll(".nav-item");
-    var curIdx = 0;
-    navBtns.forEach(function(b,i){ if(b.classList.contains("active")) curIdx = i; });
-    var nextIdx = dx < 0 ? Math.min(curIdx+1, navBtns.length-1) : Math.max(curIdx-1, 0);
-    if(nextIdx !== curIdx){
-      var secs = ["accueil","etablissements","paiements","contacts"];
-      if(nextIdx < secs.length) switchSection(secs[nextIdx], navBtns[nextIdx]);
-    }
-  }, {passive:true});
-})();
+// ── SWIPE MOBILE désactivé ici — géré par le listener global ci-dessus ──
+// (second listener supprimé pour éviter double déclenchement sur top6-grid)
 
 // ══════════════════════════════════════════════════════════════
 // ══ SYSTÈME DE NOTIFICATIONS CIBLÉES AMBI241 v2             ══
@@ -27534,7 +28084,7 @@ window.doAssignEtab = doAssignEtab;
   <div class="modal" style="position:relative;max-height:92vh;overflow-y:auto;">
     <button class="modal-close" onclick="closeAdminAddModal()">&#10005;</button>
     <div style="text-align:center;margin-bottom:1rem;">
-      <div style="font-size:2rem">&#127968;</div>
+      <div style="font-size:2rem">&#127976;</div>
       <div class="modal-title" style="color:var(--amber);">Ajouter un établissement</div>
       <div class="modal-sub">Mode Admin — Ajout gratuit sans paiement</div>
     </div>
@@ -28381,7 +28931,7 @@ window.doAssignEtab = doAssignEtab;
       ts = d.toLocaleDateString("fr-FR",{day:"numeric",month:"short"}) + " · " + d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
     }
     var roleClass = p.role === "admin" ? "pub-badge-admin" : (p.role === "etablissement" ? "pub-badge-etab" : "pub-badge-member");
-    var roleLabel = p.role === "admin" ? "&#9881; Admin" : (p.role === "etablissement" ? "&#127968; Établ." : "&#128100; Membre");
+    var roleLabel = p.role === "admin" ? "&#9881; Admin" : (p.role === "etablissement" ? "&#127976; Établ." : "&#128100; Membre");
     var etabTag = p.etab ? '<span class="pub-etab-tag">&#128205; '+escHtml(p.etab)+'</span>' : "";
     var likes = p.likes || 0;
     var comments = p.comments || 0;
@@ -39653,7 +40203,7 @@ window.renderAdmContent = function() {
      + '<div style="font-family:Syne,sans-serif;font-weight:800;color:#ff2d9b;font-size:0.95rem;">&#128203; Gestion du Contenu</div>'
      + '<button onclick="window._admContentSave()" style="padding:0.42rem 0.9rem;border-radius:10px;border:none;background:linear-gradient(135deg,#00ffaa,#00e5ff);color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;">&#128190; Sauver</button>'
      + '</div>';
-  h += section('&#127968; Page d\'accueil', '#ff2d9b',
+  h += section('&#127976; Page d\'accueil', '#ff2d9b',
     field('Titre principal',   'hero_title',    g('hero_title',    'Trouvez l\'ambiance à Libreville'), 'text') +
     field('Sous-titre',        'hero_subtitle', g('hero_subtitle', 'Bars, Restaurants, Clubs — en temps réel'), 'text') +
     field('Bouton CTA',        'hero_cta',      g('hero_cta',      'Explorer maintenant'), 'text') +
@@ -51496,6 +52046,36 @@ window._lazyInitSection = function(name) {
     setTimeout(_init, 2000);
   }
 
+})();
+</script>
+
+<script>
+/* ── Auto-fit police tuiles au chargement (indépendant de Firestore) ── */
+(function(){
+  function fitTilesOnLoad(){
+    var typesEl = document.getElementById('typesGrid');
+    if(!typesEl) return;
+    var BASE_PX = 12.0, MIN_PX = 8.5, STEP = 0.5;
+    typesEl.querySelectorAll('.tt-name').forEach(function(el){
+      var tile = el.closest('.type-tile');
+      if(!tile || tile.classList.contains('tt-wide') || tile.classList.contains('tt-full')) return;
+      el.style.fontSize = '';
+      var availW = tile.clientWidth - 4;
+      var fs = BASE_PX;
+      el.style.fontSize = fs + 'px';
+      var maxIter = 22;
+      while(maxIter-- > 0 && fs > MIN_PX){
+        if(el.scrollWidth <= availW && el.scrollHeight <= el.clientHeight + 2) break;
+        fs -= STEP;
+        el.style.fontSize = fs + 'px';
+      }
+    });
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(fitTilesOnLoad, 80); });
+  } else {
+    setTimeout(fitTilesOnLoad, 80);
+  }
 })();
 </script>
 </body>
