@@ -2240,7 +2240,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .type-tile{
   position:relative;
   border-radius:16px;
-  padding:0.75rem 0.25rem 0.65rem;
+  padding:0.75rem 0.4rem 0.7rem;
   text-align:center;
   cursor:pointer;
   transition:transform 0.25s cubic-bezier(.34,1.3,.64,1), box-shadow 0.25s ease;
@@ -2251,7 +2251,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   flex-direction:column;
   align-items:center;
   justify-content:center;
-  min-height:100px;
+  min-height:110px;
   animation:tileEntree 0.5s ease both;
   border:2px solid transparent;
 }
@@ -2468,19 +2468,20 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .tt-name{
   font-family:'Syne',sans-serif;
   font-weight:800;
-  font-size:0.52rem;
+  font-size:0.55rem;
   color:#fff;
   text-transform:uppercase;
-  letter-spacing:0.02em;
+  letter-spacing:0.01em;
   position:relative;
   z-index:2;
   text-shadow:0 1px 4px rgba(0,0,0,0.28);
-  line-height:1.3;
+  line-height:1.25;
   width:100%;
   text-align:center;
-  word-break:break-word;
-  hyphens:auto;
-  overflow-wrap:break-word;
+  white-space:normal;
+  word-break:normal;
+  overflow-wrap:normal;
+  hyphens:none;
 }
 /* Fonds CLAIRS → texte foncé */
 .type-tile-hotel    .tt-name{color:#3d1800;text-shadow:0 1px 0 rgba(255,220,120,0.5);}
@@ -2536,11 +2537,12 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .home-top6-section{
   margin-bottom:0.9rem;
   animation:fadeUp 0.6s 0.25s ease both;
-  padding:0 1rem;
+  padding:0;
 }
 .top6-header{
   display:flex;align-items:center;justify-content:space-between;
   margin-bottom:0.65rem;
+  padding:0 1rem;
 }
 .top6-title{
   font-family:'Syne',sans-serif;font-weight:800;font-size:0.88rem;
@@ -2562,20 +2564,34 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 }
 .top6-see-all:active{opacity:0.7;}
 
-/* Barres horizontales compactes → CARTES PREMIUM */
-.top6-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;}
+/* Barres horizontales compactes → CARTES PREMIUM SCROLL HORIZONTAL */
+.top6-grid{
+  display:flex;
+  flex-direction:row;
+  gap:0.55rem;
+  overflow-x:auto;
+  padding:0 1rem 0.5rem;
+  scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+}
+.top6-grid::-webkit-scrollbar{display:none;}
 .top6-card{
   position:relative;
   border:2px solid;
   border-radius:14px;
-  padding:0.65rem 0.6rem 0.6rem;
-  display:flex;flex-direction:column;gap:0.3rem;
+  padding:0.65rem 0.55rem 0.6rem;
+  display:flex;flex-direction:column;gap:0.25rem;
   cursor:pointer;
   transition:all 0.25s cubic-bezier(.34,1.2,.64,1);
   overflow:hidden;
   -webkit-tap-highlight-color:transparent;
   user-select:none;
-  min-height:90px;
+  min-height:120px;
+  min-width:105px;
+  max-width:115px;
+  flex-shrink:0;
+  scroll-snap-align:start;
 }
 /* Effet brillant sur les cartes top */
 .top6-card::before{
@@ -2710,8 +2726,8 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   opacity:0.55;margin-bottom:0.05rem;
 }
 .t6c-name{
-  font-family:'Syne',sans-serif;font-weight:800;font-size:0.7rem;
-  color:#1a0028;white-space:normal;word-break:break-word;
+  font-family:'Syne',sans-serif;font-weight:800;font-size:0.66rem;
+  color:#1a0028;white-space:normal;word-break:normal;overflow-wrap:normal;hyphens:none;
   line-height:1.2;text-align:center;
 }
 .t6c-type{
@@ -2732,14 +2748,14 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .t6c-arrow{color:#c0145a;opacity:0.7;font-size:0.58rem;}
 
 @media(max-width:600px){
-  .top6-card{min-height:85px;padding:0.55rem 0.5rem 0.5rem;}
-  .t6c-icon{font-size:2rem;}
+  .top6-card{min-height:110px;min-width:95px;max-width:105px;padding:0.55rem 0.45rem 0.5rem;}
+  .t6c-icon{font-size:1.9rem;}
 }
 
 @media(max-width:420px){
-  .top6-card{min-height:80px;padding:0.5rem 0.4rem 0.45rem;}
-  .t6c-icon{font-size:1.8rem;}
-  .t6c-name{font-size:0.64rem;}
+  .top6-card{min-height:105px;min-width:90px;max-width:100px;padding:0.5rem 0.4rem 0.45rem;}
+  .t6c-icon{font-size:1.75rem;}
+  .t6c-name{font-size:0.6rem;}
 }
 
 /* ══ STATS STRIP ACCUEIL (4 chips) ══ */
@@ -13842,7 +13858,22 @@ function renderHomeImmediate(){
       var voteBonus = (lv.pos * 2) - (lv.neg * 3);
       // Inclure la note comme tiebreaker (×10 pour peser dans le score)
       var noteBonus = (e.note || 0) * 10;
-      var score     = Math.max(0, Math.min(200, base + presBonus + voteBonus + noteBonus));
+      // Bonus étoiles hôtel : détecté depuis e.etoiles (Firestore) ou e.type
+      var starBonus = 0;
+      if(getCategory(e.type) === 'Hotel'){
+        var stars = 0;
+        if(e.etoiles){
+          var sm = String(e.etoiles).match(/(\d)/);
+          if(sm) stars = parseInt(sm[1], 10);
+        }
+        if(!stars && e.type){
+          var tm = e.type.match(/(\d)\s*[ée]toile/i);
+          if(tm) stars = parseInt(tm[1], 10);
+        }
+        var bonusMap = {5:50, 4:30, 3:15, 2:5, 1:0};
+        starBonus = bonusMap[stars] || 0;
+      }
+      var score     = Math.max(0, Math.min(300, base + presBonus + voteBonus + noteBonus + starBonus));
       return Object.assign({}, e, { _score: score });
     });
 
@@ -13860,16 +13891,6 @@ function renderHomeImmediate(){
     });
 
     var topSix = categories.map(function(cat){ return categoryMap[cat]; }).filter(function(x){ return x != null; });
-
-    // Fallback : si moins de 3 catégories représentées, compléter avec les meilleurs tous types confondus
-    if(topSix.length < 3){
-      var usedIds = topSix.map(function(e){ return e.id; });
-      var extras = scored
-        .filter(function(e){ return usedIds.indexOf(e.id) === -1; })
-        .sort(function(a,b){ return b._score - a._score; })
-        .slice(0, 6 - topSix.length);
-      topSix = topSix.concat(extras);
-    }
 
     if(!topSix.length){
       topEl.innerHTML = '<div style="text-align:center;padding:1.5rem 1rem;color:var(--muted);font-size:0.75rem;">Aucun établissement disponible pour le moment.</div>';
@@ -13915,7 +13936,7 @@ function renderHomeImmediate(){
       var heatLabel = statut.indexOf("Bonde") !== -1 ? "Bondé" 
         : statut.indexOf("Anime") !== -1 ? "Animé" 
         : statut.indexOf("Calme") !== -1 ? "Calme" : "";
-      var rankClass = i < 3 ? 't6c-rank-'+(i+1) : 't6c-rank-other';
+      var rankClass = i === 0 ? 't6c-rank-1' : i === 1 ? 't6c-rank-2' : i === 2 ? 't6c-rank-3' : 't6c-rank-other';
       
       return '<div class="top6-card '+cardClass+'" onclick="goToEtab('+e.id+')" title="Voir '+escHtml(e.nom||'')+'">'
         + '<div class="t6c-rank '+rankClass+'">N°'+(i+1)+'</div>'
@@ -13925,6 +13946,7 @@ function renderHomeImmediate(){
         +   '<div class="t6c-name">'+(e.nom||"—")+'</div>'
         +   '<div class="t6c-heat">'+heatIcon+(heatLabel?' '+heatLabel:'')+'<span style="margin-left:0.2rem;">'+note+' ★</span></div>'
         + '</div>'
+        + '<div style="text-align:center;font-size:0.55rem;color:rgba(100,50,140,0.55);position:relative;z-index:2;margin-top:0.1rem;">→</div>'
         + '</div>';
     }).join("");
   } else if(topEl) {
