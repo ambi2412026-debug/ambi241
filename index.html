@@ -27,9 +27,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
         crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
 <!-- PERF: Cormorant Garamond supprimé (6 variantes inutiles), Syne réduit à 700+800 -->
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Playfair+Display:wght@600;700;800&family=Cinzel:wght@700;800;900&display=swap"
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Playfair+Display:wght@600;700;800&display=swap"
       rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Playfair+Display:wght@600;700;800&family=Cinzel:wght@700;800;900&display=swap" rel="stylesheet"></noscript>
+<noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""></noscript>
 <style>
@@ -2316,22 +2316,21 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 
 .types-grid{
   display:grid;
-  grid-template-columns:repeat(3,1fr);
-  gap:0.3rem;
+  grid-template-columns:repeat(2,1fr);
+  gap:0.65rem;
 }
-/* 3 colonnes × 4 rangées = 12 tuiles exactement — pas de décalage */
-.types-grid .type-tile:last-child:nth-child(3n-2),
-.types-grid .type-tile:last-child:nth-child(3n-1){
-  grid-column: auto;
-  width: auto;
-  margin: 0;
+/* Centrer la dernière tuile quand elle est seule sur sa ligne */
+.types-grid .type-tile:last-child:nth-child(odd){
+  grid-column: 1 / -1;
+  width: calc(50% - 0.325rem);
+  margin: 0 auto;
 }
 
 /* ── BASE CARTE ── */
 .type-tile{
   position:relative;
-  border-radius:14px;
-  padding:0.8rem 0.3rem 0.7rem;
+  border-radius:20px;
+  padding:1.3rem 0.8rem 1.1rem;
   text-align:center;
   cursor:pointer;
   transition:transform 0.25s cubic-bezier(.34,1.3,.64,1), box-shadow 0.25s ease;
@@ -2342,7 +2341,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   flex-direction:column;
   align-items:center;
   justify-content:center;
-  min-height:112px;
+  min-height:140px;
   animation:tileEntree 0.5s ease both;
   border:2px solid transparent;
 }
@@ -2353,12 +2352,6 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .type-tile:nth-child(4){animation-delay:0.26s;}
 .type-tile:nth-child(5){animation-delay:0.33s;}
 .type-tile:nth-child(6){animation-delay:0.40s;}
-.type-tile:nth-child(7){animation-delay:0.47s;}
-.type-tile:nth-child(8){animation-delay:0.54s;}
-.type-tile:nth-child(9){animation-delay:0.61s;}
-.type-tile:nth-child(10){animation-delay:0.68s;}
-.type-tile:nth-child(11){animation-delay:0.75s;}
-.type-tile:nth-child(12){animation-delay:0.82s;}
 
 /* Reflet haut de carte */
 .type-tile::before{
@@ -2455,60 +2448,10 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 }
 .type-tile-tourisme:hover{box-shadow:0 12px 32px rgba(0,96,100,0.55);}
 
-/* ══ PÂTISSERIES — rose framboise ══ */
-.type-tile-patisserie{
-  background:linear-gradient(145deg,#c01060 0%,#ff6b9d 50%,#ffb3d1 100%);
-  border-color:rgba(192,16,96,0.55);
-  box-shadow:0 6px 22px rgba(192,16,96,0.38), inset 0 1px 0 rgba(255,255,255,0.28);
-}
-.type-tile-patisserie:hover{box-shadow:0 12px 32px rgba(192,16,96,0.55);}
-.type-tile-patisserie .tt-name{color:#fff;text-shadow:0 1px 6px rgba(100,0,40,0.45);}
-.type-tile-patisserie .tt-count{background:rgba(192,16,96,0.22);color:#fff;border-color:rgba(255,179,209,0.45);}
-
-/* ══ SALLES CÉRÉMONIES — bordeaux rubis ══ */
-.type-tile-salle-cer{
-  background:linear-gradient(145deg,#880033 0%,#e91e63 50%,#f48fb1 100%);
-  border-color:rgba(136,0,51,0.55);
-  box-shadow:0 6px 22px rgba(136,0,51,0.38), inset 0 1px 0 rgba(255,255,255,0.28);
-}
-.type-tile-salle-cer:hover{box-shadow:0 12px 32px rgba(136,0,51,0.55);}
-.type-tile-salle-cer .tt-name{color:#fff;text-shadow:0 1px 6px rgba(80,0,30,0.45);}
-.type-tile-salle-cer .tt-count{background:rgba(136,0,51,0.22);color:#fff;border-color:rgba(244,143,177,0.45);}
-
-/* ══ SALLES SPECTACLE — orange scène ══ */
-.type-tile-salle-sp{
-  background:linear-gradient(145deg,#b03000 0%,#ff6b35 50%,#ffb08a 100%);
-  border-color:rgba(176,48,0,0.55);
-  box-shadow:0 6px 22px rgba(176,48,0,0.38), inset 0 1px 0 rgba(255,255,255,0.28);
-}
-.type-tile-salle-sp:hover{box-shadow:0 12px 32px rgba(176,48,0,0.55);}
-.type-tile-salle-sp .tt-name{color:#fff;text-shadow:0 1px 6px rgba(80,20,0,0.45);}
-.type-tile-salle-sp .tt-count{background:rgba(176,48,0,0.22);color:#fff;border-color:rgba(255,176,138,0.45);}
-
-/* ══ SITES NATURELS — vert forêt ══ */
-.type-tile-nature{
-  background:linear-gradient(145deg,#004d2a 0%,#00c853 50%,#69f0ae 100%);
-  border-color:rgba(0,77,42,0.55);
-  box-shadow:0 6px 22px rgba(0,77,42,0.38), inset 0 1px 0 rgba(255,255,255,0.28);
-}
-.type-tile-nature:hover{box-shadow:0 12px 32px rgba(0,77,42,0.55);}
-.type-tile-nature .tt-name{color:#002610;text-shadow:0 1px 0 rgba(105,240,174,0.5),0 2px 4px rgba(0,0,0,0.18);}
-.type-tile-nature .tt-count{background:rgba(0,77,42,0.22);color:#003d1a;border-color:rgba(105,240,174,0.5);}
-
-/* ══ MONUMENTS — or antique ══ */
-.type-tile-monument{
-  background:linear-gradient(145deg,#7a5500 0%,#d4a853 50%,#ffe082 100%);
-  border-color:rgba(122,85,0,0.55);
-  box-shadow:0 6px 22px rgba(122,85,0,0.38), inset 0 1px 0 rgba(255,255,255,0.28);
-}
-.type-tile-monument:hover{box-shadow:0 12px 32px rgba(122,85,0,0.55);}
-.type-tile-monument .tt-name{color:#2a1800;text-shadow:0 1px 0 rgba(255,220,100,0.5),0 2px 4px rgba(0,0,0,0.18);}
-.type-tile-monument .tt-count{background:rgba(122,85,0,0.22);color:#3d2800;border-color:rgba(255,224,130,0.5);}
-
 /* ── ICÔNE ── */
 .tt-icon{
-  font-size:1.5rem;
-  margin-bottom:0.28rem;
+  font-size:1.8rem;
+  margin-bottom:0.45rem;
   line-height:1;
   position:relative;
   z-index:2;
@@ -2517,30 +2460,26 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 
 /* ── NOM ── */
 .tt-name{
-  font-family:'Cinzel',serif;
+  font-family:'Playfair Display',Georgia,serif;
   font-weight:700;
-  font-size:0.56rem;
+  font-size:1.0rem;
   color:#fff;
-  text-transform:uppercase;
-  letter-spacing:0.04em;
+  text-transform:capitalize;
+  letter-spacing:0.01em;
   position:relative;
   z-index:2;
-  text-shadow:0 1px 3px rgba(0,0,0,0.60), 0 2px 8px rgba(0,0,0,0.30);
-  line-height:1.30;
+  text-shadow:0 1px 4px rgba(0,0,0,0.20);
+  line-height:1.3;
   width:100%;
-  padding:0 0.2rem;
   text-align:center;
-  word-break:normal;
-  overflow-wrap:normal;
-  hyphens:none;
-  overflow:visible;
-  white-space:normal;
+  word-break:break-word;
+  hyphens:auto;
 }
 /* Fonds CLAIRS → texte foncé */
-.type-tile-hotel    .tt-name{color:#2a0e00;text-shadow:0 1px 0 rgba(255,220,120,0.5),0 2px 4px rgba(0,0,0,0.18);}
-.type-tile-bar      .tt-name{color:#3d0010;text-shadow:0 1px 0 rgba(255,180,190,0.5),0 2px 4px rgba(0,0,0,0.18);}
-.type-tile-snack    .tt-name{color:#002610;text-shadow:0 1px 0 rgba(120,255,180,0.5),0 2px 4px rgba(0,0,0,0.15);}
-.type-tile-resto    .tt-name{color:#2a1200;text-shadow:0 1px 0 rgba(255,210,100,0.5),0 2px 4px rgba(0,0,0,0.15);}
+.type-tile-hotel    .tt-name{color:#3d1800;text-shadow:0 1px 0 rgba(255,220,120,0.5);}
+.type-tile-bar      .tt-name{color:#5c0020;text-shadow:0 1px 0 rgba(255,180,190,0.4);}
+.type-tile-snack    .tt-name{color:#003d1a;text-shadow:0 1px 0 rgba(120,255,180,0.4);}
+.type-tile-resto    .tt-name{color:#3d1e00;text-shadow:0 1px 0 rgba(255,210,100,0.4);}
 /* Fonds FONCÉS → texte blanc */
 .type-tile-bar-terrasse .tt-name{color:#fff;text-shadow:0 1px 6px rgba(0,30,100,0.45);}
 .type-tile-disco        .tt-name{color:#fff;text-shadow:0 1px 6px rgba(60,0,120,0.45);}
@@ -2553,11 +2492,11 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  margin-top:0.28rem;
+  margin-top:0.42rem;
   font-family:'DM Sans',sans-serif;
-  font-size:0.58rem;
+  font-size:0.68rem;
   font-weight:700;
-  padding:0.10rem 0.45rem;
+  padding:0.14rem 0.65rem;
   border-radius:100px;
   position:relative;
   z-index:2;
@@ -2585,11 +2524,6 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .tt-count-salle{background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.38);box-shadow:inset 0 1px 0 rgba(255,255,255,0.25);}
 .tt-count-stade{background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.38);box-shadow:inset 0 1px 0 rgba(255,255,255,0.25);}
 .tt-count-tourisme{background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.38);box-shadow:inset 0 1px 0 rgba(255,255,255,0.25);}
-.tt-count-patisserie{background:rgba(192,16,96,0.14);color:#c01060;border:1px solid rgba(192,16,96,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.45);}
-.tt-count-salle-cer{background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.38);box-shadow:inset 0 1px 0 rgba(255,255,255,0.25);}
-.tt-count-salle-sp{background:rgba(176,48,0,0.14);color:#b03000;border:1px solid rgba(176,48,0,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.45);}
-.tt-count-nature{background:rgba(0,77,42,0.14);color:#004d2a;border:1px solid rgba(0,77,42,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.45);}
-.tt-count-monument{background:rgba(122,85,0,0.14);color:#7a5500;border:1px solid rgba(122,85,0,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.45);}
 
 /* ══ TOP 3 LIEUX ══ */
 .home-top6-section{
@@ -6720,7 +6654,6 @@ if (document.readyState === 'loading') {
 }
 </script>
 
-  <link rel="stylesheet" href="css/categories-v2.css">
 </head>
 <body>
 
@@ -7504,6 +7437,9 @@ if (document.readyState === 'loading') {
   <div class="sitenav-item" onclick="switchSection('etablissements',null);closeSiteNav()">
     <span class="sni-icon">📍</span><span class="sni-label">Lieux &amp; Établissements</span>
   </div>
+  <div class="sitenav-item" id="sitenavFichesItem" onclick="navHandleFiches(null);closeSiteNav();" style="display:none;">
+    <span class="sni-icon">📋</span><span class="sni-label">Fiches Sectorielles</span>
+  </div>
   <div class="sitenav-item" onclick="switchSection('social',null);closeSiteNav()">
     <span class="sni-icon">💬</span><span class="sni-label">Forum Communauté</span>
   </div>
@@ -8270,12 +8206,9 @@ if (document.readyState === 'loading') {
       <div class="fchip" data-type="Restaurant" onclick="setTypeFilter('Restaurant',this)">&#127374; Resto &amp; Café</div>
       <div class="fchip" data-type="Snack" onclick="setTypeFilter('Snack',this)">&#127839; Snack</div>
       <div class="fchip" data-type="Hotel" onclick="setTypeFilter('Hotel',this)">&#127968; Hôtels &amp; Motels</div>
-      <div class="fchip" data-type="Patisserie" onclick="setTypeFilter('Patisserie',this)">🎂 Pâtisseries</div>
-      <div class="fchip" data-type="Salle Ceremonie" onclick="setTypeFilter('Salle Ceremonie',this)">💍 Salles Cérém.</div>
-      <div class="fchip" data-type="Salle Spectacle" onclick="setTypeFilter('Salle Spectacle',this)">🎭 Salles Spectacle</div>
+      <div class="fchip" data-type="Salle" onclick="setTypeFilter('Salle',this)">&#127914; Salles &amp; Cérémonies</div>
       <div class="fchip" data-type="Stade" onclick="setTypeFilter('Stade',this)">&#9917; Stades Football</div>
-      <div class="fchip" data-type="Site Naturel" onclick="setTypeFilter('Site Naturel',this)">🌳 Sites Naturels</div>
-      <div class="fchip" data-type="Monument" onclick="setTypeFilter('Monument',this)">🏛️ Monuments</div>
+      <div class="fchip" data-type="Tourisme" onclick="setTypeFilter('Tourisme',this)">&#127981; Sites Touristiques</div>
     </div>
     <div class="filter-row">
       <div class="fchip schip-all active" data-status="all">Tous statuts</div>
@@ -8318,6 +8251,773 @@ if (document.readyState === 'loading') {
   </div>
 
 
+  <!-- ══ SEC: FICHES SECTORIELLES ══ -->
+  <div id="sec-fiches" class="section-hidden">
+<div class="page-header">
+  <div class="page-title">AMBI241 — Fiches Sectorielles</div>
+  <div class="page-sub">Données adaptées par type d'établissement · Modification réservée propriétaire / admin</div>
+  <div class="badge-system"><span class="live-dot"></span> Système de fiches intelligentes</div>
+</div>
+
+<!-- ONGLETS SÉLECTION SECTEUR -->
+<div class="sector-tabs">
+  <button class="stab stab-bar active" onclick="fShowSector('bar')">🍺 Bar & Lounge</button>
+  <button class="stab stab-hotel" onclick="fShowSector('hotel')">🏨 Hôtel / Motel</button>
+  <button class="stab stab-resto" onclick="fShowSector('resto')">🍽️ Resto & Pâtiss.</button>
+  <button class="stab stab-stade" onclick="fShowSector('stade')">⚽ Stade Football</button>
+  <button class="stab stab-club" onclick="fShowSector('club')">🎵 Club / Discothèque</button>
+  <button class="stab stab-salle" onclick="fShowSector('salle')">🎭 Salle & Cérémonies</button>
+  <button class="stab stab-site" onclick="fShowSector('site')">🌿 Site Touristique</button>
+  <button class="stab stab-snack" onclick="fShowSector('snack')">🍟 Snack Bar</button>
+  <button class="stab stab-terrasse" onclick="fShowSector('terrasse')">🌅 Terrasse</button>
+</div>
+
+<!-- ════════════════════════════════════════════
+     FICHE 1 : BAR & LOUNGE (ex: Maeva Shop)
+     ════════════════════════════════════════════ -->
+<div id="fiche-fs-bar" class="fiche-wrap visible">
+  <div class="fiche-card">
+    <!-- Hero -->
+    <div class="fiche-hero" style="background:linear-gradient(135deg,#3d0040,#1a0a28);">
+      <div class="fiche-hero-overlay"></div>
+      <div class="fiche-hero-badge">N°1</div>
+      <div class="fiche-status-pill pill-ouvert-anime">Ouvert · Animé</div>
+      <div class="fiche-hero-actions"><span class="qr-btn">📲 QR Vote</span></div>
+    </div>
+    <div class="fiche-body">
+      <div class="fiche-name">Maeva Shop</div>
+      <div class="fiche-tags">
+        <span class="tag tag-galerie">📸 Galerie</span>
+        <span class="tag tag-type">🍹 Bar et Lounge</span>
+      </div>
+      <div class="fiche-location">📍 Bel-Air briqueterie avant 3 églises</div>
+
+      <!-- Promo du jour -->
+      <div class="promo-strip">
+        <div class="promo-icon">🏷️</div>
+        <div class="promo-text">
+          <div class="promo-label">Offre du soir</div>
+          Happy hour 19h–21h · 2 cocktails = 1 offert · Entrée libre
+        </div>
+      </div>
+
+      <!-- Affluence + ambiance -->
+      <div class="affluence-bar">
+        <div class="affluence-label"><span>Affluence</span><span style="color:var(--amber);font-weight:700;">50%</span></div>
+        <div class="affluence-track"><div class="affluence-fill" style="width:50%"></div></div>
+      </div>
+      <div class="ambiance-line"><span style="color:var(--muted)">Ambiance</span><span class="ambiance-val">🎉 Festif</span></div>
+
+      <!-- Données spécifiques BAR -->
+      <div class="sector-data">
+        <div class="sector-data-title">📊 Données Bar en direct</div>
+        <div class="data-grid">
+          <div class="data-chip highlight-green"><div class="data-chip-val">47</div><div class="data-chip-lbl">Places dispo</div></div>
+          <div class="data-chip highlight-amber"><div class="data-chip-val">3</div><div class="data-chip-lbl">Tables VIP libres</div></div>
+          <div class="data-chip highlight-cyan"><div class="data-chip-val">12</div><div class="data-chip-lbl">Cocktails dispo</div></div>
+          <div class="data-chip highlight-pink"><div class="data-chip-val">0</div><div class="data-chip-lbl">File d'attente</div></div>
+        </div>
+      </div>
+
+      <div class="sector-data">
+        <div class="sector-data-title">🎵 Programme ce soir</div>
+        <div class="data-row"><span class="data-row-label">Musique</span><span class="data-row-value green">DJ Set · Afrobeats & Ndombolo</span></div>
+        <div class="data-row"><span class="data-row-label">Animation</span><span class="data-row-value amber">Live DJ à partir de 22h</span></div>
+        <div class="data-row"><span class="data-row-label">Dress code</span><span class="data-row-value">Casual chic</span></div>
+        <div class="data-row"><span class="data-row-label">Entrée</span><span class="data-row-value green">Gratuite</span></div>
+        <div class="data-row"><span class="data-row-label">Âge minimum</span><span class="data-row-value">18 ans</span></div>
+        <div class="data-row"><span class="data-row-label">Mode de paiement</span><span class="data-row-value">Espèces · Airtel Money · Moov</span></div>
+      </div>
+
+      <!-- Notes par critères Bar -->
+      <div class="notes-bar">
+        <div class="notes-top">
+          <div class="notes-big">4.1</div>
+          <div class="notes-right">
+            <div class="notes-stars">★★★★☆</div>
+            <div class="notes-count">183 avis clients</div>
+          </div>
+        </div>
+        <div class="notes-criteria">
+          <div class="ncrit-row"><span class="ncrit-label">Ambiance</span><div class="ncrit-track"><div class="ncrit-fill" style="width:88%"></div></div><span class="ncrit-val">4.4</span></div>
+          <div class="ncrit-row"><span class="ncrit-label">Service</span><div class="ncrit-track"><div class="ncrit-fill" style="width:76%"></div></div><span class="ncrit-val">3.8</span></div>
+          <div class="ncrit-row"><span class="ncrit-label">Rapport qualité/prix</span><div class="ncrit-track"><div class="ncrit-fill" style="width:72%"></div></div><span class="ncrit-val">3.6</span></div>
+          <div class="ncrit-row"><span class="ncrit-label">Propreté</span><div class="ncrit-track"><div class="ncrit-fill" style="width:80%"></div></div><span class="ncrit-val">4.0</span></div>
+        </div>
+      </div>
+
+      <a href="#" class="maps-btn">📍 Voir sur Maps</a>
+      <div class="contact-row">
+        <a class="contact-btn contact-wa" href="#">💬 WhatsApp</a>
+        <a class="contact-btn contact-tel" href="#">📞 Appeler</a>
+      </div>
+
+      <!-- Votes et signalements -->
+      <div class="votes-section">
+        <div class="votes-title">PRÉSENCES CONFIRMÉES</div>
+        <div class="votes-summary">
+          <span class="vote-count-badge">🏆 1</span>
+          <span class="vote-pers">0 pers. sur place</span>
+          <span style="color:var(--muted);font-size:0.7rem;">Score réel :</span>
+          <span class="vote-score">56%</span>
+        </div>
+        <div class="vote-btns">
+          <button class="vote-btn vote-up">👍 3</button>
+          <button class="vote-btn vote-down">👎 0</button>
+        </div>
+        <div class="signal-btns">
+          <button class="sig-btn">🟡 Calme</button>
+          <button class="sig-btn" style="border-color:rgba(0,255,170,0.3);color:var(--green);">🟢 Animé</button>
+          <button class="sig-btn" style="border-color:rgba(255,68,102,0.3);color:var(--red);">🔴 Bondé</button>
+          <button class="sig-btn">⚫ Fermé</button>
+        </div>
+      </div>
+
+      <!-- Espace Gérant (visible propriétaire / admin uniquement) -->
+      <div class="pro-panel">
+        <div class="pro-panel-header">
+          <div class="pro-panel-icon">🍺</div>
+          <div>
+            <div class="pro-panel-title">Espace Gérant Bar</div>
+            <div class="pro-panel-sub">Maeva Shop · Bel-Air</div>
+          </div>
+          <div class="pro-panel-lock">🔒 Propriétaire / Admin</div>
+        </div>
+        <div class="pro-tabs">
+          <button class="pro-tab active" onclick="fProTab('bar','live',this)">⚡ Live</button>
+          <button class="pro-tab" onclick="fProTab('bar','programme',this)">🎵 Programme</button>
+          <button class="pro-tab" onclick="fProTab('bar','tarifs',this)">💰 Tarifs</button>
+          <button class="pro-tab" onclick="fProTab('bar','stats',this)">📊 Stats</button>
+        </div>
+        <div id="fs-bar-pane-live" class="pro-pane active">
+          <div class="pro-section">⚡ Statut en direct</div>
+          <div class="pro-stat-row">
+            <button class="pro-stat-btn open">🟢 Ouvert</button>
+            <button class="pro-stat-btn closed">🔴 Fermé</button>
+            <button class="pro-stat-btn busy">🔥 Bondé</button>
+            <button class="pro-stat-btn calm">🟡 Calme</button>
+          </div>
+          <div class="pro-section">📊 Affluence</div>
+          <div class="pro-slider-wrap">
+            <input type="range" min="0" max="100" value="50" class="pro-slider" oninput="this.nextElementSibling.textContent=this.value+'%'">
+            <span class="pro-slider-val">50%</span>
+          </div>
+          <div class="pro-section">📦 Disponibilités live</div>
+          <div class="pro-dispo-grid">
+            <div class="pro-dispo-card"><div class="pro-dispo-icon">🪑</div><div class="pro-dispo-lbl">Places assises</div><div class="pro-dispo-ctrl"><button>−</button><span class="pro-dispo-num">47</span><button>+</button></div></div>
+            <div class="pro-dispo-card"><div class="pro-dispo-icon">🛋️</div><div class="pro-dispo-lbl">Tables VIP</div><div class="pro-dispo-ctrl"><button>−</button><span class="pro-dispo-num">3</span><button>+</button></div></div>
+            <div class="pro-dispo-card"><div class="pro-dispo-icon">🍹</div><div class="pro-dispo-lbl">Cocktails</div><div class="pro-dispo-ctrl"><button>−</button><span class="pro-dispo-num">12</span><button>+</button></div></div>
+            <div class="pro-dispo-card"><div class="pro-dispo-icon">🍾</div><div class="pro-dispo-lbl">Stock bouteilles</div><div class="pro-dispo-ctrl"><button>−</button><span class="pro-dispo-num">80</span><button>+</button></div></div>
+          </div>
+          <div class="pro-section">🏷️ Offre du soir</div>
+          <div class="pro-field"><textarea class="pro-input pro-textarea" placeholder="Ex: Happy hour 19h-21h | 2 cocktails = 1 offert | Entrée gratuite…">Happy hour 19h–21h · 2 cocktails = 1 offert · Entrée libre</textarea></div>
+          <button class="pro-save-btn">💾 Publier les mises à jour</button>
+          <div class="lock-notice">🔒 Modifications visibles uniquement du propriétaire et de l'admin</div>
+        </div>
+        <div id="fs-bar-pane-programme" class="pro-pane">
+          <div class="pro-section">🎵 Musique ce soir</div>
+          <div class="pro-field"><input class="pro-input" type="text" value="DJ Set · Afrobeats & Ndombolo" placeholder="Ex: DJ Set · Coupé-Décalé…"></div>
+          <div class="pro-section">🎤 Animation</div>
+          <div class="pro-field"><input class="pro-input" type="text" value="Live DJ à partir de 22h" placeholder="Ex: Karaoké, Live Band…"></div>
+          <div class="pro-section">👔 Dress code</div>
+          <div class="pro-chips">
+            <button class="pro-chip sel">Casual chic</button>
+            <button class="pro-chip">Smart casual</button>
+            <button class="pro-chip">Tenue de soirée</button>
+            <button class="pro-chip">Libre</button>
+          </div>
+          <div class="pro-section">💳 Entrée</div>
+          <div class="pro-chips" style="margin-bottom:0.6rem;">
+            <button class="pro-chip sel-green">Gratuite</button>
+            <button class="pro-chip">Payante</button>
+            <button class="pro-chip">Sur réservation</button>
+          </div>
+          <div class="pro-field"><input class="pro-input" type="number" placeholder="Tarif entrée (si payante) en XAF"></div>
+          <button class="pro-save-btn">💾 Mettre à jour le programme</button>
+        </div>
+        <div id="fs-bar-pane-tarifs" class="pro-pane">
+          <div class="pro-section">💰 Gamme de prix</div>
+          <div class="pro-chips" style="margin-bottom:0.6rem;">
+            <button class="pro-chip">€ Économique</button>
+            <button class="pro-chip sel">€€ Moyen</button>
+            <button class="pro-chip">€€€ Premium</button>
+          </div>
+          <div class="pro-field"><div class="pro-label">Boisson signature (prix en XAF)</div><input class="pro-input" type="number" placeholder="Ex: 3000"></div>
+          <div class="pro-section">💳 Modes de paiement acceptés</div>
+          <div class="pro-chips">
+            <button class="pro-chip sel">Espèces</button>
+            <button class="pro-chip sel">Airtel Money</button>
+            <button class="pro-chip sel">Moov Money</button>
+            <button class="pro-chip">Carte bancaire</button>
+            <button class="pro-chip">Chèque</button>
+          </div>
+          <button class="pro-save-btn" style="margin-top:0.8rem;">💾 Enregistrer les tarifs</button>
+        </div>
+        <div id="fs-bar-pane-stats" class="pro-pane">
+          <div class="pro-section">📊 Statistiques du mois</div>
+          <div class="data-grid-3" style="margin-bottom:0.7rem;">
+            <div class="data-chip highlight-green"><div class="data-chip-val">1.2k</div><div class="data-chip-lbl">Vues fiche</div></div>
+            <div class="data-chip highlight-amber"><div class="data-chip-val">183</div><div class="data-chip-lbl">Avis</div></div>
+            <div class="data-chip highlight-cyan"><div class="data-chip-val">4.1</div><div class="data-chip-lbl">Note moy.</div></div>
+          </div>
+          <div class="data-row"><span class="data-row-label">Pics affluence</span><span class="data-row-value amber">Ven · Sam 21h–00h</span></div>
+          <div class="data-row"><span class="data-row-label">Clics WhatsApp</span><span class="data-row-value cyan">47 ce mois</span></div>
+          <div class="data-row"><span class="data-row-label">Clics Maps</span><span class="data-row-value green">112 ce mois</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     FICHE 2 : HÔTEL / MOTEL (ex: Le Re-Ndama)
+     ════════════════════════════════════════════ -->
+<div id="fiche-fs-hotel" class="fiche-wrap">
+  <div class="fiche-card">
+    <div class="fiche-hero" style="background:linear-gradient(135deg,#00264d,#1a0a28);">
+      <div class="fiche-hero-overlay"></div>
+      <div class="fiche-hero-badge">N°1</div>
+      <div class="fiche-status-pill pill-ouvert-calme">Ouvert · Calme</div>
+      <div class="fiche-hero-actions"><span class="qr-btn">📲 QR Vote</span></div>
+    </div>
+    <div class="fiche-body">
+      <div class="fiche-name">Le Re-Ndama</div>
+      <div class="fiche-tags">
+        <span class="tag tag-galerie">📸 Galerie</span>
+        <span class="tag tag-type" style="border-color:rgba(0,229,255,0.3);color:var(--cyan);">🏨 Hôtel / Motel</span>
+      </div>
+      <div class="fiche-location">📍 Libreville</div>
+
+      <!-- Données spécifiques HÔTEL -->
+      <div class="sector-data">
+        <div class="sector-data-title">🛏️ Disponibilité chambres en direct</div>
+        <div class="data-grid">
+          <div class="data-chip highlight-green"><div class="data-chip-val">12</div><div class="data-chip-lbl">Chambres libres</div></div>
+          <div class="data-chip highlight-amber"><div class="data-chip-val">2</div><div class="data-chip-lbl">Suites disponibles</div></div>
+          <div class="data-chip highlight-cyan"><div class="data-chip-val">50</div><div class="data-chip-lbl">Capacité totale</div></div>
+          <div class="data-chip highlight-pink"><div class="data-chip-val">76%</div><div class="data-chip-lbl">Taux occupation</div></div>
+        </div>
+      </div>
+
+      <div class="sector-data">
+        <div class="sector-data-title">🏡 Types de chambres & tarifs</div>
+        <div class="data-row"><span class="data-row-label">Chambre Standard</span><span class="data-row-value green">25 000 XAF / nuit</span></div>
+        <div class="data-row"><span class="data-row-label">Chambre Confort</span><span class="data-row-value amber">40 000 XAF / nuit</span></div>
+        <div class="data-row"><span class="data-row-label">Suite VIP</span><span class="data-row-value pink">80 000 XAF / nuit</span></div>
+        <div class="data-row"><span class="data-row-label">Chambre Journée</span><span class="data-row-value cyan">15 000 XAF / 6h</span></div>
+      </div>
+
+      <div class="sector-data">
+        <div class="sector-data-title">🍽️ Services inclus</div>
+        <div class="data-row"><span class="data-row-label">Petit-déjeuner</span><span class="data-row-value green">Inclus (Standard & +)</span></div>
+        <div class="data-row"><span class="data-row-label">Restauration</span><span class="data-row-value">Cuisine ouverte 06h–22h</span></div>
+        <div class="data-row"><span class="data-row-label">Climatisation</span><span class="data-row-value green">Toutes chambres</span></div>
+        <div class="data-row"><span class="data-row-label">Wi-Fi</span><span class="data-row-value green">Inclus</span></div>
+        <div class="data-row"><span class="data-row-label">Parking</span><span class="data-row-value green">Sécurisé · Gratuit</span></div>
+        <div class="data-row"><span class="data-row-label">Room service</span><span class="data-row-value amber">24h/24</span></div>
+        <div class="data-row"><span class="data-row-label">Check-in / Check-out</span><span class="data-row-value">14h / 12h</span></div>
+      </div>
+
+      <!-- Menu restaurant du jour -->
+      <div class="promo-strip" style="border-color:rgba(0,229,255,0.3);">
+        <div class="promo-icon">🍽️</div>
+        <div class="promo-text">
+          <div class="promo-label" style="color:var(--cyan);">Menu du jour · Restaurant</div>
+          Entrée : Salade de chèvre | Plat : Poulet DG | Dessert : Fondant | 8 500 XAF
+        </div>
+      </div>
+
+      <div class="affluence-bar">
+        <div class="affluence-label"><span>Occupation</span><span style="color:var(--amber);font-weight:700;">76%</span></div>
+        <div class="affluence-track"><div class="affluence-fill" style="width:76%"></div></div>
+      </div>
+      <div class="ambiance-line"><span style="color:var(--muted)">Ambiance</span><span class="ambiance-val" style="color:var(--cyan);">🧘 Calme</span></div>
+
+      <!-- Notes par critères Hôtel -->
+      <div class="notes-bar">
+        <div class="notes-top">
+          <div class="notes-big">4.3</div>
+          <div class="notes-right">
+            <div class="notes-stars">★★★★☆</div>
+            <div class="notes-count">50 avis clients</div>
+          </div>
+        </div>
+        <div class="notes-criteria">
+          <div class="ncrit-row"><span class="ncrit-label">Confort</span><div class="ncrit-track"><div class="ncrit-fill" style="width:86%"></div></div><span class="ncrit-val">4.3</span></div>
+          <div class="ncrit-row"><span class="ncrit-label">Propreté</span><div class="ncrit-track"><div class="ncrit-fill" style="width:90%"></div></div><span class="ncrit-val">4.5</span></div>
+          <div class="ncrit-row"><span class="ncrit-label">Service</span><div class="ncrit-track"><div class="ncrit-fill" style="width:82%"></div></div><span class="ncrit-val">4.1</span></div>
+          <div class="ncrit-row"><span class="ncrit-label">Rapport qualité/prix</span><div class="ncrit-track"><div class="ncrit-fill" style="width:78%"></div></div><span class="ncrit-val">3.9</span></div>
+          <div class="ncrit-row"><span class="ncrit-label">Emplacement</span><div class="ncrit-track"><div class="ncrit-fill" style="width:84%"></div></div><span class="ncrit-val">4.2</span></div>
+        </div>
+      </div>
+
+      <a href="#" class="maps-btn">📍 Voir sur Maps</a>
+      <div class="contact-row">
+        <a class="contact-btn contact-wa" href="#">💬 Réserver via WhatsApp</a>
+        <a class="contact-btn contact-tel" href="#">📞 Réception</a>
+        <a class="contact-btn contact-web" href="#">🌐 Site web</a>
+      </div>
+
+      <div class="votes-section">
+        <div class="votes-title">PRÉSENCES CONFIRMÉES</div>
+        <div class="votes-summary">
+          <span class="vote-count-badge">🏆 50</span>
+          <span class="vote-pers">0 pers. sur place</span>
+          <span style="color:var(--muted);font-size:0.7rem;">Score réel :</span>
+          <span class="vote-score">0%</span>
+        </div>
+        <div class="vote-btns">
+          <button class="vote-btn vote-up">👍 0</button>
+          <button class="vote-btn vote-down">👎 0</button>
+        </div>
+        <div class="signal-btns">
+          <button class="sig-btn">🟡 Calme</button>
+          <button class="sig-btn" style="border-color:rgba(0,255,170,0.3);color:var(--green);">🟢 Animé</button>
+          <button class="sig-btn" style="border-color:rgba(255,68,102,0.3);color:var(--red);">🔴 Complet</button>
+          <button class="sig-btn">⚫ Fermé</button>
+        </div>
+      </div>
+
+      <!-- Espace Gérant HÔTEL -->
+      <div class="pro-panel">
+        <div class="pro-panel-header">
+          <div class="pro-panel-icon">🏨</div>
+          <div><div class="pro-panel-title">Espace Gérant Hôtel</div><div class="pro-panel-sub">Le Re-Ndama · Libreville</div></div>
+          <div class="pro-panel-lock">🔒 Propriétaire / Admin</div>
+        </div>
+        <div class="pro-tabs">
+          <button class="pro-tab active" onclick="fProTab('hotel','chambres',this)">🛏️ Chambres</button>
+          <button class="pro-tab" onclick="fProTab('hotel','resto',this)">🍽️ Resto</button>
+          <button class="pro-tab" onclick="fProTab('hotel','services',this)">⚙️ Services</button>
+          <button class="pro-tab" onclick="fProTab('hotel','tarifs',this)">💰 Tarifs</button>
+        </div>
+        <div id="fs-hotel-pane-chambres" class="pro-pane active">
+          <div class="pro-section">🛏️ Chambres disponibles maintenant</div>
+          <div class="pro-dispo-grid">
+            <div class="pro-dispo-card"><div class="pro-dispo-icon">🛏️</div><div class="pro-dispo-lbl">Standard</div><div class="pro-dispo-ctrl"><button>−</button><span class="pro-dispo-num">8</span><button>+</button></div></div>
+            <div class="pro-dispo-card"><div class="pro-dispo-icon">🛋️</div><div class="pro-dispo-lbl">Confort</div><div class="pro-dispo-ctrl"><button>−</button><span class="pro-dispo-num">4</span><button>+</button></div></div>
+            <div class="pro-dispo-card"><div class="pro-dispo-icon">🏨</div><div class="pro-dispo-lbl">Suite VIP</div><div class="pro-dispo-ctrl"><button>−</button><span class="pro-dispo-num">2</span><button>+</button></div></div>
+            <div class="pro-dispo-card"><div class="pro-dispo-icon">🌙</div><div class="pro-dispo-lbl">Journée (6h)</div><div class="pro-dispo-ctrl"><button>−</button><span class="pro-dispo-num low">2</span><button>+</button></div></div>
+          </div>
+          <div class="pro-section">📅 Check-in / Check-out du jour</div>
+          <div class="data-row"><span class="data-row-label">Arrivées prévues</span><span class="data-row-value cyan">5 clients</span></div>
+          <div class="data-row" style="margin-bottom:0.6rem;"><span class="data-row-label">Départs prévus</span><span class="data-row-value amber">3 clients</span></div>
+          <button class="pro-save-btn">💾 Mettre à jour les chambres</button>
+        </div>
+        <div id="fs-hotel-pane-resto" class="pro-pane">
+          <div class="pro-section">🍽️ Menu du jour</div>
+          <div class="pro-field"><textarea class="pro-input pro-textarea" placeholder="Entrée : … | Plat : … | Dessert : … | Prix : …">Entrée : Salade de chèvre | Plat : Poulet DG | Dessert : Fondant | 8 500 XAF</textarea></div>
+          <div class="pro-section">⏰ Horaires restaurant</div>
+          <div class="pro-field"><div class="pro-label">Petit-déjeuner</div><input class="pro-input" type="text" value="06h00 – 10h00"></div>
+          <div class="pro-field"><div class="pro-label">Déjeuner</div><input class="pro-input" type="text" value="12h00 – 14h30"></div>
+          <div class="pro-field"><div class="pro-label">Dîner</div><input class="pro-input" type="text" value="19h00 – 22h00"></div>
+          <button class="pro-save-btn">💾 Mettre à jour le restaurant</button>
+        </div>
+        <div id="fs-hotel-pane-services" class="pro-pane">
+          <div class="pro-section">🛎️ Services disponibles aujourd'hui</div>
+          <div class="pro-chips">
+            <button class="pro-chip sel-green">✅ Wi-Fi</button>
+            <button class="pro-chip sel-green">✅ Climatisation</button>
+            <button class="pro-chip sel-green">✅ Parking</button>
+            <button class="pro-chip sel-green">✅ Room service</button>
+            <button class="pro-chip">Piscine</button>
+            <button class="pro-chip sel-green">✅ Navette aéroport</button>
+            <button class="pro-chip">Salle de sport</button>
+            <button class="pro-chip">Spa</button>
+            <button class="pro-chip sel-green">✅ Blanchisserie</button>
+          </div>
+          <div class="pro-section">⚠️ Signalements techniques</div>
+          <div class="pro-field"><textarea class="pro-input pro-textarea" placeholder="Ex : Piscine en maintenance jusqu'au 30… | Ascenseur HS…" rows="2"></textarea></div>
+          <button class="pro-save-btn">💾 Mettre à jour les services</button>
+        </div>
+        <div id="fs-hotel-pane-tarifs" class="pro-pane">
+          <div class="pro-section">💰 Tarifs nuitée</div>
+          <div class="pro-field"><div class="pro-label">Standard (XAF)</div><input class="pro-input" type="number" value="25000"></div>
+          <div class="pro-field"><div class="pro-label">Confort (XAF)</div><input class="pro-input" type="number" value="40000"></div>
+          <div class="pro-field"><div class="pro-label">Suite VIP (XAF)</div><input class="pro-input" type="number" value="80000"></div>
+          <div class="pro-field"><div class="pro-label">Journée 6h (XAF)</div><input class="pro-input" type="number" value="15000"></div>
+          <div class="pro-section">💳 Paiements acceptés</div>
+          <div class="pro-chips">
+            <button class="pro-chip sel">Espèces</button>
+            <button class="pro-chip sel">Airtel Money</button>
+            <button class="pro-chip sel">Moov Money</button>
+            <button class="pro-chip sel">Carte bancaire</button>
+            <button class="pro-chip">Virement</button>
+          </div>
+          <button class="pro-save-btn" style="margin-top:0.8rem;">💾 Enregistrer les tarifs</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     FICHE 3 : STADE DE FOOTBALL (T.De.Sport)
+     ════════════════════════════════════════════ -->
+<div id="fiche-fs-stade" class="fiche-wrap">
+  <div class="fiche-card">
+    <div class="fiche-hero" style="background:linear-gradient(135deg,#003a00,#1a0a28);">
+      <div class="fiche-hero-overlay"></div>
+      <div class="fiche-hero-badge">N°1</div>
+      <div class="fiche-status-pill pill-ouvert-calme">Ouvert · Calme</div>
+      <div class="fiche-hero-actions"><span class="qr-btn">📲 QR Vote</span></div>
+    </div>
+    <div class="fiche-body">
+      <div class="fiche-name">T.De.Sport</div>
+      <div class="fiche-tags">
+        <span class="tag tag-galerie">📸 Galerie</span>
+        <span class="tag tag-type" style="border-color:rgba(0,255,170,0.3);color:var(--green);">⚽ Stade de Football</span>
+      </div>
+      <div class="fiche-location">📍 Libreville</div>
+
+      <!-- Prochains matchs -->
+      <div class="promo-strip" style="border-color:rgba(0,255,170,0.3);background:linear-gradient(135deg,rgba(0,255,170,0.08),rgba(0,229,255,0.04));">
+        <div class="promo-icon">📅</div>
+        <div class="promo-text">
+          <div class="promo-label" style="color:var(--green);">Prochain match</div>
+          CF Mounana vs. Mangasport · Sam 28 mai · 16h00 · Billetterie ouverte
+        </div>
+      </div>
+
+      <!-- Données spécifiques STADE -->
+      <div class="sector-data">
+        <div class="sector-data-title">🏟️ Informations stade</div>
+        <div class="data-grid">
+          <div class="data-chip highlight-cyan"><div class="data-chip-val">20 000</div><div class="data-chip-lbl">Capacité totale</div></div>
+          <div class="data-chip highlight-green"><div class="data-chip-val">710</div><div class="data-chip-lbl">Abonnés AMBI241</div></div>
+          <div class="data-chip highlight-amber"><div class="data-chip-val">Gazon</div><div class="data-chip-lbl">Type pelouse</div></div>
+          <div class="data-chip"><div class="data-chip-val">3</div><div class="data-chip-lbl">Tribunes</div></div>
+        </div>
+      </div>
+
+      <div class="sector-data">
+        <div class="sector-data-title">⚽ Programme sportif</div>
+        <div class="data-row"><span class="data-row-label">Compétition</span><span class="data-row-value amber">Championnat National D1</span></div>
+        <div class="data-row"><span class="data-row-label">Prochain match</span><span class="data-row-value green">Sam 28 mai · 16h00</span></div>
+        <div class="data-row"><span class="data-row-label">Équipes</span><span class="data-row-value">CF Mounana vs. Mangasport</span></div>
+        <div class="data-row"><span class="data-row-label">Places restantes</span><span class="data-row-value green">~14 000</span></div>
+        <div class="data-row"><span class="data-row-label">Prix billet standard</span><span class="data-row-value amber">2 000 XAF</span></div>
+        <div class="data-row"><span class="data-row-label">Tribune VIP</span><span class="data-row-value pink">15 000 XAF</span></div>
+        <div class="data-row"><span class="data-row-label">Accès PMR</span><span class="data-row-value green">Oui · Entrée Nord</span></div>
+        <div class="data-row"><span class="data-row-label">Parking</span><span class="data-row-value green">Gratuit · 500 places</span></div>
+      </div>
+
+      <div class="sector-data">
+        <div class="sector-data-title">🏟️ Services & équipements</div>
+        <div class="data-row"><span class="data-row-label">Buvettes</span><span class="data-row-value green">Ouvertes · 8 points</span></div>
+        <div class="data-row"><span class="data-row-label">Toilettes</span><span class="data-row-value green">Disponibles</span></div>
+        <div class="data-row"><span class="data-row-label">Sécurité</span><span class="data-row-value">Agents présents</span></div>
+        <div class="data-row"><span class="data-row-label">Pelouse artificielle</span><span class="data-row-value amber">Location entraînement</span></div>
+      </div>
+
+      <div class="affluence-bar">
+        <div class="affluence-label"><span>Affluence actuelle</span><span style="color:var(--green);font-weight:700;">0%</span></div>
+        <div class="affluence-track"><div class="affluence-fill" style="width:0%"></div></div>
+      </div>
+      <div class="ambiance-line"><span style="color:var(--muted)">Ambiance</span><span class="ambiance-val" style="color:var(--cyan);">🧘 Calme</span></div>
+
+      <!-- Notes stade -->
+      <div class="notes-bar">
+        <div class="notes-top">
+          <div class="notes-big">3.9</div>
+          <div class="notes-right">
+            <div class="notes-stars">★★★★☆</div>
+            <div class="notes-count">710 abonnés · 95 avis</div>
+          </div>
+        </div>
+        <div class="notes-criteria">
+          <div class="ncrit-row"><span class="ncrit-label">Accueil</span><div class="ncrit-track"><div class="ncrit-fill" style="width:74%"></div></div><span class="ncrit-val">3.7</span></div>
+          <div class="ncrit-row"><span class="ncrit-label">Installations</span><div class="ncrit-track"><div class="ncrit-fill" style="width:80%"></div></div><span class="ncrit-val">4.0</span></div>
+          <div class="ncrit-row"><span class="ncrit-label">Sécurité</span><div class="ncrit-track"><div class="ncrit-fill" style="width:76%"></div></div><span class="ncrit-val">3.8</span></div>
+          <div class="ncrit-row"><span class="ncrit-label">Accessibilité</span><div class="ncrit-track"><div class="ncrit-fill" style="width:78%"></div></div><span class="ncrit-val">3.9</span></div>
+        </div>
+      </div>
+
+      <a href="#" class="maps-btn">📍 Voir sur Maps</a>
+      <div class="contact-row">
+        <a class="contact-btn contact-wa" href="#">💬 WhatsApp Billetterie</a>
+        <a class="contact-btn contact-tel" href="#">📞 Administration</a>
+      </div>
+
+      <div class="votes-section">
+        <div class="votes-title">PRÉSENCES CONFIRMÉES</div>
+        <div class="votes-summary">
+          <span class="vote-count-badge">🏆 710</span>
+          <span class="vote-pers">0 pers. sur place</span>
+          <span style="color:var(--muted);font-size:0.7rem;">Score réel :</span>
+          <span class="vote-score">0%</span>
+        </div>
+        <div class="vote-btns">
+          <button class="vote-btn vote-up">👍 0</button>
+          <button class="vote-btn vote-down">👎 0</button>
+        </div>
+        <div class="signal-btns">
+          <button class="sig-btn">🟡 Peu de monde</button>
+          <button class="sig-btn" style="border-color:rgba(0,255,170,0.3);color:var(--green);">🟢 Tribune pleine</button>
+          <button class="sig-btn" style="border-color:rgba(255,68,102,0.3);color:var(--red);">🔴 Complet</button>
+          <button class="sig-btn">⚫ Fermé / Pas de match</button>
+        </div>
+      </div>
+
+      <!-- Espace Gérant STADE -->
+      <div class="pro-panel">
+        <div class="pro-panel-header">
+          <div class="pro-panel-icon">⚽</div>
+          <div><div class="pro-panel-title">Espace Gestionnaire Stade</div><div class="pro-panel-sub">T.De.Sport · Libreville</div></div>
+          <div class="pro-panel-lock">🔒 Admin officiel</div>
+        </div>
+        <div class="pro-tabs">
+          <button class="pro-tab active" onclick="fProTab('stade','match',this)">📅 Match</button>
+          <button class="pro-tab" onclick="fProTab('stade','billetterie',this)">🎟️ Billetterie</button>
+          <button class="pro-tab" onclick="fProTab('stade','terrain',this)">🏟️ Terrain</button>
+          <button class="pro-tab" onclick="fProTab('stade','stats',this)">📊 Stats</button>
+        </div>
+        <div id="fs-stade-pane-match" class="pro-pane active">
+          <div class="pro-section">📅 Prochain événement</div>
+          <div class="pro-field"><div class="pro-label">Compétition / Événement</div><input class="pro-input" type="text" value="Championnat National D1"></div>
+          <div class="pro-field"><div class="pro-label">Équipe locale</div><input class="pro-input" type="text" value="CF Mounana"></div>
+          <div class="pro-field"><div class="pro-label">Équipe visiteur</div><input class="pro-input" type="text" value="Mangasport"></div>
+          <div class="pro-field"><div class="pro-label">Date et heure</div><input class="pro-input" type="datetime-local" value="2026-05-28T16:00"></div>
+          <div class="pro-section">🔊 Annonce officielle</div>
+          <div class="pro-field"><textarea class="pro-input pro-textarea" placeholder="Informations supplémentaires sur le match…">CF Mounana vs. Mangasport · Sam 28 mai · 16h00 · Billetterie ouverte dès 12h à l'entrée Nord</textarea></div>
+          <button class="pro-save-btn">💾 Publier l'événement</button>
+        </div>
+        <div id="fs-stade-pane-billetterie" class="pro-pane">
+          <div class="pro-section">🎟️ Tarifs billets</div>
+          <div class="pro-field"><div class="pro-label">Virage (XAF)</div><input class="pro-input" type="number" value="1000"></div>
+          <div class="pro-field"><div class="pro-label">Tribune populaire (XAF)</div><input class="pro-input" type="number" value="2000"></div>
+          <div class="pro-field"><div class="pro-label">Tribune centrale (XAF)</div><input class="pro-input" type="number" value="5000"></div>
+          <div class="pro-field"><div class="pro-label">Loge VIP (XAF)</div><input class="pro-input" type="number" value="15000"></div>
+          <div class="pro-section">📊 Places disponibles par tribune</div>
+          <div class="pro-dispo-grid">
+            <div class="pro-dispo-card"><div class="pro-dispo-icon">🏟️</div><div class="pro-dispo-lbl">Virage Nord</div><div class="pro-dispo-ctrl"><button>−</button><span class="pro-dispo-num">4200</span><button>+</button></div></div>
+            <div class="pro-dispo-card"><div class="pro-dispo-icon">🏟️</div><div class="pro-dispo-lbl">Tribune Est</div><div class="pro-dispo-ctrl"><button>−</button><span class="pro-dispo-num">6800</span><button>+</button></div></div>
+            <div class="pro-dispo-card"><div class="pro-dispo-icon">🏆</div><div class="pro-dispo-lbl">VIP / Loges</div><div class="pro-dispo-ctrl"><button>−</button><span class="pro-dispo-num low">80</span><button>+</button></div></div>
+            <div class="pro-dispo-card"><div class="pro-dispo-icon">♿</div><div class="pro-dispo-lbl">PMR</div><div class="pro-dispo-ctrl"><button>−</button><span class="pro-dispo-num">45</span><button>+</button></div></div>
+          </div>
+          <button class="pro-save-btn">💾 Mettre à jour la billetterie</button>
+        </div>
+        <div id="fs-stade-pane-terrain" class="pro-pane">
+          <div class="pro-section">🌿 État du terrain</div>
+          <div class="pro-chips" style="margin-bottom:0.6rem;">
+            <button class="pro-chip sel-green">✅ Excellent</button>
+            <button class="pro-chip">Bon</button>
+            <button class="pro-chip">Passable</button>
+            <button class="pro-chip">En réfection</button>
+          </div>
+          <div class="pro-section">🏋️ Location terrain entraînement</div>
+          <div class="data-row"><span class="data-row-label">Tarif équipe (2h)</span><span class="data-row-value amber">50 000 XAF</span></div>
+          <div class="data-row" style="margin-bottom:0.6rem;"><span class="data-row-label">Réservation</span><span class="data-row-value green">Disponible</span></div>
+          <div class="pro-section">⚙️ Maintenance prévue</div>
+          <div class="pro-field"><textarea class="pro-input pro-textarea" placeholder="Ex: Pelouse en cours de maintenance du 15 au 20 juin…" rows="2"></textarea></div>
+          <button class="pro-save-btn">💾 Mettre à jour le terrain</button>
+        </div>
+        <div id="fs-stade-pane-stats" class="pro-pane">
+          <div class="pro-section">📊 Fréquentation historique</div>
+          <div class="data-grid-3" style="margin-bottom:0.7rem;">
+            <div class="data-chip highlight-cyan"><div class="data-chip-val">18.2k</div><div class="data-chip-lbl">Record affluence</div></div>
+            <div class="data-chip highlight-green"><div class="data-chip-val">8.4k</div><div class="data-chip-lbl">Moy. par match</div></div>
+            <div class="data-chip highlight-amber"><div class="data-chip-val">710</div><div class="data-chip-lbl">Abonnés AMBI</div></div>
+          </div>
+          <div class="data-row"><span class="data-row-label">Matchs cette saison</span><span class="data-row-value">14 à domicile</span></div>
+          <div class="data-row"><span class="data-row-label">Taux remplissage moyen</span><span class="data-row-value amber">42%</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     FICHE 4 : SITE TOURISTIQUE (Monument Tolérance)
+     ════════════════════════════════════════════ -->
+<div id="fiche-fs-site" class="fiche-wrap">
+  <div class="fiche-card">
+    <div class="fiche-hero" style="background:linear-gradient(135deg,#1a3a00,#1a0a28);">
+      <div class="fiche-hero-overlay"></div>
+      <div class="fiche-hero-badge">N°1</div>
+      <div class="fiche-status-pill pill-ouvert-calme">Ouvert · Calme</div>
+      <div class="fiche-hero-actions"><span class="qr-btn">📲 QR Vote</span></div>
+    </div>
+    <div class="fiche-body">
+      <div class="fiche-name">Monument de la Tolérance</div>
+      <div class="fiche-tags">
+        <span class="tag tag-galerie">📸 Galerie</span>
+        <span class="tag tag-type" style="border-color:rgba(0,255,170,0.3);color:var(--green);">🏛️ Site touristique & Parc national</span>
+      </div>
+      <div class="fiche-location">📍 Libreville</div>
+
+      <!-- Données spécifiques SITE TOURISTIQUE -->
+      <div class="sector-data">
+        <div class="sector-data-title">🗺️ Infos pratiques visiteurs</div>
+        <div class="data-grid">
+          <div class="data-chip highlight-green"><div class="data-chip-val">Libre</div><div class="data-chip-lbl">Accès</div></div>
+          <div class="data-chip highlight-amber"><div class="data-chip-val">732</div><div class="data-chip-lbl">Visites enregistrées</div></div>
+          <div class="data-chip highlight-cyan"><div class="data-chip-val">6h–20h</div><div class="data-chip-lbl">Horaires</div></div>
+          <div class="data-chip"><div class="data-chip-val">Guide</div><div class="data-chip-lbl">Disponible</div></div>
+        </div>
+      </div>
+
+      <div class="sector-data">
+        <div class="sector-data-title">🌿 Informations site</div>
+        <div class="data-row"><span class="data-row-label">Type de site</span><span class="data-row-value amber">Monument historique · Parc</span></div>
+        <div class="data-row"><span class="data-row-label">Superficie</span><span class="data-row-value">2.4 hectares</span></div>
+        <div class="data-row"><span class="data-row-label">Accès PMR</span><span class="data-row-value green">Oui</span></div>
+        <div class="data-row"><span class="data-row-label">Durée visite estimée</span><span class="data-row-value cyan">45 min – 1h30</span></div>
+        <div class="data-row"><span class="data-row-label">Langues guides</span><span class="data-row-value">FR · EN</span></div>
+        <div class="data-row"><span class="data-row-label">Photos autorisées</span><span class="data-row-value green">Oui · Usage personnel</span></div>
+        <div class="data-row"><span class="data-row-label">Animaux</span><span class="data-row-value red">Non admis</span></div>
+      </div>
+
+      <div class="sector-data">
+        <div class="sector-data-title">🦒 Faune & Flore (si Parc national)</div>
+        <div class="data-row"><span class="data-row-label">Espèces observées</span><span class="data-row-value green">Éléphants · Buffles · Gorilles</span></div>
+        <div class="data-row"><span class="data-row-label">Meilleures saisons</span><span class="data-row-value amber">Juin–Août (saison sèche)</span></div>
+        <div class="data-row"><span class="data-row-label">Sentiers balisés</span><span class="data-row-value green">3 circuits</span></div>
+        <div class="data-row"><span class="data-row-label">Niveau difficulté</span><span class="data-row-value cyan">Facile à Modéré</span></div>
+      </div>
+
+      <!-- Tarifs -->
+      <div class="promo-strip" style="border-color:rgba(0,255,170,0.3);background:linear-gradient(135deg,rgba(0,255,170,0.06),rgba(0,229,255,0.04));">
+        <div class="promo-icon">🎟️</div>
+        <div class="promo-text">
+          <div class="promo-label" style="color:var(--green);">Tarifs d'entrée</div>
+          Adulte : 2 000 XAF · Enfant (–12 ans) : Gratuit · Guide : 5 000 XAF
+        </div>
+      </div>
+
+      <div class="affluence-bar">
+        <div class="affluence-label"><span>Affluence</span><span style="color:var(--green);font-weight:700;">0%</span></div>
+        <div class="affluence-track"><div class="affluence-fill" style="width:0%"></div></div>
+      </div>
+      <div class="ambiance-line"><span style="color:var(--muted)">Ambiance</span><span class="ambiance-val" style="color:var(--cyan);">🧘 Calme</span></div>
+
+      <!-- Notes site -->
+      <div class="notes-bar">
+        <div class="notes-top">
+          <div class="notes-big">4.6</div>
+          <div class="notes-right">
+            <div class="notes-stars">★★★★★</div>
+            <div class="notes-count">732 visites · 210 avis</div>
+          </div>
+        </div>
+        <div class="notes-criteria">
+          <div class="ncrit-row"><span class="ncrit-label">Intérêt historique</span><div class="ncrit-track"><div class="ncrit-fill" style="width:94%"></div></div><span class="ncrit-val">4.7</span></div>
+          <div class="ncrit-row"><span class="ncrit-label">Entretien</span><div class="ncrit-track"><div class="ncrit-fill" style="width:88%"></div></div><span class="ncrit-val">4.4</span></div>
+          <div class="ncrit-row"><span class="ncrit-label">Accueil</span><div class="ncrit-track"><div class="ncrit-fill" style="width:90%"></div></div><span class="ncrit-val">4.5</span></div>
+          <div class="ncrit-row"><span class="ncrit-label">Accessibilité</span><div class="ncrit-track"><div class="ncrit-fill" style="width:82%"></div></div><span class="ncrit-val">4.1</span></div>
+        </div>
+      </div>
+
+      <a href="#" class="maps-btn">📍 Voir sur Maps</a>
+      <div class="contact-row">
+        <a class="contact-btn contact-tel" href="#">📞 Office du tourisme</a>
+        <a class="contact-btn contact-web" href="#">🌐 Site officiel</a>
+      </div>
+
+      <div class="votes-section">
+        <div class="votes-title">PRÉSENCES CONFIRMÉES</div>
+        <div class="votes-summary">
+          <span class="vote-count-badge">🏆 732</span>
+          <span class="vote-pers">0 pers. sur place</span>
+          <span style="color:var(--muted);font-size:0.7rem;">Score réel :</span>
+          <span class="vote-score">0%</span>
+        </div>
+        <div class="vote-btns">
+          <button class="vote-btn vote-up">👍 0</button>
+          <button class="vote-btn vote-down">👎 0</button>
+        </div>
+        <div class="signal-btns">
+          <button class="sig-btn">🟡 Peu de visiteurs</button>
+          <button class="sig-btn" style="border-color:rgba(0,255,170,0.3);color:var(--green);">🟢 Animé</button>
+          <button class="sig-btn" style="border-color:rgba(255,68,102,0.3);color:var(--red);">🔴 Très fréquenté</button>
+          <button class="sig-btn">⚫ Fermé</button>
+        </div>
+      </div>
+
+      <!-- Espace Gérant SITE TOURISTIQUE -->
+      <div class="pro-panel">
+        <div class="pro-panel-header">
+          <div class="pro-panel-icon">🏛️</div>
+          <div><div class="pro-panel-title">Espace Gestionnaire Site</div><div class="pro-panel-sub">Monument de la Tolérance</div></div>
+          <div class="pro-panel-lock">🔒 Admin officiel</div>
+        </div>
+        <div class="pro-tabs">
+          <button class="pro-tab active" onclick="fProTab('site','infos',this)">📋 Infos</button>
+          <button class="pro-tab" onclick="fProTab('site','horaires',this)">🕒 Horaires</button>
+          <button class="pro-tab" onclick="fProTab('site','evenements',this)">📅 Événements</button>
+          <button class="pro-tab" onclick="fProTab('site','tarifs',this)">💰 Tarifs</button>
+        </div>
+        <div id="fs-site-pane-infos" class="pro-pane active">
+          <div class="pro-section">📝 Description du site</div>
+          <div class="pro-field"><textarea class="pro-input pro-textarea" rows="3" placeholder="Description officielle du site…">Site symbolique de Libreville érigé en hommage à la tolérance et à la paix entre les peuples du Gabon.</textarea></div>
+          <div class="pro-section">🦒 Faune observée (si parc naturel)</div>
+          <div class="pro-field"><input class="pro-input" type="text" value="Éléphants, Buffles, Gorilles, Mandrills" placeholder="Espèces présentes…"></div>
+          <div class="pro-section">⚠️ Signalement du jour</div>
+          <div class="pro-field"><textarea class="pro-input pro-textarea" placeholder="Ex: Sentier Nord temporairement fermé pour travaux…" rows="2"></textarea></div>
+          <button class="pro-save-btn">💾 Mettre à jour les infos</button>
+        </div>
+        <div id="fs-site-pane-horaires" class="pro-pane">
+          <div class="pro-section">🕒 Horaires d'ouverture</div>
+          <div class="pro-field"><div class="pro-label">Jours ouvrables</div><input class="pro-input" type="text" value="06h00 – 20h00"></div>
+          <div class="pro-field"><div class="pro-label">Week-end & jours fériés</div><input class="pro-input" type="text" value="07h00 – 19h00"></div>
+          <div class="pro-field"><div class="pro-label">Jours de fermeture</div><input class="pro-input" type="text" placeholder="Ex: Lundi matin…"></div>
+          <div class="pro-section">☁️ Météo & sécurité</div>
+          <div class="pro-chips">
+            <button class="pro-chip sel-green">✅ Toutes activités</button>
+            <button class="pro-chip">⚠️ Sentiers glissants</button>
+            <button class="pro-chip">🚫 Fermeture météo</button>
+          </div>
+          <button class="pro-save-btn" style="margin-top:0.6rem;">💾 Mettre à jour les horaires</button>
+        </div>
+        <div id="fs-site-pane-evenements" class="pro-pane">
+          <div class="pro-section">📅 Événement à venir</div>
+          <div class="pro-field"><input class="pro-input" type="text" placeholder="Nom de l'événement…"></div>
+          <div class="pro-field"><input class="pro-input" type="datetime-local"></div>
+          <div class="pro-field"><textarea class="pro-input pro-textarea" placeholder="Description de l'événement…" rows="3"></textarea></div>
+          <div class="pro-section">🎯 Type d'événement</div>
+          <div class="pro-chips">
+            <button class="pro-chip">Visite guidée</button>
+            <button class="pro-chip">Conférence</button>
+            <button class="pro-chip">Exposition</button>
+            <button class="pro-chip sel">Journée nationale</button>
+            <button class="pro-chip">Atelier jeunesse</button>
+          </div>
+          <button class="pro-save-btn" style="margin-top:0.6rem;">📢 Publier l'événement</button>
+        </div>
+        <div id="fs-site-pane-tarifs" class="pro-pane">
+          <div class="pro-section">🎟️ Tarifs d'entrée</div>
+          <div class="pro-field"><div class="pro-label">Adulte (XAF)</div><input class="pro-input" type="number" value="2000"></div>
+          <div class="pro-field"><div class="pro-label">Enfant –12 ans (XAF)</div><input class="pro-input" type="number" value="0" placeholder="0 = Gratuit"></div>
+          <div class="pro-field"><div class="pro-label">Guide officiel (XAF)</div><input class="pro-input" type="number" value="5000"></div>
+          <div class="pro-field"><div class="pro-label">Groupe (10+ pers., XAF/pers.)</div><input class="pro-input" type="number" value="1500"></div>
+          <div class="pro-field"><div class="pro-label">Scolaire (XAF/élève)</div><input class="pro-input" type="number" value="500"></div>
+          <div class="pro-section">📸 Droits photo / vidéo professionnel</div>
+          <div class="pro-field"><input class="pro-input" type="number" value="25000" placeholder="Droits tournage (XAF)"></div>
+          <button class="pro-save-btn">💾 Enregistrer les tarifs</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Autres fiches (resto, club, salle, snack, terrasse) — placeholders -->
+<div id="fiche-fs-resto" class="fiche-wrap"><div class="fiche-card"><div style="padding:2rem;text-align:center;color:var(--muted);">🍽️ Fiche Restaurant / Pâtisserie<br><small>Même logique : menu du jour, plats disponibles, temps d'attente, critiques de note par goût/service/rapport qualité-prix…</small></div></div></div>
+<div id="fiche-fs-club" class="fiche-wrap"><div class="fiche-card"><div style="padding:2rem;text-align:center;color:var(--muted);">🎵 Fiche Club / Discothèque<br><small>Données spécifiques : programme DJs, dress code strict, tarifs bouteilles, table VIP, file d'attente, capacité dancefloor…</small></div></div></div>
+<div id="fiche-fs-salle" class="fiche-wrap"><div class="fiche-card"><div style="padding:2rem;text-align:center;color:var(--muted);">🎭 Fiche Salle de Cérémonies<br><small>Données : capacité, disponibilité dates, tarif location, équipements (sono, traiteur, chaises, décoration), caution…</small></div></div></div>
+<div id="fiche-fs-snack" class="fiche-wrap"><div class="fiche-card"><div style="padding:2rem;text-align:center;color:var(--muted);">🍟 Fiche Snack Bar<br><small>Données : menu affiché du jour, plats chauds disponibles, temps d'attente estimé, livraison, prix moyen…</small></div></div></div>
+<div id="fiche-fs-terrasse" class="fiche-wrap"><div class="fiche-card"><div style="padding:2rem;text-align:center;color:var(--muted);">🌅 Fiche Terrasse<br><small>Données : météo locale, places en extérieur disponibles, parasols, vue, happy hour, réservation table vue mer/ville…</small></div></div></div>
+
+<!-- LÉGENDE -->
+<div class="legend">
+  <div class="legend-title">🔐 Système de permissions</div>
+  <div class="legend-items">
+    <div class="legend-item"><span class="info-pill info-public">🌐 Public</span> Visible par tous les utilisateurs AMBI241</div>
+    <div class="legend-item"><span class="info-pill info-owner-only">🔑 Propriétaire</span> Modifiable uniquement par le compte propriétaire de l'établissement</div>
+    <div class="legend-item"><span class="info-pill info-admin-only">⚙️ Admin</span> Accès total admin AMBI241 + override de tous les champs</div>
+    <div class="legend-item" style="font-size:0.65rem;margin-top:0.3rem;"><span style="color:var(--green);">✅</span> Les données sectorielles sont injectées automatiquement selon le type d'établissement enregistré dans Firestore</div>
+  </div>
+</div>
+  </div>
 
   <!-- SEC: PAIEMENTS -->
   <div id="sec-paiements" class="section-hidden">
@@ -8745,43 +9445,28 @@ if (document.readyState === 'loading') {
               </div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Restaurant" onclick="igmToggleCat(this)">
                 <span class="igm-cat-icon">🍽️</span>
-                <div class="igm-cat-name">Restaurants & Cafés</div>
+                <div class="igm-cat-name">Restos & Pâtisseries</div>
                 <div class="igm-cat-count" id="igm-cnt-Restaurant">—</div>
-              </div>
-              <div class="igm-cat-btn igm-cat-sel" data-key="Patisserie" onclick="igmToggleCat(this)">
-                <span class="igm-cat-icon">🎂</span>
-                <div class="igm-cat-name">Pâtisseries & Boulangeries</div>
-                <div class="igm-cat-count" id="igm-cnt-Patisserie">—</div>
               </div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Discotheque" onclick="igmToggleCat(this)">
                 <span class="igm-cat-icon">🎵</span>
                 <div class="igm-cat-name">Clubs</div>
                 <div class="igm-cat-count" id="igm-cnt-Discotheque">—</div>
               </div>
-              <div class="igm-cat-btn igm-cat-sel" data-key="Salle Ceremonie" onclick="igmToggleCat(this)">
-                <span class="igm-cat-icon">💍</span>
-                <div class="igm-cat-name">Salles de Cérémonies</div>
-                <div class="igm-cat-count" id="igm-cnt-Salle Ceremonie">—</div>
-              </div>
-              <div class="igm-cat-btn igm-cat-sel" data-key="Salle Spectacle" onclick="igmToggleCat(this)">
-                <span class="igm-cat-icon">🎭</span>
-                <div class="igm-cat-name">Salles de Spectacle</div>
-                <div class="igm-cat-count" id="igm-cnt-Salle Spectacle">—</div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Salle" onclick="igmToggleCat(this)">
+                <span class="igm-cat-icon">🎪</span>
+                <div class="igm-cat-name">Salles & Cérémonies</div>
+                <div class="igm-cat-count" id="igm-cnt-Salle">—</div>
               </div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Stade" onclick="igmToggleCat(this)">
                 <span class="igm-cat-icon">⚽</span>
                 <div class="igm-cat-name">Stades Football</div>
                 <div class="igm-cat-count" id="igm-cnt-Stade">—</div>
               </div>
-              <div class="igm-cat-btn igm-cat-sel" data-key="Site Naturel" onclick="igmToggleCat(this)">
-                <span class="igm-cat-icon">🌳</span>
-                <div class="igm-cat-name">Sites Naturels & Parcs</div>
-                <div class="igm-cat-count" id="igm-cnt-Site Naturel">—</div>
-              </div>
-              <div class="igm-cat-btn igm-cat-sel" data-key="Monument" onclick="igmToggleCat(this)">
+              <div class="igm-cat-btn igm-cat-sel" data-key="Tourisme" onclick="igmToggleCat(this)">
                 <span class="igm-cat-icon">🏛️</span>
-                <div class="igm-cat-name">Monuments Historiques</div>
-                <div class="igm-cat-count" id="igm-cnt-Monument">—</div>
+                <div class="igm-cat-name">Sites Touristiques</div>
+                <div class="igm-cat-count" id="igm-cnt-Tourisme">—</div>
               </div>
             </div>
             <button class="igm-btn igm-btn-primary" onclick="igmStartSearch()">🔍 Lancer la recherche OpenStreetMap</button>
@@ -9655,6 +10340,7 @@ window.closePhotoViewer = closePhotoViewer;
   <button class="nav-item" onclick="switchSection('etablissements',this)"><span class="nav-icon">&#128269;</span>Lieux</button>
   <button class="nav-item" id="navProfilBtn" onclick="navHandleProfil(this)"><span class="nav-unread-badge" id="navBadgeProfil"></span><span class="nav-icon" id="navProfilIcon">&#128273;</span><span id="navProfilLabel">Connexion</span></button>
   <button class="nav-item" onclick="switchSection('social',this)"><span class="nav-unread-badge" id="navBadgeForum"></span><span class="nav-icon">👥</span>Forum</button>
+  <button class="nav-item" id="navFichesBtn" onclick="navHandleFiches(this)" style="display:none;"><span class="nav-icon">📋</span>Fiches</button>
   <button class="nav-item" id="navPaiementsBtn" onclick="switchSection('paiements',this)"><span class="nav-unread-badge" id="navBadgePaiements"></span><span class="nav-icon">&#128179;</span>Paiements</button>
   <button class="nav-item" id="navAdminSettings" style="display:none;" onclick="openAdminDashboard(this)"><span class="nav-unread-badge" id="navBadgeAdmin"></span><span class="nav-icon">&#9881;</span>Paramètres</button>
 </nav>
@@ -10375,11 +11061,10 @@ function _subscribeAllEtabs() {
   var actifs = etablissements.filter(function(e){
     return e.paiement === "Confirme" || e.paiement === "Actif" || estPaiementConfirme(e);
   });
-  /* Bug2-FIX: Cap à 8 max — chaque _subscribeEtab ouvre 3 onSnapshot Firestore
-   * (presences + votes + ratings). 15 etabs = 45 WebSocket listeners simultanés
-   * sur mobile → saturation réseau 3G/4G → lenteur générale.
-   * PERF-FIX: réduit à 8 (24 listeners max) pour mobile. */
-  var MAX_SUBS = 8;
+  /* Bug2-FIX: Cap à 15 max — chaque _subscribeEtab ouvre 3 onSnapshot Firestore
+   * (presences + votes + ratings). 30+ etabs = 90+ WebSocket listeners simultanés
+   * sur mobile → saturation mémoire → crash navigateur ("Aïe aïe aïe"). */
+  var MAX_SUBS = 15;
   if(actifs.length === 0) actifs = etablissements.slice(0, Math.min(MAX_SUBS, etablissements.length));
   actifs = actifs.slice(0, MAX_SUBS);
   actifs.forEach(function(e) { _subscribeEtab(e.id); });
@@ -10388,11 +11073,10 @@ function _subscribeAllEtabs() {
 // Appeler dès que Firebase est prêt + après chaque loadData
 window._subscribeAllEtabs = _subscribeAllEtabs;
 
-// PERF-FIX: délai augmenté 800ms→3000ms — évite que les 24 onSnapshot WebSocket
-// s'ouvrent pendant le premier chargement Firebase, ce qui ralentissait le rendu.
+// Abonnement immédiat (les établissements locaux sont déjà chargés)
 setTimeout(function() {
   _subscribeAllEtabs();
-}, 3000);
+}, 800);
 
 </script>
 
@@ -11007,13 +11691,7 @@ function loadPhotoProfile(eid, callback) {
 // Charger toutes les photos profils au démarrage (avec délai pour éviter le flooding Firebase)
 function loadAllPhotoProfiles() {
   if (!window.db || !etablissements) return;
-  /* PERF-FIX: charger uniquement les photos des établissements actifs (paiement confirmé).
-     Avant : getDocs pour TOUS les étabs → N requêtes Firebase inutiles.
-     Maintenant : seulement les étabs payés, espacés par requestIdleCallback. */
-  var list = etablissements.filter(function(e) {
-    return e.paiement && (e.paiement.indexOf("Actif") !== -1 || e.paiement === "Confirme");
-  });
-  if (list.length === 0) list = etablissements.slice(0, 20); /* fallback si aucun actif */
+  var list = etablissements.slice(0);
   var idx = 0;
   /* Utiliser requestIdleCallback si dispo — charge les photos uniquement quand
      le navigateur est inactif, sans jamais bloquer le thread UI principal */
@@ -12855,19 +13533,11 @@ function _loadEtabCache() {
 function _processEtabData(firebaseData) {
   /* Dédoublonnage par id */
   var _seenIds = {};
-  var filtered = firebaseData.filter(function(e) {
+  return firebaseData.filter(function(e) {
     if (!e.id || _seenIds[e.id]) return false;
     _seenIds[e.id] = true;
     return true;
   });
-  /* PERF-FIX: pré-calculer la catégorie une seule fois par établissement.
-     getCategory() fait des regex + lookups à chaque appel — sans cache,
-     avec 12 catégories × N étabs × plusieurs rendus, le coût explose.
-     _cat est réutilisé partout à la place de getCategory(e.type). */
-  filtered.forEach(function(e) {
-    e._cat = getCategory(e.type);
-  });
-  return filtered;
 }
 
 function _renderAfterLoad() {
@@ -12895,19 +13565,15 @@ function loadData(){
   }
 
   /* ── ÉTAPE 1 : Afficher le cache immédiatement (rendu instantané) ── */
-  /* PERF-FIX v4 : on affiche TOUJOURS le cache d'abord (même en PWA) pour un
-     démarrage instantané. Firebase met ensuite à jour en arrière-plan silencieusement.
-     L'ancien comportement PWA=null forçait un écran vide + sablier à chaque lancement. */
-  var cached = _loadEtabCache();
+  /* FIX v3 : si l'app vient d'être lancée depuis l'écran d'accueil (PWA),
+     ignorer le cache et aller directement sur Firestore pour avoir les données fraîches */
+  var _isPWA = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+              || window.navigator.standalone === true;
+  var cached = _isPWA ? null : _loadEtabCache();
 
   if (cached && cached.length > 0) {
     etablissements = cached;
-    etablissements.forEach(function(e) {
-      applyDynamicStatus(e);
-      /* PERF-FIX: JSON.parse recrée de nouveaux objets sans _cat calculé.
-         Le recalculer ici évite que getCategory() soit appelé à chaque rendu. */
-      if (!e._cat) e._cat = getCategory(e.type);
-    });
+    etablissements.forEach(function(e) { applyDynamicStatus(e); });
     /* BUG FIX — recalculer _distKm après restauration du cache :
        JSON.parse recrée de nouveaux objets sans les propriétés calculées (_distKm),
        donc filterByRadius() renverrait 0 résultats si le GPS est actif. */
@@ -12954,18 +13620,16 @@ function loadData(){
     if (typeof window._subscribeAllEtabs === "function") { window._subscribeAllEtabs(); }
 
     /* ── Photos en arrière-plan — délais échelonnés pour ne pas saturer le réseau ── */
-    /* PERF-FIX: délais augmentés (2.5s→5s et 3.5s→6s) pour laisser le rendu initial
-       se terminer avant de lancer les requêtes photos Firebase. */
-    setTimeout(loadAllPhotoProfiles, 5000);
+    setTimeout(loadAllPhotoProfiles, 2500);
     setTimeout(function() {
       if (typeof loadSlotPhotosAsync === 'function' && etablissements && etablissements.length) {
         var actifs = etablissements.filter(function(e) { return estPaiementConfirme(e); });
         actifs.slice(0, 10).forEach(function(e, i) {
-          /* Espacer les requêtes de 300ms chacune (était 200ms) */
-          setTimeout(function() { if (e.id) loadSlotPhotosAsync(e.id); }, i * 300);
+          /* Espacer les requêtes de 200ms chacune pour ne pas saturer la bande passante 3G */
+          setTimeout(function() { if (e.id) loadSlotPhotosAsync(e.id); }, i * 200);
         });
       }
-    }, 6000);
+    }, 3500);
 
   }).catch(function(err) {
     console.error("Firebase loadData:", err);
@@ -13036,9 +13700,7 @@ var _renderHomeTimer = null;
 var _renderHomeOrig = null;
 function renderHome(){
   if(_renderHomeTimer) clearTimeout(_renderHomeTimer);
-  /* PERF-FIX: debounce 100ms (était 16ms) — évite les rafales de rendus
-     quand renderAll()+renderHome()+renderStats() sont appelés en cascade. */
-  _renderHomeTimer = setTimeout(renderHomeImmediate, 100);
+  _renderHomeTimer = setTimeout(renderHomeImmediate, 16);
 }
 function renderHomeImmediate(){
   var d = etablissements;
@@ -13082,8 +13744,7 @@ function renderHomeImmediate(){
   /* ── Stats strip (4 tuiles) ── */
   var statsEl = document.getElementById("statsRowHome");
   if(statsEl){
-    /* PATCH : plus d'archivage — tous les lieux sont actifs */
-    var actifs  = d.length;
+    var actifs  = d.filter(function(e){ return e.paiement && e.paiement.indexOf("Actif") !== -1; }).length;
     var bondes  = d.filter(function(e){ return e.statut  && e.statut.indexOf("Bonde") !== -1;  }).length;
     var calmes  = d.filter(function(e){ return e.statut  && e.statut.indexOf("Calme") !== -1;  }).length;
     var chips   = [
@@ -13101,22 +13762,18 @@ function renderHomeImmediate(){
   var typesEl = document.getElementById("typesGrid");
   if(typesEl){
     var typesDef = [
-      {key:"Hotel",           icon:"&#127968;", name:"Hôtels & Motels",            cls:"hotel",       countCls:"tt-count-hotel"},
-      {key:"Bar",             icon:"&#127867;", name:"Bars",                        cls:"bar",         countCls:"tt-count-bar"},
-      {key:"Bar Terrasse",    icon:"&#127970;", name:"Bar Terrasses",               cls:"bar-terrasse",countCls:"tt-count-bar-terrasse"},
-      {key:"Snack",           icon:"&#127839;", name:"Snacks",                      cls:"snack",       countCls:"tt-count-snack"},
-      {key:"Restaurant",      icon:"&#127374;", name:"Restaurants",                 cls:"resto",       countCls:"tt-count-resto"},
-      {key:"Patisserie",      icon:"🎂",        name:"Pâtisseries & Boulangeries",  cls:"patisserie",  countCls:"tt-count-patisserie"},
-      {key:"Discotheque",     icon:"&#127925;", name:"Clubs",                       cls:"disco",       countCls:"tt-count-disco"},
-      {key:"Salle Ceremonie", icon:"💍",        name:"Salles de Cérémonies",        cls:"salle-cer",   countCls:"tt-count-salle-cer"},
-      {key:"Salle Spectacle", icon:"🎭",        name:"Salles de Spectacle",         cls:"salle-sp",    countCls:"tt-count-salle-sp"},
-      {key:"Stade",           icon:"&#9917;",   name:"Stades Football",             cls:"stade",       countCls:"tt-count-stade"},
-      {key:"Site Naturel",    icon:"🌳",        name:"Sites Naturels & Parcs",      cls:"nature",      countCls:"tt-count-nature"},
-      {key:"Monument",        icon:"🏛️",       name:"Monuments Historiques",       cls:"monument",    countCls:"tt-count-monument"}
+      {key:"Hotel",      icon:"&#127968;", name:"Hôtels & Motels",     cls:"hotel",       countCls:"tt-count-hotel"},
+      {key:"Bar",        icon:"&#127867;", name:"Bars",                 cls:"bar",         countCls:"tt-count-bar"},
+      {key:"Bar Terrasse",icon:"&#127970;",name:"Bar Terrasses",        cls:"bar-terrasse",countCls:"tt-count-bar-terrasse"},
+      {key:"Snack",      icon:"&#127839;", name:"Snacks",               cls:"snack",       countCls:"tt-count-snack"},
+      {key:"Restaurant", icon:"&#127374;", name:"Restos & Pâtisseries", cls:"resto",       countCls:"tt-count-resto"},
+      {key:"Discotheque",icon:"&#127925;", name:"Clubs",                cls:"disco",       countCls:"tt-count-disco"},
+      {key:"Salle",      icon:"&#127914;", name:"Salles & Cérémonies",  cls:"salle",       countCls:"tt-count-salle"},
+      {key:"Stade",      icon:"&#9917;",   name:"Stades Football",      cls:"stade",       countCls:"tt-count-stade"},
+      {key:"Tourisme",   icon:"&#127981;", name:"Sites Touristiques",   cls:"tourisme",    countCls:"tt-count-tourisme"}
     ];
     typesEl.innerHTML = typesDef.map(function(t){
-      /* PERF-FIX: e._cat pré-calculé dans _processEtabData — évite N×12 appels getCategory() */
-      var count = d.filter(function(e){ return (e._cat || getCategory(e.type)) === t.key; }).length;
+      var count = d.filter(function(e){ return getCategory(e.type) === t.key; }).length;
       return '<div class="type-tile type-tile-'+t.cls+'" onclick="goToTypeFilter(\''+t.key+'\')" title="Voir les '+t.name+'">'
         + '<div class="tt-icon">'+t.icon+'</div>'
         + '<div class="tt-name">'+t.name+'</div>'
@@ -13143,13 +13800,12 @@ function renderHomeImmediate(){
     });
 
     // Grouper par catégorie et trouver le meilleur de chaque
-    var categories = ["Hotel","Bar","Bar Terrasse","Snack","Restaurant","Patisserie","Discotheque","Salle Ceremonie","Salle Spectacle","Stade","Site Naturel","Monument"];
+    var categories = ["Hotel", "Bar", "Bar Terrasse", "Snack", "Restaurant", "Discotheque", "Salle", "Stade", "Tourisme"];
     var categoryMap = {};
     categories.forEach(function(cat){ categoryMap[cat] = null; });
 
     scored.forEach(function(e){
-      /* PERF-FIX: utiliser _cat pré-calculé */
-      var cat = e._cat || getCategory(e.type);
+      var cat = getCategory(e.type);
       if(categories.indexOf(cat) === -1) return; // ignorer catégories non gérées
       if(!categoryMap[cat] || e._score > categoryMap[cat]._score){
         categoryMap[cat] = e;
@@ -13176,29 +13832,23 @@ function renderHomeImmediate(){
     var categoryClasses = {
       "Bar":"bar","Discotheque":"club","Restaurant":"restaurant",
       "Bar Terrasse":"terrasse","Snack":"snack","Hotel":"hotel",
-      "Salle":"salle","Stade":"stade","Tourisme":"tourisme",
-      "Patisserie":"patisserie","Salle Ceremonie":"salle-cer",
-      "Salle Spectacle":"salle-sp","Site Naturel":"nature","Monument":"monument"
+      "Salle":"salle","Stade":"stade","Tourisme":"tourisme"
     };
     var categoryLabels = {
-      "Bar":"BAR","Discotheque":"CLUBS","Restaurant":"RESTOS & CAFÉS",
+      "Bar":"BAR","Discotheque":"CLUBS","Restaurant":"RESTOS & PÂTISS.",
       "Bar Terrasse":"TERRASSE","Snack":"SNACKS","Hotel":"HÔTELS & MOTELS",
-      "Stade":"STADES FOOT",
-      "Patisserie":"PÂTISSERIES","Salle Ceremonie":"SALLES CÉRÉM.",
-      "Salle Spectacle":"SALLES SPECTACLE","Site Naturel":"SITES NATURELS","Monument":"MONUMENTS"
+      "Salle":"SALLES & CÉRÉM.","Stade":"STADES FOOT","Tourisme":"SITES TOURIST."
     };
     var categoryIcons = {
       "Bar":"🍺","Discotheque":"🎵","Restaurant":"🍽️",
       "Bar Terrasse":"🍹","Snack":"🍟","Hotel":"🏨",
-      "Salle":"🎭","Stade":"⚽","Tourisme":"🌿",
-      "Patisserie":"🎂","Salle Ceremonie":"💍",
-      "Salle Spectacle":"🎭","Site Naturel":"🌳","Monument":"🏛️"
+      "Salle":"🎭","Stade":"⚽","Tourisme":"🌿"
     };
 
     topEl.innerHTML = topSix.map(function(e, i){
       if(!e) return '';
-      /* PERF-FIX: utiliser _cat pré-calculé */
-      var cat = e._cat || getCategory(e.type);
+      var cat = getCategory(e.type);
+      var cardClass = categoryClasses[cat] || "bar";
       var label = categoryLabels[cat] || "BAR";
       var icon = categoryIcons[cat] || "🏢";
       var note = e.note ? e.note.toFixed(1) : "—";
@@ -13787,9 +14437,8 @@ function renderVisitors(){
 
 function renderStatsAdmin(){
   var d=etablissements;
-  /* PATCH : plus d'archivage — tous les établissements sont actifs */
-  var actifs=d.length;
-  var inactifs=0;
+  var actifs=d.filter(function(e){return e.paiement&&e.paiement.indexOf("Actif")!==-1;}).length;
+  var inactifs=d.length-actifs;
   var bondes=d.filter(function(e){return e.statut&&e.statut.indexOf("Bonde")!==-1;}).length;
   var animes=d.filter(function(e){return e.statut&&e.statut.indexOf("Anime")!==-1;}).length;
   var calmes=d.filter(function(e){return e.statut&&e.statut.indexOf("Calme")!==-1;}).length;
@@ -15097,8 +15746,7 @@ function closeLightbox(){document.getElementById("lightbox").classList.remove("s
 // RENDER STATS
 function renderStats(){
   var d=etablissements;if(!d.length)return;
-  /* PATCH : plus d'archivage — tous les lieux sont actifs */
-  var actifs=d.length;
+  var actifs=d.filter(function(e){return e.paiement&&e.paiement.indexOf("Actif")!==-1;}).length;
   var bondes=d.filter(function(e){return e.statut&&e.statut.indexOf("Bonde")!==-1;}).length;
   var avg=(d.reduce(function(s,e){return s+(e.note||0);},0)/d.length).toFixed(1);
   var chips=[
@@ -15132,8 +15780,8 @@ function filterData(){
       ||e.nom.toLowerCase().indexOf(q)!==-1
       ||(e.quartier&&e.quartier.toLowerCase().indexOf(q)!==-1)
       ||(e.description&&e.description.toLowerCase().indexOf(q)!==-1);
-    // ── Filtre de catégorie : utiliser _cat pré-calculé (PERF-FIX) ──
-    var mt=currentType==="all"||((e._cat || getCategory(e.type))===currentType);
+    // ── Filtre de catégorie : comparaison stricte via getCategory ──
+    var mt=currentType==="all"||(getCategory(e.type)===currentType);
     var mv=currentStatus==="all"||(e.statut&&e.statut.indexOf(currentStatus)!==-1);
     // Admin voit tout (actifs + archivés) pour pouvoir les trier
     if(isAdmin) return ms&&mt;
@@ -15918,7 +16566,7 @@ function buildEtabProfilePanel(e){
   stats.push({icon:"🪑", val:(e.capacite_totale||0), lbl:"places"});
   stats.push({icon:"🏆", val:(e.nb_vip||0), lbl:"VIP"});
   // Chambres uniquement pour hôtels
-  var cat = e._cat || getCategory(e.type); // PERF-FIX
+  var cat = getCategory(e.type);
   if(cat==="Hotel" || (e.type||"").toLowerCase().indexOf("hôtel")!==-1 || (e.type||"").toLowerCase().indexOf("hotel")!==-1 || e.nb_chambres>0)
     stats.push({icon:"🛏️", val:(e.nb_chambres||0), lbl:"chambres"});
 
@@ -16013,7 +16661,7 @@ function buildLiveDispoBar(e, canManage){
 
 function buildCompactRow(e, rank, extraClass){
   extraClass = extraClass || "";
-  var cat = e._cat || getCategory(e.type); // PERF-FIX
+  var cat  = getCategory(e.type);
   var ci   = getCatInfo(cat);
   var sc   = computeRankScore(e);
   var aff  = e.affluence || 0;
@@ -16139,7 +16787,7 @@ window.toggleCompactDetail = function(eid){
 function buildCard(e,delay,compact,rank,extraClass){
   delay=delay||0;compact=compact||false;extraClass=extraClass||"";
   var sc=statusClass(e.statut);
-  var cat=e._cat || getCategory(e.type); // PERF-FIX
+  var cat=getCategory(e.type);
   var ci=getCatInfo(cat);
   var aff=e.affluence||0;
   var affColor=aff>70?"var(--red)":aff>40?"var(--amber)":"var(--green)";
@@ -16331,7 +16979,7 @@ function buildCard(e,delay,compact,rank,extraClass){
     // ══════════════════════════════════════════════════
     // ══  ESPACE GÉRANT PRO — Panneau complet         ══
     // ══════════════════════════════════════════════════
-    var cat = e._cat || getCategory(e.type); // PERF-FIX
+    var cat = getCategory(e.type);
     var isHotel = cat === "Hotel";
     var isResto = cat === "Restaurant" || cat === "Snack";
     var isBar   = cat === "Bar" || cat === "Bar Terrasse" || cat === "Discotheque";
@@ -16666,7 +17314,7 @@ function buildCard(e,delay,compact,rank,extraClass){
     );
   };
   // ── Classe CSS par type pour bordure colorée ──
-  var _catKey=(e._cat || getCategory(e.type)||"Bar"); // PERF-FIX
+  var _catKey=(getCategory(e.type)||"Bar");
   var _typeClass="type-bar";
   if(_catKey==="Restaurant")_typeClass="type-restaurant";
   else if(_catKey==="Discotheque")_typeClass="type-discotheque";
@@ -16685,7 +17333,7 @@ function buildCard(e,delay,compact,rank,extraClass){
     "<div class=\"card-row1\"><div>"+
     "<div class=\"card-num rank-"+(rank===1?'1':rank===2?'2':rank===3?'3':'other')+"\">N°"+(rank!=null?rank:e.id)+"</div>"+
     "<div class=\"card-name\"><button class=\"etab-name-order-btn\" onclick=\"window['_etabOrderBtn_'+"+e.id+"] && window['_etabOrderBtn_'+"+e.id+"]()\" title=\"📋 Réserver à "+e.nom.replace(/"/g,'')+"\" style=\"font-family:'Syne',sans-serif;font-size:inherit;font-weight:inherit;\">"+e.nom+" <span class=\"etab-name-order-pulse\">+</span></button> <span onclick=\"openGalerie("+e.id+")\" title=\"Voir la galerie de "+(e.nom||"").replace(/"/g,'')+"\" style=\"cursor:pointer;display:inline-flex;align-items:center;gap:0.35rem;flex-wrap:wrap;transition:color 0.2s;\"><span style=\"font-size:0.6rem;color:var(--pink);border:1px solid rgba(255,45,155,0.35);border-radius:5px;padding:0.08rem 0.3rem;font-family:DM Sans,sans-serif;font-weight:700;\">&#128247; Galerie</span>"+(e._distKm!=null?"<span class=\"dist-badge "+distClass(e._distKm)+"\">"+fmtDist(e._distKm)+"</span>":"")+"</span></div>"+
-    "<span class=\"cat-badge "+ci.badge+"\" style=\"cursor:pointer;\" onclick=\"goToTypeFilter('"+e._cat||getCategory(e.type)+"')\" title=\"Filtrer par "+ci.label+"\">"+ci.icon+" "+ci.label+"</span>"+
+    "<span class=\"cat-badge "+ci.badge+"\" style=\"cursor:pointer;\" onclick=\"goToTypeFilter('"+getCategory(e.type)+"')\" title=\"Filtrer par "+ci.label+"\">"+ci.icon+" "+ci.label+"</span>"+
     "<div style=\"font-size:0.7rem;color:var(--cyan);margin-top:0.2rem;cursor:pointer;display:inline-flex;align-items:center;gap:0.2rem;\" onclick=\"goToQuartier('"+e.quartier.replace(/'/g,"")+"')\">&#128205; "+e.quartier+"<span style='font-size:0.55rem;opacity:0.6;'> ›</span></div>"+
     "</div>"+(e.statut ? "<span class=\"status-pill "+sc+"\">"+e.statut+"</span>" : "<span class=\"status-pill\">—</span>")+"</div>"+
     affBar+
@@ -16726,8 +17374,8 @@ function buildCard(e,delay,compact,rank,extraClass){
       return html;
     })()+
     "<div class=\"card-ambiance\"><span class=\"lbl\">Ambiance</span><span class=\"val\">"+e.ambiance+"</span></div>"+
-    (e.description && (e._cat||getCategory(e.type))==="Hotel" ? "<div style=\"font-size:0.72rem;color:var(--muted);line-height:1.5;padding:0.4rem 0.7rem;background:rgba(0,229,255,0.04);border-radius:8px;margin:0.4rem 0;border-left:2px solid rgba(0,229,255,0.3);\">&#127968; "+e.description+"</div>" : "")+
-    ((e._cat||getCategory(e.type))==="Terrasse" || (e.type||"").toLowerCase().indexOf("terrasse")!==-1 ? "<div style=\"padding:0.3rem 0.7rem 0;\"><span class='meteo-terrasse-badge' style='font-size:0.65rem;font-weight:700;'>🌡️ Météo chargement...</span></div>" : "")+
+    (e.description && getCategory(e.type)==="Hotel" ? "<div style=\"font-size:0.72rem;color:var(--muted);line-height:1.5;padding:0.4rem 0.7rem;background:rgba(0,229,255,0.04);border-radius:8px;margin:0.4rem 0;border-left:2px solid rgba(0,229,255,0.3);\">&#127968; "+e.description+"</div>" : "")+
+    (getCategory(e.type)==="Terrasse" || (e.type||"").toLowerCase().indexOf("terrasse")!==-1 ? "<div style=\"padding:0.3rem 0.7rem 0;\"><span class='meteo-terrasse-badge' style='font-size:0.65rem;font-weight:700;'>🌡️ Météo chargement...</span></div>" : "")+
     mapsBtn+
     "</div>"+soireeHtml+
     presRow+
@@ -17865,7 +18513,7 @@ function renderAllImmediate(){
       if(farAll.length > 0){
         // Grouper les lointains par catégorie
         var farGroups = {};
-        farAll.forEach(function(e){ var c=e._cat || getCategory(e.type); if(!farGroups[c]) farGroups[c]=[]; farGroups[c].push(e); });
+        farAll.forEach(function(e){ var c=getCategory(e.type); if(!farGroups[c]) farGroups[c]=[]; farGroups[c].push(e); });
         html += "<div class=\"proximity-section-header prox-far\" style=\"margin-top:" + (nearAll.length > 0 ? "0.8rem" : "0") + ";\">"
               + "<div class=\"prox-dot prox-dot-far\"></div>"
               + "&#128205; " + farAll.length + " lieu" + (farAll.length > 1 ? "x" : "") + " plus éloigné" + (farAll.length > 1 ? "s" : "")
@@ -17884,7 +18532,7 @@ function renderAllImmediate(){
       }
     } else {
       var groups={};
-      data.forEach(function(e){var c=e._cat || getCategory(e.type); if(!groups[c])groups[c]=[];groups[c].push(e);});
+      data.forEach(function(e){var c=getCategory(e.type);if(!groups[c])groups[c]=[];groups[c].push(e);});
       var catHtml="";
       // Compteur global pour numérotation continue entre catégories
       var globalRank=0;
@@ -17995,7 +18643,7 @@ function toggleConfirme(index){
     window.fbUpdateDoc(docRef,{statut:newStatut}).then(function(){
       paiements[index].statut=newStatut;
       renderPayments();renderAll();renderHome();
-      showToast(newStatut==="Confirme"?"✅ Paiement confirmé — abonnement activé":"⏳ Remis en attente");
+      showToast(newStatut==="Confirme"?"✅ Paiement confirmé — abonnement activé":"⏳ Remis en attente — établissement archivé");
     }).catch(function(){
       paiements[index].statut=newStatut;
       renderPayments();renderAll();renderHome();
@@ -18004,7 +18652,7 @@ function toggleConfirme(index){
   } else {
     paiements[index].statut=newStatut;
     renderPayments();renderAll();renderHome();
-    showToast(newStatut==="Confirme"?"✅ Paiement confirmé — abonnement activé":"⏳ Remis en attente");
+    showToast(newStatut==="Confirme"?"✅ Paiement confirmé — abonnement activé":"⏳ Remis en attente — établissement archivé");
   }
 }
 window.toggleConfirme=toggleConfirme;
@@ -18547,7 +19195,7 @@ function renderPayments(){
 }
 
 // NAV
-var SECS=["accueil","etablissements","paiements","contacts","profil","social"];
+var SECS=["accueil","etablissements","fiches","paiements","contacts","profil","social"];
 function goHome(){switchSection("accueil",document.querySelector(".nav-item"));}
 function switchSection(name,btn){
   /* FIX#2b — Mise à jour active immédiate, DOM section via rAF pour fluidité */
@@ -19123,12 +19771,45 @@ function navHandleProfil(btn){
 window.navHandleProfil = navHandleProfil;
 
 /* ── Navigation Fiches : redirige vers Profil > Fiche Pro si propriétaire/admin ── */
+function navHandleFiches(btn){
+  var isOwnerOrAdmin = isAdmin || (typeof userEtabIds !== 'undefined' && userEtabIds && userEtabIds.length > 0);
+  if(isOwnerOrAdmin && window.currentUserUID){
+    // Aller dans Profil > vue Établissement > onglet Fiche Pro
+    switchSection('profil', document.getElementById('navProfilBtn'));
+    setTimeout(function(){
+      pSwitchRole('etab');
+      var ficheTabBtn = document.getElementById('pe-fiches-tab-btn');
+      if(ficheTabBtn) pSetStab(ficheTabBtn, 'etab', 'fiches');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 200);
+  } else if(window.currentUserUID) {
+    // Connecté mais pas propriétaire : accès aux fiches publiques directement
+    switchSection('fiches', btn);
+  } else {
+    // Non connecté → vers Profil connexion
+    _renderVisitorProfilScreen();
+    switchSection('profil', document.getElementById('navProfilBtn'));
+  }
+}
+window.navHandleFiches = navHandleFiches;
 
 /* ── Visibilité des pro-panels selon le rôle ── */
 function _applyFichesPanelVisibility(){
   var canSeeProPanel = isAdmin || (typeof userEtabIds !== 'undefined' && userEtabIds && userEtabIds.length > 0);
+  // Masquer ou afficher les pro-panels dans sec-fiches
+  document.querySelectorAll('#sec-fiches .pro-panel').forEach(function(panel){
+    if(canSeeProPanel){
+      panel.classList.remove('pub-hidden');
+    } else {
+      panel.classList.add('pub-hidden');
+    }
+  });
   // Afficher le bouton "Fiches" nav uniquement si propriétaire/admin
+  var fichesBtn = document.getElementById('navFichesBtn');
+  if(fichesBtn) fichesBtn.style.display = canSeeProPanel ? '' : 'none';
   // Afficher le lien Fiches dans le menu hamburger
+  var sitenavFiches = document.getElementById('sitenavFichesItem');
+  if(sitenavFiches) sitenavFiches.style.display = canSeeProPanel ? '' : 'none';
   // Afficher le tab "Fiche Pro" dans le profil étab uniquement si propriétaire/admin
   var ficheTabBtn = document.getElementById('pe-fiches-tab-btn');
   if(ficheTabBtn) ficheTabBtn.style.display = canSeeProPanel ? '' : 'none';
@@ -19383,82 +20064,6 @@ window.openFicheEtab = function(id){
   h += '<button onclick="event.stopPropagation();closeFicheEtab();setTimeout(function(){openRatingModal('+e.id+');},200);" style="width:100%;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;border:none;border-radius:12px;padding:0.65rem;font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.4rem;">🗳️ Voter — donner mon avis</button>';
   h += '</div>';
 
-  /* ── 3b. Capacités de l'établissement ── */
-  var capTotale = e.capacite_totale || e.capacite || 0;
-  var nbVip     = e.nb_vip || 0;
-  var nbChambres= e.nb_chambres || 0;
-  var placesDispo = (e.places_dispo !== undefined && e.places_dispo !== null) ? parseInt(e.places_dispo) : null;
-  var isHotel = (e.type||'').toLowerCase().indexOf('hôtel')!==-1||(e.type||'').toLowerCase().indexOf('hotel')!==-1||nbChambres>0;
-  var capStats = [];
-  if(capTotale>0) capStats.push({icon:'🪑',val:capTotale,lbl:'places totales',color:'var(--text)'});
-  if(nbVip>0)     capStats.push({icon:'🏆',val:nbVip,lbl:'VIP',color:'var(--amber)'});
-  if(isHotel)     capStats.push({icon:'🛏️',val:nbChambres,lbl:'chambres',color:'var(--cyan)'});
-  if(placesDispo!==null){
-    var dispoPct = capTotale>0?Math.round((placesDispo/capTotale)*100):100;
-    var dispoColor = dispoPct<20?'var(--red)':dispoPct<50?'var(--amber)':'var(--green)';
-    capStats.push({icon:'🟢',val:placesDispo,lbl:'places dispo',color:dispoColor});
-  }
-  if(capStats.length>0){
-    h += '<div class="fiche-section">';
-    h += '<div class="fiche-section-title">Capacités</div>';
-    h += '<div style="display:grid;grid-template-columns:repeat('+Math.min(capStats.length,4)+',1fr);gap:0.5rem;margin-bottom:0.5rem;">';
-    capStats.forEach(function(cs){
-      h += '<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.6rem;text-align:center;">';
-      h += '<div style="font-size:1.1rem;">'+cs.icon+'</div>';
-      h += '<div style="font-family:Syne,sans-serif;font-size:1.15rem;font-weight:800;color:'+cs.color+';">'+cs.val+'</div>';
-      h += '<div style="font-size:0.55rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-top:0.1rem;">'+cs.lbl+'</div>';
-      h += '</div>';
-    });
-    h += '</div>';
-    if(placesDispo!==null && capTotale>0){
-      var dispoPct2 = Math.min(100,Math.round((placesDispo/capTotale)*100));
-      var dispoColor2 = dispoPct2<20?'var(--red)':dispoPct2<50?'var(--amber)':'var(--green)';
-      h += '<div style="font-size:0.62rem;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:0.25rem;"><span>Occupation</span><span style="color:'+dispoColor2+';font-weight:800;">'+(100-dispoPct2)+'% occupé</span></div>';
-      h += '<div style="background:rgba(255,255,255,0.07);border-radius:100px;height:6px;overflow:hidden;">';
-      h += '<div style="height:100%;border-radius:100px;background:linear-gradient(90deg,var(--green),'+dispoColor2+');width:'+(100-dispoPct2)+'%;transition:width 0.5s;"></div>';
-      h += '</div>';
-    }
-    h += '</div>';
-  }
-
-  /* ── 3c. Données Live ce soir ── */
-  var hasLive = e.dj_ce_soir||e.musique_soir||e.menu_jour||e.promo_jour||e.msg_ambiance||e.vip_table||e.affluence_tendance;
-  if(hasLive){
-    h += '<div class="fiche-section">';
-    h += '<div class="fiche-section-title"><span class="live-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;margin-right:0.4rem;vertical-align:middle;"></span>Ce soir — Live</div>';
-    if(e.msg_ambiance){
-      h += '<div style="background:linear-gradient(135deg,rgba(255,45,155,0.1),rgba(204,68,255,0.07));border:1.5px solid rgba(255,45,155,0.25);border-radius:10px;padding:0.6rem 0.8rem;margin-bottom:0.6rem;font-size:0.8rem;color:var(--text);">✨ '+escHtml(e.msg_ambiance)+'</div>';
-    }
-    if(e.promo_jour){
-      h += '<div style="background:linear-gradient(135deg,rgba(255,215,0,0.1),rgba(255,45,155,0.07));border:1.5px solid rgba(255,215,0,0.3);border-radius:10px;padding:0.6rem 0.8rem;margin-bottom:0.6rem;display:flex;align-items:center;gap:0.6rem;">';
-      h += '<span style="font-size:1.1rem;flex-shrink:0;">🎁</span>';
-      h += '<div><div style="font-size:0.6rem;font-weight:800;color:var(--amber);text-transform:uppercase;letter-spacing:0.06em;">Promo du jour</div>';
-      h += '<div style="font-size:0.8rem;color:var(--text);margin-top:0.1rem;">'+escHtml(e.promo_jour)+'</div></div>';
-      h += '</div>';
-    }
-    if(e.dj_ce_soir){
-      h += '<div class="fiche-info-line"><span class="fiche-info-icon">🎤</span><span class="fiche-info-val" style="color:var(--pink);font-weight:700;">DJ ce soir : '+escHtml(e.dj_ce_soir)+'</span></div>';
-    }
-    if(e.musique_soir){
-      h += '<div class="fiche-info-line"><span class="fiche-info-icon">🎵</span><span class="fiche-info-val">Musique : '+escHtml(e.musique_soir)+'</span></div>';
-    }
-    if(e.vip_table){
-      h += '<div class="fiche-info-line"><span class="fiche-info-icon">🥂</span><span class="fiche-info-val" style="color:var(--amber);">Table VIP : '+escHtml(String(e.vip_table))+'</span></div>';
-    }
-    if(e.affluence_tendance && e.affluence_tendance!=='Stable'){
-      var tendColor = e.affluence_tendance==='En hausse'?'var(--red)':e.affluence_tendance==='En baisse'?'var(--green)':'var(--amber)';
-      var tendIcon  = e.affluence_tendance==='En hausse'?'↗':e.affluence_tendance==='En baisse'?'↘':'→';
-      h += '<div class="fiche-info-line"><span class="fiche-info-icon">📈</span><span class="fiche-info-val" style="color:'+tendColor+';">Affluence '+tendIcon+' '+escHtml(e.affluence_tendance)+'</span></div>';
-    }
-    if(e.menu_jour){
-      h += '<div style="margin-top:0.5rem;background:rgba(0,255,170,0.05);border:1px solid rgba(0,255,170,0.2);border-radius:10px;padding:0.65rem;">';
-      h += '<div style="font-size:0.6rem;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.35rem;">🍽️ Menu du jour</div>';
-      h += '<div style="font-size:0.78rem;color:var(--text);white-space:pre-line;line-height:1.5;">'+escHtml(e.menu_jour)+'</div>';
-      h += '</div>';
-    }
-    h += '</div>';
-  }
-
   /* ── 4. Description ── */
   if(e.description){
     h += '<div class="fiche-section">';
@@ -19474,13 +20079,8 @@ window.openFicheEtab = function(id){
   if(e.horaires)       h += '<div class="fiche-info-line"><span class="fiche-info-icon">🕐</span><span class="fiche-info-val">'+escHtml(e.horaires)+'</span></div>';
   if(e.entree||e.prix_entree) h += '<div class="fiche-info-line"><span class="fiche-info-icon">🎟️</span><span class="fiche-info-val">'+escHtml(e.entree||e.prix_entree||'')+'</span></div>';
   if(e.prix_moy||e.prix_moyen) h += '<div class="fiche-info-line"><span class="fiche-info-icon">💰</span><span class="fiche-info-val">Prix moyen : '+escHtml(e.prix_moy||e.prix_moyen||'')+'</span></div>';
-  if(capTotale>0)      h += '<div class="fiche-info-line"><span class="fiche-info-icon">👥</span><span class="fiche-info-val">Capacité totale : '+capTotale+' personnes</span></div>';
+  if(e.capacite)       h += '<div class="fiche-info-line"><span class="fiche-info-icon">👥</span><span class="fiche-info-val">Capacité : '+escHtml(String(e.capacite))+'</span></div>';
   if(e.ambiance)       h += '<div class="fiche-info-line"><span class="fiche-info-icon">✨</span><span class="fiche-info-val">'+escHtml(e.ambiance)+'</span></div>';
-  if(e.age_clientele)  h += '<div class="fiche-info-line"><span class="fiche-info-icon">👤</span><span class="fiche-info-val">Clientèle : '+escHtml(e.age_clientele)+'</span></div>';
-  if(e.dress_code)     h += '<div class="fiche-info-line"><span class="fiche-info-icon">👔</span><span class="fiche-info-val">Dress code : '+escHtml(e.dress_code)+'</span></div>';
-  if(e.genres_musicaux && e.genres_musicaux.length){
-    h += '<div class="fiche-info-line"><span class="fiche-info-icon">🎶</span><span class="fiche-info-val">'+e.genres_musicaux.map(function(g){return escHtml(g);}).join(' · ')+'</span></div>';
-  }
   if(e.type)           h += '<div class="fiche-info-line"><span class="fiche-info-icon">🏷️</span><span class="fiche-info-val">'+escHtml(e.type)+'</span></div>';
   if(e.wifi===true||e.wifi==='oui') h += '<div class="fiche-info-line"><span class="fiche-info-icon">📶</span><span class="fiche-info-val" style="color:var(--green);">WiFi disponible</span></div>';
   if(e.parking===true||e.parking==='oui') h += '<div class="fiche-info-line"><span class="fiche-info-icon">🅿️</span><span class="fiche-info-val" style="color:var(--cyan);">Parking disponible</span></div>';
@@ -23116,75 +23716,69 @@ if(typeof window._admEtablArchivesOpen === 'undefined') window._admEtablArchives
 
 function renderAdmEtabl(){
   var d=etablissements;
+  
+  // TRI : établissements ACTIFS en haut, ARCHIVÉS en bas
+  var actifs = [];
+  var archives = [];
+  d.forEach(function(e){
+    if(e.paiement && (e.paiement.indexOf("Actif")!==-1 || e.paiement.indexOf("Confirme")!==-1)){
+      actifs.push(e);
+    } else {
+      archives.push(e);
+    }
+  });
 
-  /* ── PATCH : plus d'archivage — tous les établissements sont actifs ── */
   var isCompact = window._admEtablCompact;
 
   var html="<div style='margin-bottom:0.8rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;'>";
-  html+="<span style='font-size:0.72rem;color:var(--muted);'><strong style='color:var(--green);'>"+d.length+" actif(s)</strong> · "+d.length+" total</span>";
+  html+="<span style='font-size:0.72rem;color:var(--muted);'><strong style='color:var(--green);'>"+actifs.length+" actif(s)</strong> · <strong style='color:var(--red);'>"+archives.length+" archivé(s)</strong> · "+d.length+" total</span>";
   html+="<div style='display:flex;gap:0.4rem;align-items:center;'>";
-  /* Bouton activer tous (mass-update Firebase) */
-  html+="<button onclick=\"activerTousEtablissements()\" style='font-size:0.65rem;font-weight:700;padding:0.3rem 0.7rem;border-radius:20px;cursor:pointer;font-family:DM Sans,sans-serif;border:1px solid rgba(0,255,170,0.4);background:rgba(0,255,170,0.12);color:var(--green);'>✅ Activer tous</button>";
-  /* Toggle compact/détaillé */
+  // Toggle vue compact/détaillé
   html+="<button onclick=\"window._admEtablCompact=!window._admEtablCompact;renderAdmEtabl();\" style='display:flex;align-items:center;gap:0.3rem;font-size:0.65rem;font-weight:700;padding:0.3rem 0.65rem;border-radius:20px;cursor:pointer;font-family:DM Sans,sans-serif;transition:all 0.2s;border:1px solid "+(isCompact?"rgba(157,132,255,0.5)":"rgba(255,255,255,0.12)")+";background:"+(isCompact?"rgba(157,132,255,0.15)":"rgba(255,255,255,0.04)")+";color:"+(isCompact?"#9D84FF":"var(--muted)")+";'>"+(isCompact?"<span style='font-size:0.75rem;'>≡</span> Détaillé":"<span style='font-size:0.75rem;'>⊟</span> Compact")+"</button>";
   html+="<input id='admSearchEtabl' type='text' placeholder='Rechercher...' oninput='admFilterEtabl()' style='background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);font-size:0.78rem;padding:0.4rem 0.7rem;width:130px;'>";
   html+="</div>";
   html+="</div>";
 
-  /* ── SECTION UNIQUE — tous les établissements ── */
-  if(d.length > 0){
-    var open = window._admEtablActifsOpen;
+  // ── SECTION ACTIFS ──────────────────────────────────────────
+  if(actifs.length > 0){
+    var actifsOpen = window._admEtablActifsOpen;
     html+="<div style='margin:0.8rem 0 0.4rem;'>";
     html+="<button onclick=\"window._admEtablActifsOpen=!window._admEtablActifsOpen;renderAdmEtabl();\" style='width:100%;display:flex;align-items:center;gap:0.5rem;padding:0.55rem 0.75rem;background:rgba(0,255,170,0.08);border:none;border-left:3px solid var(--green);border-radius:6px;cursor:pointer;text-align:left;transition:background 0.2s;'>";
-    html+="<span style='font-size:0.9rem;color:var(--green);font-weight:700;transition:transform 0.2s;display:inline-block;transform:"+(open?"rotate(90deg)":"rotate(0deg)")+";'>›</span>";
+    html+="<span style='font-size:0.9rem;color:var(--green);font-weight:700;transition:transform 0.2s;display:inline-block;transform:"+(actifsOpen?"rotate(90deg)":"rotate(0deg)")+";'>›</span>";
     html+="<span style='font-size:0.75rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.05em;flex:1;'>✓ Établissements Actifs</span>";
-    html+="<span style='font-size:0.65rem;background:rgba(0,255,170,0.15);color:var(--green);border-radius:20px;padding:0.1rem 0.5rem;font-weight:700;'>"+d.length+"</span>";
+    html+="<span style='font-size:0.65rem;background:rgba(0,255,170,0.15);color:var(--green);border-radius:20px;padding:0.1rem 0.5rem;font-weight:700;'>"+actifs.length+"</span>";
     html+="</button></div>";
 
-    if(open){
+    if(actifsOpen){
       if(isCompact){
-        html += _renderEtablCompact(d, false);
+        html += _renderEtablCompact(actifs, false);
       } else {
-        d.forEach(function(e){ html += _renderEtablCard(e, false); });
+        actifs.forEach(function(e){ html += _renderEtablCard(e, false); });
+      }
+    }
+  }
+
+  // ── SECTION ARCHIVÉS ────────────────────────────────────────
+  if(archives.length > 0){
+    var archivesOpen = window._admEtablArchivesOpen;
+    html+="<div style='margin:1rem 0 0.4rem;'>";
+    html+="<button onclick=\"window._admEtablArchivesOpen=!window._admEtablArchivesOpen;renderAdmEtabl();\" style='width:100%;display:flex;align-items:center;gap:0.5rem;padding:0.55rem 0.75rem;background:rgba(255,68,102,0.08);border:none;border-left:3px solid var(--red);border-radius:6px;cursor:pointer;text-align:left;transition:background 0.2s;'>";
+    html+="<span style='font-size:0.9rem;color:var(--red);font-weight:700;transition:transform 0.2s;display:inline-block;transform:"+(archivesOpen?"rotate(90deg)":"rotate(0deg)")+";'>›</span>";
+    html+="<span style='font-size:0.75rem;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:0.05em;flex:1;'>📦 Établissements Archivés</span>";
+    html+="<span style='font-size:0.65rem;background:rgba(255,68,102,0.15);color:var(--red);border-radius:20px;padding:0.1rem 0.5rem;font-weight:700;'>"+archives.length+"</span>";
+    html+="</button></div>";
+
+    if(archivesOpen){
+      if(isCompact){
+        html += _renderEtablCompact(archives, true);
+      } else {
+        archives.forEach(function(e){ html += _renderEtablCard(e, true); });
       }
     }
   }
 
   document.getElementById("adminEtablList").innerHTML=html;
 }
-
-/* ── Activer tous les établissements en masse sur Firebase ── */
-function activerTousEtablissements(){
-  if(!isAdmin){ showToast("Admin requis"); return; }
-  if(!window.db || !window.fbUpdateDoc || !window.fbDoc){ showToast("Firebase non prêt"); return; }
-  var aActiver = etablissements.filter(function(e){
-    return !e.paiement || (e.paiement.indexOf("Actif")===-1 && e.paiement.indexOf("Confirme")===-1);
-  });
-  if(aActiver.length === 0){ showToast("✅ Tous déjà actifs !"); return; }
-  showToast("⏳ Activation de "+aActiver.length+" établissements...");
-  var done=0, errors=0;
-  aActiver.forEach(function(e){
-    if(!e._docId){ errors++; return; }
-    window.fbUpdateDoc(window.fbDoc(window.db, "etablissements", e._docId), { paiement: "Actif (Admin)" })
-      .then(function(){
-        e.paiement = "Actif (Admin)";
-        done++;
-        if(done+errors === aActiver.length){
-          showToast("✅ "+done+" établissements activés !"+(errors?" ("+errors+" erreurs)":""));
-          renderAdmEtabl();
-        }
-      })
-      .catch(function(err){
-        console.error("Erreur activation:", e.nom, err);
-        errors++;
-        if(done+errors === aActiver.length){
-          showToast("⚠️ "+done+" activés, "+errors+" erreurs");
-          renderAdmEtabl();
-        }
-      });
-  });
-}
-window.activerTousEtablissements = activerTousEtablissements;
 
 /* ── Vue COMPACTE : une ligne par établissement, expandable ── */
 function _renderEtablCompact(list, isArchived){
@@ -23197,7 +23791,7 @@ function _renderEtablCompact(list, isArchived){
     // Ligne compacte cliquable
     html+="<button onclick=\"(function(){var el=document.getElementById('"+expandId+"');if(el){el.style.display=el.style.display==='none'?'block':'none';var arr=el.previousSibling.querySelector('.adm-ec-arrow');if(arr)arr.style.transform=el.style.display==='none'?'rotate(0deg)':'rotate(90deg)';}})()\" style='width:100%;display:flex;align-items:center;gap:0.5rem;padding:0.55rem 0.7rem;background:transparent;border:none;cursor:pointer;text-align:left;'>";
     html+="<span class='adm-ec-arrow' style='font-size:0.75rem;color:var(--muted);display:inline-block;transform:rotate(0deg);transition:transform 0.2s;'>›</span>";
-    html+="<span style='font-size:0.78rem;font-weight:700;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;'>"+e.nom+"</span>";
+    html+="<span style='font-size:0.78rem;font-weight:700;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;'>"+(isArchived?"🔒 ":"")+e.nom+"</span>";
     html+="<span style='font-size:0.58rem;color:var(--muted);white-space:nowrap;margin-right:0.3rem;'>"+e.type+"</span>";
     html+="<span style='font-size:0.6rem;font-weight:700;color:"+sc+";white-space:nowrap;border:1px solid "+sc+";border-radius:20px;padding:0.06rem 0.35rem;background:rgba(0,0,0,0.2);'>"+( e.statut?(e.statut.replace("Ouvert - ","")):"–")+"</span>";
     html+="</button>";
@@ -26590,14 +27184,11 @@ window.doAssignEtab = doAssignEtab;
               <div class="igm-cat-btn igm-cat-sel" data-key="Bar" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🍺</span><div class="igm-cat-name">Bars</div><div class="igm-cat-count" id="igm2-cnt-Bar">—</div></div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Bar Terrasse" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🍹</span><div class="igm-cat-name">Bar Terrasses</div><div class="igm-cat-count" id="igm2-cnt-Bar Terrasse">—</div></div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Snack" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🍟</span><div class="igm-cat-name">Snacks</div><div class="igm-cat-count" id="igm2-cnt-Snack">—</div></div>
-              <div class="igm-cat-btn igm-cat-sel" data-key="Restaurant" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🍽️</span><div class="igm-cat-name">Restaurants & Cafés</div><div class="igm-cat-count" id="igm2-cnt-Restaurant">—</div></div>
-              <div class="igm-cat-btn igm-cat-sel" data-key="Patisserie" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🎂</span><div class="igm-cat-name">Pâtisseries & Boulangeries</div><div class="igm-cat-count" id="igm2-cnt-Patisserie">—</div></div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Restaurant" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🍽️</span><div class="igm-cat-name">Restos & Pâtisseries</div><div class="igm-cat-count" id="igm2-cnt-Restaurant">—</div></div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Discotheque" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🎵</span><div class="igm-cat-name">Clubs</div><div class="igm-cat-count" id="igm2-cnt-Discotheque">—</div></div>
-              <div class="igm-cat-btn igm-cat-sel" data-key="Salle Ceremonie" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">💍</span><div class="igm-cat-name">Salles de Cérémonies</div><div class="igm-cat-count" id="igm2-cnt-Salle Ceremonie">—</div></div>
-              <div class="igm-cat-btn igm-cat-sel" data-key="Salle Spectacle" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🎭</span><div class="igm-cat-name">Salles de Spectacle</div><div class="igm-cat-count" id="igm2-cnt-Salle Spectacle">—</div></div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Salle" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🎪</span><div class="igm-cat-name">Salles & Cérémonies</div><div class="igm-cat-count" id="igm2-cnt-Salle">—</div></div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Stade" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">⚽</span><div class="igm-cat-name">Stades Football</div><div class="igm-cat-count" id="igm2-cnt-Stade">—</div></div>
-              <div class="igm-cat-btn igm-cat-sel" data-key="Site Naturel" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🌳</span><div class="igm-cat-name">Sites Naturels & Parcs</div><div class="igm-cat-count" id="igm2-cnt-Site Naturel">—</div></div>
-              <div class="igm-cat-btn igm-cat-sel" data-key="Monument" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🏛️</span><div class="igm-cat-name">Monuments Historiques</div><div class="igm-cat-count" id="igm2-cnt-Monument">—</div></div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Tourisme" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🏛️</span><div class="igm-cat-name">Sites Touristiques</div><div class="igm-cat-count" id="igm2-cnt-Tourisme">—</div></div>
             </div>
             <button class="igm-btn igm-btn-primary" onclick="igm2StartSearch()">🔍 Lancer la recherche Google Maps</button>
           </div>
@@ -26607,7 +27198,7 @@ window.doAssignEtab = doAssignEtab;
         <div class="igm-section" id="igm2-sec2">
           <div class="igm-panel">
             <div class="igm-panel-title">⏳ Recherche en cours...</div>
-            <div class="igm-panel-sub" id="igm2SearchStatus">Connexion à OpenStreetMap / Overpass API...</div>
+            <div class="igm-panel-sub" id="igm2SearchStatus">Connexion à Google Maps Places API...</div>
             <div class="igm-progress-wrap">
               <div class="igm-progress-bar"><div class="igm-progress-fill" id="igm2ProgressFill"></div></div>
               <div class="igm-progress-label"><span id="igm2ProgressLabel">0%</span><span id="igm2ProgressDetail"></span></div>
@@ -26955,7 +27546,175 @@ window.doAssignEtab = doAssignEtab;
 /* ═══════════════════════════════════════════════
    FICHES SECTORIELLES AMBI241
    ═══════════════════════════════════════════════ */
+#sec-fiches{padding:0.75rem 0.75rem 6rem;}
+#sec-fiches .fs-header{text-align:center;margin-bottom:1.5rem;}
+#sec-fiches .fs-title{font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;background:linear-gradient(135deg,var(--pink),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+#sec-fiches .fs-sub{font-size:0.72rem;color:var(--muted);margin-top:0.3rem;}
+#sec-fiches .fs-badge{display:inline-flex;align-items:center;gap:0.4rem;margin-top:0.6rem;background:rgba(0,255,170,0.08);border:1px solid rgba(0,255,170,0.25);border-radius:20px;padding:0.3rem 0.8rem;font-size:0.65rem;font-weight:700;color:var(--green);}
+#sec-fiches .sector-tabs{display:flex;gap:0.35rem;overflow-x:auto;scrollbar-width:none;margin-bottom:1.5rem;padding-bottom:0.2rem;}
+#sec-fiches .sector-tabs::-webkit-scrollbar{display:none;}
+#sec-fiches .stab{flex-shrink:0;padding:0.45rem 0.85rem;border-radius:20px;font-size:0.68rem;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,0.09);background:rgba(255,255,255,0.03);color:var(--muted);transition:all 0.2s;font-family:'DM Sans',sans-serif;}
+#sec-fiches .stab.active{color:#fff;border-color:transparent;}
+#sec-fiches .stab-bar.active{background:linear-gradient(135deg,#ff2d9b,#cc44ff);}
+#sec-fiches .stab-hotel.active{background:linear-gradient(135deg,#00d9ff,#0099cc);}
+#sec-fiches .stab-resto.active{background:linear-gradient(135deg,#ff9500,#cc6600);}
+#sec-fiches .stab-stade.active{background:linear-gradient(135deg,#00ffaa,#009966);}
+#sec-fiches .stab-club.active{background:linear-gradient(135deg,#cc44ff,#8800cc);}
+#sec-fiches .stab-salle.active{background:linear-gradient(135deg,#ffd700,#cc9900);}
+#sec-fiches .stab-site.active{background:linear-gradient(135deg,#56ab2f,#a8e063);}
+#sec-fiches .stab-snack.active{background:linear-gradient(135deg,#f7971e,#ffd200);}
+#sec-fiches .stab-terrasse.active{background:linear-gradient(135deg,#00e5ff,#0077cc);}
+#sec-fiches .fiche-wrap{display:none;}
+#sec-fiches .fiche-wrap.visible{display:block;}
+#sec-fiches .fiche-card{background:var(--surface);border-radius:20px;overflow:hidden;border:1.5px solid rgba(255,255,255,0.07);box-shadow:0 8px 40px rgba(0,0,0,0.4);}
+#sec-fiches .fiche-hero{height:140px;position:relative;overflow:hidden;display:flex;align-items:flex-end;}
+#sec-fiches .fiche-hero-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(26,10,40,0.95) 0%,rgba(26,10,40,0.3) 60%,transparent 100%);}
+#sec-fiches .fiche-hero-badge{position:absolute;top:0.6rem;left:0.6rem;background:rgba(255,215,0,0.9);color:#000;font-family:'Syne',sans-serif;font-size:0.6rem;font-weight:800;padding:0.18rem 0.45rem;border-radius:5px;}
+#sec-fiches .fiche-status-pill{position:absolute;top:0.6rem;right:0.6rem;padding:0.28rem 0.65rem;border-radius:20px;font-size:0.62rem;font-weight:700;border:none;}
+#sec-fiches .pill-ouvert-anime{background:rgba(0,255,170,0.18);border:1px solid rgba(0,255,170,0.45);color:var(--green);}
+#sec-fiches .pill-ouvert-calme{background:rgba(255,215,0,0.15);border:1px solid rgba(255,215,0,0.4);color:var(--amber);}
+#sec-fiches .pill-ouvert-bonde{background:rgba(255,68,102,0.15);border:1px solid rgba(255,68,102,0.45);color:var(--red);}
+#sec-fiches .pill-ferme{background:rgba(176,136,192,0.15);border:1px solid rgba(176,136,192,0.3);color:var(--muted);}
+#sec-fiches .fiche-hero-actions{position:absolute;bottom:0.5rem;right:0.5rem;display:flex;gap:0.3rem;}
+#sec-fiches .qr-btn{background:rgba(0,229,255,0.15);border:1px solid rgba(0,229,255,0.35);color:var(--cyan);font-size:0.58rem;font-weight:800;padding:0.22rem 0.5rem;border-radius:6px;cursor:pointer;}
+#sec-fiches .fiche-body{padding:0.9rem;}
+#sec-fiches .fiche-name{font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--text);margin-bottom:0.35rem;}
+#sec-fiches .fiche-tags{display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:0.65rem;}
+#sec-fiches .tag{padding:0.22rem 0.6rem;border-radius:20px;font-size:0.62rem;font-weight:700;}
+#sec-fiches .tag-type{background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.25);color:var(--cyan);}
+#sec-fiches .tag-galerie{background:rgba(255,45,155,0.08);border:1px solid rgba(255,45,155,0.25);color:var(--pink);}
+#sec-fiches .fiche-location{font-size:0.75rem;color:var(--pink);margin-bottom:0.9rem;display:flex;align-items:center;gap:0.3rem;}
+#sec-fiches .sector-data{background:var(--surface2);border-radius:14px;padding:0.85rem;margin-bottom:0.85rem;border:1px solid rgba(255,255,255,0.07);}
+#sec-fiches .sector-data-title{font-family:'Syne',sans-serif;font-size:0.72rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.7rem;display:flex;align-items:center;gap:0.35rem;}
+#sec-fiches .data-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0.5rem;}
+#sec-fiches .data-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:0.45rem;}
+#sec-fiches .data-chip{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.55rem 0.5rem;text-align:center;}
+#sec-fiches .data-chip-val{font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:var(--text);}
+#sec-fiches .data-chip-lbl{font-size:0.57rem;color:var(--muted);margin-top:0.1rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;}
+#sec-fiches .data-chip.highlight-green .data-chip-val{color:var(--green);}
+#sec-fiches .data-chip.highlight-amber .data-chip-val{color:var(--amber);}
+#sec-fiches .data-chip.highlight-cyan .data-chip-val{color:var(--cyan);}
+#sec-fiches .data-chip.highlight-red .data-chip-val{color:var(--red);}
+#sec-fiches .data-chip.highlight-pink .data-chip-val{color:var(--pink);}
+#sec-fiches .data-row{display:flex;justify-content:space-between;align-items:center;padding:0.45rem 0;border-bottom:1px solid rgba(255,255,255,0.05);}
+#sec-fiches .data-row:last-child{border-bottom:none;}
+#sec-fiches .data-row-label{font-size:0.75rem;color:var(--muted);}
+#sec-fiches .data-row-value{font-size:0.78rem;font-weight:700;color:var(--text);}
+#sec-fiches .data-row-value.green{color:var(--green);}
+#sec-fiches .data-row-value.amber{color:var(--amber);}
+#sec-fiches .data-row-value.cyan{color:var(--cyan);}
+#sec-fiches .data-row-value.pink{color:var(--pink);}
+#sec-fiches .data-row-value.red{color:var(--red);}
+#sec-fiches .affluence-bar{margin-bottom:0.8rem;}
+#sec-fiches .affluence-label{display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:0.35rem;}
+#sec-fiches .affluence-track{height:7px;background:rgba(255,255,255,0.07);border-radius:7px;overflow:hidden;}
+#sec-fiches .affluence-fill{height:100%;border-radius:7px;background:linear-gradient(90deg,var(--green),var(--amber),var(--red));}
+#sec-fiches .ambiance-line{display:flex;justify-content:space-between;align-items:center;font-size:0.8rem;margin-bottom:0.9rem;}
+#sec-fiches .ambiance-val{font-weight:700;color:var(--pink);}
+#sec-fiches .dispo-list{display:flex;flex-direction:column;gap:0.4rem;}
+#sec-fiches .dispo-item{display:flex;align-items:center;gap:0.6rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:0.5rem 0.7rem;}
+#sec-fiches .dispo-icon{font-size:1rem;width:28px;text-align:center;flex-shrink:0;}
+#sec-fiches .dispo-name{flex:1;font-size:0.75rem;color:var(--muted);}
+#sec-fiches .dispo-count{font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;}
+#sec-fiches .dispo-count.dispo-ok{color:var(--green);}
+#sec-fiches .dispo-count.dispo-warn{color:var(--amber);}
+#sec-fiches .dispo-count.dispo-full{color:var(--red);}
+#sec-fiches .promo-strip{background:linear-gradient(135deg,rgba(255,215,0,0.1),rgba(255,45,155,0.07));border:1.5px solid rgba(255,215,0,0.3);border-radius:12px;padding:0.65rem 0.8rem;margin-bottom:0.85rem;display:flex;align-items:center;gap:0.6rem;}
+#sec-fiches .promo-icon{font-size:1.2rem;flex-shrink:0;}
+#sec-fiches .promo-text{font-size:0.72rem;color:var(--text);line-height:1.4;}
+#sec-fiches .promo-label{font-size:0.55rem;font-weight:800;color:var(--amber);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.1rem;}
+#sec-fiches .notes-bar{background:var(--surface2);border-radius:12px;padding:0.75rem 0.85rem;margin-bottom:0.85rem;border:1px solid rgba(255,255,255,0.07);}
+#sec-fiches .notes-top{display:flex;align-items:center;gap:0.8rem;margin-bottom:0.6rem;}
+#sec-fiches .notes-big{font-family:'Syne',sans-serif;font-size:2.2rem;font-weight:800;color:var(--amber);line-height:1;}
+#sec-fiches .notes-right{flex:1;}
+#sec-fiches .notes-stars{font-size:0.9rem;color:var(--amber);}
+#sec-fiches .notes-count{font-size:0.65rem;color:var(--muted);margin-top:0.15rem;}
+#sec-fiches .notes-criteria{display:flex;flex-direction:column;gap:0.3rem;}
+#sec-fiches .ncrit-row{display:flex;align-items:center;gap:0.5rem;}
+#sec-fiches .ncrit-label{font-size:0.67rem;color:var(--muted);width:90px;flex-shrink:0;}
+#sec-fiches .ncrit-track{flex:1;height:4px;background:rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;}
+#sec-fiches .ncrit-fill{height:100%;border-radius:4px;background:var(--amber);}
+#sec-fiches .ncrit-val{font-size:0.65rem;font-weight:700;color:var(--text);width:22px;text-align:right;}
+#sec-fiches .maps-btn{display:flex;align-items:center;gap:0.5rem;justify-content:center;width:100%;padding:0.7rem;border-radius:12px;background:linear-gradient(135deg,rgba(0,229,255,0.12),rgba(255,45,155,0.08));border:1.5px solid rgba(0,229,255,0.3);color:var(--cyan);font-weight:700;font-size:0.82rem;text-decoration:none;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;margin-bottom:0.85rem;}
+#sec-fiches .contact-row{display:flex;gap:0.45rem;margin-bottom:0.85rem;}
+#sec-fiches .contact-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:0.35rem;padding:0.55rem;border-radius:10px;font-size:0.7rem;font-weight:700;text-decoration:none;cursor:pointer;font-family:'DM Sans',sans-serif;border:none;transition:all 0.2s;}
+#sec-fiches .contact-wa{background:rgba(37,211,102,0.12);border:1px solid rgba(37,211,102,0.35);color:#25d366;}
+#sec-fiches .contact-tel{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);}
+#sec-fiches .contact-web{background:rgba(204,68,255,0.1);border:1px solid rgba(204,68,255,0.3);color:var(--purple);}
+#sec-fiches .votes-section{border-top:1px solid rgba(255,255,255,0.07);padding-top:0.85rem;margin-top:0.1rem;}
+#sec-fiches .votes-title{font-family:'Syne',sans-serif;font-size:0.72rem;font-weight:800;color:var(--pink);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.55rem;display:flex;align-items:center;gap:0.35rem;}
+#sec-fiches .votes-title::before{content:'📌';}
+#sec-fiches .votes-summary{display:flex;align-items:center;gap:0.7rem;margin-bottom:0.5rem;}
+#sec-fiches .vote-count-badge{background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:0.2rem 0.5rem;font-family:'Syne',sans-serif;font-size:0.82rem;font-weight:800;}
+#sec-fiches .vote-pers{font-size:0.75rem;color:var(--muted);}
+#sec-fiches .vote-score{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:800;color:var(--green);}
+#sec-fiches .vote-btns{display:flex;gap:0.35rem;margin-bottom:0.7rem;}
+#sec-fiches .vote-btn{flex:1;padding:0.5rem;border-radius:10px;font-size:0.78rem;font-weight:700;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:all 0.15s;display:flex;align-items:center;justify-content:center;gap:0.35rem;}
+#sec-fiches .vote-up{background:rgba(0,229,255,0.12);border:1.5px solid rgba(0,229,255,0.3);color:var(--cyan);}
+#sec-fiches .vote-down{background:rgba(255,68,102,0.1);border:1.5px solid rgba(255,68,102,0.28);color:var(--red);}
+#sec-fiches .signal-btns{display:flex;gap:0.35rem;flex-wrap:wrap;}
+#sec-fiches .sig-btn{flex:1;min-width:calc(50% - 0.2rem);padding:0.45rem 0.4rem;border-radius:10px;font-size:0.7rem;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:var(--muted);font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:0.3rem;transition:all 0.2s;}
+#sec-fiches .pro-panel{background:linear-gradient(135deg,rgba(255,45,155,0.08),rgba(0,229,255,0.04));border:1.5px solid rgba(255,45,155,0.25);border-radius:16px;margin-top:1rem;overflow:hidden;}
 /* ── Pro-panel : masqué du public par défaut — affiché via JS si propriétaire/admin ── */
+#sec-fiches .pro-panel.pub-hidden { display: none !important; }
+#sec-fiches .pro-panel-header{padding:0.75rem 0.9rem;display:flex;align-items:center;gap:0.7rem;border-bottom:1px solid rgba(255,45,155,0.15);}
+#sec-fiches .pro-panel-icon{font-size:1.4rem;}
+#sec-fiches .pro-panel-title{font-family:'Syne',sans-serif;font-size:0.9rem;font-weight:800;color:var(--pink);}
+#sec-fiches .pro-panel-sub{font-size:0.65rem;color:var(--muted);}
+#sec-fiches .pro-panel-lock{margin-left:auto;font-size:0.58rem;background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);color:var(--amber);padding:0.2rem 0.5rem;border-radius:10px;font-weight:700;}
+#sec-fiches .pro-tabs{display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,0.07);}
+#sec-fiches .pro-tab{flex:1;padding:0.5rem 0.2rem;font-size:0.6rem;font-weight:700;color:var(--muted);cursor:pointer;background:none;border:none;border-bottom:2.5px solid transparent;font-family:'DM Sans',sans-serif;transition:all 0.2s;text-align:center;white-space:nowrap;}
+#sec-fiches .pro-tab.active{color:var(--pink);border-bottom-color:var(--pink);}
+#sec-fiches .pro-pane{display:none;padding:0.8rem 0.9rem;}
+#sec-fiches .pro-pane.active{display:block;}
+#sec-fiches .pro-section{font-family:'Syne',sans-serif;font-size:0.68rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin:0.75rem 0 0.45rem;}
+#sec-fiches .pro-section:first-child{margin-top:0;}
+#sec-fiches .pro-field{margin-bottom:0.6rem;}
+#sec-fiches .pro-label{font-size:0.65rem;color:var(--muted);font-weight:600;margin-bottom:0.3rem;}
+#sec-fiches .pro-input{width:100%;background:rgba(255,255,255,0.04);border:1.5px solid rgba(255,255,255,0.09);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.82rem;padding:0.55rem 0.7rem;outline:none;transition:border-color 0.2s;}
+#sec-fiches .pro-input:focus{border-color:rgba(255,45,155,0.5);}
+#sec-fiches .pro-textarea{min-height:70px;resize:vertical;line-height:1.5;}
+#sec-fiches .pro-select{appearance:none;}
+#sec-fiches .pro-chips{display:flex;gap:0.35rem;flex-wrap:wrap;}
+#sec-fiches .pro-chip{padding:0.28rem 0.6rem;border-radius:20px;font-size:0.68rem;font-weight:700;cursor:pointer;background:rgba(255,255,255,0.04);border:1.5px solid rgba(255,255,255,0.1);color:var(--muted);transition:all 0.2s;font-family:'DM Sans',sans-serif;}
+#sec-fiches .pro-chip.sel{background:rgba(255,45,155,0.15);border-color:rgba(255,45,155,0.5);color:var(--pink);}
+#sec-fiches .pro-chip.sel-green{background:rgba(0,255,170,0.12);border-color:rgba(0,255,170,0.4);color:var(--green);}
+#sec-fiches .pro-chip.sel-amber{background:rgba(255,215,0,0.12);border-color:rgba(255,215,0,0.4);color:var(--amber);}
+#sec-fiches .pro-chip.sel-cyan{background:rgba(0,229,255,0.12);border-color:rgba(0,229,255,0.4);color:var(--cyan);}
+#sec-fiches .pro-stat-row{display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:0.6rem;}
+#sec-fiches .pro-stat-btn{flex:1;min-width:calc(50% - 0.2rem);padding:0.45rem 0.3rem;border-radius:9px;font-size:0.68rem;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--muted);font-family:'DM Sans',sans-serif;transition:all 0.2s;text-align:center;}
+#sec-fiches .pro-stat-btn.open{background:rgba(0,255,170,0.14);border-color:rgba(0,255,170,0.4);color:var(--green);}
+#sec-fiches .pro-stat-btn.closed{background:rgba(255,68,102,0.12);border-color:rgba(255,68,102,0.38);color:var(--red);}
+#sec-fiches .pro-stat-btn.busy{background:rgba(255,68,102,0.12);border-color:rgba(255,68,102,0.38);color:var(--red);}
+#sec-fiches .pro-stat-btn.calm{background:rgba(255,215,0,0.1);border-color:rgba(255,215,0,0.35);color:var(--amber);}
+#sec-fiches .pro-dispo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0.45rem;margin-bottom:0.6rem;}
+#sec-fiches .pro-dispo-card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.6rem;text-align:center;}
+#sec-fiches .pro-dispo-icon{font-size:1.2rem;margin-bottom:0.2rem;}
+#sec-fiches .pro-dispo-lbl{font-size:0.58rem;color:var(--muted);font-weight:600;margin-bottom:0.4rem;}
+#sec-fiches .pro-dispo-ctrl{display:flex;align-items:center;justify-content:center;gap:0.3rem;}
+#sec-fiches .pro-dispo-ctrl button{width:24px;height:24px;border-radius:50%;background:rgba(255,45,155,0.15);border:1px solid rgba(255,45,155,0.3);color:var(--pink);font-weight:800;cursor:pointer;font-size:0.85rem;display:flex;align-items:center;justify-content:center;}
+#sec-fiches .pro-dispo-num{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:800;color:var(--text);width:36px;text-align:center;}
+#sec-fiches .pro-dispo-num.low{color:var(--amber);}
+#sec-fiches .pro-dispo-num.zero{color:var(--red);}
+#sec-fiches .pro-save-btn{width:100%;padding:0.7rem;border-radius:12px;background:linear-gradient(135deg,var(--pink),#cc1f7f);border:none;color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;margin-top:0.4rem;transition:all 0.22s;box-shadow:0 4px 16px rgba(255,45,155,0.3);}
+#sec-fiches .pro-slider-wrap{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.6rem;}
+#sec-fiches .pro-slider{flex:1;accent-color:var(--pink);}
+#sec-fiches .pro-slider-val{font-family:'Syne',sans-serif;font-size:0.85rem;font-weight:800;color:var(--pink);width:38px;text-align:right;}
+#sec-fiches .lock-notice{font-size:0.65rem;color:var(--muted);text-align:center;padding:0.5rem;border-top:1px solid rgba(255,255,255,0.06);margin-top:0.5rem;}
+#sec-fiches .info-pill{display:inline-flex;align-items:center;gap:0.35rem;padding:0.22rem 0.6rem;border-radius:20px;font-size:0.62rem;font-weight:700;}
+#sec-fiches .info-admin-only{background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.28);color:var(--amber);}
+#sec-fiches .info-owner-only{background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.28);color:var(--pink);}
+#sec-fiches .info-public{background:rgba(0,255,170,0.08);border:1px solid rgba(0,255,170,0.25);color:var(--green);}
+#sec-fiches .horaires-grid{display:grid;grid-template-columns:auto 1fr;gap:0.35rem 0.6rem;align-items:center;}
+#sec-fiches .h-day{font-size:0.72rem;color:var(--muted);}
+#sec-fiches .h-time{font-size:0.72rem;color:var(--text);font-weight:600;}
+#sec-fiches .h-today{color:var(--pink);}
+#sec-fiches .sep{height:1px;background:rgba(255,255,255,0.06);margin:0.85rem 0;}
+#sec-fiches .fs-legend{margin-top:1.5rem;background:var(--surface);border-radius:16px;padding:1rem 1.1rem;border:1px solid rgba(255,255,255,0.07);}
+#sec-fiches .fs-legend-title{font-family:'Syne',sans-serif;font-size:0.8rem;font-weight:800;color:var(--text);margin-bottom:0.7rem;}
+#sec-fiches .fs-legend-items{display:flex;flex-direction:column;gap:0.4rem;}
+#sec-fiches .fs-legend-item{display:flex;align-items:center;gap:0.6rem;font-size:0.68rem;color:var(--muted);}
+#sec-fiches .fs-live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;}
 
 </style>
 
@@ -43619,7 +44378,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 (function(){
   // ══ MOTEUR OSM igm2 ══
   var _r2 = [], _sel2 = new Set();
-  var _cats2 = new Set(['Hotel','Bar','Bar Terrasse','Snack','Restaurant','Patisserie','Discotheque','Salle Ceremonie','Salle Spectacle','Stade','Site Naturel','Monument','Tourisme']);
+  var _cats2 = new Set(['Hotel','Bar','Bar Terrasse','Snack','Restaurant','Discotheque','Salle','Stade','Tourisme']);
 
   var CFG2 = {
     "Hotel":        {label:"Hôtels & Motels",  icon:"🏨",
@@ -43648,22 +44407,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       queries:["stade football Libreville","terrain football Libreville"]},
     "Tourisme":     {label:"Sites Touristiques", icon:"🏛️",
       overpassTags:[["tourism","attraction"],["tourism","museum"],["historic","monument"],["leisure","park"]],
-      queries:["site touristique Libreville","musée Libreville","monument Libreville","parc Gabon"]},
-    "Patisserie":   {label:"Pâtisseries & Boulangeries", icon:"🎂",
-      overpassTags:[["shop","bakery"],["shop","pastry"],["amenity","cafe"]],
-      queries:["patisserie Libreville","boulangerie Libreville","salon the Libreville"]},
-    "Salle Ceremonie":{label:"Salles de Cérémonies", icon:"💍",
-      overpassTags:[["amenity","events_venue"],["amenity","community_centre"],["amenity","banquet_hall"]],
-      queries:["salle ceremonie Libreville","salle mariage Libreville","salle fete Libreville"]},
-    "Salle Spectacle":{label:"Salles de Spectacle", icon:"🎭",
-      overpassTags:[["amenity","theatre"],["amenity","cinema"],["amenity","concert_hall"]],
-      queries:["salle spectacle Libreville","theatre Libreville","cinema Libreville"]},
-    "Site Naturel": {label:"Sites Naturels & Parcs", icon:"🌳",
-      overpassTags:[["leisure","park"],["leisure","nature_reserve"],["natural","beach"],["tourism","viewpoint"]],
-      queries:["parc naturel Gabon","plage Libreville","reserve naturelle Gabon"]},
-    "Monument":     {label:"Monuments Historiques", icon:"🏛️",
-      overpassTags:[["historic","monument"],["historic","memorial"],["tourism","museum"],["historic","ruins"]],
-      queries:["monument Libreville","memorial Gabon","musee Libreville"]}
+      queries:["site touristique Libreville","musée Libreville","monument Libreville","parc Gabon"]}
   };
   var QTRS2 = ["Centre-ville","Akanda","Glass","Louis","Owendo","Nombakélé","Batterie IV","PK5","PK8","PK12","Angondjé","Nzeng-Ayong","La Sablière"];
 
@@ -43810,7 +44554,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     if(!_cats2.size){if(typeof showToast==='function')showToast('⚠️ Sélectionne au moins une catégorie');return;}
     igm2Step(2); _r2=[]; var seen=new Set();
     var cats=Array.from(_cats2);
-    var allQueries=[]; for(var ci=0;ci<cats.length;ci++){var c=cats[ci];if(!CFG2[c]){igm2Log('⚠️ Catégorie inconnue ignorée : '+c,'warn');continue;}CFG2[c].queries.forEach(function(q){allQueries.push({q:q,cat:c});});}
+    var allQueries=[]; for(var ci=0;ci<cats.length;ci++){var c=cats[ci];CFG2[c].queries.forEach(function(q){allQueries.push({q:q,cat:c});});}
     var total=allQueries.length, done=0;
     igm2Log('🗺️ Recherche OpenStreetMap (sans clé API)...');
     igm2Prog(0,'Recherche OSM / Overpass...','0/'+total+' requêtes');
@@ -43818,7 +44562,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     // 1 — Overpass par catégorie
     for(var ci2=0;ci2<cats.length;ci2++){
       var catKey=cats[ci2], cfg=CFG2[catKey];
-      if(!cfg||!cfg.overpassTags) continue;
+      if(!cfg.overpassTags) continue;
       try{
         igm2Log('  → Overpass tags : '+cfg.label);
         var ovRes=await igm2SearchOverpass(cfg.overpassTags);
@@ -49586,6 +50330,97 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
   </script>
 
 
+<script>
+/* ═══════════════════════════════════════
+   FICHES SECTORIELLES — Module AMBI241
+   ═══════════════════════════════════════ */
+(function(){
+function fShowSector(sector) {
+  document.querySelectorAll('#sec-fiches .fiche-wrap').forEach(function(f){ f.classList.remove('visible'); });
+  document.querySelectorAll('#sec-fiches .stab').forEach(function(t){ t.classList.remove('active'); });
+  var fiche = document.getElementById('fiche-fs-' + sector);
+  if (fiche) fiche.classList.add('visible');
+  var tab = document.querySelector('#sec-fiches .stab-' + sector);
+  if (tab) tab.classList.add('active');
+}
+window.fShowSector = fShowSector;
+
+function fProTab(prefix, pane, btn) {
+  document.querySelectorAll('[id^="fs-' + prefix + '-pane-"]').forEach(function(p){ p.classList.remove('active'); });
+  if (btn) {
+    btn.closest('.pro-tabs').querySelectorAll('.pro-tab').forEach(function(t){ t.classList.remove('active'); });
+    btn.classList.add('active');
+  }
+  var target = document.getElementById('fs-' + prefix + '-pane-' + pane);
+  if (target) target.classList.add('active');
+}
+window.fProTab = fProTab;
+
+// Init listeners fiches (appelé au lazy-load de la section)
+function initFichesModule() {
+  var section = document.getElementById('sec-fiches');
+  if (!section || section._fichesInit) return;
+  section._fichesInit = true;
+
+  // Sliders
+  section.querySelectorAll('.pro-slider').forEach(function(slider) {
+    slider.addEventListener('input', function() {
+      this.nextElementSibling.textContent = this.value + '%';
+    });
+  });
+  // Chips toggle
+  section.querySelectorAll('.pro-chip').forEach(function(chip) {
+    chip.addEventListener('click', function() { this.classList.toggle('sel'); });
+  });
+  // Stat btns
+  section.querySelectorAll('.pro-stat-row').forEach(function(row) {
+    row.querySelectorAll('.pro-stat-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        row.querySelectorAll('.pro-stat-btn').forEach(function(b){ b.classList.remove('open','closed','busy','calm'); });
+        var txt = this.textContent;
+        if (txt.includes('Ouvert')) this.classList.add('open');
+        else if (txt.includes('Fermé')) this.classList.add('closed');
+        else if (txt.includes('Bondé') || txt.includes('Complet')) this.classList.add('busy');
+        else if (txt.includes('Calme') || txt.includes('Peu')) this.classList.add('calm');
+      });
+    });
+  });
+  // Dispo counters
+  section.querySelectorAll('.pro-dispo-ctrl').forEach(function(ctrl) {
+    var minus = ctrl.children[0], span = ctrl.children[1], plus = ctrl.children[2];
+    if (!minus || !span || !plus) return;
+    minus.addEventListener('click', function() {
+      var v = Math.max(0, (parseInt(span.textContent) || 0) - 1);
+      span.textContent = v;
+      span.className = 'pro-dispo-num' + (v===0?' zero':v<=3?' low':'');
+    });
+    plus.addEventListener('click', function() {
+      var v = (parseInt(span.textContent) || 0) + 1;
+      span.textContent = v;
+      span.className = 'pro-dispo-num' + (v===0?' zero':v<=3?' low':'');
+    });
+  });
+  // Save btns
+  section.querySelectorAll('.pro-save-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var orig = this.textContent;
+      this.textContent = '✅ Sauvegardé !';
+      this.style.background = 'linear-gradient(135deg,var(--green),#009966)';
+      var self = this;
+      setTimeout(function() { self.textContent = orig; self.style.background = ''; }, 2000);
+    });
+  });
+}
+window.initFichesModule = initFichesModule;
+
+// Hook dans le lazy-load système existant
+var _origLazy = window._lazyInitSection;
+window._lazyInitSection = function(name) {
+  if (typeof _origLazy === 'function') _origLazy(name);
+  if (name === 'fiches') initFichesModule();
+};
+})();
+</script>
 
      AMBI241 — MODULE ENRICHISSEMENT v3.0
      ▸ Réservation multi-canal (WhatsApp · App · Email · Téléphone)
@@ -50452,6 +51287,92 @@ window.ambiSubmitContrib = function(type) {
     if (contribEl) contribEl.remove();
   }, 6000);
 };
+
+/* ════════════════════════════════════════════════════════════
+   §10  INJECTION DANS LES FICHES EXISTANTES
+════════════════════════════════════════════════════════════ */
+function injectIntoFiche(ficheId, type) {
+  var fiche = document.getElementById('fiche-fs-' + ficheId);
+  if (!fiche) return;
+  var body = fiche.querySelector('.fiche-body');
+  if (!body) return;
+  /* Éviter double injection */
+  if (body.querySelector('.ambi-resa-block')) return;
+
+  /* Trouver le point d'injection — avant .pro-panel */
+  var proPanel = body.querySelector('.pro-panel');
+  var refNode = proPanel || null;
+
+  var wrapper = document.createElement('div');
+  wrapper.innerHTML = buildEquipBlock(type) + buildResaBlock(type) + buildContribBlock(type);
+
+  if (refNode) {
+    body.insertBefore(wrapper, refNode);
+  } else {
+    body.appendChild(wrapper);
+  }
+}
+
+/* Remplacement complet des fiches placeholders */
+function buildFullFiche(ficheId, type, config) {
+  var el = document.getElementById('fiche-fs-' + ficheId);
+  if (!el) return;
+  /* Vérifier si c'est encore un placeholder */
+  if (!el.querySelector('.fiche-card .fiche-body') && !el.querySelector('.fiche-body')) {
+    el.innerHTML = buildPlaceholderFicheHTML(ficheId, type, config);
+  }
+}
+
+function buildPlaceholderFicheHTML(ficheId, type, cfg) {
+  var heroColors = {
+    resto: '#3a1200,#1a0a28', club: '#1a003a,#0a0014', salle: '#001a3a,#0a0a1a',
+    snack: '#2a1800,#1a0a28', terrasse: '#001a2a,#0a1a14'
+  };
+  var hc = (heroColors[type] || '#1a0a28,#0a0014').split(',');
+  var icons = { resto:'🍽️', club:'🎵', salle:'🎭', snack:'🍟', terrasse:'🌅' };
+  var names = { resto:'Restaurant & Pâtisserie', club:'Club / Discothèque', salle:'Salle de Cérémonies', snack:'Snack Bar', terrasse:'Terrasse Vue' };
+  var typeLabels = { resto:'🍽️ Restaurant', club:'🎵 Club & Disco', salle:'🎭 Salle & Cérémonies', snack:'🍟 Snack Bar', terrasse:'🌅 Terrasse' };
+  var statusLabels = { resto:'Ouvert · Service en cours', club:'Ouvert · DJ à 22h', salle:'Disponible à la location', snack:'Ouvert · Commandes en cours', terrasse:'Ouvert · Places disponibles' };
+  var statusClass = { resto:'pill-ouvert-anime', club:'pill-ouvert-anime', salle:'pill-ouvert-calme', snack:'pill-ouvert-anime', terrasse:'pill-ouvert-calme' };
+  var icon = icons[type] || '🏠';
+  var name = names[type] || type;
+  var typeLabel = typeLabels[type] || type;
+  var statusLabel = statusLabels[type] || 'Ouvert';
+  var sCls = statusClass[type] || 'pill-ouvert-calme';
+  return (
+    '<div class="fiche-card">'
+    + '<div class="fiche-hero" style="background:linear-gradient(135deg,'+hc[0]+','+hc[1]+');">'
+    + '<div class="fiche-hero-overlay"></div>'
+    + '<div class="fiche-hero-badge">N°1</div>'
+    + '<div class="fiche-status-pill '+sCls+'">'+statusLabel+'</div>'
+    + '<div class="fiche-hero-actions"><span class="qr-btn">📲 QR Vote</span></div>'
+    + '</div>'
+    + '<div class="fiche-body">'
+    + '<div class="fiche-name">'+icon+' '+name+'</div>'
+    + '<div class="fiche-tags">'
+    + '<span class="tag tag-galerie">📸 Galerie</span>'
+    + '<span class="tag tag-type">'+typeLabel+'</span>'
+    + '</div>'
+    + '<div class="fiche-location">📍 Libreville, Gabon</div>'
+    + '<div class="affluence-bar"><div class="affluence-label"><span>Affluence</span><span style="color:var(--amber);font-weight:700;">—%</span></div><div class="affluence-track"><div class="affluence-fill" style="width:40%"></div></div></div>'
+    + '<div class="ambiance-line"><span style="color:var(--muted)">Ambiance</span><span class="ambiance-val">🟡 Calme</span></div>'
+    + buildEquipBlock(type)
+    + buildResaBlock(type)
+    + buildContribBlock(type)
+    + '<div class="votes-section">'
+    + '<div class="votes-title">PRÉSENCES CONFIRMÉES</div>'
+    + '<div class="votes-summary"><span class="vote-count-badge">🏆 0</span><span class="vote-pers">0 pers. sur place</span></div>'
+    + '<div class="vote-btns"><button class="vote-btn vote-up">👍 0</button><button class="vote-btn vote-down">👎 0</button></div>'
+    + '<div class="signal-btns">'
+    + '<button class="sig-btn">🟡 Calme</button>'
+    + '<button class="sig-btn" style="border-color:rgba(0,255,170,0.3);color:var(--green);">🟢 Animé</button>'
+    + '<button class="sig-btn" style="border-color:rgba(255,68,102,0.3);color:var(--red);">🔴 Bondé</button>'
+    + '<button class="sig-btn">⚫ Fermé</button>'
+    + '</div></div>'
+    + '<a href="#" class="maps-btn">📍 Voir sur Maps</a>'
+    + '</div></div>'
+  );
+}
 
 /* ════════════════════════════════════════════════════════════
    §11  INIT — Lance l'injection au bon moment
@@ -51367,6 +52288,5 @@ window._lazyInitSection = function(name) {
 console.log('%c[AMBI241] 🚀 Countdown System Active', 'color:#00e5ff;font-weight:bold;font-size:12px;text-shadow:0 0 10px rgba(0,229,255,0.5)');
 </script>
 
-  <script src="categories-v2.js"></script>
 </body>
 </html>
