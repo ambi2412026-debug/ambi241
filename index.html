@@ -18385,12 +18385,23 @@ function renderAllImmediate(){
   var archivedHtml="";
   if(!data.length){
     var emptyMsg;
+    // Libellés lisibles pour chaque valeur de currentType
+    var _typeLabels = {
+      "Bar": "Bar & Lounge", "Bar Terrasse": "Bar Terrasse",
+      "Discotheque": "Disco & Club", "Restaurant": "Resto & Café",
+      "Snack": "Snack", "Hotel": "Hôtels & Motels",
+      "Salle": "Salles & Cérémonies", "Stade": "Stades Football",
+      "Tourisme": "Sites Touristiques"
+    };
+    var _catSuffix = (typeof currentType !== "undefined" && currentType !== "all" && _typeLabels[currentType])
+      ? " · filtre <strong style=\"color:var(--pink);\">" + _typeLabels[currentType] + "</strong>"
+      : "";
     if(typeof _gpsState !== "undefined" && _gpsState.active && _gpsState.lat !== null){
       var r = _gpsState.radius;
       var rLabel = r >= 999 ? "tous rayons" : (r < 1 ? (r*1000)+"m" : r+"km");
-      emptyMsg = "<div style=\"text-align:center;padding:2.5rem 1rem;\"><div style=\"font-size:2.5rem;margin-bottom:0.8rem;\">&#128205;</div><div style=\"font-family:Syne,sans-serif;font-weight:800;font-size:0.95rem;color:var(--cyan);margin-bottom:0.4rem;\">Aucun lieu dans "+rLabel+"</div><div style=\"font-size:0.78rem;color:var(--muted);margin-bottom:1rem;\">Essayez d'élargir votre rayon de recherche</div><button onclick=\"setGpsRadius(999,null)\" style=\"background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;padding:0.55rem 1.2rem;border-radius:100px;cursor:pointer;\">&#128270; Voir tous les lieux</button></div>";
+      emptyMsg = "<div style=\"text-align:center;padding:2.5rem 1rem;\"><div style=\"font-size:2.5rem;margin-bottom:0.8rem;\">&#128205;</div><div style=\"font-family:Syne,sans-serif;font-weight:800;font-size:0.95rem;color:var(--cyan);margin-bottom:0.4rem;\">Aucun lieu dans "+rLabel+_catSuffix+"</div><div style=\"font-size:0.78rem;color:var(--muted);margin-bottom:1rem;\">Essayez d'élargir votre rayon de recherche</div><button onclick=\"setGpsRadius(999,null)\" style=\"background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;padding:0.55rem 1.2rem;border-radius:100px;cursor:pointer;\">&#128270; Voir tous les lieux</button></div>";
     } else {
-      emptyMsg = "<div style=\"text-align:center;padding:3rem;color:var(--muted)\">Aucun etablissement visible</div>";
+      emptyMsg = "<div style=\"text-align:center;padding:3rem;color:var(--muted)\">Aucun établissement visible"+_catSuffix+"</div>";
     }
     document.getElementById("mainList").innerHTML=archivedHtml+emptyMsg;
     return;
@@ -18751,7 +18762,7 @@ function requestGps(highAccuracy) {
   updateGpsBtn();
   navigator.geolocation.getCurrentPosition(onGpsSuccess, onGpsError, {
     enableHighAccuracy: highAccuracy !== false,
-    timeout: 12000,
+    timeout: 20000,
     maximumAge: 5000
   });
 }
@@ -19012,7 +19023,16 @@ function startGpsWatch() {
   _gpsState.watching = true;
   _gpsState.watchId = navigator.geolocation.watchPosition(
     function(pos) { onGpsSuccess(pos); updateGpsWatchBtn(); },
-    function(err) { onGpsError(err); stopGpsWatch(); },
+    function(err) {
+      // Erreurs temporaires (timeout / position indisponible) : on log mais on ne stoppe pas le suivi
+      if (err.code === err.TIMEOUT || err.code === err.POSITION_UNAVAILABLE) {
+        console.warn('[GPS] Erreur temporaire (code ' + err.code + '), suivi maintenu :', err.message);
+        return;
+      }
+      // Erreur fatale (permission refusée) : arrêt du suivi
+      onGpsError(err);
+      stopGpsWatch();
+    },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
   );
   updateGpsWatchBtn();
