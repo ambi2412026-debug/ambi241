@@ -2695,38 +2695,6 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 }
 .top6-card.tourisme:hover{border-color:rgba(0,80,90,0.48);box-shadow:0 4px 12px rgba(0,96,100,0.3);}
 
-/* BUG-FIX: classes manquantes pour les catégories salle-cer, salle-sp, nature, monument, patisserie
-   Sans ces règles, les cards affichaient un style par défaut sans identité visuelle. */
-.top6-card.salle-cer{
-  border-color:rgba(192,57,43,0.28);
-  background:linear-gradient(90deg,#fce4ec,#f8bbd0);
-}
-.top6-card.salle-cer:hover{border-color:rgba(160,40,30,0.5);box-shadow:0 4px 12px rgba(192,57,43,0.3);}
-
-.top6-card.salle-sp{
-  border-color:rgba(106,27,154,0.28);
-  background:linear-gradient(90deg,#f3e5f5,#e1bee7);
-}
-.top6-card.salle-sp:hover{border-color:rgba(90,20,140,0.5);box-shadow:0 4px 12px rgba(106,27,154,0.3);}
-
-.top6-card.nature{
-  border-color:rgba(46,125,50,0.28);
-  background:linear-gradient(90deg,#e8f5e9,#c8e6c9);
-}
-.top6-card.nature:hover{border-color:rgba(30,100,40,0.5);box-shadow:0 4px 12px rgba(46,125,50,0.3);}
-
-.top6-card.monument{
-  border-color:rgba(121,85,72,0.28);
-  background:linear-gradient(90deg,#efebe9,#d7ccc8);
-}
-.top6-card.monument:hover{border-color:rgba(90,60,50,0.5);box-shadow:0 4px 12px rgba(121,85,72,0.3);}
-
-.top6-card.patisserie{
-  border-color:rgba(230,81,0,0.28);
-  background:linear-gradient(90deg,#fff3e0,#ffe0b2);
-}
-.top6-card.patisserie:hover{border-color:rgba(200,70,0,0.5);box-shadow:0 4px 12px rgba(230,81,0,0.3);}
-
 
 /* ── Numéro rang — design podium ── */
 .t6c-rank{
@@ -2817,18 +2785,13 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 /* ══ STATS STRIP ACCUEIL (4 chips) ══ */
 .home-stats-strip{
   display:grid;grid-template-columns:repeat(4,1fr);gap:0.5rem;
-  margin:0 auto 1.2rem auto;
+  margin-bottom:1.2rem;
   padding:0 1rem;
-  width:100%;
-  max-width:480px;
-  justify-items:center;
   animation:fadeUp 0.6s 0.1s ease both;
 }
 .hss-chip{
   background:var(--surface);border:1px solid rgba(255,255,255,0.07);
   border-radius:12px;padding:0.7rem 0.5rem;text-align:center;
-  width:100%;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
   cursor:pointer;transition:transform 0.15s,border-color 0.2s,box-shadow 0.2s;
   -webkit-tap-highlight-color:transparent;user-select:none;
 }
@@ -5991,12 +5954,8 @@ textarea.soc-input{resize:vertical;min-height:80px;line-height:1.5;}
 .qr-card-icon:active{transform:scale(0.96);}
 .qr-card-icon.qr-locked{border-color:rgba(255,45,155,0.5);background:rgba(40,0,30,0.72);}
 .qr-card-icon.qr-locked span{color:var(--pink)!important;}
-/* Fix: overflow:hidden + contain:layout sur .card clippait l'icône QR positionnée en absolute
-   CORRECTION BUG AFFICHAGE : on ne touche plus à overflow ni contain sur .card (ça cassait
-   le layout des cartes — images coupées, contenu débordant à droite).
-   L'icône QR utilise désormais un z-index élevé + clip-path:none sur son propre parent. */
-.card{position:relative;}
-.qr-card-icon{overflow:visible;}
+/* Fix: overflow:hidden + contain:layout sur .card clippait l'icône QR positionnée en absolute */
+.card{position:relative;overflow:visible !important;contain:style !important;}
 .qr-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.82);backdrop-filter:blur(14px);z-index:9990;display:none;align-items:center;justify-content:center;padding:1rem;}
 .qr-modal-overlay.open{display:flex;}
 .qr-modal-sheet{background:linear-gradient(145deg,#1e0a30,#230d35);border:1.5px solid rgba(0,229,255,0.3);border-radius:24px;padding:1.4rem;width:min(400px,100%);max-height:92vh;overflow-y:auto;position:relative;animation:qrPopIn 0.35s cubic-bezier(0.34,1.56,0.64,1);}
@@ -8012,11 +7971,11 @@ if (document.readyState === 'loading') {
         <div class="top6-title">
           <span class="t6-flame">🔥</span>
           Top du moment
-          <span class="t6-sub">— 12 meilleurs</span>
+          <span class="t6-sub">— 9 meilleurs</span>
         </div>
         <button class="top6-see-all" onclick="switchSection('etablissements',document.querySelectorAll('.nav-item')[1])">Voir tous ›</button>
       </div>
-      <div class="top6-grid" id="topLieux"><div class="tdm-skeleton"><div class="tdm-skel-card"></div><div class="tdm-skel-card"></div><div class="tdm-skel-card"></div><div class="tdm-skel-card"></div></div></div>
+      <div class="top6-grid" id="topLieux"></div>
     </div>
 
     <!-- ══ SECTION REJOINDRE AMBI241 ══ -->
@@ -8839,9 +8798,6 @@ if (document.readyState === 'loading') {
               <div class="igm-progress-label"><span id="igmProgressLabel">0%</span><span id="igmProgressDetail"></span></div>
             </div>
             <div class="igm-log-wrap" id="igmLogWrap"></div>
-            <div style="margin-top:0.8rem;">
-              <button class="igm-btn igm-btn-outline" id="igmCancelSearchBtn" onclick="igmCancelSearch()">⛔ Annuler la recherche</button>
-            </div>
           </div>
         </div>
 
@@ -8877,9 +8833,6 @@ if (document.readyState === 'loading') {
               <div class="igm-progress-label"><span id="igmImportProgressLabel">0%</span><span id="igmImportProgressDetail"></span></div>
             </div>
             <div class="igm-log-wrap" id="igmImportLog"></div>
-            <div id="igmImportCancelWrap" style="margin-top:0.8rem;">
-              <button class="igm-btn igm-btn-outline" onclick="igmCancelImport()">⛔ Annuler l'import</button>
-            </div>
             <div id="igmImportDone" style="display:none;margin-top:1.2rem;">
               <div style="text-align:center;padding:1.5rem;">
                 <div style="font-size:2.5rem;margin-bottom:0.5rem;">🎉</div>
@@ -9711,7 +9664,7 @@ window.closePhotoViewer = closePhotoViewer;
 <!-- ══ FIREBASE SDK (module isolé) ══ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
-import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query, where, getDoc, addDoc, onSnapshot, serverTimestamp, limit, increment, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, orderBy, query, where, getDoc, addDoc, onSnapshot, serverTimestamp, limit, increment, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
 import { getStorage, ref, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-storage.js";
 
@@ -9726,12 +9679,7 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-/* PERF-FIX: persistence IndexedDB — les données Firestore sont mises en cache
-   sur disque. Au 2e lancement, l'app s'affiche INSTANTANÉMENT depuis le disque
-   sans attendre le réseau. Gain estimé : 800ms–2s sur 3G Libreville. */
-const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
-});
+const db  = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 
@@ -10440,9 +10388,11 @@ function _subscribeAllEtabs() {
 // Appeler dès que Firebase est prêt + après chaque loadData
 window._subscribeAllEtabs = _subscribeAllEtabs;
 
-/* PERF-FIX: setTimeout 3000ms supprimé — _subscribeAllEtabs est désormais
-   appelé depuis loadData() une seule fois, après le fetch Firestore.
-   L'ancien double-appel ouvrait 48 listeners WebSocket (2x24) sur mobile. */
+// PERF-FIX: délai augmenté 800ms→3000ms — évite que les 24 onSnapshot WebSocket
+// s'ouvrent pendant le premier chargement Firebase, ce qui ralentissait le rendu.
+setTimeout(function() {
+  _subscribeAllEtabs();
+}, 3000);
 
 </script>
 
@@ -12128,88 +12078,68 @@ function filterByRadius(data){if(!_gpsState.active||_gpsState.lat===null)return 
 function sortGpsData(data){if(!_gpsState.active)return data;var s=_gpsState.sort;return data.slice().sort(function(a,b){if(s==="distance"){var da=a._distKm!==null?a._distKm:9999;var db=b._distKm!==null?b._distKm:9999;return da-db;}if(s==="affluence")return(b.affluence||0)-(a.affluence||0);if(s==="note")return(b.note||0)-(a.note||0);return 0;});}
 function getNearbyCount(){if(_gpsState.lat===null||_gpsState.radius>=999)return etablissements.length;return etablissements.filter(function(e){return e._distKm!==null&&e._distKm<=_gpsState.radius;}).length;}
 var CATEGORIES=[
-  {key:"Bar",           label:"Bar et Lounge",                icon:"&#127867;", badge:"cb-bar"},
-  {key:"Discotheque",   label:"Discotheque et Club",          icon:"&#127925;", badge:"cb-club"},
-  {key:"Restaurant",    label:"Restaurant, Café et Maquis",   icon:"&#127374;", badge:"cb-resto"},
-  {key:"Bar Terrasse",  label:"Bar Terrasse et Rooftop",      icon:"&#127970;", badge:"cb-roof"},
-  {key:"Snack",         label:"Snack-Bar",                    icon:"&#127839;", badge:"cb-snack"},
-  {key:"Hotel",         label:"Hôtel / Motel",                icon:"&#127968;", badge:"cb-hotel"},
-  {key:"Patisserie",    label:"Pâtisserie &amp; Boulangerie", icon:"🎂",        badge:"cb-patisserie"},
-  {key:"Salle Ceremonie",label:"Salle de Cérémonie",         icon:"💍",         badge:"cb-salle-cer"},
-  {key:"Salle Spectacle",label:"Salle de Spectacle",         icon:"🎭",         badge:"cb-salle-sp"},
-  {key:"Stade",         label:"Stade de Football",            icon:"&#9917;",   badge:"cb-stade"},
-  {key:"Site Naturel",  label:"Site Naturel &amp; Parc",      icon:"🌳",        badge:"cb-nature"},
-  {key:"Monument",      label:"Monument Historique",          icon:"🏛️",        badge:"cb-monument"}
+  {key:"Bar",label:"Bar et Lounge",icon:"&#127867;",badge:"cb-bar"},
+  {key:"Discotheque",label:"Discotheque et Club",icon:"&#127925;",badge:"cb-club"},
+  {key:"Restaurant",label:"Restaurant, Café et Maquis",icon:"&#127374;",badge:"cb-resto"},
+  {key:"Bar Terrasse",label:"Bar Terrasse et Rooftop",icon:"&#127970;",badge:"cb-roof"},
+  {key:"Snack",label:"Snack-Bar",icon:"&#127839;",badge:"cb-snack"},
+  {key:"Hotel",label:"Hôtel / Motel",icon:"&#127968;",badge:"cb-hotel"},
+  {key:"Salle",label:"Salle de spectacles &amp; cérémonies",icon:"&#127914;",badge:"cb-salle"},
+  {key:"Stade",label:"Stade de Football",icon:"&#9917;",badge:"cb-stade"},
+  {key:"Tourisme",label:"Site touristique &amp; Parc national",icon:"&#127981;",badge:"cb-tourisme"}
 ];
 
-/* ── Normalise une chaîne : minuscule + retire accents + espaces superflus ── */
-function _normStr(s){
-  if(!s) return '';
-  return String(s).toLowerCase().trim()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-    .replace(/\s+/g,' ');
-}
-
 function getCategory(type){
-  if(!type) return "Bar";
-  var t = _normStr(type);
+  if(!type)return "Bar";
+  var t=type.toLowerCase().trim();
 
   // ── 1. Correspondances exactes (priorité absolue) ──
   var exact={
-    "hotel":"Hotel","motel":"Hotel","residence":"Hotel","lodge":"Hotel","resort":"Hotel",
-    "discotheque":"Discotheque","nightclub":"Discotheque","night club":"Discotheque",
-    "snack":"Snack","snack-bar":"Snack","fast food":"Snack",
+    "hotel":"Hotel","hôtel":"Hotel","motel":"Hotel",
+    "discotheque":"Discotheque","discothèque":"Discotheque","nightclub":"Discotheque","night club":"Discotheque",
+    "snack":"Snack","snack-bar":"Snack",
     "bar terrasse":"Bar Terrasse","bar-terrasse":"Bar Terrasse","rooftop":"Bar Terrasse","rooftop bar":"Bar Terrasse",
-    "restaurant":"Restaurant","cafe":"Restaurant","brasserie":"Restaurant","pizzeria":"Restaurant","maquis":"Restaurant","bistro":"Restaurant",
-    "patisserie":"Patisserie","boulangerie":"Patisserie","salon de the":"Patisserie","bakery":"Patisserie","pastry":"Patisserie",
+    "restaurant":"Restaurant","café":"Restaurant","cafe":"Restaurant","brasserie":"Restaurant","pizzeria":"Restaurant",
     "bar":"Bar","lounge":"Bar","bar lounge":"Bar","pub":"Bar","taverne":"Bar",
-    "salle de ceremonie":"Salle Ceremonie","salle de mariage":"Salle Ceremonie","salle des fetes":"Salle Ceremonie","salle polyvalente":"Salle Ceremonie","banquet hall":"Salle Ceremonie",
-    "salle de spectacle":"Salle Spectacle","theatre":"Salle Spectacle","cinema":"Salle Spectacle","auditorium":"Salle Spectacle","concert hall":"Salle Spectacle",
+    "salle":"Salle","salle de spectacle":"Salle","salle de cérémonie":"Salle","salle de ceremonie":"Salle","salle polyvalente":"Salle","centre culturel":"Salle","théâtre":"Salle","cinema":"Salle","cinéma":"Salle","auditorium":"Salle",
     "stade":"Stade","stade de football":"Stade","stade football":"Stade","terrain football":"Stade","complexe sportif":"Stade",
-    "parc naturel":"Site Naturel","reserve naturelle":"Site Naturel","parc national":"Site Naturel","plage":"Site Naturel","cascade":"Site Naturel","foret":"Site Naturel",
-    "monument":"Monument","memorial":"Monument","musee":"Monument","monument historique":"Monument","site historique":"Monument","ruines":"Monument",
-    "site touristique":"Monument","tourisme":"Monument"
+    "tourisme":"Tourisme","site touristique":"Tourisme","parc national":"Tourisme","parc naturel":"Tourisme","réserve":"Tourisme","reserve":"Tourisme","musée":"Tourisme","musee":"Tourisme","monument":"Tourisme","plage":"Tourisme","cascade":"Tourisme"
   };
-  if(exact[t]) return exact[t];
+  if(exact[t])return exact[t];
 
-  // ── 2. Hôtels & Résidences ──
-  if(t.indexOf("hotel")!==-1||t.indexOf("motel")!==-1||t.indexOf("residence")!==-1||t.indexOf("resort")!==-1||t.indexOf("lodge")!==-1) return "Hotel";
+  // ── 2. Hôtels & Résidences (avant tout : évite faux positifs avec "bar de l'hôtel") ──
+  if(/h[oô]tel\s*\d|\d\s*[eé]toile|palace hotel|h[oô]tel\s*(suites|resort|lodge|inn|plaza)/.test(t))return "Hotel";
+  if(t.indexOf("h\u00f4tel")!==-1||t.indexOf("hotel")!==-1||t.indexOf("motel")!==-1||t.indexOf("r\u00e9sidence")!==-1||t.indexOf("residence")!==-1||t.indexOf("resort")!==-1||t.indexOf("lodge")!==-1)return "Hotel";
 
-  // ── 3. Pâtisseries & Boulangeries (avant Restaurant) ──
-  if(t.indexOf("patisserie")!==-1||t.indexOf("boulangerie")!==-1||t.indexOf("bakery")!==-1||t.indexOf("pastry")!==-1||t.indexOf("salon de the")!==-1) return "Patisserie";
+  // ── 3. Discothèques / Clubs ──
+  // "nightclub" ou "club" seul (mais pas "bar lounge club" → vérifier que "bar" N'est PAS le mot dominant)
+  if(t.indexOf("disco")!==-1||t.indexOf("nightclub")!==-1||t.indexOf("night club")!==-1)return "Discotheque";
+  // "club" seul, seulement si pas accompagné de "bar" ou "snack"
+  if(t.indexOf("club")!==-1&&t.indexOf("bar")===-1&&t.indexOf("snack")===-1)return "Discotheque";
 
-  // ── 4. Discothèques / Clubs ──
-  if(t.indexOf("disco")!==-1||t.indexOf("nightclub")!==-1||t.indexOf("night club")!==-1) return "Discotheque";
-  if(t.indexOf("club")!==-1&&t.indexOf("bar")===-1&&t.indexOf("snack")===-1) return "Discotheque";
+  // ── 4. Bar Terrasse / Rooftop (avant Bar et Snack) ──
+  if(t.indexOf("terrasse")!==-1||t.indexOf("rooftop")!==-1||t.indexOf("bar terrasse")!==-1||t.indexOf("bar-terrasse")!==-1)return "Bar Terrasse";
 
-  // ── 5. Bar Terrasse / Rooftop ──
-  if(t.indexOf("terrasse")!==-1||t.indexOf("rooftop")!==-1) return "Bar Terrasse";
+  // ── 5. Snack (avant Bar pour éviter "snack-bar" → Bar) ──
+  if(t.indexOf("snack")!==-1)return "Snack";
 
-  // ── 6. Snack ──
-  if(t.indexOf("snack")!==-1||t.indexOf("fast food")!==-1) return "Snack";
+  // ── 6. Restaurants & Cafés (avant Bar pour éviter "bar restaurant" → Bar) ──
+  // Si "restaurant" ou "resto" est présent ET "bar" aussi → Restaurant (lieu mixte classé resto)
+  if(t.indexOf("restaurant")!==-1||t.indexOf("resto")!==-1||t.indexOf("p\u00e2tisserie")!==-1||t.indexOf("patisserie")!==-1||t.indexOf("brasserie")!==-1||t.indexOf("pizzeria")!==-1||t.indexOf("bistro")!==-1||t.indexOf("caf\u00e9")!==-1||t.indexOf("cafe")!==-1||t.indexOf("maquis")!==-1)return "Restaurant";
 
-  // ── 7. Restaurants & Cafés ──
-  if(t.indexOf("restaurant")!==-1||t.indexOf("resto")!==-1||t.indexOf("brasserie")!==-1||t.indexOf("pizzeria")!==-1||t.indexOf("bistro")!==-1||t.indexOf("cafe")!==-1||t.indexOf("maquis")!==-1) return "Restaurant";
+  // ── 7. Bars & Lounges ──
+  if(t.indexOf("bar")!==-1||t.indexOf("lounge")!==-1||t.indexOf("pub")!==-1||t.indexOf("taverne")!==-1)return "Bar";
 
-  // ── 8. Bars & Lounges ──
-  if(t.indexOf("bar")!==-1||t.indexOf("lounge")!==-1||t.indexOf("pub")!==-1||t.indexOf("taverne")!==-1) return "Bar";
+  // ── 8. Salles de spectacles & cérémonies ──
+  if(t.indexOf("salle")!==-1||t.indexOf("spectacle")!==-1||t.indexOf("c\u00e9r\u00e9monie")!==-1||t.indexOf("ceremonie")!==-1||t.indexOf("th\u00e9\u00e2tre")!==-1||t.indexOf("cin\u00e9ma")!==-1||t.indexOf("auditorium")!==-1||t.indexOf("culturel")!==-1)return "Salle";
 
-  // ── 9. Salles de Cérémonies (avant Spectacle) ──
-  if(t.indexOf("ceremonie")!==-1||t.indexOf("mariage")!==-1||t.indexOf("fete")!==-1||t.indexOf("banquet")!==-1||t.indexOf("polyvalent")!==-1) return "Salle Ceremonie";
+  // ── 9. Stades de Football ──
+  if(t.indexOf("stade")!==-1||t.indexOf("terrain")!==-1||t.indexOf("complexe sportif")!==-1||t.indexOf("foot")!==-1)return "Stade";
 
-  // ── 10. Salles de Spectacle ──
-  if(t.indexOf("spectacle")!==-1||t.indexOf("theatre")!==-1||t.indexOf("cinema")!==-1||t.indexOf("auditorium")!==-1||t.indexOf("concert")!==-1||t.indexOf("salle")!==-1) return "Salle Spectacle";
+  // ── 10. Sites touristiques & Parcs nationaux ──
+  if(t.indexOf("touristique")!==-1||t.indexOf("parc")!==-1||t.indexOf("r\u00e9serve")!==-1||t.indexOf("reserve")!==-1||t.indexOf("mus\u00e9e")!==-1||t.indexOf("monument")!==-1||t.indexOf("plage")!==-1||t.indexOf("cascade")!==-1)return "Tourisme";
 
-  // ── 11. Stades ──
-  if(t.indexOf("stade")!==-1||t.indexOf("terrain")!==-1||t.indexOf("foot")!==-1||t.indexOf("complexe sportif")!==-1) return "Stade";
-
-  // ── 12. Monuments Historiques ──
-  if(t.indexOf("monument")!==-1||t.indexOf("memorial")!==-1||t.indexOf("musee")!==-1||t.indexOf("historique")!==-1||t.indexOf("ruines")!==-1) return "Monument";
-
-  // ── 13. Sites Naturels & Parcs ──
-  if(t.indexOf("parc")!==-1||t.indexOf("reserve")!==-1||t.indexOf("plage")!==-1||t.indexOf("cascade")!==-1||t.indexOf("foret")!==-1||t.indexOf("nature")!==-1||t.indexOf("touristique")!==-1) return "Site Naturel";
-
-  // ── 14. Fallback ──
+  // ── 11. Fallback ──
   return "Bar";
 }
 function getCatInfo(key){
@@ -12904,7 +12834,7 @@ function triggerPhotoPermUpload(){
    Sur réseau 3G Libreville (~300ms RTT), gain de ~600-900ms.
    ══════════════════════════════════════════════════════════════ */
 var _ETAB_CACHE_KEY = 'ambi241_etab_cache_v3';
-var _ETAB_CACHE_TTL = 5 * 60 * 1000; // 5 minutes — réseau 3G Libreville : évite re-fetch inutiles
+var _ETAB_CACHE_TTL = 30 * 1000; // 30 secondes — Firestore remplace rapidement
 
 function _saveEtabCache(data) {
   try {
@@ -12965,34 +12895,33 @@ function loadData(){
   }
 
   /* ── ÉTAPE 1 : Afficher le cache immédiatement (rendu instantané) ── */
+  /* PERF-FIX v4 : on affiche TOUJOURS le cache d'abord (même en PWA) pour un
+     démarrage instantané. Firebase met ensuite à jour en arrière-plan silencieusement.
+     L'ancien comportement PWA=null forçait un écran vide + sablier à chaque lancement. */
   var cached = _loadEtabCache();
-  var cacheAge = cached ? (Date.now() - (JSON.parse(localStorage.getItem(_ETAB_CACHE_KEY)||'{}').ts||0)) : Infinity;
 
   if (cached && cached.length > 0) {
     etablissements = cached;
     etablissements.forEach(function(e) {
       applyDynamicStatus(e);
+      /* PERF-FIX: JSON.parse recrée de nouveaux objets sans _cat calculé.
+         Le recalculer ici évite que getCategory() soit appelé à chaque rendu. */
       if (!e._cat) e._cat = getCategory(e.type);
     });
+    /* BUG FIX — recalculer _distKm après restauration du cache :
+       JSON.parse recrée de nouveaux objets sans les propriétés calculées (_distKm),
+       donc filterByRadius() renverrait 0 résultats si le GPS est actif. */
     if (typeof enrichWithDistances === 'function') enrichWithDistances();
     rebuildPaiements();
     renderAll(); renderHome(); renderStats(); renderPayments();
-    /* PERF-FIX: Si le cache a moins de 2 minutes, ne pas re-fetcher Firebase.
-       Sur 3G Libreville, ça évite 1–2s d'attente pour rien sur les rechargements rapides. */
-    if (cacheAge < 2 * 60 * 1000) {
-      setSyncing(false); updateSyncTime();
-      if (typeof window._subscribeAllEtabs === "function") window._subscribeAllEtabs();
-      return;
-    }
+    /* Pas de setSyncing(true) ici pour ne pas flasher le spinner si cache frais */
   }
 
   /* ── ÉTAPE 2 : Lancer établissements + paiements EN PARALLÈLE ── */
   setSyncing(true);
 
-  /* PERF-FIX: orderBy("id") supprimé — forçait un scan d'index Firestore inutile.
-     Le tri se fait côté client si nécessaire. Gain estimé : 200–400ms. */
-  var qEtab = window.fbQuery(window.fbCollection(window.db, "etablissements"));
-  var qPaie = window.fbQuery(window.fbCollection(window.db, "paiements"));
+  var qEtab = window.fbQuery(window.fbCollection(window.db, "etablissements"), window.fbOrderBy("id"));
+  var qPaie = window.fbQuery(window.fbCollection(window.db, "paiements"), window.fbOrderBy("id"));
 
   Promise.all([
     window.fbGetDocs(qEtab),
@@ -13017,8 +12946,7 @@ function loadData(){
     _paiementsFirebase = [];
     snapPaie.forEach(function(d) { _paiementsFirebase.push(Object.assign({ _docId: d.id }, d.data())); });
 
-    /* ── Rendu final — seulement si les données ont changé vs cache ── */
-    /* PERF-FIX: évite 4 passes DOM inutiles si Firebase retourne les mêmes données que le cache */
+    /* ── Rendu final unique ── */
     _renderAfterLoad();
     updateSyncTime();
 
@@ -13103,20 +13031,14 @@ function updateSyncTime(){
   document.getElementById("syncTime").textContent=new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
 }
 
-// RENDER HOME — avec debounce + rAF pour rendu immédiat si données prêtes
+// RENDER HOME — avec debounce
 var _renderHomeTimer = null;
 var _renderHomeOrig = null;
 function renderHome(){
   if(_renderHomeTimer) clearTimeout(_renderHomeTimer);
-  /* PERF-FIX: si les données sont déjà disponibles (cache ou Firebase), utiliser
-     requestAnimationFrame pour un rendu au prochain frame (~16ms) plutôt que
-     le setTimeout 100ms qui retardait l'affichage sur mobile lent.
-     Le debounce 100ms reste seulement quand les données ne sont pas encore prêtes. */
-  if(typeof etablissements !== 'undefined' && etablissements && etablissements.length > 0){
-    _renderHomeTimer = requestAnimationFrame(function(){ _renderHomeTimer = null; renderHomeImmediate(); });
-  } else {
-    _renderHomeTimer = setTimeout(renderHomeImmediate, 100);
-  }
+  /* PERF-FIX: debounce 100ms (était 16ms) — évite les rafales de rendus
+     quand renderAll()+renderHome()+renderStats() sont appelés en cascade. */
+  _renderHomeTimer = setTimeout(renderHomeImmediate, 100);
 }
 function renderHomeImmediate(){
   var d = etablissements;
@@ -13203,7 +13125,7 @@ function renderHomeImmediate(){
     }).join("");
   }
 
-  /* ── Top 12 meilleurs de chaque catégorie ── */
+  /* ── Top 6 meilleur de chaque catégorie ── */
   var topEl = document.getElementById("topLieux");
   if(topEl && typeof d !== 'undefined' && d && d.length > 0){
     // Calcul score réel pour chaque établissement
@@ -13242,7 +13164,7 @@ function renderHomeImmediate(){
       var extras = scored
         .filter(function(e){ return usedIds.indexOf(e.id) === -1; })
         .sort(function(a,b){ return b._score - a._score; })
-        .slice(0, 12 - topSix.length);
+        .slice(0, 6 - topSix.length);
       topSix = topSix.concat(extras);
     }
 
@@ -13273,19 +13195,12 @@ function renderHomeImmediate(){
       "Salle Spectacle":"🎭","Site Naturel":"🌳","Monument":"🏛️"
     };
 
-    /* PERF + ROBUSTESSE: try/catch autour du rendu pour éviter qu'une erreur future
-       sur une carte laisse topEl bloqué sur le skeleton indéfiniment. */
-    try {
     topEl.innerHTML = topSix.map(function(e, i){
       if(!e) return '';
       /* PERF-FIX: utiliser _cat pré-calculé */
       var cat = e._cat || getCategory(e.type);
       var label = categoryLabels[cat] || "BAR";
       var icon = categoryIcons[cat] || "🏢";
-      /* BUG-FIX: cardClass était utilisé sans être défini → ReferenceError silencieuse
-         → topEl.innerHTML échouait → bloqué sur "⌛ Chargement..." indéfiniment.
-         On le dérive maintenant de categoryClasses[cat] avec fallback "bar". */
-      var cardClass = categoryClasses[cat] || "bar";
       var note = e.note ? e.note.toFixed(1) : "—";
       var statut = e.statut || "";
       var heatIcon = statut.indexOf("Bonde") !== -1 ? "🔴" 
@@ -13303,10 +13218,6 @@ function renderHomeImmediate(){
         + '<div class="t6c-right">'+note+'<span class="t6c-arrow"> →</span></div>'
         + '</div>';
     }).join("");
-    } catch(renderErr) {
-      console.error('[AMBI241] renderHomeImmediate topLieux crash:', renderErr);
-      topEl.innerHTML = '<div style="text-align:center;padding:1.5rem 1rem;color:var(--muted);font-size:0.75rem;">Erreur d\'affichage — rechargez la page.</div>';
-    }
   } else if(topEl) {
     topEl.innerHTML = '<div style="text-align:center;padding:1.5rem 1rem;color:var(--muted);font-size:0.75rem;">⏳ Chargement...</div>';
   }
@@ -20826,10 +20737,7 @@ function deleteGaleriePhoto(index){ _deleteGaleriePhotoByIdx(index); }
 
 // ══ FIN PROTECTIONS SÉCURITÉ ════════════════════════════════════
 
-/* PERF-FIX: auto-sync augmenté 60s→180s (3 min). Sur 3G Libreville, un getDocs
-   toutes les minutes consomme de la data et bloque le rendu. 3 min est suffisant
-   car les données temps réel (présences/votes) sont gérées par onSnapshot. */
-setInterval(function(){if(!isAdmin)loadData();},180000);
+setInterval(function(){if(!isAdmin)loadData();},60000);
 
 // ── Expose toutes les fonctions appelées depuis le HTML ──────
 window.switchSection      = switchSection;
@@ -26705,9 +26613,6 @@ window.doAssignEtab = doAssignEtab;
               <div class="igm-progress-label"><span id="igm2ProgressLabel">0%</span><span id="igm2ProgressDetail"></span></div>
             </div>
             <div class="igm-log-wrap" id="igm2LogWrap"></div>
-            <div style="margin-top:0.8rem;">
-              <button class="igm-btn igm-btn-outline" id="igm2CancelSearchBtn" onclick="igm2CancelSearch()">⛔ Annuler la recherche</button>
-            </div>
           </div>
         </div>
 
@@ -26743,9 +26648,6 @@ window.doAssignEtab = doAssignEtab;
               <div class="igm-progress-label"><span id="igm2ImportProgressLabel">0%</span><span id="igm2ImportProgressDetail"></span></div>
             </div>
             <div class="igm-log-wrap" id="igm2ImportLog"></div>
-            <div id="igm2ImportCancelWrap" style="margin-top:0.8rem;">
-              <button class="igm-btn igm-btn-outline" onclick="igm2CancelImport()">⛔ Annuler l'import</button>
-            </div>
             <div id="igm2ImportDone" style="display:none;margin-top:1.2rem;">
               <div style="text-align:center;padding:1.5rem;">
                 <div style="font-size:2.5rem;margin-bottom:0.5rem;">🎉</div>
@@ -27024,12 +26926,11 @@ window.doAssignEtab = doAssignEtab;
 .kpi-lbl{font-size:0.6rem;color:var(--muted);margin-top:0.2rem;text-transform:uppercase;letter-spacing:0.04em;}
 .sec-title{font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;color:var(--amber);text-transform:uppercase;letter-spacing:0.08em;display:flex;align-items:center;gap:0.4rem;margin-bottom:0.65rem;}
 .sec-title::after{content:'';flex:1;height:1px;background:rgba(255,215,0,0.12);}
-/* BUG-FIX: scoped pour éviter d'écraser .card de la liste d'établissements */
-.adm-content .card{background:var(--surface,#150a22);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:1rem;margin-bottom:0.75rem;overflow:hidden;}
-.adm-content .card.amber-border{border-color:rgba(255,215,0,0.25);}
-.adm-content .card.cyan-border{border-color:rgba(0,229,255,0.2);}
-.adm-content .card.pink-border{border-color:rgba(255,45,155,0.25);}
-.adm-content .card-title,.card-title{font-family:'Syne',sans-serif;font-weight:700;font-size:0.85rem;margin-bottom:0.6rem;display:flex;align-items:center;gap:0.4rem;}
+.card{background:var(--surface,#150a22);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:1rem;margin-bottom:0.75rem;}
+.card.amber-border{border-color:rgba(255,215,0,0.25);}
+.card.cyan-border{border-color:rgba(0,229,255,0.2);}
+.card.pink-border{border-color:rgba(255,45,155,0.25);}
+.card-title{font-family:'Syne',sans-serif;font-weight:700;font-size:0.85rem;margin-bottom:0.6rem;display:flex;align-items:center;gap:0.4rem;}
 .btn{padding:0.55rem 1rem;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer;border:none;transition:all 0.15s;display:inline-flex;align-items:center;justify-content:center;gap:0.35rem;}
 .btn:active{transform:scale(0.96);opacity:0.85;}
 .btn-primary{background:linear-gradient(135deg,var(--amber),var(--pink,#ff2d9b));color:#000;}
@@ -42923,38 +42824,8 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     } catch(e) { console.warn('[AMBI241] Firebase save error:', e); return null; }
   }
 
-  /* ── Convertir un blob/objectURL en base64 data-URI ── */
-  function _blobToBase64(url) {
-    return new Promise(function(resolve, reject) {
-      var xhr = new XMLHttpRequest();
-      xhr.responseType = 'blob';
-      xhr.onload = function() {
-        var reader = new FileReader();
-        reader.onloadend = function() { resolve(reader.result); };
-        reader.onerror = reject;
-        reader.readAsDataURL(xhr.response);
-      };
-      xhr.onerror = reject;
-      xhr.open('GET', url);
-      xhr.send();
-    });
-  }
-
-  /* ── Uploader une vidéo blob vers Firebase Storage ── */
-  async function _uploadVideoToStorage(blobUrl, pubId) {
-    try {
-      if(!window.fbStorage || !window.fbStorageRef || !window.fbUploadBytes || !window.fbGetDownloadURL) return null;
-      var resp = await fetch(blobUrl);
-      var blob = await resp.blob();
-      var ref = window.fbStorageRef(window.fbStorage, 'publications/' + pubId + '/video.' + (blob.type.split('/')[1] || 'mp4'));
-      await window.fbUploadBytes(ref, blob);
-      var url = await window.fbGetDownloadURL(ref);
-      return url;
-    } catch(e) { console.warn('[AMBI241] video upload error:', e); return null; }
-  }
-
   /* ── Soumettre publication ── */
-  window.socSubmitNewPub = async function() {
+  window.socSubmitNewPub = function() {
     var ta = document.getElementById('socPubTextarea');
     var text = ta ? ta.value.trim() : '';
     // Sondage : vérifier question
@@ -42981,30 +42852,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     var ts = Date.now();
     var pubId = 'sp_new_'+ts;
 
-    // ── Collecter les photos en base64 ──
-    var photos = [];
-    var photoEls = document.querySelectorAll('#socPubMediaPreview > div:not(#socPubVideoPreviewDiv):not(#socPubGifPreviewItem)');
-    for(var _pi = 0; _pi < photoEls.length; _pi++) {
-      var _img = photoEls[_pi].querySelector('img');
-      if(!_img) continue;
-      var _src = _img.src || '';
-      if(_src.startsWith('blob:')) {
-        try { _src = await _blobToBase64(_src); } catch(e) { console.warn('[AMBI241] photo base64 error:', e); }
-      }
-      if(_src) photos.push(_src);
-    }
-
-    // ── Uploader la vidéo vers Firebase Storage ──
-    var videoURL = null;
-    if(_spState.videoPreviewUrl) {
-      if(_spState.videoPreviewUrl.startsWith('blob:')) {
-        videoURL = await _uploadVideoToStorage(_spState.videoPreviewUrl, pubId);
-        if(!videoURL) videoURL = _spState.videoPreviewUrl; // fallback blob local
-      } else {
-        videoURL = _spState.videoPreviewUrl;
-      }
-    }
-
     // Construire objet publication
     var pubData = {
       id: pubId,
@@ -43017,9 +42864,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       etabName: etabName,
       location: _spState.location,
       gifUrl: _spState.gifUrl || null,
-      photos: photos,
-      videoURL: videoURL || null,
-      hasVideo: !!videoURL,
+      hasVideo: !!_spState.videoPreviewUrl,
       author: pseudo,
       authorUid: uid,
       authorLetter: letter,
@@ -43038,21 +42883,24 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
     // Construire le HTML feed
     var mediaHtml = '';
-    // Preview vidéo (utilise videoURL persistant, pas le blob local)
-    if(videoURL) {
+    var imgs = document.querySelectorAll('#socPubMediaPreview img:not([style*="height:100"])'); // hack: photos uniquement
+    // Preview vidéo
+    if(_spState.videoPreviewUrl) {
       mediaHtml += '<div style="border-radius:12px;overflow:hidden;margin:0.6rem 0;border:1.5px solid rgba(0,229,255,0.25);">'
-        +'<video src="'+videoURL+'" controls style="width:100%;max-height:240px;display:block;background:#000;" playsinline></video></div>';
+        +'<video src="'+_spState.videoPreviewUrl+'" controls style="width:100%;max-height:240px;display:block;background:#000;" playsinline></video></div>';
     }
     // GIF
     if(_spState.gifUrl) {
       mediaHtml += '<div style="border-radius:12px;overflow:hidden;margin:0.6rem 0;"><img src="'+_spState.gifUrl+'" style="width:100%;max-height:200px;object-fit:cover;display:block;"></div>';
     }
-    // Photos (utilise le tableau base64 déjà collecté)
-    if(photos.length) {
-      var cols = photos.length===1?'1fr':(photos.length===2?'1fr 1fr':'1fr 1fr 1fr');
+    // Photos
+    var photoEls = document.querySelectorAll('#socPubMediaPreview > div:not(#socPubVideoPreviewDiv):not(#socPubGifPreviewItem)');
+    if(photoEls.length) {
+      var cols = photoEls.length===1?'1fr':(photoEls.length===2?'1fr 1fr':'1fr 1fr 1fr');
       mediaHtml += '<div style="display:grid;grid-template-columns:'+cols+';gap:4px;margin:0.6rem 0;border-radius:12px;overflow:hidden;">';
-      photos.forEach(function(src){
-        mediaHtml += '<img src="'+src+'" style="width:100%;height:110px;object-fit:cover;">';
+      photoEls.forEach(function(el){
+        var img = el.querySelector('img');
+        if(img) mediaHtml += '<img src="'+img.src+'" style="width:100%;height:110px;object-fit:cover;">';
       });
       mediaHtml += '</div>';
     }
@@ -43113,9 +42961,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
     socClosePubModal();
     if(typeof window.showToast==='function') window.showToast('🚀 Publication partagée !');
-
-    // Déclencher les effets secondaires (compteur, feed refresh) via événement — sans chaîne de wrappers
-    document.dispatchEvent(new Event('socPubSubmitted'));
 
     // Sauvegarde Firebase (async, non bloquant)
     _socPubSaveFirebase(pubData).then(function(fid){
@@ -43270,46 +43115,37 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
   // ══ MOTEUR OSM — Nominatim + Overpass (100% gratuit, sans clé API) ══
   var _igmResults = [];
   var _igmSelectedIds = new Set();
-  var _igmSelectedCats = new Set(['Hotel','Bar','Bar Terrasse','Snack','Restaurant','Patisserie','Discotheque','Salle Ceremonie','Salle Spectacle','Stade','Site Naturel','Monument']);
+  var _igmSelectedCats = new Set(['Hotel','Bar','Bar Terrasse','Snack','Restaurant','Discotheque','Salle','Stade','Tourisme']);
 
   // Mapping catégorie → tags Overpass OSM + mots-clés Nominatim
   var IGM_CAT_CONFIG = {
-    "Hotel":          {label:"Hôtels & Motels",           icon:"🏨",
+    "Hotel":        {label:"Hôtels & Motels",  icon:"🏨",
       overpassTags: [["tourism","hotel"],["tourism","motel"],["tourism","guest_house"],["tourism","hostel"]],
       queries:["hotel Libreville","motel Libreville","lodge Libreville","résidence Libreville"]},
-    "Bar":            {label:"Bars",                       icon:"🍺",
+    "Bar":          {label:"Bars",             icon:"🍺",
       overpassTags: [["amenity","bar"],["amenity","pub"],["amenity","lounge"]],
       queries:["bar Libreville","pub Libreville","lounge Libreville"]},
-    "Bar Terrasse":   {label:"Bar Terrasses",              icon:"🍹",
+    "Bar Terrasse": {label:"Bar Terrasses",    icon:"🍹",
       overpassTags: [["amenity","bar"],["amenity","pub"]],
       queries:["bar terrasse Libreville","rooftop bar Libreville"]},
-    "Snack":          {label:"Snacks",                     icon:"🍟",
+    "Snack":        {label:"Snacks",           icon:"🍟",
       overpassTags: [["amenity","fast_food"],["amenity","snack_bar"],["amenity","food_court"]],
       queries:["snack Libreville","fast food Libreville","maquis Libreville"]},
-    "Restaurant":     {label:"Restaurants & Cafés",        icon:"🍽️",
-      overpassTags: [["amenity","restaurant"],["amenity","cafe"]],
-      queries:["restaurant Libreville","café Libreville"]},
-    "Patisserie":     {label:"Pâtisseries & Boulangeries", icon:"🎂",
-      overpassTags: [["shop","bakery"],["shop","pastry"],["amenity","cafe"]],
-      queries:["patisserie Libreville","boulangerie Libreville","salon de thé Libreville"]},
-    "Discotheque":    {label:"Clubs",                      icon:"🎵",
+    "Restaurant":   {label:"Restos & Pâtiss.",icon:"🍽️",
+      overpassTags: [["amenity","restaurant"],["amenity","cafe"],["shop","bakery"]],
+      queries:["restaurant Libreville","patisserie Libreville","café Libreville"]},
+    "Discotheque":  {label:"Clubs",            icon:"🎵",
       overpassTags: [["amenity","nightclub"],["amenity","music_venue"]],
       queries:["nightclub Libreville","discothèque Libreville","boite de nuit Libreville"]},
-    "Salle Ceremonie":{label:"Salles de Cérémonies",       icon:"💍",
-      overpassTags: [["amenity","events_venue"],["amenity","community_centre"],["amenity","banquet_hall"]],
-      queries:["salle cérémonie Libreville","salle mariage Libreville","salle des fêtes Libreville"]},
-    "Salle Spectacle":{label:"Salles de Spectacle",        icon:"🎭",
-      overpassTags: [["amenity","theatre"],["amenity","cinema"],["amenity","concert_hall"]],
-      queries:["salle spectacle Libreville","théâtre Libreville","cinéma Libreville"]},
-    "Stade":          {label:"Stades Football",            icon:"⚽",
+    "Salle":        {label:"Salles & Cérémonies", icon:"🎪",
+      overpassTags: [["amenity","events_venue"],["amenity","community_centre"],["amenity","conference_centre"],["leisure","hall"]],
+      queries:["salle des fêtes Libreville","salle cérémonie Libreville","palais des congrès Libreville","salle événement Libreville"]},
+    "Stade":        {label:"Stades Football",  icon:"⚽",
       overpassTags: [["leisure","stadium"],["leisure","sports_centre"],["sport","soccer"]],
       queries:["stade football Libreville","terrain football Libreville","stade Libreville"]},
-    "Site Naturel":   {label:"Sites Naturels & Parcs",     icon:"🌳",
-      overpassTags: [["leisure","park"],["leisure","nature_reserve"],["natural","beach"],["tourism","viewpoint"]],
-      queries:["parc naturel Gabon","plage Libreville","réserve naturelle Gabon","cascade Gabon"]},
-    "Monument":       {label:"Monuments Historiques",      icon:"🏛️",
-      overpassTags: [["historic","monument"],["historic","memorial"],["tourism","museum"],["historic","ruins"]],
-      queries:["monument Libreville","musée Libreville","mémorial Gabon","site touristique Libreville"]}
+    "Tourisme":     {label:"Sites Touristiques", icon:"🏛️",
+      overpassTags: [["tourism","attraction"],["tourism","museum"],["tourism","viewpoint"],["historic","monument"],["leisure","park"]],
+      queries:["site touristique Libreville","musée Libreville","monument Libreville","parc national Gabon","cascade Gabon"]}
   };
 
   var IGM_QUARTIERS = ["Centre-ville","Akanda","Glass","Libreville","Louis","Owendo","Nombakélé","Batterie IV","PK5","PK8","PK12","Angondjé","Nzeng-Ayong","La Sablière"];
@@ -43330,10 +43166,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       var maxId = 0;
       snap.forEach(function(d){
         var data = d.data();
-        if(data.nom){
-          existing.add(_normStr(data.nom));
-          existing.add(data.nom.toLowerCase().trim());
-        }
+        if(data.nom) existing.add(data.nom.toLowerCase().trim());
         if(data.place_id) existing.add(data.place_id);
         if(data.id && data.id > maxId) maxId = data.id;
       });
@@ -43494,10 +43327,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
   function igmIsExisting(place) {
     if(!window._igmExisting) return false;
     if(place.place_id && window._igmExisting.has(place.place_id)) return true;
-    if(place.name){
-      if(window._igmExisting.has(place.name.toLowerCase().trim())) return true;
-      if(window._igmExisting.has(_normStr(place.name))) return true;
-    }
+    if(place.name && window._igmExisting.has(place.name.toLowerCase().trim())) return true;
     return false;
   }
 
@@ -43553,7 +43383,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       if(typeof showToast==='function') showToast('⚠️ Sélectionne au moins une catégorie');
       return;
     }
-    window._igmSearchCancelled = false;
     igmSetStep(2);
     _igmResults = [];
     var seen = new Set();
@@ -43567,7 +43396,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
     try {
       for(var ci=0; ci<cats.length; ci++){
-        if(window._igmSearchCancelled){igmLog('⛔ Recherche annulée par l\'utilisateur.','warn');igmSetStep(1);return;}
         var catKey = cats[ci];
         var cfg    = IGM_CAT_CONFIG[catKey];
         igmLog('📂 Catégorie : ' + cfg.label);
@@ -43584,7 +43412,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
         // ── 2. Nominatim : recherche textuelle ──
         for(var qi=0; qi<cfg.queries.length; qi++){
-          if(window._igmSearchCancelled){igmLog('⛔ Recherche annulée.','warn');igmSetStep(1);return;}
           var q = cfg.queries[qi];
           done++;
           igmSetProgress((done/totalQ)*100, 'Nominatim : "' + q + '"', done+'/'+totalQ+' requêtes');
@@ -43626,12 +43453,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     }
   }
   window.igmStartSearch = igmStartSearch;
-
-  function igmCancelSearch(){
-    window._igmSearchCancelled = true;
-    if(typeof showToast==='function') showToast('⛔ Annulation en cours...');
-  }
-  window.igmCancelSearch = igmCancelSearch;
 
   /* ── Afficher les résultats ── */
   function igmShowResults() {
@@ -43718,10 +43539,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     /* Forcer un refresh du token pour s'assurer que les claims sont à jour */
     try { await window.auth.currentUser.getIdToken(true); } catch(e) { console.warn('[IGM] Token refresh failed:', e); }
 
-    window._igmImportCancelled = false;
     igmSetStep(4);
-    var cancelWrap = document.getElementById('igmImportCancelWrap');
-    if(cancelWrap) cancelWrap.style.display = 'block';
     var logWrap = document.getElementById('igmImportLog');
 
     function ilog(msg, type) {
@@ -43737,10 +43555,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     ilog('🚀 Import de ' + toImport.length + ' établissements...', 'ok');
 
     for(var i=0; i<toImport.length; i++){
-      if(window._igmImportCancelled){
-        ilog('⛔ Import annulé après ' + imported + ' importé(s).','warn');
-        break;
-      }
       var r = toImport[i];
       var pct = ((i+1)/toImport.length)*100;
       var fill = document.getElementById('igmImportProgressFill');
@@ -43782,7 +43596,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       await new Promise(function(res){ setTimeout(res, 150); });
     }
 
-    if(cancelWrap) cancelWrap.style.display = 'none';
     window._igmMaxId = maxId;
     ilog('🎉 Terminé ! ' + imported + ' importés, ' + errors + ' erreur(s).', 'ok');
     var sumEl = document.getElementById('igmImportSummary');
@@ -43797,12 +43610,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     }
   }
   window.igmStartImport = igmStartImport;
-
-  function igmCancelImport(){
-    window._igmImportCancelled = true;
-    if(typeof showToast==='function') showToast('⛔ Import annulé');
-  }
-  window.igmCancelImport = igmCancelImport;
 
   console.log('[AMBI241] ✅ Import Google Maps Panel — chargé');
 })();
@@ -43868,10 +43675,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       var ex=new Set(), maxId=0;
       snap.forEach(function(d){
         var v=d.data();
-        if(v.nom){
-          ex.add(_normStr(v.nom));
-          ex.add(v.nom.toLowerCase().trim());
-        }
+        if(v.nom) ex.add(v.nom.toLowerCase().trim());
         if(v.place_id) ex.add(v.place_id);
         if(v.id&&v.id>maxId) maxId=v.id;
       });
@@ -43946,12 +43750,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
   function igm2IsEx(p){
     if(!window._igm2Ex) return false;
-    if(p.place_id&&window._igm2Ex.has(p.place_id)) return true;
-    if(p.name){
-      if(window._igm2Ex.has(p.name.toLowerCase().trim())) return true;
-      if(window._igm2Ex.has(_normStr(p.name))) return true;
-    }
-    return false;
+    return (p.place_id&&window._igm2Ex.has(p.place_id))||(p.name&&window._igm2Ex.has(p.name.toLowerCase().trim()));
   }
 
   function igm2Qrt(addr){
@@ -44009,7 +43808,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
   async function igm2StartSearch(){
     if(!_cats2.size){if(typeof showToast==='function')showToast('⚠️ Sélectionne au moins une catégorie');return;}
-    window._igm2SearchCancelled = false;
     igm2Step(2); _r2=[]; var seen=new Set();
     var cats=Array.from(_cats2);
     var allQueries=[]; for(var ci=0;ci<cats.length;ci++){var c=cats[ci];if(!CFG2[c]){igm2Log('⚠️ Catégorie inconnue ignorée : '+c,'warn');continue;}CFG2[c].queries.forEach(function(q){allQueries.push({q:q,cat:c});});}
@@ -44019,7 +43817,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
     // 1 — Overpass par catégorie
     for(var ci2=0;ci2<cats.length;ci2++){
-      if(window._igm2SearchCancelled){igm2Log('⛔ Recherche annulée.','warn');igm2Step(1);return;}
       var catKey=cats[ci2], cfg=CFG2[catKey];
       if(!cfg||!cfg.overpassTags) continue;
       try{
@@ -44039,7 +43836,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
     // 2 — Nominatim par requête texte
     for(var ti=0;ti<allQueries.length;ti++){
-      if(window._igm2SearchCancelled){igm2Log('⛔ Recherche annulée.','warn');igm2Step(1);return;}
       var task=allQueries[ti]; done++;
       igm2Prog(Math.round((done/total)*100),'Nominatim "'+task.q+'"',done+'/'+total+' requêtes');
       igm2Log('  → Nominatim "'+task.q+'"');
@@ -44068,12 +43864,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     setTimeout(igm2ShowResults,400);
   }
   window.igm2StartSearch=igm2StartSearch;
-
-  function igm2CancelSearch(){
-    window._igm2SearchCancelled = true;
-    if(typeof showToast==='function') showToast('⛔ Annulation en cours...');
-  }
-  window.igm2CancelSearch=igm2CancelSearch;
 
   function igm2ShowResults(){
     igm2Step(3);
@@ -44130,10 +43920,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     }
     /* Forcer un refresh du token pour s'assurer que les claims sont à jour */
     try { await window.auth.currentUser.getIdToken(true); } catch(e) { console.warn('[IGM2] Token refresh failed:', e); }
-    window._igm2ImportCancelled = false;
     igm2Step(4);
-    var cancelWrap2 = document.getElementById('igm2ImportCancelWrap');
-    if(cancelWrap2) cancelWrap2.style.display = 'block';
     var lw=document.getElementById('igm2ImportLog');
     function il(msg,type){var l=document.createElement('div');l.className='igm-log-line'+(type?' igm-'+type:'');l.textContent=new Date().toLocaleTimeString('fr')+' — '+msg;lw.appendChild(l);lw.scrollTop=lw.scrollHeight;}
     var maxId=window._igm2Max||100, imp=0, err=0;
@@ -44156,7 +43943,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
     /* Traiter par lots parallèles */
     for(var i=0;i<docs.length;i+=IGM2_IMPORT_BATCH){
-      if(window._igm2ImportCancelled){il('⛔ Import annulé après '+imp+' importé(s).','warn');break;}
       var batch=docs.slice(i,i+IGM2_IMPORT_BATCH);
       var batchResults=await Promise.allSettled(
         batch.map(function(doc){
@@ -44172,7 +43958,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       }
     }
 
-    if(cancelWrap2) cancelWrap2.style.display = 'none';
     il('🎉 Terminé ! '+imp+' importés, '+err+' erreur(s).','ok');
     var sm=document.getElementById('igm2ImportSummary'); if(sm) sm.textContent=imp+' établissements ajoutés · '+err+' erreur(s)';
     var dn=document.getElementById('igm2ImportDone'); if(dn) dn.style.display='block';
@@ -44181,12 +43966,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     if(typeof window.admRefreshEtabl==='function') setTimeout(function(){window.admRefreshEtabl();},1200);
   }
   window.igm2StartImport=igm2StartImport;
-
-  function igm2CancelImport(){
-    window._igm2ImportCancelled = true;
-    if(typeof showToast==='function') showToast('⛔ Import annulé');
-  }
-  window.igm2CancelImport=igm2CancelImport;
 
   console.log('[AMBI241] ✅ Import Maps (dashboard réel) — chargé');
 })();
@@ -44416,11 +44195,10 @@ window.socSwitchTab = function(tab) {
 /* ═══════════════════════════════════════════════
    RAFRAÎCHIR LE FEED LIVE après une nouvelle publication
 ═══════════════════════════════════════════════ */
-/* ═══════════════════════════════════════════════
-   COMPTEUR QUOTIDIEN localStorage — appelé directement
-   (plus de chaîne fragile via wrapper de socSubmitNewPub)
-═══════════════════════════════════════════════ */
-document.addEventListener('socPubSubmitted', function() {
+var _origSocSubmit = window.socSubmitNewPub;
+window.socSubmitNewPub = function() {
+  if (typeof _origSocSubmit === 'function') _origSocSubmit();
+  // Incrémenter compteur local
   if (window.currentUserUID) {
     var dayKey = 'pubday_' + window.currentUserUID + '_' + new Date().toISOString().slice(0,10);
     try {
@@ -44428,7 +44206,7 @@ document.addEventListener('socPubSubmitted', function() {
       localStorage.setItem(dayKey, c + 1);
     } catch(e) {}
   }
-});
+};
 
 console.log('[AMBI241] ✅ Module publication & live chargé v2');
 })();
@@ -44632,10 +44410,12 @@ console.log('[AMBI241] ✅ Module publication & live chargé v2');
     _startSocFeed();
   };
 
-  /* ── Après une nouvelle publication, rafraîchir le feed via événement ── */
-  document.addEventListener('socPubSubmitted', function() {
+  /* ── Après une nouvelle publication, rafraîchir le feed ── */
+  var _origSocSubmitFeed = window.socSubmitNewPub;
+  window.socSubmitNewPub = function(){
+    if(typeof _origSocSubmitFeed === 'function') _origSocSubmitFeed();
     setTimeout(_renderSocFeed, 800);
-  });
+  };
 
   /* ── Démarrage automatique : si le pane publications est déjà actif ou
         quand l'utilisateur se connecte ── */
@@ -45308,34 +45088,22 @@ console.log('[AMBI241] ✅ Patch v4 — Firebase admin retry + performance mobil
 (function(){
   'use strict';
   document.addEventListener('DOMContentLoaded',function(){
-    /* BUG-FIX: l'ancien patch cherchait '⌛ Chargement...' pour injecter le skeleton,
-       mais topLieux ne contenait jamais ce texte — il était juste vide, donc le bug
-       cardClass le laissait vide indéfiniment sans aucun feedback visuel.
-       Maintenant topLieux est initialisé avec le skeleton HTML directement dans le DOM.
-       Ce patch observe topLieux et retire le skeleton dès que renderHomeImmediate y injecte
-       du vrai contenu (top6-card), sans attendre 5s. */
-    var topLieuxEl = document.getElementById('topLieux');
-    if(topLieuxEl && typeof MutationObserver !== 'undefined'){
-      var _topObs = new MutationObserver(function(){
-        /* Si le premier enfant est une vraie card (pas un skeleton), observer terminé */
-        if(topLieuxEl.querySelector('.top6-card')){
-          var skel = topLieuxEl.querySelector('.tdm-skeleton');
-          if(skel){ skel.style.transition='opacity .3s'; skel.style.opacity='0'; setTimeout(function(){ if(skel.parentElement) skel.remove(); },300); }
-          _topObs.disconnect();
-        }
-      });
-      _topObs.observe(topLieuxEl,{childList:true,subtree:false});
-      /* Fallback 8s — si les données n'arrivent jamais (réseau coupé) */
-      setTimeout(function(){
-        _topObs.disconnect();
-        var skel=topLieuxEl.querySelector('.tdm-skeleton');
-        if(skel){skel.style.transition='opacity .4s';skel.style.opacity='0';setTimeout(function(){if(skel.parentElement)skel.remove();},400);}
-        if(!topLieuxEl.querySelector('.top6-card') && !topLieuxEl.querySelector('[style]')){
-          topLieuxEl.innerHTML='<div style="text-align:center;padding:1.5rem 1rem;color:var(--muted);font-size:0.75rem;">Aucun établissement disponible pour le moment.</div>';
-        }
-      },8000);
-    }
-    /* Lazy-load images hors des 3 premières */
+    document.querySelectorAll('*').forEach(function(el){
+      if(el.children.length===0&&el.textContent.trim()==='⌛ Chargement...'&&!el._ambiPatched){
+        el._ambiPatched=true;
+        var parent=el.parentElement;if(!parent)return;
+        var skel=document.createElement('div');
+        skel.className='tdm-skeleton';
+        skel.innerHTML='<div class="tdm-skel-card"></div><div class="tdm-skel-card"></div><div class="tdm-skel-card"></div>';
+        var skelId='_skel_'+Math.random().toString(36).slice(2);skel.id=skelId;
+        el.style.display='none';parent.insertBefore(skel,el);
+        setTimeout(function(){
+          var s=document.getElementById(skelId);
+          if(s){s.style.transition='opacity .4s';s.style.opacity='0';setTimeout(function(){if(s.parentElement)s.remove();},400);}
+          if(el.style.display==='none'){el.style.display='';el.textContent='— Aucun résultat pour l\'instant';}
+        },5000);
+      }
+    });
     document.querySelectorAll('img:not([loading])').forEach(function(img,i){if(i>2){img.setAttribute('loading','lazy');img.setAttribute('decoding','async');}});
   });
   var _orig=window.setInterval,_n=0;
@@ -45344,7 +45112,7 @@ console.log('[AMBI241] ✅ Patch v4 — Firebase admin retry + performance mobil
     return _orig.apply(window,arguments);
   };
   setTimeout(function(){document.querySelectorAll('.live-dot,.heb-dot,.dispo-updated-dot,.cef-live,.hero-eyebrow-dot').forEach(function(d){d.style.willChange='auto';});},10000);
-  console.log('[AMBI241] Patch performance v2 OK — cardClass bug fixed');
+  console.log('[AMBI241] Patch performance OK');
 })();
 </script>
 
