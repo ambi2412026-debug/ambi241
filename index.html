@@ -11525,6 +11525,57 @@ setTimeout(function() {
   _subscribeAllEtabs();
 }, 800);
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔧 PATCH FIREBASE v5.2 — Débloquer le chargement des établissements
+// ═══════════════════════════════════════════════════════════════════════════════
+console.log('[AMBI241] 🔷 Module Firebase — finalisation de l\'initialisation...');
+
+// Ensurer que loadData() est appelée dès que Firebase est VRAIMENT prêt
+(function ensureDataLoaded() {
+  // Vérifier TOUS les pré-requis
+  if (!window.db) {
+    console.log('[AMBI241] ⏳ Attente de window.db...');
+    setTimeout(ensureDataLoaded, 300);
+    return;
+  }
+  
+  if (typeof window.fbCollection !== 'function' || 
+      typeof window.fbGetDocs !== 'function' ||
+      typeof window.fbQuery !== 'function' ||
+      typeof window.fbOnSnapshot !== 'function') {
+    console.log('[AMBI241] ⏳ Attente des fonctions Firebase...');
+    setTimeout(ensureDataLoaded, 300);
+    return;
+  }
+
+  // Firebase est complètement prêt
+  console.log('[AMBI241] ✅ Module Firebase COMPLÈTEMENT INITIALISÉ');
+  window.__firebaseModuleReady = true;
+
+  // Appeler loadData() si elle existe
+  if (typeof loadData === 'function' && !window._loadDataStarted) {
+    window._loadDataStarted = true;
+    console.log('[AMBI241] 🚀 Appel de loadData() depuis le module Firebase');
+    
+    // Utiliser requestIdleCallback pour ne pas bloquer le thread principal
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(function() { 
+        console.log('[AMBI241] 📥 loadData() exécution démarrée');
+        loadData(); 
+      });
+    } else {
+      setTimeout(function() { 
+        console.log('[AMBI241] 📥 loadData() exécution démarrée');
+        loadData(); 
+      }, 150);
+    }
+  }
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FIN PATCH
+// ═══════════════════════════════════════════════════════════════════════════════
+
 </script>
 
 <!-- ══ APPLICATION PRINCIPALE (script classique, accès global) ══ -->
@@ -13085,6 +13136,7 @@ var currentView="liste";
 var soireePhotos={};
 var etablissements=[];
 var _fbDataLoaded = false; /* true une fois Firebase/cache chargé */
+Object.defineProperty(window, '_fbDataLoaded', { get: function(){ return _fbDataLoaded; }, configurable: true });
 
 // ── PHOTOS GALERIE LOCALE (permanentes — max 5) — déclaré tôt car utilisé dans buildCard ──
 var MAX_SLOT=5;
@@ -14063,9 +14115,15 @@ function _renderAfterLoad() {
 function loadData(){
   /* Guard : si Firebase pas encore prêt, réessayer dans 300ms */
   if (typeof window.fbCollection !== "function" || typeof window.fbGetDocs !== "function" || !window.db) {
+    console.log("[AMBI241] ⏳ loadData: Firebase pas prêt — retry dans 300ms");
+    console.log("  - fbCollection:", typeof window.fbCollection);
+    console.log("  - fbGetDocs:", typeof window.fbGetDocs);
+    console.log("  - db:", !!window.db);
     setTimeout(loadData, 300);
     return;
   }
+
+  console.log("[AMBI241] 🚀 loadData: Démarrage du chargement des données");
 
   /* ── ÉTAPE 1 : Afficher le cache immédiatement (rendu instantané) ── */
   /* Toujours utiliser le cache comme affichage immédiat, Firebase met à jour ensuite */
@@ -14074,10 +14132,14 @@ function loadData(){
   if (cached && cached.length > 0) {
     etablissements = cached;
     _fbDataLoaded = true; /* cache = données réelles (1534+ records) */
+    console.log("[AMBI241] 📦 Cache chargé: " + cached.length + " établissements");
     etablissements.forEach(function(e) { applyDynamicStatus(e); });
     rebuildPaiements();
     renderAll(); renderHome(); renderStats(); renderPayments();
     /* Pas de setSyncing(true) ici pour ne pas flasher le spinner si cache frais */
+  } else {
+    console.warn("[AMBI241] ⚠️ Aucun cache trouvé — affichage par défaut");
+    _fbDataLoaded = true; /* Marquer comme "prêt" même sans cache */
   }
 
   /* ── ÉTAPE 2 : Lancer établissements + paiements EN PARALLÈLE ── */
@@ -14163,18 +14225,33 @@ function _startEtabLiveListener() {
   /* Guard — Firebase pas encore prêt */
   if (!window.db || typeof window.fbOnSnapshot !== "function" ||
       typeof window.fbCollection !== "function" || typeof window.fbQuery !== "function") {
+    console.warn("[AMBI241] ⚠️ _startEtabLiveListener: Guard failed — Firebase pas prêt");
+    console.log("  - window.db:", !!window.db);
+    console.log("  - fbOnSnapshot:", typeof window.fbOnSnapshot);
+    console.log("  - fbCollection:", typeof window.fbCollection);
+    console.log("  - fbQuery:", typeof window.fbQuery);
     setTimeout(_startEtabLiveListener, 500);
     return;
   }
+  
+  console.log("[AMBI241] ✅ _startEtabLiveListener: Firebase ready — configuring listener");
+  
   /* Éviter les doublons de listener */
-  if (_etabSnapshotUnsub) { _etabSnapshotUnsub(); _etabSnapshotUnsub = null; }
+  if (_etabSnapshotUnsub) { 
+    console.log("[AMBI241] 🔄 _startEtabLiveListener: Removing old listener...");
+    _etabSnapshotUnsub(); 
+    _etabSnapshotUnsub = null; 
+  }
 
   /* BUG FIX : même correction — pas d'orderBy("id") pour éviter l'erreur d'index Firestore */
   var q = window.fbQuery(window.fbCollection(window.db, "etablissements"));
   _etabSnapshotUnsub = window.fbOnSnapshot(q, function(snap) {
     var firebaseData = [];
     snap.forEach(function(d) { firebaseData.push(Object.assign({ _docId: d.id }, d.data())); });
-    if (!firebaseData.length) return; /* Pas de données — ne pas écraser avec du vide */
+    if (!firebaseData.length) {
+      console.warn("[AMBI241] ⚠️ onSnapshot etablissements: Aucune donnée reçue");
+      return; 
+    }
     var processed = _processEtabData(firebaseData);
     /* Mettre à jour seulement si données différentes (éviter les re-renders inutiles) */
     if (JSON.stringify(processed.map(function(e){return e.id+":"+(e.statut||"")+(e.affluence||0);}))
@@ -14185,14 +14262,38 @@ function _startEtabLiveListener() {
       console.log("[AMBI241] 🔄 Sync Firestore live — " + processed.length + " établissements");
     }
   }, function(err) {
-    console.warn("[AMBI241] ⚠️ onSnapshot etablissements:", err.message);
+    console.error("[AMBI241] ❌ onSnapshot etablissements ERROR:", err.message);
+    console.error("[AMBI241] Code:", err.code);
   });
 }
 
-/* Démarrer le listener une fois Firebase prêt */
+/* Démarrer le listener UNE FOIS après le premier loadData (évite la double-écriture au démarrage) */
 (function _waitAndStartListener(){
-  if (window.__firebaseReady && window.db) { _startEtabLiveListener(); }
-  else { setTimeout(_waitAndStartListener, 400); }
+  /* 🔧 PATCH: Vérifier TOUS les pré-requis Firebase avant de démarrer le listener */
+  if (!window.__firebaseReady || !window.db) {
+    console.log('[AMBI241] ⏳ _waitAndStartListener: Firebase pas encore prêt...');
+    setTimeout(_waitAndStartListener, 500);
+    return;
+  }
+
+  /* Vérifier que les fonctions globales sont disponibles */
+  if (typeof window.fbOnSnapshot !== 'function' || 
+      typeof window.fbCollection !== 'function' || 
+      typeof window.fbQuery !== 'function') {
+    console.log('[AMBI241] ⏳ _waitAndStartListener: Fonctions Firebase pas encore exposées...');
+    setTimeout(_waitAndStartListener, 500);
+    return;
+  }
+
+  /* Attendre que loadData ait fait son premier rendu (_fbDataLoaded=true) avant d'activer le listener live */
+  if (window._fbDataLoaded) { 
+    console.log('[AMBI241] ✅ _waitAndStartListener: Démarrage de _startEtabLiveListener()');
+    _startEtabLiveListener(); 
+  }
+  else { 
+    console.log('[AMBI241] ⏳ _waitAndStartListener: Attente de _fbDataLoaded...');
+    setTimeout(_waitAndStartListener, 600); 
+  }
 })();
 
 function updateField(id,fields){
@@ -22720,54 +22821,25 @@ function _startApp(){
     renderStats(); renderAll(); renderHome(); updateSyncTime();
   }
 }
-// ── Démarrage : charger immédiatement les données locales + Firebase en parallèle ──
-// FIX : utiliser getDefaults() pour affichage instantané — Firebase met à jour dès qu'il répond
-etablissements = getDefaults();
+// ── Démarrage : afficher un skeleton léger en attendant Firebase ──
+// Firebase chargera les vraies données en <2s — pas besoin de pré-remplir
+etablissements = [];
 rebuildPaiements();
 loadSuperAdmin();
-// Afficher les données locales immédiatement (pas de skeleton vide)
+// Afficher un indicateur de chargement plutôt que les faux lieux par défaut
 (function(){
   var ml = document.getElementById("mainList");
-  if(ml && (!etablissements || !etablissements.length)) {
-    ml.innerHTML = '<div style="text-align:center;padding:3rem 1rem;color:var(--muted);">'
-      +'<div style="font-size:2rem;margin-bottom:0.8rem;">⏳</div>'
-      +'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;color:var(--cyan);">Chargement des lieux...</div>'
-      +'<div style="font-size:0.72rem;margin-top:0.4rem;">Connexion à Firebase en cours</div>'
-      +'</div>';
-  }
+  if(ml) ml.innerHTML = '<div style="text-align:center;padding:3rem 1rem;color:var(--muted);">'
+    +'<div style="font-size:2rem;margin-bottom:0.8rem;">⏳</div>'
+    +'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;color:var(--cyan);">Chargement des lieux...</div>'
+    +'<div style="font-size:0.72rem;margin-top:0.4rem;">Connexion à Firebase en cours</div>'
+    +'</div>';
 })();
-renderStats(); renderHome(); renderPayments(); renderAll(); /* FIX: populer mainList dès le démarrage */
+renderStats(); renderHome(); renderPayments();
 setTimeout(initMeteo, 500);
 
 _startApp();
 updatePayVis();
-
-/* ── Watchdog : si la liste est encore en chargement après 12s, forcer le rendu ── */
-setTimeout(function(){
-  var ml = document.getElementById("mainList");
-  if(!ml) return;
-  var txt = ml.textContent || ml.innerText || "";
-  if(txt.indexOf("Chargement des lieux") !== -1 || txt.indexOf("Connexion à Firebase") !== -1){
-    console.warn("[AMBI241] ⚠️ Watchdog : Firebase n’a pas répondu en 12s — affichage des données locales");
-    if(!etablissements || !etablissements.length) etablissements = getDefaults();
-    var eb = document.getElementById("errorBanner");
-    if(eb){
-      var wdDiv = document.createElement("div");
-      wdDiv.style.cssText = "background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.3);border-radius:10px;padding:0.6rem 0.9rem;font-size:0.72rem;color:var(--red);margin-bottom:0.6rem;display:flex;align-items:center;gap:0.5rem;";
-      var wdTxt = document.createElement("span");
-      wdTxt.textContent = "⚡ Connexion Firebase lente — affichage hors-ligne.";
-      var wdBtn = document.createElement("button");
-      wdBtn.textContent = "↻ Réessayer";
-      wdBtn.style.cssText = "background:none;border:1px solid rgba(255,68,102,0.4);color:var(--red);border-radius:6px;padding:0.15rem 0.5rem;font-size:0.7rem;cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;margin-left:auto;";
-      wdBtn.onclick = function(){ if(typeof loadDataForce==="function") loadDataForce(); else if(typeof loadData==="function") loadData(); wdDiv.remove(); };
-      wdDiv.appendChild(wdTxt);
-      wdDiv.appendChild(wdBtn);
-      eb.innerHTML = "";
-      eb.appendChild(wdDiv);
-    }
-    _renderAfterLoad();
-  }
-}, 5000);
 
 // ══════════════════════════════════════════════════════════════
 // ══ COLLECTE DE DONNÉES COMMUNAUTAIRES (Firebase)           ══
