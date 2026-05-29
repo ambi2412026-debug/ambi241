@@ -10783,7 +10783,7 @@ window.closePhotoViewer = closePhotoViewer;
 </div>
 
 <nav class="bottom-nav">
-  <button class="nav-item active" onclick="switchSection('accueil',this)"><span class="nav-icon">&#127976;</span>Accueil</button>
+  <button class="nav-item active" onclick="switchSection('accueil',this)"><span class="nav-icon">&#127968;</span>Accueil</button>
   <button class="nav-item" onclick="switchSection('etablissements',this)"><span class="nav-icon">&#128269;</span>Lieux</button>
   <button class="nav-item" id="navProfilBtn" onclick="navHandleProfil(this)"><span class="nav-unread-badge" id="navBadgeProfil"></span><span class="nav-icon" id="navProfilIcon">&#128273;</span><span id="navProfilLabel">Connexion</span></button>
   <button class="nav-item" onclick="switchSection('social',this)"><span class="nav-unread-badge" id="navBadgeForum"></span><span class="nav-icon">👥</span>Forum</button>
@@ -13997,7 +13997,7 @@ function triggerPhotoPermUpload(){
    Sur réseau 3G Libreville (~300ms RTT), gain de ~600-900ms.
    ══════════════════════════════════════════════════════════════ */
 var _ETAB_CACHE_KEY = 'ambi241_etab_cache_v3';
-var _ETAB_CACHE_TTL = 30 * 1000; // 30 secondes — Firestore remplace rapidement
+var _ETAB_CACHE_TTL = 10 * 60 * 1000; // 10 minutes — filet de sécurité si réseau lent
 
 function _saveEtabCache(data) {
   try {
@@ -14063,11 +14063,8 @@ function loadData(){
   }
 
   /* ── ÉTAPE 1 : Afficher le cache immédiatement (rendu instantané) ── */
-  /* FIX v3 : si l'app vient d'être lancée depuis l'écran d'accueil (PWA),
-     ignorer le cache et aller directement sur Firestore pour avoir les données fraîches */
-  var _isPWA = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
-              || window.navigator.standalone === true;
-  var cached = _isPWA ? null : _loadEtabCache();
+  /* Toujours utiliser le cache comme affichage immédiat, Firebase met à jour ensuite */
+  var cached = _loadEtabCache();
 
   if (cached && cached.length > 0) {
     etablissements = cached;
@@ -14083,9 +14080,14 @@ function loadData(){
   var qEtab = window.fbQuery(window.fbCollection(window.db, "etablissements"), window.fbOrderBy("id"));
   var qPaie = window.fbQuery(window.fbCollection(window.db, "paiements"), window.fbOrderBy("id"));
 
-  Promise.all([
-    window.fbGetDocs(qEtab),
-    window.fbGetDocs(qPaie)
+  /* ── Timeout 10s : si Firebase ne répond pas, afficher cache ou défauts ── */
+  var _fbTimeout = new Promise(function(_, reject){
+    setTimeout(function(){ reject(new Error("Firebase timeout")); }, 10000);
+  });
+
+  Promise.race([
+    Promise.all([window.fbGetDocs(qEtab), window.fbGetDocs(qPaie)]),
+    _fbTimeout
   ]).then(function(results) {
     var snapEtab = results[0];
     var snapPaie = results[1];
@@ -22646,10 +22648,9 @@ function _startApp(){
     setTimeout(_startApp, 250);
   } else {
     // Firebase jamais prêt → afficher les données locales immédiatement
-    // Les données locales sont déjà chargées (pré-population au démarrage)
-    // On s'assure juste que l'affichage est à jour
     var eb = document.getElementById("errorBanner");
     if(eb) eb.innerHTML = "";
+    if(!etablissements || !etablissements.length) etablissements = getDefaults();
     renderStats(); renderAll(); renderHome(); updateSyncTime();
   }
 }
@@ -22672,6 +22673,33 @@ setTimeout(initMeteo, 500);
 
 _startApp();
 updatePayVis();
+
+/* ── Watchdog : si la liste est encore en chargement après 12s, forcer le rendu ── */
+setTimeout(function(){
+  var ml = document.getElementById("mainList");
+  if(!ml) return;
+  var txt = ml.textContent || ml.innerText || "";
+  if(txt.indexOf("Chargement des lieux") !== -1 || txt.indexOf("Connexion à Firebase") !== -1){
+    console.warn("[AMBI241] ⚠️ Watchdog : Firebase n’a pas répondu en 12s — affichage des données locales");
+    if(!etablissements || !etablissements.length) etablissements = getDefaults();
+    var eb = document.getElementById("errorBanner");
+    if(eb){
+      var wdDiv = document.createElement("div");
+      wdDiv.style.cssText = "background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.3);border-radius:10px;padding:0.6rem 0.9rem;font-size:0.72rem;color:var(--red);margin-bottom:0.6rem;display:flex;align-items:center;gap:0.5rem;";
+      var wdTxt = document.createElement("span");
+      wdTxt.textContent = "⚡ Connexion Firebase lente — affichage hors-ligne.";
+      var wdBtn = document.createElement("button");
+      wdBtn.textContent = "↻ Réessayer";
+      wdBtn.style.cssText = "background:none;border:1px solid rgba(255,68,102,0.4);color:var(--red);border-radius:6px;padding:0.15rem 0.5rem;font-size:0.7rem;cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;margin-left:auto;";
+      wdBtn.onclick = function(){ if(typeof loadDataForce==="function") loadDataForce(); else if(typeof loadData==="function") loadData(); wdDiv.remove(); };
+      wdDiv.appendChild(wdTxt);
+      wdDiv.appendChild(wdBtn);
+      eb.innerHTML = "";
+      eb.appendChild(wdDiv);
+    }
+    _renderAfterLoad();
+  }
+}, 12000);
 
 // ══════════════════════════════════════════════════════════════
 // ══ COLLECTE DE DONNÉES COMMUNAUTAIRES (Firebase)           ══
