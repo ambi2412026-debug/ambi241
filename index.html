@@ -14018,7 +14018,7 @@ function _loadEtabCache() {
 function _processEtabData(firebaseData) {
   /* Dédoublonnage par id */
   var _seenIds = {};
-  return firebaseData.filter(function(e) {
+  var result = firebaseData.filter(function(e) {
     if (!e.id || _seenIds[e.id]) return false;
     _seenIds[e.id] = true;
     /* ── Normalisation type : garantir une string valide pour getCategory ── */
@@ -14040,6 +14040,9 @@ function _processEtabData(firebaseData) {
     if (!e.paiement) e.paiement = "Actif (Admin)";
     return true;
   });
+  /* BUG FIX : tri côté client par id (remplace orderBy("id") Firestore) */
+  result.sort(function(a, b) { return (a.id || 0) - (b.id || 0); });
+  return result;
 }
 
 function _renderAfterLoad() {
@@ -14077,8 +14080,10 @@ function loadData(){
   /* ── ÉTAPE 2 : Lancer établissements + paiements EN PARALLÈLE ── */
   setSyncing(true);
 
-  var qEtab = window.fbQuery(window.fbCollection(window.db, "etablissements"), window.fbOrderBy("id"));
-  var qPaie = window.fbQuery(window.fbCollection(window.db, "paiements"), window.fbOrderBy("id"));
+  /* BUG FIX : orderBy("id") nécessite un index Firestore qui n'existe pas toujours →
+     on lit sans orderBy pour les utilisateurs normaux (tri JS côté client ensuite) */
+  var qEtab = window.fbQuery(window.fbCollection(window.db, "etablissements"));
+  var qPaie = window.fbQuery(window.fbCollection(window.db, "paiements"));
 
   /* ── Timeout 10s : si Firebase ne répond pas, afficher cache ou défauts ── */
   var _fbTimeout = new Promise(function(_, reject){
@@ -14128,7 +14133,11 @@ function loadData(){
     }, 3500);
 
   }).catch(function(err) {
-    console.error("Firebase loadData:", err);
+    console.error("Firebase loadData:", err.code || err.message || err);
+    /* AIDE DEBUG : si "failed-precondition" → index manquant sur Firestore */
+    if (err && err.code === "failed-precondition") {
+      console.warn("[AMBI241] ⚠️ Index Firestore manquant — vérifiez la console Firebase");
+    }
     /* Si le cache existe, on garde les données en mémoire — sinon fallback défauts */
     if (!etablissements || !etablissements.length) {
       etablissements = getDefaults();
@@ -14157,7 +14166,8 @@ function _startEtabLiveListener() {
   /* Éviter les doublons de listener */
   if (_etabSnapshotUnsub) { _etabSnapshotUnsub(); _etabSnapshotUnsub = null; }
 
-  var q = window.fbQuery(window.fbCollection(window.db, "etablissements"), window.fbOrderBy("id"));
+  /* BUG FIX : même correction — pas d'orderBy("id") pour éviter l'erreur d'index Firestore */
+  var q = window.fbQuery(window.fbCollection(window.db, "etablissements"));
   _etabSnapshotUnsub = window.fbOnSnapshot(q, function(snap) {
     var firebaseData = [];
     snap.forEach(function(d) { firebaseData.push(Object.assign({ _docId: d.id }, d.data())); });
@@ -19189,7 +19199,7 @@ function toggleConfirme(index){
     window.fbUpdateDoc(docRef,{statut:newStatut}).then(function(){
       paiements[index].statut=newStatut;
       renderPayments();renderAll();renderHome();
-      showToast(newStatut==="Confirme"?"✅ Paiement confirmé — abonnement activé":"⏳ Remis en attente — établissement archivé");
+      showToast(newStatut==="Confirme"?"✅ Paiement confirmé — abonnement activé":"⏳ Remis en attente");
     }).catch(function(){
       paiements[index].statut=newStatut;
       renderPayments();renderAll();renderHome();
@@ -19198,7 +19208,7 @@ function toggleConfirme(index){
   } else {
     paiements[index].statut=newStatut;
     renderPayments();renderAll();renderHome();
-    showToast(newStatut==="Confirme"?"✅ Paiement confirmé — abonnement activé":"⏳ Remis en attente — établissement archivé");
+    showToast(newStatut==="Confirme"?"✅ Paiement confirmé — abonnement activé":"⏳ Remis en attente");
   }
 }
 window.toggleConfirme=toggleConfirme;
@@ -24218,21 +24228,15 @@ if(typeof window._admEtablArchivesOpen === 'undefined') window._admEtablArchives
 function renderAdmEtabl(){
   var d=etablissements;
   
-  // TRI : établissements ACTIFS en haut, ARCHIVÉS en bas
-  var actifs = [];
-  var archives = [];
-  d.forEach(function(e){
-    if(e.paiement && (e.paiement.indexOf("Actif")!==-1 || e.paiement.indexOf("Confirme")!==-1)){
-      actifs.push(e);
-    } else {
-      archives.push(e);
-    }
-  });
+  // MODIFIÉ : tous les établissements sont toujours visibles — plus d'archivage basé sur paiement
+  // Le badge paiement reste informatif (Actif / En attente) mais ne conditionne plus la visibilité
+  var actifs = d.slice(); // tous les établissements apparaissent dans "Actifs"
+  var archives = []; // section archivés supprimée
 
   var isCompact = window._admEtablCompact;
 
   var html="<div style='margin-bottom:0.8rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;'>";
-  html+="<span style='font-size:0.72rem;color:var(--muted);'><strong style='color:var(--green);'>"+actifs.length+" actif(s)</strong> · <strong style='color:var(--red);'>"+archives.length+" archivé(s)</strong> · "+d.length+" total</span>";
+  html+="<span style='font-size:0.72rem;color:var(--muted);'><strong style='color:var(--green);'>"+actifs.length+" actif(s)</strong> · "+d.length+" total</span>";
   html+="<div style='display:flex;gap:0.4rem;align-items:center;'>";
   // Toggle vue compact/détaillé
   html+="<button onclick=\"window._admEtablCompact=!window._admEtablCompact;renderAdmEtabl();\" style='display:flex;align-items:center;gap:0.3rem;font-size:0.65rem;font-weight:700;padding:0.3rem 0.65rem;border-radius:20px;cursor:pointer;font-family:DM Sans,sans-serif;transition:all 0.2s;border:1px solid "+(isCompact?"rgba(157,132,255,0.5)":"rgba(255,255,255,0.12)")+";background:"+(isCompact?"rgba(157,132,255,0.15)":"rgba(255,255,255,0.04)")+";color:"+(isCompact?"#9D84FF":"var(--muted)")+";'>"+(isCompact?"<span style='font-size:0.75rem;'>≡</span> Détaillé":"<span style='font-size:0.75rem;'>⊟</span> Compact")+"</button>";
@@ -24259,24 +24263,7 @@ function renderAdmEtabl(){
     }
   }
 
-  // ── SECTION ARCHIVÉS ────────────────────────────────────────
-  if(archives.length > 0){
-    var archivesOpen = window._admEtablArchivesOpen;
-    html+="<div style='margin:1rem 0 0.4rem;'>";
-    html+="<button onclick=\"window._admEtablArchivesOpen=!window._admEtablArchivesOpen;renderAdmEtabl();\" style='width:100%;display:flex;align-items:center;gap:0.5rem;padding:0.55rem 0.75rem;background:rgba(255,68,102,0.08);border:none;border-left:3px solid var(--red);border-radius:6px;cursor:pointer;text-align:left;transition:background 0.2s;'>";
-    html+="<span style='font-size:0.9rem;color:var(--red);font-weight:700;transition:transform 0.2s;display:inline-block;transform:"+(archivesOpen?"rotate(90deg)":"rotate(0deg)")+";'>›</span>";
-    html+="<span style='font-size:0.75rem;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:0.05em;flex:1;'>📦 Établissements Archivés</span>";
-    html+="<span style='font-size:0.65rem;background:rgba(255,68,102,0.15);color:var(--red);border-radius:20px;padding:0.1rem 0.5rem;font-weight:700;'>"+archives.length+"</span>";
-    html+="</button></div>";
-
-    if(archivesOpen){
-      if(isCompact){
-        html += _renderEtablCompact(archives, true);
-      } else {
-        archives.forEach(function(e){ html += _renderEtablCard(e, true); });
-      }
-    }
-  }
+  // ── SECTION ARCHIVÉS supprimée — tous les établissements sont dans Actifs ──
 
   document.getElementById("adminEtablList").innerHTML=html;
 }
