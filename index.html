@@ -13859,7 +13859,7 @@ function renderHomeImmediate(){
         : statut.indexOf("Anime") !== -1 ? "🟢" 
         : statut.indexOf("Calme") !== -1 ? "🟡" : "•";
       
-      return '<div class="top6-card '+cardClass+'" onclick="goToEtab('+e.id+')" title="Voir '+escHtml(e.nom||'')+'">'
+      return '<div class="top6-card '+cardClass+'" onclick="goToEtabFromTop('+e.id+',\''+cat+'\')" title="Voir '+escHtml(e.nom||'')+'">'
         + '<div class="t6c-rank t6c-rank-'+(i+1<=3?i+1:'other')+'">N°'+(i+1)+'</div>'
         + '<div class="t6c-icon">'+icon+'</div>'
         + '<div class="t6c-info">'
@@ -19935,6 +19935,80 @@ function goToEtab(id) {
   setTimeout(tryScroll, 250);
 }
 window.goToEtab = goToEtab;
+
+/* ══════════════════════════════════════════════════════════════
+   NAVIGATION DEPUIS "TOP DU MOMENT"
+   → Ouvre Lieux, filtre la catégorie de l'établissement,
+     scrolle sur sa carte ET ouvre sa fiche complète
+══════════════════════════════════════════════════════════════ */
+function goToEtabFromTop(id, category) {
+  // Mapping catégorie → valeur de filtre type utilisée dans setTypeFilter / currentType
+  var catFilterMap = {
+    "Hotel":       "Hotel",
+    "Bar":         "Bar",
+    "Bar Terrasse":"Bar Terrasse",
+    "Snack":       "Snack",
+    "Restaurant":  "Restaurant",
+    "Discotheque": "Discotheque",
+    "Salle":       "Salle",
+    "Stade":       "Stade",
+    "Tourisme":    "Tourisme"
+  };
+  var filterVal = catFilterMap[category] || "all";
+
+  // 1. Aller sur la section Lieux
+  switchSection('etablissements', document.querySelectorAll('.nav-item')[1]);
+
+  // 2. Appliquer le filtre de catégorie + réinitialiser le filtre statut
+  setTimeout(function() {
+    // Réinitialiser statut
+    if(typeof currentStatus !== 'undefined') currentStatus = 'all';
+    document.querySelectorAll('[data-status]').forEach(function(c){
+      c.classList.toggle('active', c.dataset.status === 'all');
+    });
+
+    // Appliquer le filtre type (catégorie)
+    if(typeof setTypeFilter === 'function') {
+      setTypeFilter(filterVal, null);
+    } else if(typeof currentType !== 'undefined') {
+      currentType = filterVal;
+      if(typeof renderAll === 'function') renderAll();
+    }
+
+    // 3. Scroll + highlight sur la carte
+    var attempts = 0;
+    function tryScrollAndOpen() {
+      var el = document.getElementById('card-etab-' + id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.style.transition = 'box-shadow 0.3s ease, transform 0.2s ease';
+        el.style.boxShadow = '0 0 0 3px rgba(255,45,155,0.9), 0 8px 40px rgba(255,45,155,0.35)';
+        el.style.transform = 'scale(1.012)';
+        setTimeout(function() {
+          el.style.transition = 'box-shadow 0.8s ease, transform 0.8s ease';
+          el.style.boxShadow = '';
+          el.style.transform = '';
+        }, 1800);
+
+        // 4. Ouvrir la fiche complète après un court délai
+        setTimeout(function() {
+          if(typeof openFicheEtab === 'function') {
+            openFicheEtab(id);
+          }
+        }, 320);
+
+      } else if (attempts < 15) {
+        attempts++;
+        setTimeout(tryScrollAndOpen, 120);
+      } else {
+        // Fallback : ouvrir quand même la fiche
+        if(typeof openFicheEtab === 'function') openFicheEtab(id);
+      }
+    }
+    setTimeout(tryScrollAndOpen, 280);
+  }, 150);
+}
+window.goToEtabFromTop = goToEtabFromTop;
 
 /* ══════════════════════════════════════════════════════════════
    FICHE COMPLÈTE — Modal de présentation intégrale d'un établissement
@@ -35512,13 +35586,17 @@ function uploadGalleryPhoto(event) {
 }
 
 function removeGalleryPhoto(index) {
-  if (confirm('Supprimer cette photo?')) {
-    const currentUser = getCurrentUser();
-    if (currentUser && currentUser.idPhotos) {
-      currentUser.idPhotos.splice(index, 1);
-      alert('✅ Photo supprimee');
-      openMyProfileModal(currentUser.id);
-    }
+  if (!confirm('Supprimer cette photo ?')) return;
+  var uid = window.currentUserUID;
+  if (!uid) { if (typeof showToast === 'function') showToast('🔒 Connectez-vous d\'abord'); return; }
+  try {
+    var arr = JSON.parse(localStorage.getItem('ambi241_gallery_' + uid) || '[]');
+    arr.splice(index, 1);
+    localStorage.setItem('ambi241_gallery_' + uid, JSON.stringify(arr));
+    if (typeof showToast === 'function') showToast('✅ Photo supprimée');
+    if (typeof window._renderUserPhotosUI === 'function') window._renderUserPhotosUI();
+  } catch(e) {
+    if (typeof showToast === 'function') showToast('❌ Erreur suppression');
   }
 }
 
@@ -35535,24 +35613,51 @@ function reportUserProfile() {
 }
 
 function openTaxiProModal(userId) {
-  const user = window.userProfiles[userId];
-  if (!user) return;
-  
-  const modal = document.getElementById('taxi-pro-modal');
-  const licenseInput = document.getElementById('taxiProLicense');
-  const companyInput = document.getElementById('taxiProCompany');
-  
-  if (user.taxiPro) {
-    licenseInput.value = user.taxiProLicense || '';
-    companyInput.value = user.taxiProCompany || '';
+  var uid = window.currentUserUID;
+  if (!uid) {
+    if (typeof showToast === 'function') showToast('🔒 Connectez-vous pour accéder à Taxi Pro');
+    return;
   }
-  
-  const adminSection = document.getElementById('taxiProMembersSection');
-  if (isAdmin) {
+
+  var modal        = document.getElementById('taxi-pro-modal');
+  var licenseInput = document.getElementById('taxiProLicense');
+  var companyInput = document.getElementById('taxiProCompany');
+
+  // Réinitialiser les champs
+  licenseInput.value = '';
+  companyInput.value = '';
+
+  // Charger les données réelles depuis Firestore
+  if (window.db && window.fbDoc && window.fbGetDoc) {
+    window.fbGetDoc(window.fbDoc(window.db, 'users', uid))
+      .then(function(snap) {
+        if (snap.exists()) {
+          var data = snap.data();
+          if (data.taxiProLicense) licenseInput.value = data.taxiProLicense;
+          if (data.taxiProCompany) companyInput.value = data.taxiProCompany;
+          // Marquer les docs déjà uploadés
+          ['license','insurance','registration','inspection'].forEach(function(docType) {
+            if (data['doc_' + docType]) {
+              var el = document.querySelector('.taxi-pro-doc-item[onclick*="\'' + docType + '\'"]');
+              if (el) el.classList.add('uploaded');
+            }
+          });
+        }
+      })
+      .catch(function(err) {
+        console.warn('[TaxiPro] Erreur chargement profil:', err);
+      });
+  }
+
+  // Section admin : charger la liste depuis Firestore
+  var adminSection = document.getElementById('taxiProMembersSection');
+  if (window.isAdmin) {
     adminSection.style.display = 'block';
     renderTaxiProMembers();
+  } else {
+    adminSection.style.display = 'none';
   }
-  
+
   modal.classList.add('open');
 }
 
@@ -35620,78 +35725,163 @@ function uploadTaxiProDoc(docType) {
 }
 
 function submitTaxiPro() {
-  const license = document.getElementById('taxiProLicense').value.trim();
-  const company = document.getElementById('taxiProCompany').value.trim();
-  
+  var license = document.getElementById('taxiProLicense').value.trim();
+  var company = document.getElementById('taxiProCompany').value.trim();
+
   if (!license || !company) {
-    alert('Remplissez tous les champs');
+    if (typeof showToast === 'function') showToast('⚠️ Remplissez tous les champs');
     return;
   }
-  
-  const currentUser = getCurrentUser();
-  if (currentUser) {
-    currentUser.taxiPro = true;
-    currentUser.taxiProLicense = license;
-    currentUser.taxiProCompany = company;
-    
-    if (!window.taxiProMembers[currentUser.id]) {
-      window.taxiProMembers[currentUser.id] = {
-        id: currentUser.id,
-        name: currentUser.name,
-        license: license,
-        company: company,
-        status: 'pending',
-        joinedDate: new Date().toISOString(),
-        documents: {}
-      };
-    }
-    
-    alert('Demande Taxi Pro soumise!');
+
+  var uid = window.currentUserUID;
+  if (!uid) {
+    if (typeof showToast === 'function') showToast('🔒 Connectez-vous pour soumettre une demande Taxi Pro');
+    return;
+  }
+
+  var name = window.currentUserPseudo || window.currentUserEmail || uid;
+
+  var memberData = {
+    id:          uid,
+    name:        name,
+    email:       window.currentUserEmail || '',
+    license:     license,
+    company:     company,
+    status:      'pending',
+    submittedAt: new Date().toISOString(),
+    updatedAt:   new Date().toISOString()
+  };
+
+  if (window.db && window.fbDoc && window.fbSetDoc) {
+    var promises = [
+      // Document dans la collection taxiPro (pour la liste admin)
+      window.fbSetDoc(
+        window.fbDoc(window.db, 'taxiPro', uid),
+        memberData,
+        { merge: true }
+      ),
+      // Mise à jour du profil utilisateur
+      window.fbSetDoc(
+        window.fbDoc(window.db, 'users', uid),
+        { taxiProLicense: license, taxiProCompany: company, taxiProStatus: 'pending', taxiProSubmittedAt: new Date().toISOString() },
+        { merge: true }
+      )
+    ];
+
+    Promise.all(promises)
+      .then(function() {
+        if (typeof showToast === 'function') showToast('✅ Demande Taxi Pro soumise ! En attente de validation.');
+        closeTaxiProModal();
+      })
+      .catch(function(err) {
+        console.error('[TaxiPro] Erreur soumission:', err);
+        if (typeof showToast === 'function') showToast('❌ Erreur lors de la soumission, réessayez.');
+      });
+  } else {
+    // Fallback localStorage si Firestore indisponible
+    try {
+      localStorage.setItem('ambi241_taxiPro_' + uid, JSON.stringify(memberData));
+    } catch(e) {}
+    if (typeof showToast === 'function') showToast('✅ Demande enregistrée localement (connexion limitée)');
     closeTaxiProModal();
   }
 }
 
 function renderTaxiProMembers() {
-  const list = document.getElementById('taxiProMembersList');
-  const members = Object.values(window.taxiProMembers);
-  
-  list.innerHTML = members.map(member => `
-    <div class="taxi-pro-member-item">
-      <div class="taxi-pro-member-info">
-        <div class="taxi-pro-member-name">${member.name}</div>
-        <div class="taxi-pro-member-license">${member.license} • ${member.company}</div>
-      </div>
-      <div class="taxi-pro-member-actions">
-        ${member.status === 'pending' ? '<button class="taxi-pro-member-btn promote" onclick="approveTaxiProMember(' + "'" + member.id + "'" + ')">Approuver</button>' : ''}
-        <button class="taxi-pro-member-btn revoke" onclick="revokeTaxiProMember(' + "'" + member.id + "'" + ')">Revoquer</button>
-      </div>
-    </div>
-  `).join('');
+  var list = document.getElementById('taxiProMembersList');
+  if (!list) return;
+
+  list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:1rem;">⏳ Chargement...</div>';
+
+  if (!window.db || !window.fbCollection || !window.fbGetDocs) {
+    list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:1rem;">⚠️ Firestore indisponible</div>';
+    return;
+  }
+
+  window.fbGetDocs(window.fbCollection(window.db, 'taxiPro'))
+    .then(function(snapshot) {
+      if (snapshot.empty) {
+        list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:1rem;">Aucun membre Taxi Pro</div>';
+        return;
+      }
+
+      var html = '';
+      snapshot.forEach(function(doc) {
+        var m = doc.data();
+        var statusLabel = m.status === 'approved' ? '✅ Approuvé'
+                        : m.status === 'revoked'  ? '🚫 Révoqué'
+                        : '⏳ En attente';
+        var statusColor = m.status === 'approved' ? 'var(--green)'
+                        : m.status === 'revoked'  ? 'var(--red)'
+                        : 'var(--amber)';
+        html += '<div class="taxi-pro-member-item">' +
+          '<div class="taxi-pro-member-info">' +
+            '<div class="taxi-pro-member-name">' + (m.name || doc.id) + '</div>' +
+            '<div class="taxi-pro-member-license">' + (m.license || '—') + ' • ' + (m.company || '—') + '</div>' +
+            '<div style="font-size:0.65rem;color:' + statusColor + ';margin-top:2px;">' + statusLabel + '</div>' +
+          '</div>' +
+          '<div class="taxi-pro-member-actions">' +
+            (m.status === 'pending' ? '<button class="taxi-pro-member-btn promote" onclick="approveTaxiProMember(\'' + doc.id + '\')">Approuver</button>' : '') +
+            (m.status !== 'revoked' ? '<button class="taxi-pro-member-btn revoke" onclick="revokeTaxiProMember(\'' + doc.id + '\')">Révoquer</button>' : '') +
+          '</div>' +
+        '</div>';
+      });
+      list.innerHTML = html;
+    })
+    .catch(function(err) {
+      console.error('[TaxiPro] Erreur renderTaxiProMembers:', err);
+      list.innerHTML = '<div style="text-align:center;color:var(--red);padding:1rem;">❌ Erreur de chargement</div>';
+    });
 }
 
 function approveTaxiProMember(userId) {
-  if (window.taxiProMembers[userId]) {
-    window.taxiProMembers[userId].status = 'approved';
-    const user = window.userProfiles[userId];
-    if (user) user.verified = true;
-    alert('Membre Taxi Pro approuve!');
-    renderTaxiProMembers();
+  if (!window.db || !window.fbDoc || !window.fbSetDoc) {
+    if (typeof showToast === 'function') showToast('⚠️ Firestore indisponible');
+    return;
   }
+  var now = new Date().toISOString();
+  var updates = { status: 'approved', approvedAt: now, updatedAt: now };
+  Promise.all([
+    window.fbSetDoc(window.fbDoc(window.db, 'taxiPro', userId), updates, { merge: true }),
+    window.fbSetDoc(window.fbDoc(window.db, 'users',   userId), { taxiPro: true, taxiProStatus: 'approved', taxiProApprovedAt: now }, { merge: true })
+  ]).then(function() {
+    if (typeof showToast === 'function') showToast('✅ Membre Taxi Pro approuvé !');
+    renderTaxiProMembers();
+  }).catch(function(err) {
+    console.error('[TaxiPro] Erreur approbation:', err);
+    if (typeof showToast === 'function') showToast('❌ Erreur lors de l\'approbation');
+  });
 }
 
 function revokeTaxiProMember(userId) {
-  if (confirm('Etes-vous sur de revoquer ce statut?')) {
-    const member = window.taxiProMembers[userId];
-    if (member) member.status = 'revoked';
-    const user = window.userProfiles[userId];
-    if (user) user.taxiPro = false;
-    alert('Statut Taxi Pro revoque');
-    renderTaxiProMembers();
+  if (!confirm('Êtes-vous sûr de révoquer ce statut Taxi Pro ?')) return;
+  if (!window.db || !window.fbDoc || !window.fbSetDoc) {
+    if (typeof showToast === 'function') showToast('⚠️ Firestore indisponible');
+    return;
   }
+  var now = new Date().toISOString();
+  var updates = { status: 'revoked', revokedAt: now, updatedAt: now };
+  Promise.all([
+    window.fbSetDoc(window.fbDoc(window.db, 'taxiPro', userId), updates, { merge: true }),
+    window.fbSetDoc(window.fbDoc(window.db, 'users',   userId), { taxiPro: false, taxiProStatus: 'revoked', taxiProRevokedAt: now }, { merge: true })
+  ]).then(function() {
+    if (typeof showToast === 'function') showToast('🚫 Statut Taxi Pro révoqué');
+    renderTaxiProMembers();
+  }).catch(function(err) {
+    console.error('[TaxiPro] Erreur révocation:', err);
+    if (typeof showToast === 'function') showToast('❌ Erreur lors de la révocation');
+  });
 }
 
 function getCurrentUser() {
-  return window.userProfiles.user1;
+  var uid = window.currentUserUID;
+  if (!uid) return null;
+  return {
+    id:    uid,
+    uid:   uid,
+    name:  window.currentUserPseudo || window.currentUserEmail || 'Utilisateur',
+    email: window.currentUserEmail  || ''
+  };
 }
 
 // Note: isAdmin() function removed — use the global variable `isAdmin` (boolean) instead
@@ -35908,18 +36098,18 @@ function openDriverResponseModal(token, order) {
 function acceptOrder(token) {
   const order = window.commandesEnCours[token];
   if (!order) return;
-  
+
   order.status = 'accepted';
   recordTransaction(order, "accepted");
   order.acceptedAt = new Date().toISOString();
-  
-  alert('✅ Commande acceptée! Vous allez être redirigé vers votre tableau de bord.');
-  
+
+  if (typeof showToast === 'function') showToast('✅ Commande acceptée !');
+
   // Fermer le modal
   const modal = document.getElementById('driverResponseModal');
   if (modal) modal.parentElement.remove();
-  
-  // Rediriger vers tableau de bord Taxi Pro du chauffeur
+
+  // Ouvrir le tableau de bord Taxi Pro du chauffeur
   redirectToTaxiProDashboard(token, 'accepted');
 }
 
@@ -35928,70 +36118,129 @@ function rejectOrder(token) {
   const reason = document.getElementById('rejectionReason').value || 'Non spécifiée';
   const order = window.commandesEnCours[token];
   if (!order) return;
-  
+
   order.status = 'rejected';
   recordTransaction(order, "rejected", {rejectionReason: reason});
   order.rejectionReason = reason;
   order.rejectedAt = new Date().toISOString();
-  
-  alert(`❌ Commande refusée (Motif: ${reason})`);
-  
+
+  if (typeof showToast === 'function') showToast('❌ Commande refusée (Motif : ' + reason + ')');
+
   // Fermer le modal
   const modal = document.getElementById('driverResponseModal');
   if (modal) modal.parentElement.remove();
-  
-  // Rediriger vers tableau de bord
+
+  // Ouvrir le tableau de bord
   redirectToTaxiProDashboard(token, 'rejected');
 }
 
 // Rediriger vers le tableau de bord Taxi Pro du chauffeur
 function redirectToTaxiProDashboard(token, action) {
-  const order = window.commandesEnCours[token];
-  
-  // Chercher l'utilisateur chauffeur correspondant
-  const driver = Object.values(window.userProfiles).find(u => 
-    u.id === order.driverId || u.phone === order.driverPhone
-  );
-  
-  if (driver) {
-    // Ouvrir le profil/dashboard du chauffeur
-    openTaxiProDashboardForDriver(driver.id, action, token);
-    
-    console.log(`✅ Redirection Taxi Pro Dashboard: ${action}`);
+  var order = window.commandesEnCours && window.commandesEnCours[token];
+  if (!order) {
+    console.warn('[TaxiPro] redirectToTaxiProDashboard: commande introuvable', token);
+    return;
+  }
+
+  // Utiliser driverUid de la commande si disponible, sinon driverId
+  var driverId = order.driverUid || order.driverId || window.currentUserUID;
+
+  if (driverId) {
+    openTaxiProDashboardForDriver(driverId, action, token);
+    console.log('[TaxiPro] ✅ Redirection dashboard:', action, driverId);
+  } else {
+    console.warn('[TaxiPro] redirectToTaxiProDashboard: driverUid manquant dans la commande');
   }
 }
 
 function openTaxiProDashboardForDriver(driverId, action, token) {
-  // Simuler l'ouverture du dashboard Taxi Pro
-  const driver = window.userProfiles[driverId];
-  
-  if (driver) {
-    // Enregistrer l'action
-    if (!window.driverActions) window.driverActions = {};
-    window.driverActions[token] = {
-      action: action,
-      driver: driver.id,
-      timestamp: new Date().toISOString()
-    };
-    
-    // Afficher confirmation
-    alert(`✅ Tableau de bord Taxi Pro ouvert\nAction: ${action.toUpperCase()}\n\nVous pouvez désormais gérer l'offre.`);
-    
-    // Mettre à jour l'interface (simulé)
-    console.log('📊 Dashboard Taxi Pro mis à jour', window.driverActions[token]);
+  // Enregistrer l'action localement
+  if (!window.driverActions) window.driverActions = {};
+  window.driverActions[token] = {
+    action:    action,
+    driver:    driverId,
+    timestamp: new Date().toISOString()
+  };
+
+  // Persister dans Firestore si disponible
+  if (window.db && window.fbDoc && window.fbSetDoc) {
+    window.fbSetDoc(
+      window.fbDoc(window.db, 'driverActions', token),
+      window.driverActions[token],
+      { merge: true }
+    ).catch(function(e) { console.warn('[TaxiPro] driverActions write:', e); });
   }
+
+  // Charger les données réelles du chauffeur depuis Firestore
+  var loadDriver = window.db && window.fbDoc && window.fbGetDoc
+    ? window.fbGetDoc(window.fbDoc(window.db, 'users', driverId))
+    : Promise.resolve(null);
+
+  loadDriver.then(function(snap) {
+    var d = snap && snap.exists() ? snap.data() : {};
+    var driverName    = d.pseudo || d.email || driverId;
+    var driverCompany = d.taxiProCompany || '—';
+    var driverLicense = d.taxiProLicense  || '—';
+    var actionIcon    = action === 'accepted' ? '✅' : '❌';
+    var actionLabel   = action === 'accepted' ? 'ACCEPTÉE' : 'REFUSÉE';
+    var actionColor   = action === 'accepted' ? '#00ffaa' : '#ff4466';
+    var order         = (window.commandesEnCours && window.commandesEnCours[token]) || {};
+
+    // Supprimer un ancien dashboard si présent
+    var old = document.getElementById('_taxiProDashboardOverlay');
+    if (old) old.remove();
+
+    var overlay = document.createElement('div');
+    overlay.id = '_taxiProDashboardOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:10100;display:flex;align-items:center;justify-content:center;padding:1rem;animation:fadeIn 0.2s;';
+
+    overlay.innerHTML = '<div style="background:var(--surface);border:2px solid ' + actionColor + ';border-radius:22px;padding:1.8rem 1.5rem;width:min(420px,95vw);max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.9);">' +
+      '<div style="text-align:center;margin-bottom:1.2rem;">' +
+        '<div style="font-size:2.2rem;">' + actionIcon + '</div>' +
+        '<h2 style="font-family:Syne,sans-serif;color:' + actionColor + ';font-size:1.15rem;margin-top:0.4rem;">COMMANDE ' + actionLabel + '</h2>' +
+      '</div>' +
+
+      '<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:1rem;margin-bottom:1rem;">' +
+        '<div style="font-size:0.7rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.6rem;">🚕 Chauffeur</div>' +
+        '<div style="font-weight:700;color:var(--text);">' + driverName + '</div>' +
+        '<div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;">' + driverCompany + ' • ' + driverLicense + '</div>' +
+      '</div>' +
+
+      (order.clientName ? '<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:1rem;margin-bottom:1rem;">' +
+        '<div style="font-size:0.7rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.6rem;">👤 Client</div>' +
+        '<div style="font-weight:700;color:var(--text);">' + (order.clientName || '—') + '</div>' +
+        (order.pickupAddress ? '<div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;">📍 ' + order.pickupAddress + '</div>' : '') +
+        (order.dropAddress   ? '<div style="font-size:0.72rem;color:var(--muted);margin-top:0.1rem;">🏁 ' + order.dropAddress   + '</div>' : '') +
+      '</div>' : '') +
+
+      '<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:1rem;margin-bottom:1.2rem;">' +
+        '<div style="font-size:0.7rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">📋 Détails</div>' +
+        '<div style="font-size:0.75rem;color:var(--muted);">Token : <span style="color:var(--cyan);font-family:monospace;">' + token + '</span></div>' +
+        '<div style="font-size:0.75rem;color:var(--muted);margin-top:0.2rem;">Heure : ' + new Date().toLocaleTimeString('fr-FR') + '</div>' +
+      '</div>' +
+
+      '<button onclick="document.getElementById(\'_taxiProDashboardOverlay\').remove()" style="width:100%;padding:0.85rem;background:linear-gradient(135deg,var(--pink),var(--purple));border:none;border-radius:12px;color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.95rem;cursor:pointer;letter-spacing:0.03em;">Fermer le tableau de bord</button>' +
+    '</div>';
+
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) overlay.remove();
+    });
+
+    document.body.appendChild(overlay);
+  }).catch(function(err) {
+    console.error('[TaxiPro] openTaxiProDashboardForDriver:', err);
+    if (typeof showToast === 'function') showToast('⚠️ Impossible de charger le tableau de bord');
+  });
 }
 
-// Fonction pour obtenir l'ID utilisateur actuel
+// Fonction pour obtenir l'ID utilisateur actuel (Firebase Auth)
 function getCurrentUserId() {
-  const user = getCurrentUser();
-  return user ? user.id : 'client_' + Date.now();
+  return window.currentUserUID || ('client_' + Date.now());
 }
 
-// Fonction pour obtenir le nom utilisateur actuel
+// Fonction pour obtenir le nom utilisateur actuel (Firebase Auth)
 function getCurrentUserName() {
-  const user = getCurrentUser();
-  return user ? user.name : 'Client AMBI241';
+  return window.currentUserPseudo || window.currentUserEmail || 'Client AMBI241';
 }
 
 // Vérifier le lien de validation au chargement
