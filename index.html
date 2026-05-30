@@ -13892,11 +13892,14 @@ window.goToQuartier = goToQuartier;
 
 
 function goToTypeFilter(type){
+  // ✅ Réinitialiser currentType AVANT de switcher (évite les interférences)
+  currentType = 'all';
+  currentStatus = 'all';
   switchSection('etablissements', document.querySelectorAll('.nav-item')[1]);
   setTimeout(function(){
-    // ✅ setTypeFilter appelle already renderAll() + réinitialise le statut, donc pas besoin de renderAll() ici
+    // Maintenant appliquer le filtre de catégorie correctement
     setTypeFilter(type, null);
-  }, 120);
+  }, 150);
 }
 
 // PIN
@@ -15778,16 +15781,21 @@ function estPaiementConfirme(etab){
 function filterData(){
   var q=document.getElementById("searchInput").value.toLowerCase().trim();
   var data=etablissements.filter(function(e){
-    // ── Recherche textuelle : NOM et QUARTIER uniquement (jamais e.type pour éviter les faux positifs inter-catégories) ──
+    // ── Recherche textuelle : NOM et QUARTIER uniquement ──
     var ms=!q
       ||e.nom.toLowerCase().indexOf(q)!==-1
       ||(e.quartier&&e.quartier.toLowerCase().indexOf(q)!==-1)
       ||(e.description&&e.description.toLowerCase().indexOf(q)!==-1);
+    
     // ── Filtre de catégorie : comparaison stricte via getCategory ──
-    var mt=currentType==="all"||(getCategory(e.type)===currentType);
-    var mv=currentStatus==="all"||(e.statut&&e.statut.indexOf(currentStatus)!==-1);
-    // ✅ CORRECTION : Appliquer AUSSI le filtre de statut pour les admins (sinon affichage incorrect)
-    return ms&&mt&&mv;
+    var eCat = getCategory(e.type);
+    var mt = currentType === "all" || (eCat === currentType);
+    
+    // ── Filtre de statut ──
+    var mv = currentStatus === "all" || (e.statut && e.statut.indexOf(currentStatus) !== -1);
+    
+    // ✅ Appliquer TOUS les filtres (catégorie + statut + recherche)
+    return ms && mt && mv;
   });
   // ── GPS : filtrer par rayon si mode actif ──
   if(typeof _gpsState !== "undefined" && _gpsState.active && _gpsState.lat !== null){
@@ -20189,12 +20197,12 @@ window.closeFicheEtab = function(){
 
 // ── Filtre de type dédié (lieux uniquement) ──
 function setTypeFilter(type, el){
+  // ✅ Vider la recherche et réinitialiser AVANT d'appliquer le filtre
+  var si = document.getElementById('searchInput');
+  if(si) si.value = '';
+  
   currentType = type;
-  // Vider la recherche textuelle quand on filtre par catégorie (évite les faux positifs)
-  if(type !== 'all') {
-    var si = document.getElementById('searchInput');
-    if(si) si.value = '';
-  }
+  
   // N'activer/désactiver que les chips du bloc #typeChips
   document.querySelectorAll('#typeChips .fchip').forEach(function(c){
     c.classList.remove('active');
@@ -20204,14 +20212,12 @@ function setTypeFilter(type, el){
     var chip = document.querySelector('#typeChips .fchip[data-type="'+type+'"]');
     if(chip) chip.classList.add('active');
   }
-  // ✅ CORRECTION : Réinitialiser AUSSI le filtre de statut pour éviter les incohérences
-  // (ex: on sélectionne "Resto" alors que "Calme" était actif → on doit voir TOUS les restos, pas juste les calmes)
-  if(type !== 'all') {
-    currentStatus = 'all';
-    document.querySelectorAll('[data-status]').forEach(function(c){
-      c.classList.toggle('active', c.dataset.status === 'all');
-    });
-  }
+  // ✅ Réinitialiser AUSSI le filtre de statut et les chips de statut
+  currentStatus = 'all';
+  document.querySelectorAll('[data-status]').forEach(function(c){
+    c.classList.toggle('active', c.dataset.status === 'all');
+  });
+  
   renderAll();
 }
 window.setTypeFilter = setTypeFilter;
