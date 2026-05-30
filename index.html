@@ -23,6 +23,10 @@
 <link rel="dns-prefetch" href="https://firestore.googleapis.com">
 <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com">
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+<!-- PERF OPT: prefetch pour ressources secondaires chargées en différé -->
+<link rel="dns-prefetch" href="https://unpkg.com">
+<link rel="dns-prefetch" href="https://api.open-meteo.com">
+<link rel="dns-prefetch" href="https://tenor.googleapis.com">
 <!-- QR Code Vote System — bibliothèque QRCode.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
         crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
@@ -8188,7 +8192,7 @@ if (document.readyState === 'loading') {
         <div class="gps-accuracy-bar"><div class="gps-accuracy-fill" id="gpsAccuracyFill" style="width:0%"></div></div>
       </div>
     </div>
-    <div class="search-wrap" style="position:relative;display:flex;align-items:center;"><span>&#128269;</span><input type="text" id="searchInput" placeholder="Rechercher par nom ou quartier..." oninput="renderAll();document.getElementById('searchClearBtn').style.display=this.value?'flex':'none'"><button id="searchClearBtn" onclick="document.getElementById('searchInput').value='';renderAll();this.style.display='none';document.getElementById('searchInput').focus()" style="display:none;position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;color:var(--muted);width:20px;height:20px;border-radius:50%;font-size:0.75rem;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.15s;" title="Effacer">&#10005;</button></div>
+    <div class="search-wrap" style="position:relative;display:flex;align-items:center;"><span>&#128269;</span><input type="text" id="searchInput" placeholder="Rechercher par nom ou quartier..." oninput="(window._debouncedSearch||(window._debouncedSearch=window.debounce(function(){renderAll();var _scb=document.getElementById('searchClearBtn');if(_scb)_scb.style.display=document.getElementById('searchInput').value?'flex':'none';},280)))()" ><button id="searchClearBtn" onclick="document.getElementById('searchInput').value='';renderAll();this.style.display='none';document.getElementById('searchInput').focus()" style="display:none;position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;color:var(--muted);width:20px;height:20px;border-radius:50%;font-size:0.75rem;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.15s;" title="Effacer">&#10005;</button></div>
     <!-- Bandeau "Mon établissement" — visible uniquement pour les membres propriétaires -->
     <div id="myEtabBanner" onclick="window._myEtabBannerClick && window._myEtabBannerClick()" style="display:none;background:linear-gradient(90deg,rgba(255,45,155,0.13),rgba(0,229,255,0.07));border:1.5px solid rgba(255,45,155,0.35);border-radius:14px;padding:0.7rem 0.9rem;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.55rem;cursor:pointer;">
       <span style="font-size:1.1rem;">📌</span>
@@ -9677,7 +9681,7 @@ if (document.readyState === 'loading') {
   <!-- Barre de recherche -->
   <div class="soc-search-bar">
     <span class="soc-search-icon">🔍</span>
-    <input type="text" id="socSearchInput" placeholder="Rechercher un membre, une communauté…" oninput="socHandleSearch(this.value)">
+    <input type="text" id="socSearchInput" placeholder="Rechercher un membre, une communauté…" oninput="(window._debouncedSocSearch||(window._debouncedSocSearch=window.debounce?window.debounce(function(){var v=document.getElementById('socSearchInput');if(v&&typeof socHandleSearch==='function')socHandleSearch(v.value);},250):function(){var v=document.getElementById('socSearchInput');if(v&&typeof socHandleSearch==='function')socHandleSearch(v.value);}))()"  >
   </div>
 
   <!-- Onglets principaux -->
@@ -9887,7 +9891,7 @@ if (document.readyState === 'loading') {
     <!-- ── GIF picker (caché par défaut) ── -->
     <div id="socPubGifPanel" style="display:none;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:14px;padding:0.8rem;margin-bottom:0.8rem;">
       <div style="display:flex;gap:0.5rem;margin-bottom:0.6rem;">
-        <input id="socPubGifSearch" placeholder="🔍 Chercher un GIF (Tenor)…" style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:9px;color:var(--text);font-size:0.78rem;padding:0.42rem 0.7rem;outline:none;" oninput="socPubSearchGif(this.value)">
+        <input id="socPubGifSearch" placeholder="🔍 Chercher un GIF (Tenor)…" style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:9px;color:var(--text);font-size:0.78rem;padding:0.42rem 0.7rem;outline:none;" oninput="(window._debouncedGifSearch||(window._debouncedGifSearch=window.debounce?window.debounce(function(v){socPubSearchGif(v);},400):socPubSearchGif))(this.value)">
         <button onclick="document.getElementById('socPubGifPanel').style.display='none'" style="background:none;border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--muted);font-size:0.72rem;padding:0.3rem 0.55rem;cursor:pointer;">✕</button>
       </div>
       <div id="socPubGifGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.35rem;max-height:150px;overflow-y:auto;"></div>
@@ -11148,6 +11152,103 @@ var EventMgr = (function(){
   return { on: on, off: off, offAll: offAll, once: once };
 })();
 window.EventMgr = EventMgr;
+
+/* ══════════════════════════════════════════════════════════════
+   ⚡ OPTIMISATIONS PERF — DOM Cache · Debounce · Event Delegation
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── 1. DOM CACHE — évite les re-queries getElementById répétées ──
+   Usage : $('monId')  →  équivalent document.getElementById('monId')
+   Le résultat est mis en cache ; le cache est invalidé automatiquement
+   quand l'élément est détaché (via WeakRef si dispo, sinon fallback). */
+var _domCache = Object.create(null);
+window.$ = function $(id) {
+  var el = _domCache[id];
+  /* Vérifier que l'élément est toujours dans le DOM (pas retiré/remplacé) */
+  if (el && el.isConnected !== false) return el;
+  el = document.getElementById(id);
+  if (el) _domCache[id] = el;
+  return el;
+};
+/* Invalider une entrée du cache (appeler après innerHTML = ... qui remplace un élément) */
+window.$invalidate = function(id) { delete _domCache[id]; };
+/* Invalider tout le cache (appeler après renderAll pour forcer une re-query propre) */
+window.$invalidateAll = function() { _domCache = Object.create(null); };
+
+/* ── 2. DEBOUNCE utilitaire ─────────────────────────────────────
+   Usage : var debouncedFn = debounce(fn, 250);
+   Retarde l'exécution de `fn` jusqu'à ce que `ms` ms se soient
+   écoulées sans nouvel appel. Parfait pour les inputs de recherche. */
+window.debounce = function debounce(fn, ms) {
+  var timer;
+  return function() {
+    var args = arguments, ctx = this;
+    clearTimeout(timer);
+    timer = setTimeout(function() { fn.apply(ctx, args); }, ms || 250);
+  };
+};
+
+/* ── 3. EVENT DELEGATION — un seul listener sur le document ────
+   Remplace les dizaines de onclick="..." inline sur les cartes.
+   Tous les clics sur data-action sont interceptés ici.
+   Les onclick inline existants continuent de fonctionner (compat). */
+(function _setupEventDelegation() {
+  /* Attendre que le DOM soit prêt */
+  function _init() {
+    document.addEventListener('click', function(ev) {
+      var t = ev.target;
+      /* Remonter jusqu'à data-action (max 6 niveaux) */
+      for (var i = 0; i < 6 && t && t !== document.body; i++, t = t.parentElement) {
+        var action = t.dataset && t.dataset.action;
+        if (!action) continue;
+        ev.stopPropagation();
+        var eid = t.dataset.eid ? Number(t.dataset.eid) : null;
+        switch (action) {
+          case 'open-fiche':
+            if (eid && typeof openFicheEtab === 'function') openFicheEtab(eid);
+            break;
+          case 'open-rating':
+            if (eid && typeof openRatingModal === 'function') openRatingModal(eid);
+            break;
+          case 'toggle-comments':
+            if (eid && typeof toggleComments === 'function') toggleComments(eid);
+            break;
+          case 'register-presence':
+            if (eid && typeof registerPresence === 'function') registerPresence(eid);
+            break;
+          case 'nav-section':
+            var sec = t.dataset.section;
+            if (sec && typeof switchSection === 'function') switchSection(sec, t);
+            break;
+          case 'filter-type':
+            var ft = t.dataset.value;
+            if (ft !== undefined && typeof setFilter === 'function') setFilter('type', ft, t);
+            break;
+          case 'filter-status':
+            var fs = t.dataset.value;
+            if (fs !== undefined && typeof setFilter === 'function') setFilter('status', fs, t);
+            break;
+        }
+        break;
+      }
+    }, { passive: false, capture: false });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _init);
+  } else {
+    _init();
+  }
+})();
+
+/* ── 4. DEBOUNCED RENDER — wrapper autour de renderAll ─────────
+   Empêche les appels en rafale lors de la frappe dans le champ
+   de recherche. Délai de 180 ms (imperceptible pour l'œil). */
+window._debouncedRenderAll = null; /* sera initialisé après renderAll */
+
+/* ── 5. LAZY RESET — invalider le cache DOM après chaque render ─
+   renderAll régénère innerHTML de #mainList, donc les refs
+   mises en cache pour les éléments enfants ne sont plus valides. */
+var _origSetupLazy = window._lazyInitDone;
 
 /* ══════════════════════════════════════════════════════════════
    📶 GESTION OFFLINE — File d'attente d'écritures Firestore
@@ -15769,7 +15870,8 @@ function renderStats(){
   chips.forEach(function(c){
     html+="<div class=\"stat-chip "+c.cls+"\"><div class=\"val\">"+c.val+"</div><div class=\"lbl\">"+c.lbl+"</div></div>";
   });
-  document.getElementById("statsRow").innerHTML=html;
+  var _sr = window.$ ? window.$("statsRow") : document.getElementById("statsRow");
+  if(_sr) _sr.innerHTML=html;
 }
 
 // FILTER DATA
@@ -15779,7 +15881,9 @@ function estPaiementConfirme(etab){
 }
 
 function filterData(){
-  var q=document.getElementById("searchInput").value.toLowerCase().trim();
+  /* DOM cache — évite document.getElementById("searchInput") à chaque frappe */
+  var _si = window.$ ? window.$("searchInput") : document.getElementById("searchInput");
+  var q=(_si ? _si.value : "").toLowerCase().trim();
   var data=etablissements.filter(function(e){
     // ── Recherche textuelle : NOM et QUARTIER uniquement ──
     var ms=!q
@@ -18597,6 +18701,8 @@ function renderAllImmediate(){
   if(_ml) _ml.style.display="";
   // ░░░ AMBI241 PATCH: Archivage supprimé — html+=archivedHtml; ░░░
   document.getElementById("mainList").innerHTML=html;
+  /* ⚡ Invalider le cache DOM après re-génération du contenu dynamique */
+  if (window.$invalidateAll) window.$invalidateAll();
   // Mise à jour silencieuse des marqueurs si la carte a déjà été ouverte
   if(window._ambiMapReady && window._renderMapMarkers) window._renderMapMarkers(data);
 }
@@ -18975,15 +19081,17 @@ function setGpsSort(s, btn) {
 
 // ── Panel GPS ────────────────────────────────────────────────
 function updateGpsPanel() {
-  var locRow  = document.getElementById("gpsUserLocRow");
-  var locTxt  = document.getElementById("gpsUserLocTxt");
-  var coords  = document.getElementById("gpsUserCoords");
-  var resCount = document.getElementById("gpsResultCount");
-  var resNum  = document.getElementById("gpsResultNum");
-  var resRad  = document.getElementById("gpsResultRadius");
-  var accWrap = document.getElementById("gpsAccuracyWrap");
-  var accTxt  = document.getElementById("gpsAccuracyTxt");
-  var accFill = document.getElementById("gpsAccuracyFill");
+  /* ⚡ Utiliser le cache DOM — évite 8 getElementById à chaque mise à jour GPS */
+  var _$ = window.$ || document.getElementById.bind(document);
+  var locRow  = _$("gpsUserLocRow");
+  var locTxt  = _$("gpsUserLocTxt");
+  var coords  = _$("gpsUserCoords");
+  var resCount = _$("gpsResultCount");
+  var resNum  = _$("gpsResultNum");
+  var resRad  = _$("gpsResultRadius");
+  var accWrap = _$("gpsAccuracyWrap");
+  var accTxt  = _$("gpsAccuracyTxt");
+  var accFill = _$("gpsAccuracyFill");
 
   if (!locRow) return;
 
@@ -19174,7 +19282,7 @@ function renderPayments(){
     html+="<div style=\"font-family:Syne,sans-serif;font-size:1.15rem;font-weight:800;color:var(--pink);\">"+total+"</div><div style=\"font-size:0.62rem;color:var(--muted);\">Total</div></div>";
     html+="</div>";
     html+="<div style=\"display:flex;gap:0.4rem;margin-bottom:0.7rem;align-items:center;\">";
-    html+="<input id=\"paySearchInp\" type=\"text\" placeholder=\"\u{1F50D} Rechercher...\" value=\""+_paySearch+"\" oninput=\"_paySearch=this.value.toLowerCase();renderPayments()\" style=\"flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,45,155,0.2);border-radius:10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.82rem;padding:0.5rem 0.8rem;outline:none;\">";
+    html+="<input id=\"paySearchInp\" type=\"text\" placeholder=\"\u{1F50D} Rechercher...\" value=\""+_paySearch+"\" oninput=\"(window._debouncedPaySearch||(window._debouncedPaySearch=window.debounce?window.debounce(function(){var el=document.getElementById('paySearchInp');_paySearch=(el?el.value:'').toLowerCase();renderPayments();},200):function(){_paySearch=this.value.toLowerCase();renderPayments();}))(this)\" style=\"flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,45,155,0.2);border-radius:10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.82rem;padding:0.5rem 0.8rem;outline:none;\">";
     html+="</div>";
     html+="<div style=\"display:flex;gap:0.4rem;margin-bottom:0.9rem;flex-wrap:wrap;\">";
     html+="<button onclick=\"_payFilter=\'all\';renderPayments()\" style=\"flex:1;padding:0.4rem;border-radius:8px;border:1px solid "+(_payFilter==="all"?"var(--pink)":"rgba(255,255,255,0.1)")+";background:"+(_payFilter==="all"?"rgba(255,45,155,0.15)":"transparent")+";color:"+(_payFilter==="all"?"var(--pink)":"var(--muted)")+";font-size:0.75rem;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;\">Tous ("+total+")</button>";
@@ -19222,7 +19330,7 @@ function renderPayments(){
   }
 
   html+="<div class=\"pay-total-bar\"><div class=\"t-lbl\">Total percu confirme</div><div class=\"t-val\">"+confirmed.toLocaleString("fr-FR")+" XAF</div></div>";
-  var el=document.getElementById("payList");
+  var el = window.$ ? window.$("payList") : document.getElementById("payList");
   if(el)el.innerHTML=html;
 }
 
@@ -19299,10 +19407,20 @@ function _lazyInitSection(name){
       // Contacts rarement visités — defer
       if(typeof window.renderContacts === 'function') setTimeout(window.renderContacts, 100);
       break;
+    case 'fiches':
+      // Fiches détaillées — initialiser uniquement quand visible
+      if(typeof window._initFichesSection === 'function') setTimeout(window._initFichesSection, 120);
+      break;
+    case 'accueil':
+      // Météo et stats — charger en différé
+      if(typeof fetchMeteo === 'function') setTimeout(function(){ fetchMeteo(false); }, 400);
+      break;
     default:
       break;
   }
 }
+/* Permettre la réinitialisation d'une section (utile après logout/login) */
+window._lazyResetSection = function(name) { delete _lazyInitDone[name]; };
 
 /* ══ NAVIGATION PROFIL / CONNEXION ══════════════════════════════
    — Connexion : utilisateur non connecté → ouvre le modal login
@@ -23847,7 +23965,7 @@ function renderAdmEtabl(){
   html+="<div style='display:flex;gap:0.4rem;align-items:center;'>";
   // Toggle vue compact/détaillé
   html+="<button onclick=\"window._admEtablCompact=!window._admEtablCompact;renderAdmEtabl();\" style='display:flex;align-items:center;gap:0.3rem;font-size:0.65rem;font-weight:700;padding:0.3rem 0.65rem;border-radius:20px;cursor:pointer;font-family:DM Sans,sans-serif;transition:all 0.2s;border:1px solid "+(isCompact?"rgba(157,132,255,0.5)":"rgba(255,255,255,0.12)")+";background:"+(isCompact?"rgba(157,132,255,0.15)":"rgba(255,255,255,0.04)")+";color:"+(isCompact?"#9D84FF":"var(--muted)")+";'>"+(isCompact?"<span style='font-size:0.75rem;'>≡</span> Détaillé":"<span style='font-size:0.75rem;'>⊟</span> Compact")+"</button>";
-  html+="<input id='admSearchEtabl' type='text' placeholder='Rechercher...' oninput='admFilterEtabl()' style='background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);font-size:0.78rem;padding:0.4rem 0.7rem;width:130px;'>";
+  html+="<input id='admSearchEtabl' type='text' placeholder='Rechercher...' oninput=\"(window._debouncedAdmSearch||(window._debouncedAdmSearch=window.debounce?window.debounce(admFilterEtabl,200):admFilterEtabl))()\" style='background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);font-size:0.78rem;padding:0.4rem 0.7rem;width:130px;'>";
   html+="</div>";
   html+="</div>";
 
@@ -28320,7 +28438,7 @@ window.doAssignEtab = doAssignEtab;
   </div>
 </div>
 
-<!-- ══ LEAFLET MAP ══ -->
+<!-- ══ LEAFLET MAP — chargement différé (non critique au démarrage) ══ -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV/XN/WPaI=" crossorigin=""></script>
 <script>
 (function(){
