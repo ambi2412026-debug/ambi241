@@ -6007,7 +6007,7 @@ const i18n = {
       search_placeholder:"Rechercher nom, type, quartier...",
       filter_all:        "✨ Tous",
       filter_bar:        "🍺 Bar",
-      filter_disco:      "🎵 Disco",
+      filter_disco:      "🎵 Boîtes de Nuit",
       filter_resto:      "🍽 Resto",
       "filter_bar-terrasse":    "🏙 Bar Terrasse",
       filter_snack:      "🍔 Snack",
@@ -6090,7 +6090,7 @@ const i18n = {
       search_placeholder:"Search name, type, area...",
       filter_all:        "✨ All",
       filter_bar:        "🍺 Bar",
-      filter_disco:      "🎵 Club",
+      filter_disco:      "🎵 Boîtes de Nuit",
       filter_resto:      "🍽 Restaurant",
       "filter_bar-terrasse":    "🏙 Bar Terrasse",
       filter_snack:      "🍔 Snack",
@@ -6167,7 +6167,7 @@ const i18n = {
       search_placeholder:"Buscar nombre, tipo, área...",
       filter_all:        "✨ Todos",
       filter_bar:        "🍺 Bar",
-      filter_disco:      "🎵 Disco",
+      filter_disco:      "🎵 Boîtes de Nuit",
       filter_resto:      "🍽 Restaurante",
       "filter_bar-terrasse":    "🏙 Bar Terrasse",
       filter_snack:      "🍔 Snack",
@@ -9274,8 +9274,8 @@ if (document.readyState === 'loading') {
                 <div class="igm-cat-count" id="igm-cnt-Restaurant">—</div>
               </div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Discotheque" onclick="igmToggleCat(this)">
-                <span class="igm-cat-icon">🎵</span>
-                <div class="igm-cat-name">Clubs</div>
+                <span class="igm-cat-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 30" width="1.3em" height="0.9em" style="flex-shrink:0;vertical-align:middle;"><circle cx="11" cy="4" r="3" fill="#ff2d9b"/><path d="M11 7 Q7 13 5 20 Q8 18 11 19 Q14 18 17 20 Q15 13 11 7Z" fill="#ff2d9b"/><line x1="11" y1="10" x2="5" y2="6" stroke="#ff2d9b" stroke-width="2" stroke-linecap="round"/><line x1="11" y1="10" x2="17" y2="13" stroke="#ff2d9b" stroke-width="2" stroke-linecap="round"/><line x1="9" y1="19" x2="6" y2="27" stroke="#ff2d9b" stroke-width="2" stroke-linecap="round"/><line x1="13" y1="19" x2="16" y2="26" stroke="#ff2d9b" stroke-width="2" stroke-linecap="round"/><circle cx="37" cy="4" r="3" fill="#cc44ff"/><line x1="37" y1="7" x2="37" y2="19" stroke="#cc44ff" stroke-width="2.5" stroke-linecap="round"/><line x1="37" y1="11" x2="31" y2="13" stroke="#cc44ff" stroke-width="2" stroke-linecap="round"/><line x1="37" y1="11" x2="43" y2="7" stroke="#cc44ff" stroke-width="2" stroke-linecap="round"/><line x1="37" y1="19" x2="33" y2="27" stroke="#cc44ff" stroke-width="2" stroke-linecap="round"/><line x1="37" y1="19" x2="41" y2="26" stroke="#cc44ff" stroke-width="2" stroke-linecap="round"/><text x="21" y="13" font-size="8" fill="#ffd700">♪</text></svg></span>
+                <div class="igm-cat-name">Boîtes de Nuit</div>
                 <div class="igm-cat-count" id="igm-cnt-Discotheque">—</div>
               </div>
                 <div class="igm-cat-count" id="igm-cnt-Salle">—</div>
@@ -12751,6 +12751,13 @@ function saveRankWeights(){
   lsSetJSON(RANK_WEIGHTS_KEY, _rankWeights);
 }
 
+/* Convertit le champ etoiles hotel en nombre (0-5) */
+function parseEtoiles(val){
+  if(!val || val === 'Non classe' || val === 'Non classé') return 0;
+  var m = String(val).match(/([1-5])/);
+  return m ? parseInt(m[1]) : 0;
+}
+
 /* Calcule un score global 0-100 pour un établissement */
 function computeRankScore(e){
   var w = _rankWeights;
@@ -12773,6 +12780,16 @@ function computeRankScore(e){
   // Normaliser si poids total != 100
   var wSum = w.affluence + w.note + w.avis + w.presences + w.votes;
   if(wSum > 0) total = total / (wSum/100);
+
+  // ── Bonus étoiles Hôtel : chaque étoile = +8 pts (priorité absolue pour les hôtels) ──
+  // Formule : score_hotel = étoiles×8 (base 40 pour 5★) + total×0.6
+  // Ainsi un hôtel 5★ démarre toujours devant un hôtel 3★ même si celui-ci a plus d'affluence
+  var etoilesBonus = 0;
+  if(getCategory(e.type||'') === 'Hotel'){
+    var nbEtoiles = parseEtoiles(e.etoiles);
+    etoilesBonus = nbEtoiles * 8; // 5★ = +40 pts, 4★ = +32, 3★ = +24...
+    total = total * 0.6 + etoilesBonus; // les étoiles pèsent 40% du score final max
+  }
 
   return {
     score:     Math.round(total),
@@ -13598,6 +13615,12 @@ function renderHomeImmediate(){
       // Inclure la note comme tiebreaker (×10 pour peser dans le score)
       var noteBonus = (e.note || 0) * 10;
       var score     = Math.max(0, Math.min(200, base + presBonus + voteBonus + noteBonus));
+      // ── Hôtels : les étoiles sont prioritaires (chaque étoile vaut +50 pts) ──
+      // Garantit qu'un hôtel 5★ est toujours classé avant un hôtel 3★
+      if(getCategory(e.type || '') === 'Hotel'){
+        var nbEt = parseEtoiles(e.etoiles);
+        score = score * 0.4 + nbEt * 50; // 5★ = 250 pts de base (dominant)
+      }
       return Object.assign({}, e, { _score: score });
     });
 
@@ -13666,13 +13689,23 @@ function renderHomeImmediate(){
         : statut.indexOf("Anime") !== -1 ? "🟢" 
         : statut.indexOf("Calme") !== -1 ? "🟡" : "•";
       
+      // Affichage étoiles pour les hôtels (priorité dans le classement)
+      var extraInfo = '';
+      if(cat === 'Hotel'){
+        var nbEt = parseEtoiles(e.etoiles);
+        if(nbEt > 0){
+          var starsStr = '';
+          for(var si2=0;si2<nbEt;si2++) starsStr += '⭐';
+          extraInfo = '<span style="font-size:0.65rem;">'+starsStr+'</span> ';
+        }
+      }
       return '<div class="top6-card '+cardClass+'" onclick="goToEtab('+e.id+')" title="Voir '+escHtml(e.nom||'')+'">'
         + '<div class="t6c-rank t6c-rank-'+(i+1<=3?i+1:'other')+'">N°'+(i+1)+'</div>'
         + '<div class="t6c-icon">'+icon+'</div>'
         + '<div class="t6c-info">'
         +   '<div class="t6c-cat">'+label+'</div>'
         +   '<div class="t6c-name">'+(e.nom||"—")+'</div>'
-        +   '<div class="t6c-heat">'+heatIcon+' '+note+' ★</div>'
+        +   '<div class="t6c-heat">'+extraInfo+heatIcon+' '+note+' ★</div>'
         + '</div>'
         + '<div class="t6c-right">'+note+'<span class="t6c-arrow"> →</span></div>'
         + '</div>';
@@ -13701,6 +13734,14 @@ window.goToQuartier = goToQuartier;
 function goToTypeFilter(type){
   switchSection('etablissements', document.querySelectorAll('.nav-item')[1]);
   setTimeout(function(){
+    // Effacer recherche textuelle pour eviter faux positifs inter-categories
+    var si = document.getElementById('searchInput');
+    if(si){ si.value = ''; }
+    // Reinitialiser statut a Tous pour afficher tous les etabs de la categorie
+    currentStatus = 'all';
+    document.querySelectorAll('[data-status]').forEach(function(c){
+      c.classList.toggle('active', c.dataset.status === 'all');
+    });
     // Activer le bon fchip visuellement
     var chips = document.querySelectorAll('.fchip');
     chips.forEach(function(c){ c.classList.remove('active'); });
@@ -15482,6 +15523,12 @@ function filterData(){
   }
   data.sort(function(a,b){
     if(currentSort==="affluence"){
+      // Hotels: tries par etoiles d'abord, puis affluence
+      var catA = getCategory(a.type||''); var catB = getCategory(b.type||'');
+      if(catA === 'Hotel' && catB === 'Hotel'){
+        var stA = parseEtoiles(a.etoiles); var stB = parseEtoiles(b.etoiles);
+        if(stB !== stA) return stB - stA; // plus d'etoiles en premier
+      }
       // Utiliser l'affluence réelle (live) si disponible
       var aLive = window._livePresences && window._liveVotes ? (function(){
         var lp = window._livePresences[String(a.id)]||{count:0};
@@ -15496,6 +15543,12 @@ function filterData(){
       return bLive - aLive;
     }
     if(currentSort==="note"){
+      // Hotels: etoiles prioritaires avant note utilisateurs
+      var catA2 = getCategory(a.type||''); var catB2 = getCategory(b.type||'');
+      if(catA2 === 'Hotel' && catB2 === 'Hotel'){
+        var stA2 = parseEtoiles(a.etoiles); var stB2 = parseEtoiles(b.etoiles);
+        if(stB2 !== stA2) return stB2 - stA2;
+      }
       var aN = (window._liveRatings && window._liveRatings[String(a.id)] && window._liveRatings[String(a.id)].avis > 0) ? window._liveRatings[String(a.id)].note : (a.note||0);
       var bN = (window._liveRatings && window._liveRatings[String(b.id)] && window._liveRatings[String(b.id)].avis > 0) ? window._liveRatings[String(b.id)].note : (b.note||0);
       return bN - aN;
@@ -17093,6 +17146,10 @@ function buildCard(e,delay,compact,rank,extraClass){
     })()+
     "<div class=\"card-bottom\">"+
     "<div style=\"display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;\">"+
+    // Étoiles hôtel affichées en priorité dans la card
+    (getCategory(e.type||'') === 'Hotel' && parseEtoiles(e.etoiles) > 0
+      ? (function(){ var nb=parseEtoiles(e.etoiles); var s=''; for(var _i=0;_i<nb;_i++) s+='⭐'; return "<span style=\"font-size:0.75rem;letter-spacing:0.05em;\">"+s+"</span>"; })()
+      : "")+
     (e.note > 0 || e.avis > 0
       ? "<div class=\"stars\">"+makeStars(e.note)+"</div>"
         +"<span class=\"note\" data-live-note=\""+e.id+"\">"+e.note+"</span>"
@@ -25362,12 +25419,14 @@ window.changeAdminPin=changeAdminPin;
 // Clé Firebase de stockage des photos par défaut admin
 var ADMIN_DEFAULT_PHOTOS_DOC = "config/default_photos";
 
-// Descripteurs des 6 slots
+// Descripteurs des slots — alignés sur les 6 catégories principales de l'app
 var ADMIN_PHOTO_SLOTS = [
-  { key:"bar_resto",   label:"Bar / Resto",          icon:"🍸", hint:"Photo profil par défaut des bars & restaurants" },
-  { key:"bar_terrasse",label:"Bar Terrasse",         icon:"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 60 44\" width=\"1.2em\" height=\"0.8em\" style=\"display:inline-block;vertical-align:middle;flex-shrink:0;\"><rect width=\"60\" height=\"30\" fill=\"#1a2a4a\"/><rect y=\"30\" width=\"60\" height=\"14\" fill=\"#1a4a7a\"/><path d=\"M0 31 Q7 28 15 31 Q22 34 30 31 Q38 28 46 31 Q53 34 60 31 L60 44 L0 44Z\" fill=\"#1e5c9e\" opacity=\"0.8\"/><line x1=\"5\" y1=\"36\" x2=\"13\" y2=\"36\" stroke=\"#4dd9ff\" stroke-width=\"0.9\" opacity=\"0.6\"/><line x1=\"35\" y1=\"38\" x2=\"45\" y2=\"38\" stroke=\"#4dd9ff\" stroke-width=\"0.9\" opacity=\"0.5\"/><circle cx=\"48\" cy=\"11\" r=\"5\" fill=\"#FFD700\"/><line x1=\"48\" y1=\"4\" x2=\"48\" y2=\"2\" stroke=\"#FFD700\" stroke-width=\"1.3\"/><line x1=\"54\" y1=\"6\" x2=\"56\" y2=\"4\" stroke=\"#FFD700\" stroke-width=\"1.3\"/><line x1=\"56\" y1=\"11\" x2=\"58\" y2=\"11\" stroke=\"#FFD700\" stroke-width=\"1.3\"/><line x1=\"54\" y1=\"16\" x2=\"56\" y2=\"18\" stroke=\"#FFD700\" stroke-width=\"1.3\"/><line x1=\"42\" y1=\"6\" x2=\"40\" y2=\"4\" stroke=\"#FFD700\" stroke-width=\"1.3\"/><path d=\"M20 44 Q21 38 19 30 Q18 22 20 14\" fill=\"none\" stroke=\"#7B4A1E\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><circle cx=\"19\" cy=\"16\" r=\"2.2\" fill=\"#5a3010\"/><circle cx=\"22\" cy=\"14\" r=\"1.8\" fill=\"#6b3a12\"/><path d=\"M20 14 Q10 16 6 20\" fill=\"none\" stroke=\"#2E8B2E\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><path d=\"M13 15 Q10 19 6 20\" fill=\"none\" stroke=\"#3aaa3a\" stroke-width=\"1.2\" stroke-linecap=\"round\" opacity=\"0.6\"/><path d=\"M20 14 Q12 9 7 10\" fill=\"none\" stroke=\"#2E8B2E\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><path d=\"M14 11 Q10 10 7 10\" fill=\"none\" stroke=\"#3aaa3a\" stroke-width=\"1.2\" stroke-linecap=\"round\" opacity=\"0.6\"/><path d=\"M20 14 Q27 16 32 20\" fill=\"none\" stroke=\"#228B22\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><path d=\"M25 15 Q29 18 32 20\" fill=\"none\" stroke=\"#3aaa3a\" stroke-width=\"1.2\" stroke-linecap=\"round\" opacity=\"0.6\"/><path d=\"M20 14 Q28 10 34 11\" fill=\"none\" stroke=\"#228B22\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><path d=\"M26 11 Q30 10 34 11\" fill=\"none\" stroke=\"#3aaa3a\" stroke-width=\"1.2\" stroke-linecap=\"round\" opacity=\"0.6\"/><path d=\"M20 14 Q20 7 20 4\" fill=\"none\" stroke=\"#33aa33\" stroke-width=\"2.2\" stroke-linecap=\"round\"/><path d=\"M20 4 Q16 6 14 9\" fill=\"none\" stroke=\"#33aa33\" stroke-width=\"1.8\" stroke-linecap=\"round\"/><path d=\"M20 4 Q24 6 26 9\" fill=\"none\" stroke=\"#33aa33\" stroke-width=\"1.8\" stroke-linecap=\"round\"/></svg>", hint:"Photo profil par défaut des bars terrasses" },
-  { key:"club",        label:"Club / Discothèque",   icon:"🎶", hint:"Photo profil par défaut des clubs" },
-  { key:"hotel",       label:"Hôtel",                icon:"🏨", hint:"Photo profil par défaut des hôtels" },,
+  { key:"hotel",       label:"Hôtels & Motels",      icon:"🏨", hint:"Photo profil par défaut des hôtels & motels" },
+  { key:"bar",         label:"Bars",                 icon:"🍺", hint:"Photo profil par défaut des bars" },
+  { key:"bar_terrasse",label:"Bar Terrasses",        icon:"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 60 44\" width=\"1.2em\" height=\"0.8em\" style=\"display:inline-block;vertical-align:middle;flex-shrink:0;\"><rect width=\"60\" height=\"30\" fill=\"#1a2a4a\"/><rect y=\"30\" width=\"60\" height=\"14\" fill=\"#1a4a7a\"/><path d=\"M0 31 Q7 28 15 31 Q22 34 30 31 Q38 28 46 31 Q53 34 60 31 L60 44 L0 44Z\" fill=\"#1e5c9e\" opacity=\"0.8\"/><line x1=\"5\" y1=\"36\" x2=\"13\" y2=\"36\" stroke=\"#4dd9ff\" stroke-width=\"0.9\" opacity=\"0.6\"/><line x1=\"35\" y1=\"38\" x2=\"45\" y2=\"38\" stroke=\"#4dd9ff\" stroke-width=\"0.9\" opacity=\"0.5\"/><circle cx=\"48\" cy=\"11\" r=\"5\" fill=\"#FFD700\"/><line x1=\"48\" y1=\"4\" x2=\"48\" y2=\"2\" stroke=\"#FFD700\" stroke-width=\"1.3\"/><line x1=\"54\" y1=\"6\" x2=\"56\" y2=\"4\" stroke=\"#FFD700\" stroke-width=\"1.3\"/><line x1=\"56\" y1=\"11\" x2=\"58\" y2=\"11\" stroke=\"#FFD700\" stroke-width=\"1.3\"/><line x1=\"54\" y1=\"16\" x2=\"56\" y2=\"18\" stroke=\"#FFD700\" stroke-width=\"1.3\"/><line x1=\"42\" y1=\"6\" x2=\"40\" y2=\"4\" stroke=\"#FFD700\" stroke-width=\"1.3\"/><path d=\"M20 44 Q21 38 19 30 Q18 22 20 14\" fill=\"none\" stroke=\"#7B4A1E\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><circle cx=\"19\" cy=\"16\" r=\"2.2\" fill=\"#5a3010\"/><circle cx=\"22\" cy=\"14\" r=\"1.8\" fill=\"#6b3a12\"/><path d=\"M20 14 Q10 16 6 20\" fill=\"none\" stroke=\"#2E8B2E\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><path d=\"M13 15 Q10 19 6 20\" fill=\"none\" stroke=\"#3aaa3a\" stroke-width=\"1.2\" stroke-linecap=\"round\" opacity=\"0.6\"/><path d=\"M20 14 Q12 9 7 10\" fill=\"none\" stroke=\"#2E8B2E\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><path d=\"M14 11 Q10 10 7 10\" fill=\"none\" stroke=\"#3aaa3a\" stroke-width=\"1.2\" stroke-linecap=\"round\" opacity=\"0.6\"/><path d=\"M20 14 Q27 16 32 20\" fill=\"none\" stroke=\"#228B22\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><path d=\"M25 15 Q29 18 32 20\" fill=\"none\" stroke=\"#3aaa3a\" stroke-width=\"1.2\" stroke-linecap=\"round\" opacity=\"0.6\"/><path d=\"M20 14 Q28 10 34 11\" fill=\"none\" stroke=\"#228B22\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><path d=\"M26 11 Q30 10 34 11\" fill=\"none\" stroke=\"#3aaa3a\" stroke-width=\"1.2\" stroke-linecap=\"round\" opacity=\"0.6\"/><path d=\"M20 14 Q20 7 20 4\" fill=\"none\" stroke=\"#33aa33\" stroke-width=\"2.2\" stroke-linecap=\"round\"/><path d=\"M20 4 Q16 6 14 9\" fill=\"none\" stroke=\"#33aa33\" stroke-width=\"1.8\" stroke-linecap=\"round\"/><path d=\"M20 4 Q24 6 26 9\" fill=\"none\" stroke=\"#33aa33\" stroke-width=\"1.8\" stroke-linecap=\"round\"/></svg>", hint:"Photo profil par défaut des bars terrasses" },
+  { key:"snack",       label:"Snacks",               icon:"🍟", hint:"Photo profil par défaut des snacks" },
+  { key:"restaurant",  label:"Restos & Pâtisseries", icon:"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 56 40\" width=\"1.1em\" height=\"0.8em\" style=\"display:inline-block;vertical-align:middle;flex-shrink:0;\"><line x1=\"10\" y1=\"4\" x2=\"10\" y2=\"36\" stroke=\"#ffd700\" stroke-width=\"2.2\" stroke-linecap=\"round\"/><line x1=\"7\" y1=\"4\" x2=\"7\" y2=\"16\" stroke=\"#ffd700\" stroke-width=\"1.6\" stroke-linecap=\"round\"/><line x1=\"13\" y1=\"4\" x2=\"13\" y2=\"16\" stroke=\"#ffd700\" stroke-width=\"1.6\" stroke-linecap=\"round\"/><path d=\"M7 16 Q10 20 13 16\" fill=\"none\" stroke=\"#ffd700\" stroke-width=\"1.6\"/><circle cx=\"28\" cy=\"22\" r=\"14\" fill=\"none\" stroke=\"#ff9500\" stroke-width=\"2.2\"/><circle cx=\"28\" cy=\"22\" r=\"9\" fill=\"rgba(255,149,0,0.15)\" stroke=\"#ffd700\" stroke-width=\"1.2\"/><circle cx=\"28\" cy=\"22\" r=\"3.5\" fill=\"#ffd700\" opacity=\"0.7\"/><ellipse cx=\"46\" cy=\"10\" rx=\"3.5\" ry=\"5\" fill=\"none\" stroke=\"#ffd700\" stroke-width=\"2\"/><line x1=\"46\" y1=\"15\" x2=\"46\" y2=\"36\" stroke=\"#ffd700\" stroke-width=\"2.2\" stroke-linecap=\"round\"/></svg>", hint:"Photo profil par défaut des restos & pâtisseries" },
+  { key:"boite_nuit",  label:"Boîtes de Nuit",       icon:"🎵", hint:"Photo profil par défaut des boîtes de nuit & clubs" },
   { key:"driver",      label:"Chauffeur (Taxi Pro)", icon:"🚕", hint:"Avatar par défaut pour les chauffeurs Taxi Pro" },
   { key:"company",     label:"Entreprise (Taxi Pro)",icon:"🏢", hint:"Logo/avatar par défaut pour les entreprises Taxi Pro" },
   { key:"generic",     label:"Autres établissements",icon:"📍", hint:"Photo de fallback générique (tous les autres lieux)" }
@@ -25400,11 +25459,13 @@ function getAdminDefaultPhotoForEtab(etab){
   if(!etab) return null;
   var type = (etab.type||"").toLowerCase();
   var key = "generic";
-  // Mapper "Bar Terrasse" spécifiquement
-  if(/bar.*terrasse|terrasse/i.test(type)) key = "bar_terrasse";
-  else if(/bar|brasserie|bistro|resto|restaurant|café|cafe|maquis/i.test(type)) key = "bar_resto";
-  else if(/club|discothèque|discotheque|boîte|boite|night/i.test(type)) key = "club";
-  else if(/hôtel|hotel/i.test(type)) key = "hotel";
+  // Mapper selon les 6 catégories principales — même ordre que getCategory()
+  if(/bar.*terrasse|terrasse|rooftop/i.test(type)) key = "bar_terrasse";
+  else if(/hôtel|hotel|motel|résidence|residence|resort|lodge/i.test(type)) key = "hotel";
+  else if(/club|discothèque|discotheque|boîte|boite|night/i.test(type)) key = "boite_nuit";
+  else if(/snack/i.test(type)) key = "snack";
+  else if(/restaurant|resto|pâtisserie|patisserie|brasserie|pizzeria|bistro|café|cafe|maquis/i.test(type)) key = "restaurant";
+  else if(/bar|lounge|pub|taverne/i.test(type)) key = "bar";
   else if(/salle|cérémonie|ceremonie/i.test(type)) key = "salle";
   else if(/stade|football|foot/i.test(type)) key = "stade";
   else if(/tourisme|touristique|site/i.test(type)) key = "tourisme";
@@ -26698,7 +26759,7 @@ window.doAssignEtab = doAssignEtab;
               <div class="igm-cat-btn igm-cat-sel" data-key="Bar Terrasse" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 44" width="1.2em" height="0.8em" style="display:inline-block;vertical-align:middle;flex-shrink:0;"><rect width="60" height="30" fill="#1a2a4a"/><rect y="30" width="60" height="14" fill="#1a4a7a"/><path d="M0 31 Q7 28 15 31 Q22 34 30 31 Q38 28 46 31 Q53 34 60 31 L60 44 L0 44Z" fill="#1e5c9e" opacity="0.8"/><line x1="5" y1="36" x2="13" y2="36" stroke="#4dd9ff" stroke-width="0.9" opacity="0.6"/><line x1="35" y1="38" x2="45" y2="38" stroke="#4dd9ff" stroke-width="0.9" opacity="0.5"/><circle cx="48" cy="11" r="5" fill="#FFD700"/><line x1="48" y1="4" x2="48" y2="2" stroke="#FFD700" stroke-width="1.3"/><line x1="54" y1="6" x2="56" y2="4" stroke="#FFD700" stroke-width="1.3"/><line x1="56" y1="11" x2="58" y2="11" stroke="#FFD700" stroke-width="1.3"/><line x1="54" y1="16" x2="56" y2="18" stroke="#FFD700" stroke-width="1.3"/><line x1="42" y1="6" x2="40" y2="4" stroke="#FFD700" stroke-width="1.3"/><path d="M20 44 Q21 38 19 30 Q18 22 20 14" fill="none" stroke="#7B4A1E" stroke-width="3.5" stroke-linecap="round"/><circle cx="19" cy="16" r="2.2" fill="#5a3010"/><circle cx="22" cy="14" r="1.8" fill="#6b3a12"/><path d="M20 14 Q10 16 6 20" fill="none" stroke="#2E8B2E" stroke-width="2.5" stroke-linecap="round"/><path d="M13 15 Q10 19 6 20" fill="none" stroke="#3aaa3a" stroke-width="1.2" stroke-linecap="round" opacity="0.6"/><path d="M20 14 Q12 9 7 10" fill="none" stroke="#2E8B2E" stroke-width="2.5" stroke-linecap="round"/><path d="M14 11 Q10 10 7 10" fill="none" stroke="#3aaa3a" stroke-width="1.2" stroke-linecap="round" opacity="0.6"/><path d="M20 14 Q27 16 32 20" fill="none" stroke="#228B22" stroke-width="2.5" stroke-linecap="round"/><path d="M25 15 Q29 18 32 20" fill="none" stroke="#3aaa3a" stroke-width="1.2" stroke-linecap="round" opacity="0.6"/><path d="M20 14 Q28 10 34 11" fill="none" stroke="#228B22" stroke-width="2.5" stroke-linecap="round"/><path d="M26 11 Q30 10 34 11" fill="none" stroke="#3aaa3a" stroke-width="1.2" stroke-linecap="round" opacity="0.6"/><path d="M20 14 Q20 7 20 4" fill="none" stroke="#33aa33" stroke-width="2.2" stroke-linecap="round"/><path d="M20 4 Q16 6 14 9" fill="none" stroke="#33aa33" stroke-width="1.8" stroke-linecap="round"/><path d="M20 4 Q24 6 26 9" fill="none" stroke="#33aa33" stroke-width="1.8" stroke-linecap="round"/></svg></span><div class="igm-cat-name">Bar Terrasses</div><div class="igm-cat-count" id="igm2-cnt-Bar Terrasse">—</div></div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Snack" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🍟</span><div class="igm-cat-name">Snacks</div><div class="igm-cat-count" id="igm2-cnt-Snack">—</div></div>
               <div class="igm-cat-btn igm-cat-sel" data-key="Restaurant" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 40" width="1.1em" height="0.8em" style="display:inline-block;vertical-align:middle;flex-shrink:0;"><line x1="10" y1="4" x2="10" y2="36" stroke="#ffd700" stroke-width="2.2" stroke-linecap="round"/><line x1="7" y1="4" x2="7" y2="16" stroke="#ffd700" stroke-width="1.6" stroke-linecap="round"/><line x1="13" y1="4" x2="13" y2="16" stroke="#ffd700" stroke-width="1.6" stroke-linecap="round"/><path d="M7 16 Q10 20 13 16" fill="none" stroke="#ffd700" stroke-width="1.6"/><circle cx="28" cy="22" r="14" fill="none" stroke="#ff9500" stroke-width="2.2"/><circle cx="28" cy="22" r="9" fill="rgba(255,149,0,0.15)" stroke="#ffd700" stroke-width="1.2"/><circle cx="28" cy="22" r="3.5" fill="#ffd700" opacity="0.7"/><ellipse cx="46" cy="10" rx="3.5" ry="5" fill="none" stroke="#ffd700" stroke-width="2"/><line x1="46" y1="15" x2="46" y2="36" stroke="#ffd700" stroke-width="2.2" stroke-linecap="round"/></svg></span><div class="igm-cat-name">Restos & Pâtisseries</div><div class="igm-cat-count" id="igm2-cnt-Restaurant">—</div></div>
-              <div class="igm-cat-btn igm-cat-sel" data-key="Discotheque" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon">🎵</span><div class="igm-cat-name">Clubs</div><div class="igm-cat-count" id="igm2-cnt-Discotheque">—</div></div><div class="igm-cat-count" id="igm2-cnt-Salle">—</div></div><div class="igm-cat-count" id="igm2-cnt-Stade">—</div></div><div class="igm-cat-count" id="igm2-cnt-Tourisme">—</div></div>
+              <div class="igm-cat-btn igm-cat-sel" data-key="Discotheque" onclick="igm2ToggleCat(this)"><span class="igm-cat-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 30" width="1.3em" height="0.9em" style="flex-shrink:0;vertical-align:middle;"><circle cx="11" cy="4" r="3" fill="#ff2d9b"/><path d="M11 7 Q7 13 5 20 Q8 18 11 19 Q14 18 17 20 Q15 13 11 7Z" fill="#ff2d9b"/><line x1="11" y1="10" x2="5" y2="6" stroke="#ff2d9b" stroke-width="2" stroke-linecap="round"/><line x1="11" y1="10" x2="17" y2="13" stroke="#ff2d9b" stroke-width="2" stroke-linecap="round"/><line x1="9" y1="19" x2="6" y2="27" stroke="#ff2d9b" stroke-width="2" stroke-linecap="round"/><line x1="13" y1="19" x2="16" y2="26" stroke="#ff2d9b" stroke-width="2" stroke-linecap="round"/><circle cx="37" cy="4" r="3" fill="#cc44ff"/><line x1="37" y1="7" x2="37" y2="19" stroke="#cc44ff" stroke-width="2.5" stroke-linecap="round"/><line x1="37" y1="11" x2="31" y2="13" stroke="#cc44ff" stroke-width="2" stroke-linecap="round"/><line x1="37" y1="11" x2="43" y2="7" stroke="#cc44ff" stroke-width="2" stroke-linecap="round"/><line x1="37" y1="19" x2="33" y2="27" stroke="#cc44ff" stroke-width="2" stroke-linecap="round"/><line x1="37" y1="19" x2="41" y2="26" stroke="#cc44ff" stroke-width="2" stroke-linecap="round"/><text x="21" y="13" font-size="8" fill="#ffd700">♪</text></svg></span><div class="igm-cat-name">Boîtes de Nuit</div><div class="igm-cat-count" id="igm2-cnt-Discotheque">—</div></div><div class="igm-cat-count" id="igm2-cnt-Salle">—</div></div><div class="igm-cat-count" id="igm2-cnt-Stade">—</div></div><div class="igm-cat-count" id="igm2-cnt-Tourisme">—</div></div>
             </div>
             <button class="igm-btn igm-btn-primary" onclick="igm2StartSearch()">🔍 Lancer la recherche Google Maps</button>
           </div>
@@ -43446,7 +43507,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     "Restaurant":   {label:"Restos & Pâtiss.",icon:"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 56 40\" width=\"1.1em\" height=\"0.8em\" style=\"display:inline-block;vertical-align:middle;flex-shrink:0;\"><line x1=\"10\" y1=\"4\" x2=\"10\" y2=\"36\" stroke=\"#ffd700\" stroke-width=\"2.2\" stroke-linecap=\"round\"/><line x1=\"7\" y1=\"4\" x2=\"7\" y2=\"16\" stroke=\"#ffd700\" stroke-width=\"1.6\" stroke-linecap=\"round\"/><line x1=\"13\" y1=\"4\" x2=\"13\" y2=\"16\" stroke=\"#ffd700\" stroke-width=\"1.6\" stroke-linecap=\"round\"/><path d=\"M7 16 Q10 20 13 16\" fill=\"none\" stroke=\"#ffd700\" stroke-width=\"1.6\"/><circle cx=\"28\" cy=\"22\" r=\"14\" fill=\"none\" stroke=\"#ff9500\" stroke-width=\"2.2\"/><circle cx=\"28\" cy=\"22\" r=\"9\" fill=\"rgba(255,149,0,0.15)\" stroke=\"#ffd700\" stroke-width=\"1.2\"/><circle cx=\"28\" cy=\"22\" r=\"3.5\" fill=\"#ffd700\" opacity=\"0.7\"/><ellipse cx=\"46\" cy=\"10\" rx=\"3.5\" ry=\"5\" fill=\"none\" stroke=\"#ffd700\" stroke-width=\"2\"/><line x1=\"46\" y1=\"15\" x2=\"46\" y2=\"36\" stroke=\"#ffd700\" stroke-width=\"2.2\" stroke-linecap=\"round\"/></svg>",
       overpassTags: [["amenity","restaurant"],["amenity","cafe"],["shop","bakery"]],
       queries:["restaurant Libreville","patisserie Libreville","café Libreville"]},
-    "Discotheque":  {label:"Clubs",            icon:"🎵",
+    "Discotheque":  {label:"Boîtes de Nuit",  icon:"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 30\" width=\"1.1em\" height=\"0.8em\" style=\"flex-shrink:0;vertical-align:middle;\"><circle cx=\"11\" cy=\"4\" r=\"3\" fill=\"#ff2d9b\"/><path d=\"M11 7 Q7 13 5 20 Q8 18 11 19 Q14 18 17 20 Q15 13 11 7Z\" fill=\"#ff2d9b\"/><line x1=\"11\" y1=\"10\" x2=\"5\" y2=\"6\" stroke=\"#ff2d9b\" stroke-width=\"2\" stroke-linecap=\"round\"/><line x1=\"11\" y1=\"10\" x2=\"17\" y2=\"13\" stroke=\"#ff2d9b\" stroke-width=\"2\" stroke-linecap=\"round\"/><line x1=\"9\" y1=\"19\" x2=\"6\" y2=\"27\" stroke=\"#ff2d9b\" stroke-width=\"2\" stroke-linecap=\"round\"/><line x1=\"13\" y1=\"19\" x2=\"16\" y2=\"26\" stroke=\"#ff2d9b\" stroke-width=\"2\" stroke-linecap=\"round\"/><circle cx=\"37\" cy=\"4\" r=\"3\" fill=\"#cc44ff\"/><line x1=\"37\" y1=\"7\" x2=\"37\" y2=\"19\" stroke=\"#cc44ff\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><line x1=\"37\" y1=\"11\" x2=\"31\" y2=\"13\" stroke=\"#cc44ff\" stroke-width=\"2\" stroke-linecap=\"round\"/><line x1=\"37\" y1=\"11\" x2=\"43\" y2=\"7\" stroke=\"#cc44ff\" stroke-width=\"2\" stroke-linecap=\"round\"/><line x1=\"37\" y1=\"19\" x2=\"33\" y2=\"27\" stroke=\"#cc44ff\" stroke-width=\"2\" stroke-linecap=\"round\"/><line x1=\"37\" y1=\"19\" x2=\"41\" y2=\"26\" stroke=\"#cc44ff\" stroke-width=\"2\" stroke-linecap=\"round\"/><text x=\"21\" y=\"13\" font-size=\"8\" fill=\"#ffd700\">♪</text></svg>",
       overpassTags: [["amenity","nightclub"],["amenity","music_venue"]],
       queries:["nightclub Libreville","discothèque Libreville","boite de nuit Libreville"]},
     ,
@@ -43943,7 +44004,7 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     "Restaurant":   {label:"Restos & Pâtiss.",icon:"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 56 40\" width=\"1.1em\" height=\"0.8em\" style=\"display:inline-block;vertical-align:middle;flex-shrink:0;\"><line x1=\"10\" y1=\"4\" x2=\"10\" y2=\"36\" stroke=\"#ffd700\" stroke-width=\"2.2\" stroke-linecap=\"round\"/><line x1=\"7\" y1=\"4\" x2=\"7\" y2=\"16\" stroke=\"#ffd700\" stroke-width=\"1.6\" stroke-linecap=\"round\"/><line x1=\"13\" y1=\"4\" x2=\"13\" y2=\"16\" stroke=\"#ffd700\" stroke-width=\"1.6\" stroke-linecap=\"round\"/><path d=\"M7 16 Q10 20 13 16\" fill=\"none\" stroke=\"#ffd700\" stroke-width=\"1.6\"/><circle cx=\"28\" cy=\"22\" r=\"14\" fill=\"none\" stroke=\"#ff9500\" stroke-width=\"2.2\"/><circle cx=\"28\" cy=\"22\" r=\"9\" fill=\"rgba(255,149,0,0.15)\" stroke=\"#ffd700\" stroke-width=\"1.2\"/><circle cx=\"28\" cy=\"22\" r=\"3.5\" fill=\"#ffd700\" opacity=\"0.7\"/><ellipse cx=\"46\" cy=\"10\" rx=\"3.5\" ry=\"5\" fill=\"none\" stroke=\"#ffd700\" stroke-width=\"2\"/><line x1=\"46\" y1=\"15\" x2=\"46\" y2=\"36\" stroke=\"#ffd700\" stroke-width=\"2.2\" stroke-linecap=\"round\"/></svg>",
       overpassTags:[["amenity","restaurant"],["amenity","cafe"],["shop","bakery"]],
       queries:["restaurant Libreville","patisserie Libreville"]},
-    "Discotheque":  {label:"Clubs",            icon:"🎵",
+    "Discotheque":  {label:"Boîtes de Nuit",  icon:"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 30\" width=\"1.1em\" height=\"0.8em\" style=\"flex-shrink:0;vertical-align:middle;\"><circle cx=\"11\" cy=\"4\" r=\"3\" fill=\"#ff2d9b\"/><path d=\"M11 7 Q7 13 5 20 Q8 18 11 19 Q14 18 17 20 Q15 13 11 7Z\" fill=\"#ff2d9b\"/><line x1=\"11\" y1=\"10\" x2=\"5\" y2=\"6\" stroke=\"#ff2d9b\" stroke-width=\"2\" stroke-linecap=\"round\"/><line x1=\"11\" y1=\"10\" x2=\"17\" y2=\"13\" stroke=\"#ff2d9b\" stroke-width=\"2\" stroke-linecap=\"round\"/><line x1=\"9\" y1=\"19\" x2=\"6\" y2=\"27\" stroke=\"#ff2d9b\" stroke-width=\"2\" stroke-linecap=\"round\"/><line x1=\"13\" y1=\"19\" x2=\"16\" y2=\"26\" stroke=\"#ff2d9b\" stroke-width=\"2\" stroke-linecap=\"round\"/><circle cx=\"37\" cy=\"4\" r=\"3\" fill=\"#cc44ff\"/><line x1=\"37\" y1=\"7\" x2=\"37\" y2=\"19\" stroke=\"#cc44ff\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><line x1=\"37\" y1=\"11\" x2=\"31\" y2=\"13\" stroke=\"#cc44ff\" stroke-width=\"2\" stroke-linecap=\"round\"/><line x1=\"37\" y1=\"11\" x2=\"43\" y2=\"7\" stroke=\"#cc44ff\" stroke-width=\"2\" stroke-linecap=\"round\"/><line x1=\"37\" y1=\"19\" x2=\"33\" y2=\"27\" stroke=\"#cc44ff\" stroke-width=\"2\" stroke-linecap=\"round\"/><line x1=\"37\" y1=\"19\" x2=\"41\" y2=\"26\" stroke=\"#cc44ff\" stroke-width=\"2\" stroke-linecap=\"round\"/><text x=\"21\" y=\"13\" font-size=\"8\" fill=\"#ffd700\">♪</text></svg>",
       overpassTags:[["amenity","nightclub"],["amenity","music_venue"]],
       queries:["nightclub Libreville","discothèque Libreville"]},
     ,
