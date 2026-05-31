@@ -1209,6 +1209,7 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
   width:100%;
 }
 .socpub-filter-row::-webkit-scrollbar{display:none;}
+.soc-tab,.socpub-fchip,.socpub-type-chip,.socpub-action-btn,.socpub-comment-submit,.pub-tab,.pub-quickbar-btn{touch-action:manipulation;}
 .socpub-fchip{
   flex-shrink:0;padding:0.3rem 0.75rem;border-radius:20px;
   border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);
@@ -1460,21 +1461,21 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 .socpub-load-more:active{background:rgba(255,45,155,0.12);}
 
 /* ══ MODAL PUBLIER (SOCIAL) ══ */
-#socPubModal{display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,0.88);backdrop-filter:blur(12px);align-items:flex-end;justify-content:center;}
+#socPubModal{display:none;position:fixed;inset:0;z-index:700;background:rgba(0,0,0,0.88);backdrop-filter:blur(12px);align-items:flex-end;justify-content:center;}
 #socPubModal.open{display:flex;}
 .socpub-modal-sheet{
   background:var(--surface);border:1px solid rgba(255,45,155,0.3);
   border-radius:24px 24px 0 0;width:100%;max-width:560px;
-  max-height:calc(94vh - var(--player-h));overflow-y:auto;
-  padding:1.5rem 1.2rem 0;
+  max-height:calc(94vh - var(--player-h));overflow:hidden;
+  padding:0;
   display:flex;flex-direction:column;
   animation:slideUpSheet 0.35s cubic-bezier(0.34,1.2,0.64,1);
 }
-.socpub-modal-body{flex:1;overflow-y:auto;padding-bottom:0.5rem;}
+.socpub-modal-body{flex:1;overflow-y:auto;overflow-x:hidden;padding:1.5rem 1.2rem 0.5rem;-webkit-overflow-scrolling:touch;}
 .socpub-modal-footer{
-  flex-shrink:0;padding:0.85rem 0 calc(0.85rem + env(safe-area-inset-bottom,0px));
+  flex-shrink:0;padding:0.75rem 1.2rem calc(0.75rem + env(safe-area-inset-bottom,0px));
   background:var(--surface);border-top:1px solid rgba(255,255,255,0.06);
-  position:sticky;bottom:0;
+  z-index:10;position:relative;
 }
 .socpub-modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;}
 .socpub-modal-title{font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:var(--pink);}
@@ -9567,16 +9568,15 @@ if (document.readyState === 'loading') {
 <div id="socPubModal" onclick="if(event.target===this)socClosePubModal()">
   <div class="socpub-modal-sheet">
 
+    <div class="socpub-modal-body">
     <!-- ── Drag handle ── -->
-    <div style="width:38px;height:4px;background:rgba(255,255,255,0.12);border-radius:99px;margin:0 auto 1.1rem;flex-shrink:0;"></div>
+    <div style="width:38px;height:4px;background:rgba(255,255,255,0.12);border-radius:99px;margin:0 auto 1rem;"></div>
 
     <!-- ── Header ── -->
-    <div class="socpub-modal-head" style="flex-shrink:0;">
+    <div class="socpub-modal-head">
       <div class="socpub-modal-title">✍️ Nouvelle publication</div>
       <button class="socpub-modal-close" onclick="socClosePubModal()">✕</button>
     </div>
-
-    <div class="socpub-modal-body">
 
     <!-- ── Types (scrollable, inclut Vidéo) ── -->
     <div class="socpub-type-row" style="overflow-x:auto;padding-bottom:0.2rem;flex-wrap:nowrap;">
@@ -51772,13 +51772,18 @@ window._lazyInitSection = function(name) {
 </script>
 </body>
 <script>
-/* ── Sensibilité nav : touchstart déclenche le clic immédiatement, supprime délai 300ms ── */
+/* ── Sensibilité nav : supprime délai 300ms UNIQUEMENT sur la bottom-nav ── */
 (function(){
   function boostNav(){
-    document.querySelectorAll('.nav-item').forEach(function(btn){
+    var bottomNav = document.querySelector('.bottom-nav');
+    if(!bottomNav) return;
+    bottomNav.querySelectorAll('.nav-item').forEach(function(btn){
       if(btn._touchBoosted) return;
       btn._touchBoosted = true;
       btn.addEventListener('touchstart', function(e){
+        /* Ne bloquer que si le touch est DANS la bottom-nav et hors modal */
+        var modal = document.querySelector('#socPubModal.open, .overlay.show, [id$="Overlay"].show');
+        if(modal) return; // modal ouvert → ne pas intercepter
         e.preventDefault();
         btn.click();
       }, {passive:false});
@@ -51787,7 +51792,6 @@ window._lazyInitSection = function(name) {
   if(document.readyState==='loading'){
     document.addEventListener('DOMContentLoaded', boostNav);
   } else { boostNav(); }
-  setTimeout(boostNav, 1500);
-  setTimeout(boostNav, 4000);
+  setTimeout(boostNav, 800);
 })();
 </script>
