@@ -2219,19 +2219,15 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   background:linear-gradient(180deg,rgba(255,255,255,0.30) 0%,transparent 100%);
   pointer-events:none;z-index:1;border-radius:inherit;
 }
-/* Sweep shimmer animé */
+/* Sweep shimmer animé — SUPPRIMÉ (gain GPU : 6 layers animés en moins) */
 .type-tile::after{
   content:'';
   position:absolute;top:0;left:0;width:45%;height:100%;
   background:linear-gradient(90deg,transparent,rgba(255,255,255,0.28),transparent);
-  animation:tileShimmer 3.5s ease-in-out infinite;
   pointer-events:none;z-index:3;
+  opacity:0; /* désactivé */
 }
-.type-tile:nth-child(2)::after{animation-delay:0.6s;}
-.type-tile:nth-child(3)::after{animation-delay:1.2s;}
-.type-tile:nth-child(4)::after{animation-delay:1.8s;}
-.type-tile:nth-child(5)::after{animation-delay:2.4s;}
-.type-tile:nth-child(6)::after{animation-delay:0.3s;}
+/* animation-delay supprimés avec tileShimmer */
 
 .type-tile:active{transform:scale(0.93);}
 .type-tile:hover{transform:translateY(-4px) scale(1.02);}
@@ -3535,7 +3531,8 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   width: 14px; height: 14px; border-radius: 50%;
   background: linear-gradient(135deg, var(--amber), #ff8800);
   color: #000; font-size: 0.45rem; font-weight: 900;
-  flex-shrink: 0; animation: pulse 2s infinite;
+  flex-shrink: 0;
+  /* animation: pulse supprimée — gain : ~65 layers animés en moins (1 par carte) */
   box-shadow: 0 0 5px rgba(157,132,255,0.6);
   opacity: 0; transition: opacity 0.2s;
 }
@@ -13384,18 +13381,84 @@ function _loadEtabCache() {
     if (!raw) return null;
     var obj = JSON.parse(raw);
     if (!obj || !obj.data || (Date.now() - obj.ts) > _ETAB_CACHE_TTL) return null;
-    return obj.data;
+    /* Appliquer la dédup même sur le cache — protège contre les caches anciens pollués */
+    return _processEtabData(obj.data);
   } catch(e) { return null; }
 }
 
 function _processEtabData(firebaseData) {
-  /* Dédoublonnage par id */
+  /* ── Passe 1 : dédoublonnage par id numérique ── */
   var _seenIds = {};
-  return firebaseData.filter(function(e) {
+  var pass1 = firebaseData.filter(function(e) {
     if (!e.id || _seenIds[e.id]) return false;
     _seenIds[e.id] = true;
     return true;
   });
+
+  /* ── Passe 2 : dédoublonnage par _docId Firestore ─────────────────────
+     Évite les doublons créés si le même document est récupéré deux fois    */
+  var _seenDocIds = {};
+  var pass2 = pass1.filter(function(e) {
+    if (!e._docId) return true;
+    if (_seenDocIds[e._docId]) return false;
+    _seenDocIds[e._docId] = true;
+    return true;
+  });
+
+  /* ── Passe 3 : dédoublonnage par nom normalisé + type ──────────────────
+     Détecte les mêmes établissements enregistrés plusieurs fois avec des
+     id différents. En cas de doublon, on conserve celui avec l'affluence
+     la plus haute (ou le premier rencontré si affluence identique).        */
+  var _seenNames = {};
+  var _dupsFound = [];
+  var pass3 = pass2.filter(function(e) {
+    if (!e.nom) return true;
+    var key = e.nom.toLowerCase().trim().replace(/\s+/g,' ')
+              + '||' + (e.type||'').toLowerCase().trim();
+    if (_seenNames[key]) {
+      /* Garder le plus riche en données (affluence > 0, note > 0) */
+      var kept = _seenNames[key];
+      var score = function(x){ return (x.affluence||0)*10 + (x.note||0)*5 + (x.avis||0); };
+      if(score(e) > score(kept)){
+        _dupsFound.push({ removed: kept, kept: e });
+        _seenNames[key] = e; /* remplacer par le meilleur */
+        return false; /* le précédent déjà dans le résultat — on l'enlève via reconstruct */
+      }
+      _dupsFound.push({ kept: kept, removed: e });
+      return false;
+    }
+    _seenNames[key] = e;
+    return true;
+  });
+
+  /* Reconstruction propre : les "replaced" doivent aussi être retirés */
+  var _keptSet = {};
+  pass3.forEach(function(e){ if(e._docId) _keptSet[e._docId] = true; else if(e.id) _keptSet['id_'+e.id] = true; });
+  /* Ré-injecter les gagnants de remplacement qui ont peut-être été exclus */
+  _dupsFound.forEach(function(d){
+    var k = d.kept;
+    var kKey = k._docId ? k._docId : ('id_'+k.id);
+    if(!_keptSet[kKey]){
+      pass3.push(k);
+      _keptSet[kKey] = true;
+    }
+    var rKey = d.removed._docId ? d.removed._docId : ('id_'+d.removed.id);
+    /* S'assurer que le removed n'est pas dans pass3 */
+    pass3 = pass3.filter(function(x){
+      var xk = x._docId ? x._docId : ('id_'+x.id);
+      return xk !== rKey;
+    });
+  });
+
+  if (_dupsFound.length > 0) {
+    console.warn('[AMBI241] 🚨 Doublons Firebase supprimés (' + _dupsFound.length + ') :',
+      _dupsFound.map(function(d){
+        return '❌ "' + d.removed.nom + '" id=' + d.removed.id + ' doc=' + d.removed._docId
+             + ' → conservé id=' + d.kept.id + ' doc=' + d.kept._docId;
+      }).join('\n'));
+  }
+
+  return pass3;
 }
 
 function _renderAfterLoad() {
@@ -37655,30 +37718,8 @@ document.addEventListener('DOMContentLoaded', function(){
   });
 });
 
-/* ─── Floating particles (6 max, 3.5s d'intervalle) ─── */
-var EMOJI = ['🌸','✨','💫','💖','🌺','⭐','🌷'];
-var pool = [];
-var MAX_P = 6;
-function spawnParticle(){
-  if(pool.length >= MAX_P) return;
-  var el = document.createElement('span');
-  el.className = 'ambi-particle';
-  el.textContent = EMOJI[Math.floor(Math.random()*EMOJI.length)];
-  var x = 5 + Math.random()*88;
-  var dur = 7 + Math.random()*6;
-  var sz = 11 + Math.random()*9;
-  el.style.cssText = 'left:'+x+'vw;bottom:-18px;font-size:'+sz+'px;'
-    +'animation:floatPetal '+dur+'s ease-in-out forwards;opacity:'+(0.4+Math.random()*0.45)+';';
-  document.body.appendChild(el);
-  pool.push(el);
-  setTimeout(function(){
-    el.remove();
-    pool = pool.filter(function(p){return p!==el;});
-  }, dur*1000);
-}
-spawnParticle();
-setTimeout(spawnParticle, 1600);
-setInterval(spawnParticle, 3500);
+/* ─── Floating particles — SUPPRIMÉES (gain : setInterval + DOM churn + 6 layers GPU) ─── */
+/* spawnParticle désactivé */
 
 /* ─── Click/tap burst (throttlé à 1/350ms, léger) ─── */
 var HEARTS = ['💖','💕','✨','💫','🌸'];
