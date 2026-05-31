@@ -1633,7 +1633,7 @@ header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0
 .logout-btn{background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);color:var(--red);font-size:0.58rem;font-weight:700;padding:0.2rem 0.35rem;border-radius:20px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;display:none;flex-shrink:0;white-space:nowrap;}
 .logout-btn.show{display:block;}
 /* ══ PWA NAV BUTTON ══ */
-/* pwa-nav-btn retiré du header — bouton install disponible via le menu hamburger */
+/* bouton install supprimé — version web uniquement */
 
 /* OVERLAYS */
 .overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.9);backdrop-filter:blur(10px);align-items:center;justify-content:center;padding:1rem;}
@@ -7329,9 +7329,6 @@ if (document.readyState === 'loading') {
   <div class="sitenav-item" onclick="document.getElementById('userOverlay').classList.add('show');closeSiteNav()">
     <span class="sni-icon">✏️</span><span class="sni-label">Modifier mon profil</span>
   </div>
-  <div class="sitenav-item" onclick="installPWA();closeSiteNav()">
-    <span class="sni-icon">🚀</span><span class="sni-label">Installer l'application</span><span class="sni-badge">PWA</span>
-  </div>
   <div class="sitenav-item" onclick="logoutUser();closeSiteNav()" style="color:var(--red);">
     <span class="sni-icon">🚪</span><span class="sni-label">Se déconnecter</span>
   </div>
@@ -7622,17 +7619,6 @@ if (document.readyState === 'loading') {
   </div>
 </div>
 
-<!-- ══ BANNER INSTALL PWA ══ -->
-<div id="pwaBanner" style="display:none;position:fixed;bottom:54px;left:0;right:0;background:rgba(13,0,20,0.97);border-top:1px solid rgba(204,68,255,0.35);padding:0.55rem 0.9rem;z-index:640;align-items:center;gap:0.65rem;box-shadow:0 -3px 16px rgba(204,68,255,0.18);">
-  <span style="font-size:1.3rem;flex-shrink:0;">🚀</span>
-  <div style="flex:1;min-width:0;">
-    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;color:#fff;white-space:nowrap;">Installer AMBI241</div>
-    <div id="pwaBannerSub" style="font-size:0.62rem;color:var(--muted);margin-top:0.1rem;">Accès rapide depuis votre écran d'accueil</div>
-  </div>
-  <button onclick="installPWA()" style="background:linear-gradient(135deg,var(--purple),var(--pink));border:none;color:#fff;font-size:0.68rem;font-weight:800;padding:0.35rem 0.75rem;border-radius:18px;cursor:pointer;font-family:'DM Sans',sans-serif;flex-shrink:0;white-space:nowrap;">Installer</button>
-  <button onclick="_pwaCloseBanner()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.1rem 0.3rem;flex-shrink:0;line-height:1;">✕</button>
-</div>
-
 
 <main>
   <!-- SEC: ACCUEIL -->
@@ -7709,7 +7695,6 @@ if (document.readyState === 'loading') {
           <button id="heroExploreBtn" onclick="explorerLieux()" style="width:100%;padding:0.75rem 1.2rem;border-radius:14px;background:transparent;border:1.5px solid rgba(0,229,255,0.45);color:var(--cyan);font-family:'Syne',sans-serif;font-size:0.88rem;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.4rem;letter-spacing:0.02em;transition:all 0.22s;">&#128269; Explorer les lieux</button>
           <div style="display:flex;gap:0.5rem;">
             <button class="hero-btn hero-btn-secondary" onclick="quickNearby()" style="border:1px solid rgba(0,229,255,0.3);color:var(--cyan);background:rgba(0,229,255,0.07);">&#128205; Près de moi</button>
-            <button class="hero-btn hero-btn-install" id="installPwaBtn" onclick="installPWA()" style="display:none;background:linear-gradient(135deg,rgba(204,68,255,0.18),rgba(255,45,155,0.12));border:1px solid rgba(204,68,255,0.45);color:var(--purple);font-weight:800;">&#128640; Installer</button>
           </div>
         </div>
       </div>
@@ -22638,11 +22623,6 @@ function renderNotifBadge(){
   var sub=document.getElementById("notifPanelSub");
   if(sub) sub.textContent=unread>0?(unread+" non lue"+(unread>1?"s":"")):"Tout est lu";
 
-  // ── Badge natif Android/iOS sur l'icône de l'app (PWA) ──
-  if("setAppBadge" in navigator){
-    if(unread>0){ navigator.setAppBadge(unread).catch(function(){}); }
-    else { navigator.clearAppBadge().catch(function(){}); }
-  }
   // Titre de l'onglet navigateur
   var baseTitle = document.title.replace(/^\(\d+\)\s*/,"");
   document.title = unread>0 ? "("+unread+") "+baseTitle : baseTitle;
@@ -29848,89 +29828,6 @@ window.doAssignEtab = doAssignEtab;
   </div>
 </div>
 
-<script>
-/* ══ MISE À JOUR SILENCIEUSE AUTOMATIQUE ══ */
-/* SW désactivé — version web uniquement (PWA supprimée) */
-/* ══ PWA INSTALL — SYSTÈME COMPLET ══ */
-var _pwaInstallPrompt = null;
-var _pwaIsIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
-var _pwaIsAndroid = /android/i.test(navigator.userAgent);
-var _pwaIsStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-
-function _pwaShowInstallBtns(show){
-  var heroBtn = document.getElementById('installPwaBtn');
-  if(heroBtn){ heroBtn.style.display = show ? 'inline-flex' : 'none'; }
-}
-
-function _pwaCloseBanner(){
-  var b = document.getElementById('pwaBanner');
-  if(b){ b.style.display = 'none'; }
-}
-
-function _pwaShowBanner(){
-  var b = document.getElementById('pwaBanner');
-  if(!b) return;
-  var sub = document.getElementById('pwaBannerSub');
-  if(sub){
-    if(_pwaIsIOS) sub.textContent = "Partager ↑ → Sur l'écran d'accueil";
-    else if(_pwaIsAndroid) sub.textContent = "Accès rapide depuis votre écran d'accueil";
-    else sub.textContent = "Menu ⋮ → Ajouter à l'écran d'accueil";
-  }
-  b.style.display = 'flex';
-}
-
-/* beforeinstallprompt : Chrome/Android/Edge */
-window.addEventListener('beforeinstallprompt', function(e){
-  e.preventDefault();
-  _pwaInstallPrompt = e;
-  if(!_pwaIsStandalone) _pwaShowBanner();
-});
-
-/* Installation réussie */
-window.addEventListener('appinstalled', function(){
-  _pwaInstallPrompt = null;
-  _pwaCloseBanner();
-  showToast('✅ AMBI241 installé avec succès !');
-  setTimeout(function(){
-    if(typeof ambiShowNotifOnboarding === 'function') ambiShowNotifOnboarding();
-  }, 1800);
-});
-
-/* Lancer l'installation ou guider */
-function installPWA(){
-  if(_pwaInstallPrompt){
-    _pwaInstallPrompt.prompt();
-    _pwaInstallPrompt.userChoice.then(function(r){
-      if(r.outcome === 'accepted'){
-        showToast('🚀 Installation en cours...');
-        _pwaCloseBanner();
-      }
-      _pwaInstallPrompt = null;
-    });
-  } else if(_pwaIsStandalone){
-    showToast('✅ AMBI241 est déjà installé !');
-  } else if(_pwaIsIOS){
-    showToast('📱 Appuyez sur Partager puis « Sur l\'écran d\'accueil »');
-  } else {
-    showToast('Menu ⋮ → "Ajouter à l\'écran d\'accueil"');
-  }
-}
-
-/* Afficher à chaque ouverture (sauf si déjà installé) */
-(function(){
-  if(_pwaIsStandalone) return;
-  /* Délai court pour ne pas bloquer le rendu initial */
-  setTimeout(function(){
-    if(_pwaIsIOS || _pwaIsAndroid || _pwaInstallPrompt){
-      _pwaShowBanner();
-    }
-    /* Sur Android sans prompt, afficher quand même après 4s */
-    if(_pwaIsAndroid && !_pwaInstallPrompt){
-      setTimeout(_pwaShowBanner, 4000);
-    }
-  }, 1500);
-})();
-</script>
 
 <script>
 function closeGuide(){
@@ -49365,9 +49262,8 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
       setTimeout(_routeFromUrl, 1200);
     }
 
-    /* Aussi intercepter les messages SW_NOTIF_CLICK (app déjà ouverte) */
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.addEventListener('message', function(event) {
+    /* SW_NOTIF_CLICK désactivé — version web uniquement */
+    if (false) {
         var msg = event.data || {};
         if (msg.type !== 'SW_NOTIF_CLICK') return;
 
@@ -49601,7 +49497,7 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
           _COUNTS.navBadgeProfil    = profil;
           _COUNTS.navBadgePaiements = paiements;
           _COUNTS.navBadgeAdmin     = admin;
-          _flushBadges(); /* setAppBadge géré centralement dans _flushBadges */
+          _flushBadges(); /* badges mis à jour centralement dans _flushBadges */
         }, function(err){
           console.warn('[NavBadge] Firestore listener error:', err && err.code);
         });
@@ -49625,14 +49521,6 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
                      + (_COUNTS.navBadgePaiements || 0)
                      + (_COUNTS.navBadgeAdmin || 0);
 
-      if('setAppBadge' in navigator){
-        if(totalBadge > 0){
-          navigator.setAppBadge(totalBadge).catch(function(){});
-        } else {
-          navigator.clearAppBadge().catch(function(){});
-        }
-      }
-
       /* ── Titre de l'onglet ── */
       var baseTitle = document.title.replace(/^\(\d+\)\s*/, '');
       document.title = totalBadge > 0 ? '(' + totalBadge + ') ' + baseTitle : baseTitle;
@@ -49640,22 +49528,7 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
 
     /* ─────────────────────────────────────────────────────────────
        6b. PERMISSION NOTIFICATION — demander au bon moment
-           (nécessaire pour setAppBadge sur Android)
-    ───────────────────────────────────────────────────────────── */
-    function _requestBadgePermission(){
-      if(!('Notification' in window)) return;
-      if(Notification.permission === 'granted') return;
-      if(Notification.permission === 'denied') return;
-      /* Demander seulement sur un geste utilisateur */
-      Notification.requestPermission().then(function(result){
-        console.log('[AMBI241] Permission notification:', result);
-      });
-    }
-    /* Déclencher sur le premier tap de l'utilisateur */
-    document.addEventListener('click', function _askPerm(){
-      _requestBadgePermission();
-      document.removeEventListener('click', _askPerm);
-    }, { once: true });
+    ─────────────────────────────────────────────────────────────── */
 
     /* ─────────────────────────────────────────────────────────────
        7. PATCH pushNotif — son immédiat à chaque push in-app
@@ -49813,15 +49686,7 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
   window.ambi_saveLieuxToCache = function(lieux) {
     if (!Array.isArray(lieux) || lieux.length === 0) return;
 
-    /* Via Service Worker */
-    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-      navigator.serviceWorker.controller.postMessage({
-        type: 'CACHE_LIEUX',
-        lieux: lieux
-      });
-    }
-
-    /* Fallback direct IndexedDB */
+    /* IndexedDB direct (version web) */
     var req = indexedDB.open('ambi241-db', 1);
     req.onsuccess = function(e) {
       var db = e.target.result;
@@ -51066,7 +50931,7 @@ window._lazyInitSection = function(name) {
     setInterval(_flush, 4000);
   }
 
-  /* ── Demande permission notification (nécessaire pour setAppBadge) ── */
+  /* ── Demande permission notification ── */
   function _askPerm(){
     if(!('Notification' in window)) return;
     if(Notification.permission !== 'default') return;
