@@ -12525,6 +12525,52 @@ var _gpsState = {
   timestamp: null, watchId: null, watching: false,
   radius: 1, sort: "distance", loading: false, error: null, permissionDenied: false
 };
+
+/* ── Persistance localStorage du mode GPS ──────────────────────────────────
+   Sauvegarde lat/lng/radius/sort/_method pour survivre aux rechargements.
+   La position n'est restaurée que si elle date de moins de 10 minutes.      */
+function _saveGpsState() {
+  try {
+    localStorage.setItem('ambi241_gps', JSON.stringify({
+      lat: _gpsState.lat, lng: _gpsState.lng,
+      accuracy: _gpsState.accuracy, timestamp: _gpsState.timestamp,
+      radius: _gpsState.radius, sort: _gpsState.sort,
+      _method: _gpsState._method || 'GPS'
+    }));
+  } catch(e) {}
+}
+function _clearGpsState() {
+  try { localStorage.removeItem('ambi241_gps'); } catch(e) {}
+}
+/* Restauration au chargement */
+(function() {
+  try {
+    var saved = localStorage.getItem('ambi241_gps');
+    if (!saved) return;
+    var s = JSON.parse(saved);
+    /* Ignorer si position trop vieille (>10 min) ou invalide */
+    if (!s.lat || !s.lng) return;
+    if (s.timestamp && (Date.now() - s.timestamp) > 600000) { localStorage.removeItem('ambi241_gps'); return; }
+    _gpsState.lat       = s.lat;
+    _gpsState.lng       = s.lng;
+    _gpsState.accuracy  = s.accuracy  || null;
+    _gpsState.timestamp = s.timestamp || Date.now();
+    _gpsState.radius    = s.radius    || 1;
+    _gpsState.sort      = s.sort      || 'distance';
+    _gpsState._method   = s._method   || 'GPS';
+    _gpsState.active    = true;
+    /* Afficher le panneau GPS dès que le DOM est prêt */
+    var _showRestoredPanel = function() {
+      var panel = document.getElementById('gpsPanel');
+      if (panel) panel.classList.add('show');
+    };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', _showRestoredPanel);
+    } else {
+      setTimeout(_showRestoredPanel, 0);
+    }
+  } catch(e) {}
+})();
 // ── Coordonnées approximatives des quartiers de Libreville ──
 var QUARTIER_COORDS = {
   "Centre-ville":      [0.3924, 9.4536],
@@ -13356,6 +13402,11 @@ function _renderAfterLoad() {
   document.getElementById("errorBanner").innerHTML = "";
   rebuildPaiements();
   etablissements.forEach(function(e) { applyDynamicStatus(e); });
+  /* GPS-FIX: Firebase/cache a remplacé etablissements[] — les objets sont neufs
+     et n'ont plus _distKm. On ré-injecte les distances si le mode GPS est actif. */
+  if (typeof _gpsState !== "undefined" && _gpsState.active && _gpsState.lat !== null) {
+    enrichWithDistances();
+  }
   setSyncing(false);
   if (typeof invalidateScoreCache === 'function') invalidateScoreCache();
   /* Un seul renderAll couvre tout — évite 4 passes DOM successives */
@@ -13382,6 +13433,10 @@ function loadData(){
   if (cached && cached.length > 0) {
     etablissements = cached;
     etablissements.forEach(function(e) { applyDynamicStatus(e); });
+    /* GPS-FIX: Le cache remplace etablissements[] — ré-injecter _distKm si GPS actif */
+    if (typeof _gpsState !== "undefined" && _gpsState.active && _gpsState.lat !== null) {
+      enrichWithDistances();
+    }
     rebuildPaiements();
     renderAll(); renderHome(); renderStats(); renderPayments();
     /* Pas de setSyncing(true) ici pour ne pas flasher le spinner si cache frais */
@@ -13552,10 +13607,10 @@ function renderHomeImmediate(){
     var bondes  = d.filter(function(e){ return e.statut  && e.statut.indexOf("Bonde") !== -1;  }).length;
     var calmes  = d.filter(function(e){ return e.statut  && e.statut.indexOf("Calme") !== -1;  }).length;
     var chips   = [
-      {val: d.length,  lbl: "Lieux",  cls: "hss-pink",  action: "switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);setTypeFilter('all',null);currentStatus='all';document.querySelectorAll('[data-status]').forEach(function(c){c.classList.toggle('active',c.dataset.status==='all');});renderAll();"},
-      {val: actifs,    lbl: "Actifs", cls: "hss-green", action: "switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);setTypeFilter('all',null);currentStatus='Anime';document.querySelectorAll('[data-status]').forEach(function(c){c.classList.toggle('active',c.dataset.status==='Anime');});renderAll();"},
-      {val: bondes,    lbl: "Bondés", cls: "hss-red",   action: "switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);setTypeFilter('all',null);currentStatus='Bonde';document.querySelectorAll('[data-status]').forEach(function(c){c.classList.toggle('active',c.dataset.status==='Bonde');});renderAll();"},
-      {val: calmes,    lbl: "Calmes", cls: "hss-amber",  action: "switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);setTypeFilter('all',null);currentStatus='Calme';document.querySelectorAll('[data-status]').forEach(function(c){c.classList.toggle('active',c.dataset.status==='Calme');});renderAll();"}
+      {val: d.length,  lbl: "Lieux",  cls: "hss-pink",  action: "switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);"},
+      {val: actifs,    lbl: "Actifs", cls: "hss-green", action: "window._filterOnSwitch={type:'all',status:'Anime'};switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);"},
+      {val: bondes,    lbl: "Bondés", cls: "hss-red",   action: "window._filterOnSwitch={type:'all',status:'Bonde'};switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);"},
+      {val: calmes,    lbl: "Calmes", cls: "hss-amber",  action: "window._filterOnSwitch={type:'all',status:'Calme'};switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);"}
     ];
     statsEl.innerHTML = chips.map(function(c){
       return '<div class="hss-chip '+c.cls+'" onclick="'+c.action+'" style="cursor:pointer;transition:transform 0.15s,opacity 0.15s;" onmousedown="this.style.transform=\'scale(0.93)\'" onmouseup="this.style.transform=\'\'" ontouchstart="this.style.transform=\'scale(0.93)\'" ontouchend="this.style.transform=\'\'"><div class="hss-val">'+c.val+'</div><div class="hss-lbl">'+c.lbl+'</div></div>';
@@ -13714,24 +13769,11 @@ window.goToQuartier = goToQuartier;
 
 
 function goToTypeFilter(type){
+  /* Poser le filtre AVANT switchSection pour éviter tout flash "Tous" */
+  window._filterOnSwitch = { type: type, status: 'all' };
   switchSection('etablissements', document.querySelectorAll('.nav-item')[1]);
-  setTimeout(function(){
-    // Effacer recherche textuelle pour eviter faux positifs inter-categories
-    var si = document.getElementById('searchInput');
-    if(si){ si.value = ''; }
-    // Reinitialiser statut a Tous pour afficher tous les etabs de la categorie
-    currentStatus = 'all';
-    document.querySelectorAll('[data-status]').forEach(function(c){
-      c.classList.toggle('active', c.dataset.status === 'all');
-    });
-    // Activer le bon fchip visuellement
-    var chips = document.querySelectorAll('.fchip');
-    chips.forEach(function(c){ c.classList.remove('active'); });
-    var target = document.querySelector('.fchip[data-type="'+type+'"]');
-    if(target) target.classList.add('active');
-    setTypeFilter(type, target);
-    window.scrollTo(0, 0);
-  }, 150);
+  window.scrollTo(0, 0);
+  showToast && showToast('🔍 ' + type);
 }
 
 // PIN
@@ -18442,6 +18484,7 @@ function onGpsSuccess(pos) {
   // S'assurer que le mode actif est bien positionné avant tout render
   if (!_gpsState.active) _gpsState.active = true;
 
+  _saveGpsState(); /* Persister pour survivre aux rechargements */
   enrichWithDistances();
   updateGpsBtn();
   updateGpsPanel();
@@ -18473,13 +18516,19 @@ function requestGps(highAccuracy) {
     showToast("GPS non disponible sur ce navigateur");
     return;
   }
-  _gpsState.loading = true;
+  /* Annuler tout watch existant avant d'en démarrer un nouveau */
+  stopGpsWatch();
+  _gpsState.loading  = true;
+  _gpsState.watching = true;
   updateGpsBtn();
-  navigator.geolocation.getCurrentPosition(onGpsSuccess, onGpsError, {
-    enableHighAccuracy: highAccuracy !== false,
-    timeout: 12000,
-    maximumAge: 5000
-  });
+  /* watchPosition au lieu de getCurrentPosition : la première position
+     déclenche onGpsSuccess immédiatement, les suivantes gardent _distKm
+     toujours à jour — plus de position périmée après navigation. */
+  _gpsState.watchId = navigator.geolocation.watchPosition(
+    function(pos) { onGpsSuccess(pos); if (typeof updateGpsWatchBtn === 'function') updateGpsWatchBtn(); },
+    function(err)  { onGpsError(err);  stopGpsWatch(); },
+    { enableHighAccuracy: highAccuracy !== false, timeout: 12000, maximumAge: 5000 }
+  );
 }
 
 // ── Toggle mode Près de chez vous ───────────────────────────
@@ -18504,6 +18553,7 @@ function toggleNearbyMode() {
 
 function closeNearbyMode() {
   _gpsState.active = false;
+  _clearGpsState(); /* Supprimer la persistance localStorage */
   document.getElementById("gpsPanel").classList.remove("show");
   // Supprimer les distances des établissements
   etablissements.forEach(function(e){ delete e._distKm; });
@@ -18607,6 +18657,7 @@ function _applyExternalCoords(lat, lng, methodLabel) {
   _gpsState.permissionDenied = false;
   _gpsState.active    = true;
   _gpsState._method   = methodLabel;
+  _saveGpsState(); /* Persister méthode externe aussi */
   document.getElementById('gpsPanel').classList.add('show');
   enrichWithDistances();
   updateGpsBtn();
@@ -18943,6 +18994,28 @@ function switchSection(name,btn){
   if(_pubModal && _pubModal.classList.contains('open')){
     _pubModal.classList.remove('open');
     document.body.style.overflow = '';
+  }
+  /* ── FILTRE LIEUX : reset ou application d'un filtre intentionnel ──────────
+     Par défaut : chaque ouverture de Lieux repart de "Tous" (type + statut).
+     Exception : si _filterOnSwitch est posé avant l'appel (tuiles d'accueil,
+     boutons stats), ce filtre est appliqué directement sans double rendu.     */
+  if(name === 'etablissements'){
+    var _f = window._filterOnSwitch || null;
+    window._filterOnSwitch = null; // toujours consommer le flag
+    var _applyType   = _f ? (_f.type   || 'all') : 'all';
+    var _applyStatus = _f ? (_f.status || 'all') : 'all';
+    /* type */
+    currentType = _applyType;
+    document.querySelectorAll('#typeChips .fchip').forEach(function(c){ c.classList.remove('active'); });
+    var _chip = document.querySelector('#typeChips .fchip[data-type="'+_applyType+'"]');
+    if(_chip) _chip.classList.add('active');
+    /* statut */
+    currentStatus = _applyStatus;
+    document.querySelectorAll('[data-status]').forEach(function(c){
+      c.classList.toggle('active', c.dataset.status === _applyStatus);
+    });
+    /* vider la recherche textuelle sauf si on revenait manuellement */
+    if(_f){ var _si = document.getElementById('searchInput'); if(_si) _si.value = ''; }
   }
   requestAnimationFrame(function(){
     SECS.forEach(function(s){document.getElementById("sec-"+s).classList.toggle("section-hidden",s!==name);});
