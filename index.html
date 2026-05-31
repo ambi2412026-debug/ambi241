@@ -29,7 +29,7 @@
 <style>
 :root{
   --player-h: 0px;   /* mis à jour dynamiquement par JS quand le lecteur est visible */
-  --nav-h: 54px;     /* hauteur bottom-nav */
+  --nav-h: 62px;     /* hauteur bottom-nav */
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --bg:#1a0a28;--surface:#230d35;--surface2:#2c1040;--border:rgba(255,45,155,0.15);--text:#fff0f8;--muted:#b088c0;--pink:#ff2d9b;--cyan:#00e5ff;--amber:#ffd700;--green:#00ffaa;--red:#ff4466;--purple:#cc44ff;--taxi-gold:#ffd700;--taxi-dark:#1a0a28;}
 html{overflow-x:hidden;max-width:100vw;scrollbar-gutter:stable;overflow-y:scroll;}
@@ -3500,9 +3500,9 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   flex-shrink:0;
 }
 /* BOTTOM NAV */
-.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:650;background:rgba(13,0,20,0.97);backdrop-filter:blur(20px);border-top:1px solid rgba(255,45,155,0.15);display:flex;height:54px;padding:0 0.25rem;width:100%;box-sizing:border-box;overflow:hidden;}
-.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.1rem;cursor:pointer;color:var(--muted);font-size:0.52rem;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;padding:0.3rem;transition:color 0.2s,transform 0.15s;border:none;background:none;font-family:'DM Sans',sans-serif;-webkit-tap-highlight-color:transparent;user-select:none;}
-.nav-item:active{transform:scale(0.88);opacity:0.75;}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:650;background:rgba(13,0,20,0.97);backdrop-filter:blur(20px);border-top:1px solid rgba(255,45,155,0.15);display:flex;height:62px;padding:0;padding-bottom:env(safe-area-inset-bottom,0px);width:100%;box-sizing:border-box;overflow:visible;}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.15rem;cursor:pointer;color:var(--muted);font-size:0.52rem;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;padding:0.5rem 0.1rem;min-height:62px;min-width:44px;touch-action:manipulation;-webkit-touch-callout:none;transition:color 0.15s;border:none;background:none;font-family:'DM Sans',sans-serif;-webkit-tap-highlight-color:transparent;user-select:none;position:relative;}
+.nav-item:active{opacity:0.7;}
 .nav-item .nav-icon{font-size:1.1rem;transition:transform 0.2s;}
 .nav-item.active .nav-icon{transform:scale(1.18);}
 .nav-item.active{color:var(--pink);}
@@ -5687,10 +5687,13 @@ textarea.soc-input{resize:vertical;min-height:80px;line-height:1.5;}
 }
 .nav-item{
   flex:1;display:flex;flex-direction:column;align-items:center;
-  gap:0.15rem;padding:0.3rem 0;cursor:pointer;
+  gap:0.15rem;padding:0.5rem 0.1rem;cursor:pointer;
   color:var(--muted);font-size:0.55rem;font-weight:700;
   text-transform:uppercase;letter-spacing:0.06em;
-  transition:color 0.2s;
+  transition:color 0.15s;
+  min-height:62px;min-width:44px;
+  touch-action:manipulation;
+  -webkit-touch-callout:none;
 }
 .nav-item.active{color:var(--pink);}
 .nav-icon{font-size:1.15rem;line-height:1;}
@@ -28478,9 +28481,32 @@ window.doAssignEtab = doAssignEtab;
     }, function(){ renderPubs(); });
   }
 
+  // ── Nettoyage des publications vidéo expirées (>24h) ──
+  function _purgeExpiredVideoPubs(){
+    var now = Date.now();
+    var toDelete = [];
+    _pubData.forEach(function(p){
+      if((p.isVideo || p.video) && p.expiresAt){
+        var exp = new Date(p.expiresAt).getTime();
+        if(exp && now > exp) toDelete.push(p._id);
+      }
+    });
+    toDelete.forEach(function(id){
+      // Supprimer de Firestore
+      if(window.db && window.fbDoc && window.fbDeleteDoc){
+        window.fbDeleteDoc(window.fbDoc(window.db, 'publications', id)).catch(function(){});
+      }
+      // Supprimer du cache local
+      _pubData = _pubData.filter(function(p){ return p._id !== id; });
+    });
+    if(toDelete.length) console.log('[AMBI241] '+toDelete.length+' vidéo(s) expirée(s) supprimée(s)');
+  }
+
   function renderPubs(){
     var list = document.getElementById("pubList");
     if(!list) return;
+    // Supprimer les vidéos expirées avant affichage
+    _purgeExpiredVideoPubs();
     var filtered = _pubData.filter(function(p){
       return _pubTab === "tous" || p.type === _pubTab;
     });
@@ -28531,7 +28557,7 @@ window.doAssignEtab = doAssignEtab;
     var typeLabel = {annonce:"Annonce",soiree:"Soirée",avis:"Avis",news:"News"}[p.type] || "Post";
     var typeClass = "pub-type-"+(p.type||"avis");
     var typeEmoji = {annonce:"&#128227;",soiree:"&#127881;",avis:"&#11088;",news:"&#128240;"}[p.type] || "&#128221;";
-    var initiale = (p.pseudo||p.auteur||"?")[0].toUpperCase();
+    var initiale = (p.pseudo||p.auteur||p.author||p.displayName||"?")[0].toUpperCase();
     var ts = "";
     if(p.createdAt && p.createdAt.toDate){
       var d = p.createdAt.toDate();
@@ -28560,9 +28586,17 @@ window.doAssignEtab = doAssignEtab;
     var videoHtml = "";
     if(p.video){
       var vdur = p.videoDuration ? ' <span style="font-size:0.65rem;color:var(--muted);">'+p.videoDuration+'s</span>' : "";
+      var vexpHtml = "";
+      if(p.expiresAt){
+        var vexpMs = new Date(p.expiresAt).getTime() - Date.now();
+        if(vexpMs > 0){
+          var vexpH = Math.ceil(vexpMs / 3600000);
+          vexpHtml = ' <span style="font-size:0.6rem;color:var(--amber);font-weight:700;">⏳ Expire dans '+vexpH+'h</span>';
+        }
+      }
       videoHtml = '<div class="pub-photos" style="padding-bottom:0.4rem;">'
         +'<video class="pub-video-player" src="'+escHtml(p.video)+'" controls playsinline preload="metadata"></video>'
-        +'<div style="padding:0.25rem 0.75rem 0;font-size:0.7rem;color:var(--cyan);font-weight:700;">&#127916; Vidéo'+vdur+'</div>'
+        +'<div style="padding:0.25rem 0.75rem 0;font-size:0.7rem;color:var(--cyan);font-weight:700;">&#127916; Vidéo'+vdur+vexpHtml+'</div>'
         +'</div>';
     }
 
@@ -28571,9 +28605,9 @@ window.doAssignEtab = doAssignEtab;
 
     return '<div class="pub-card" data-pubid="'+escHtml(p._id)+'">'
       +'<div class="pub-card-head">'
-      +'<div class="pub-avatar" id="pav_'+escHtml(p._id)+'" style="cursor:pointer;" onclick="openPubAuthorFilter(\''+escHtml(p.pseudo||p.auteur||'')+'\',\''+escHtml(p._id)+'\')" title="Publications de '+escHtml(p.pseudo||p.auteur||'Anonyme')+'">'+initiale+'</div>'
+      +'<div class="pub-avatar" id="pav_'+escHtml(p._id)+'" style="cursor:pointer;" onclick="openPubAuthorFilter(\''+escHtml(p.pseudo||p.auteur||'')+'\',\''+escHtml(p._id)+'\')" title="Publications de '+escHtml(p.pseudo||p.auteur||'Membre')+'">'+initiale+'</div>'
       +'<div class="pub-meta">'
-      +'<div class="pub-author" style="cursor:pointer;" onclick="openPubAuthorFilter(\''+escHtml(p.pseudo||p.auteur||'')+'\',\''+escHtml(p._id)+'\')">'+escHtml(p.pseudo||p.auteur||"Anonyme")+'<span class="pub-badge '+roleClass+'">'+roleLabel+'</span></div>'
+      +'<div class="pub-author" style="cursor:pointer;" onclick="openPubAuthorFilter(\''+escHtml(p.pseudo||p.auteur||'')+'\',\''+escHtml(p._id)+'\')">'+escHtml(p.pseudo||p.auteur||p.author||p.displayName||"Membre")+'<span class="pub-badge '+roleClass+'">'+roleLabel+'</span></div>'
       +'<div class="pub-time">'+ts+' &nbsp;<span class="pub-type-chip '+typeClass+'">'+typeEmoji+' '+typeLabel+'</span></div>'
       +'</div></div>'
       +(p.titre ? '<div class="pub-body"><div class="pub-title">'+escHtml(p.titre)+'</div>' : '<div class="pub-body">')
@@ -29303,6 +29337,17 @@ window.doAssignEtab = doAssignEtab;
     if(msg){ msg.style.display="none"; }
   };
 
+  // ── Compteur vidéo par étab du jour ──
+  function getEtabVideoDayKey(etabId){
+    return "etabvid_"+etabId+"_"+new Date().toISOString().slice(0,10);
+  }
+  function getTodayEtabVideoCount(etabId){
+    try{ return parseInt(localStorage.getItem(getEtabVideoDayKey(etabId))||"0"); }catch(e){ return 0; }
+  }
+  function incTodayEtabVideoCount(etabId){
+    try{ localStorage.setItem(getEtabVideoDayKey(etabId), getTodayEtabVideoCount(etabId)+1); }catch(e){}
+  }
+
   window.submitPub = async function(){
     if(!window.currentUserUID){ showToast("Connexion requise"); return; }
     var todayCount = getTodayPubCount(window.currentUserUID);
@@ -29311,6 +29356,14 @@ window.doAssignEtab = doAssignEtab;
     var texte = document.getElementById("pubTextInput").value.trim();
     var etab  = document.getElementById("pubEtabSelect").value;
     if(!titre || !texte){ showToast("Titre et message requis"); return; }
+    // Vérifier limite vidéo par établissement (max 2/jour)
+    if(_pubVideo && etab){
+      var etabVidCount = getTodayEtabVideoCount(etab);
+      if(etabVidCount >= 2){
+        showToast("🎬 Limite de 2 vidéos par établissement et par jour atteinte !");
+        return;
+      }
+    }
     var btn = document.getElementById("pubSubmitBtn");
     var msg = document.getElementById("pubMsg");
     btn.disabled = true;
@@ -29353,17 +29406,21 @@ window.doAssignEtab = doAssignEtab;
       var docRef = await window.fbAddDoc(window.fbCollection(window.db, "publications"), data);
       if(_aborted) return;
 
-      // Vidéo : upload Firebase Storage uniquement pour la vidéo (pas de base64 pour les vidéos)
+      // Vidéo : upload Firebase Storage + limite 2/étab/jour + expiration 24h
       if(_pubVideo){
         btn.textContent = "⬆ Vidéo...";
         showUploadProgress(50, "Vidéo...");
         var videoUrl = await uploadPubVideo(docRef.id);
         if(_aborted) return;
+        var expiresAt = new Date(Date.now() + 24*60*60*1000).toISOString();
         if(videoUrl){
           await window.fbUpdateDoc(window.fbDoc(window.db, "publications", docRef.id), {
-            video: videoUrl, videoDuration: _pubVideo.duration
+            video: videoUrl, videoDuration: _pubVideo.duration,
+            isVideo: true, expiresAt: expiresAt
           });
         }
+        // Incrémenter compteur vidéo par étab
+        if(etab) incTodayEtabVideoCount(etab);
         hideUploadProgress(600);
       }
 
@@ -43413,10 +43470,21 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     var ts = Date.now();
     var pubId = 'sp_new_'+ts;
 
-    // Collecter les photos depuis la prévisualisation
+    // Collecter les photos depuis la prévisualisation (base64)
     var _photoEls2 = document.querySelectorAll('#socPubMediaPreview > div:not(#socPubVideoPreviewDiv):not(#socPubGifPreviewItem)');
     var _photoURLs2 = [];
-    _photoEls2.forEach(function(el){ var img = el.querySelector('img'); if(img && img.src) _photoURLs2.push(img.src); });
+    _photoEls2.forEach(function(el){
+      var img = el.querySelector('img');
+      if(img && img.src && img.src.startsWith('data:')) _photoURLs2.push(img.src);
+    });
+    // Fallback : images du feed local déjà construites
+    if(!_photoURLs2.length){
+      document.querySelectorAll('#socPubMediaPreview img').forEach(function(img){
+        if(img.src && img.src.startsWith('data:') && !img.closest('#socPubVideoPreviewDiv') && !img.closest('#socPubGifPreviewItem')){
+          _photoURLs2.push(img.src);
+        }
+      });
+    }
 
     // Construire objet publication
     var pubData = {
@@ -43535,10 +43603,58 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     socClosePubModal();
     if(typeof window.showToast==='function') window.showToast('🚀 Publication partagée !');
 
-    // Sauvegarde Firebase (async, non bloquant)
-    _socPubSaveFirebase(pubData).then(function(fid){
-      if(fid && typeof window.showToast==='function') console.log('[AMBI241] pub saved firebase id:', fid);
-    });
+    // Sauvegarde Firebase — convertir vidéo en base64 avant envoi
+    (function(){
+      var videoUrl = _spState ? _spState.videoPreviewUrl : null;
+      var _etabForLimit = etabVal || '';
+      // Vérifier limite vidéo par étab
+      if(videoUrl && _etabForLimit){
+        var _etabVidKey = 'etabvid_'+_etabForLimit+'_'+new Date().toISOString().slice(0,10);
+        var _etabVidCount = 0;
+        try{ _etabVidCount = parseInt(localStorage.getItem(_etabVidKey)||'0'); }catch(e){}
+        if(_etabVidCount >= 2){
+          if(typeof window.showToast==='function') window.showToast('🎬 Limite de 2 vidéos par établissement et par jour atteinte !');
+          // Publier sans vidéo
+          pubData.hasVideo = false;
+          pubData.video = null;
+          _socPubSaveFirebase(pubData).then(function(fid){
+            if(fid) console.log('[AMBI241] pub saved (video blocked) firebase id:', fid);
+          });
+          return;
+        }
+      }
+      if(!videoUrl){
+        _socPubSaveFirebase(pubData).then(function(fid){
+          if(fid) console.log('[AMBI241] pub saved firebase id:', fid);
+        });
+        return;
+      }
+      // Convertir blob vidéo → base64
+      fetch(videoUrl).then(function(r){ return r.blob(); }).then(function(blob){
+        var reader = new FileReader();
+        reader.onload = function(ev){
+          pubData.video = ev.target.result;
+          pubData.hasVideo = true;
+          pubData.isVideo = true;
+          pubData.expiresAt = new Date(Date.now() + 24*60*60*1000).toISOString();
+          _socPubSaveFirebase(pubData).then(function(fid){
+            if(fid){
+              console.log('[AMBI241] pub+vidéo saved firebase id:', fid);
+              // Incrémenter compteur vidéo par étab
+              if(_etabForLimit){
+                var _key = 'etabvid_'+_etabForLimit+'_'+new Date().toISOString().slice(0,10);
+                try{ localStorage.setItem(_key, (parseInt(localStorage.getItem(_key)||'0')+1)); }catch(e){}
+              }
+            }
+          });
+        };
+        reader.readAsDataURL(blob);
+      }).catch(function(){
+        _socPubSaveFirebase(pubData).then(function(fid){
+          if(fid) console.log('[AMBI241] pub saved (no video) firebase id:', fid);
+        });
+      });
+    })();
 
     if(submitBtn) { submitBtn.disabled=false; submitBtn.textContent='🚀 Publier maintenant'; }
   };
@@ -44804,6 +44920,13 @@ console.log('[AMBI241] ✅ Module publication & live chargé v2');
       photoHtml += '</div>';
     }
 
+    // GIF
+    var gifHtml = '';
+    if(p.gifUrl){
+      gifHtml = '<div style="border-radius:12px;overflow:hidden;margin:0.6rem 0;">'
+        +'<img src="'+_esc(p.gifUrl)+'" style="width:100%;max-height:200px;object-fit:cover;display:block;" loading="lazy"></div>';
+    }
+
     // Vidéo
     var videoHtml = '';
     if(p.video || p.videoURL){
@@ -44845,7 +44968,7 @@ console.log('[AMBI241] ✅ Module publication & live chargé v2');
       +'<div class="socpub-more-btn" onclick="socPubMoreMenu(\''+pid+'\',this)">⋯</div>'
       +'</div>'
       +(text ? '<p class="socpub-text">'+text.replace(/@(\w+)/g,'<span style="color:var(--cyan);">@$1</span>')+'</p>' : '')
-      +photoHtml+videoHtml+etabHtml
+      +photoHtml+gifHtml+videoHtml+etabHtml
       +'<div class="socpub-action-bar">'
       +'<button class="socpub-action-btn like" onclick="socPubToggleLike(\''+pid+'\',this)">'
         +'<span class="socpub-action-icon">❤️</span> J\'aime '
@@ -44861,8 +44984,30 @@ console.log('[AMBI241] ✅ Module publication & live chargé v2');
       +'</article>';
   }
 
+  /* ── Purger les vidéos expirées du socFeed ── */
+  function _purgeSocExpired(){
+    var now = Date.now();
+    var toDelete = [];
+    _socFeedData.forEach(function(p){
+      if((p.isVideo || p.video) && p.expiresAt){
+        var exp = new Date(p.expiresAt).getTime();
+        if(exp && now > exp) toDelete.push(p._id || p.id);
+      }
+    });
+    toDelete.forEach(function(id){
+      if(window.db && window.fbDoc && window.fbDeleteDoc){
+        window.fbDeleteDoc(window.fbDoc(window.db, 'publications', id)).catch(function(){});
+      }
+      _socFeedData = _socFeedData.filter(function(p){ return (p._id||p.id) !== id; });
+      var el = document.querySelector('[data-pub-id="'+id+'"]');
+      if(el) el.remove();
+    });
+    if(toDelete.length) console.log('[AMBI241] socFeed: '+toDelete.length+' vidéo(s) expirée(s) retirée(s)');
+  }
+
   /* ── Rendre le feed ── */
   function _renderSocFeed(){
+    _purgeSocExpired();
     var feed = document.getElementById('socPubFeed');
     var empty = document.getElementById('socPubEmpty');
     if(!feed) return;
@@ -44995,6 +45140,10 @@ console.log('[AMBI241] ✅ Module publication & live chargé v2');
   });
 
   console.log('[AMBI241] ✅ Correctif socPubFeed Firebase chargé');
+  // Vérification périodique des vidéos expirées toutes les heures
+  setInterval(function(){
+    _purgeSocExpired();
+  }, 60 * 60 * 1000);;
 })();
 </script>
 
@@ -51622,3 +51771,23 @@ window._lazyInitSection = function(name) {
 })();
 </script>
 </body>
+<script>
+/* ── Sensibilité nav : touchstart déclenche le clic immédiatement, supprime délai 300ms ── */
+(function(){
+  function boostNav(){
+    document.querySelectorAll('.nav-item').forEach(function(btn){
+      if(btn._touchBoosted) return;
+      btn._touchBoosted = true;
+      btn.addEventListener('touchstart', function(e){
+        e.preventDefault();
+        btn.click();
+      }, {passive:false});
+    });
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', boostNav);
+  } else { boostNav(); }
+  setTimeout(boostNav, 1500);
+  setTimeout(boostNav, 4000);
+})();
+</script>
