@@ -9658,7 +9658,7 @@ if (document.readyState === 'loading') {
     </div>
 
 
-  </div>═══════════ PANE : COMMUNAUTÉS ═══════════ -->
+  </div><!-- ═══════════ PANE : COMMUNAUTÉS ═══════════ -->
   <div class="soc-pane" id="pane-communautes">
 
     <!-- Sous-onglets communautés -->
@@ -13904,9 +13904,7 @@ function renderHomeImmediate(){
           extraInfo = '<span style="font-size:0.65rem;">'+starsStr+'</span> ';
         }
       }
-      var _t6click = (i === 0)
-        ? 'var _e=etablissements.find(function(x){return x.id==='+e.id+'||String(x.id)===String('+e.id+');});if(_e&&window.openPublicProfile)window.openPublicProfile(\'etablissement\','+e.id+',_e);'
-        : 'goToEtab('+e.id+')';
+      var _t6click = 'goToTop6Etab('+e.id+',\''+cat+'\');';
       return '<div class="top6-card '+cardClass+'" onclick="'+_t6click+'" title="Voir '+escHtml(e.nom||'')+'">'
         + '<div class="t6c-rank t6c-rank-'+(i+1<=3?i+1:'other')+'">N°'+(i+1)+'</div>'
         + '<div class="t6c-icon">'+icon+'</div>'
@@ -13946,6 +13944,51 @@ function goToTypeFilter(type){
   window.scrollTo(0, 0);
   showToast && showToast('🔍 ' + type);
 }
+
+/* ══════════════════════════════════════════════════════════════
+   TOP DU MOMENT — Clic sur une carte
+   1. Aller dans Lieux avec le filtre du type de la carte
+   2. Ouvrir la quickSheet (openPublicProfile) de l'établissement N°1
+      de cette catégorie (trié par score décroissant)
+══════════════════════════════════════════════════════════════ */
+function goToTop6Etab(id, cat){
+  // Appliquer le filtre de type AVANT le changement de section
+  window._filterOnSwitch = { type: cat || 'all', status: 'all' };
+  switchSection('etablissements', document.querySelectorAll('.nav-item')[1]);
+  window.scrollTo(0, 0);
+
+  // Ouvrir la quickSheet du N°1 de la catégorie après le rendu
+  setTimeout(function(){
+    var d = window.etablissements || [];
+    // Trouver le top de la catégorie (même scoring que le top6)
+    var scored = d.filter(function(e){ return getCategory(e.type||'') === cat; });
+    if(!scored.length){
+      // Fallback : ouvrir directement l'établissement cliqué
+      var etab = d.find(function(x){ return x.id === id || String(x.id) === String(id); });
+      if(etab && window.openPublicProfile) window.openPublicProfile('etablissement', etab.id, etab);
+      return;
+    }
+    // Tri par score (même logique que le top6)
+    scored = scored.map(function(e){
+      var base = (e.affluence||0)*1.2 + (e.note||0)*15 + (e.avis||0)*2;
+      var presBonus = (e.statut||'').indexOf('Bonde')!==-1?30:(e.statut||'').indexOf('Anime')!==-1?18:0;
+      var voteBonus = (e._voteScore||0)*8;
+      var noteBonus = (e.note||0)*10;
+      var score = Math.max(0, Math.min(200, base + presBonus + voteBonus + noteBonus));
+      if(cat === 'Hotel'){
+        var nbEt = parseEtoiles(e.etoiles);
+        score = score * 0.4 + nbEt * 50;
+      }
+      return Object.assign({}, e, { _score: score });
+    });
+    scored.sort(function(a,b){ return b._score - a._score; });
+    var top1 = scored[0];
+    if(top1 && window.openPublicProfile){
+      window.openPublicProfile('etablissement', top1.id, top1);
+    }
+  }, 320);
+}
+window.goToTop6Etab = goToTop6Etab;
 
 // PIN
 var pinBuf="";
@@ -20171,40 +20214,8 @@ document.addEventListener("change",function(e){
     return 0;
   }
 
-  document.addEventListener("touchstart",function(e){
-    // Ne pas déclencher si l'utilisateur fait défiler dans un overlay/modal ou élément scrollable
-    if(e.target.closest(".overlay,.modal,.adm-dash-overlay,.notif-panel")) return;
-    // Ne pas déclencher si on est dans un élément avec scroll horizontal
-    var scrollable = e.target.closest("[class*='scroll'],[class*='Scroll'],select,input,textarea,.types-grid,.soc-cat-row,.filter-row,.section-tabs-p");
-    if(scrollable) return;
-    var t=e.touches[0];
-    _touchStartX=t.clientX;
-    _touchStartY=t.clientY;
-    _touchStartTime=Date.now();
-  },{passive:true});
-
-  document.addEventListener("touchend",function(e){
-    if(!_touchStartTime) return;
-    if(e.target.closest(".overlay,.modal,.adm-dash-overlay,.notif-panel")) return;
-    var scrollable = e.target.closest("[class*='scroll'],[class*='Scroll'],select,input,textarea,.types-grid,.soc-cat-row,.filter-row,.section-tabs-p");
-    if(scrollable) return;
-    var t=e.changedTouches[0];
-    var dx=t.clientX-_touchStartX;
-    var dy=t.clientY-_touchStartY;
-    var dt=Date.now()-_touchStartTime;
-    // Swipe : horizontal dominant, distance min 50px, durée max 600ms
-    if(dt>600) return;
-    if(Math.abs(dy)>Math.abs(dx)*0.8) return; // tolérance diagonale
-    if(Math.abs(dx)<50) return;
-    var cur=getCurrentSecIndex();
-    var next=-1;
-    if(dx<0 && cur<SECS_SWIPE.length-1) next=cur+1; // swipe left → section suivante
-    if(dx>0 && cur>0) next=cur-1;                   // swipe right → section précédente
-    if(next<0) return;
-    _touchStartTime=0; // reset pour éviter double déclenchement
-    var navBtns=document.querySelectorAll(".nav-item");
-    switchSection(SECS_SWIPE[next], navBtns[next]||null);
-  },{passive:true});
+  // ⚠️ SWIPE ENTRE SECTIONS DÉSACTIVÉ — navigation uniquement via la barre de navigation
+  // Les pages sont fixes : seul un clic sur un bouton de la bottom-nav change de section.
 })();
 
 // Compresse une image via canvas avant envoi (max 800px, qualité 0.75)
@@ -40437,7 +40448,7 @@ function _renderView(type, id, rawData, profData) {
   }
   // Pour établissement: bouton voir fiche
   if(type === 'etablissement') {
-    actEl.innerHTML += '<button class="pp-btn pp-btn-sec" onclick="window.closePublicProfile();setTimeout(function(){if(typeof goToEtab===\'function\')goToEtab(' + id + ');},100);">🏠 Voir la fiche</button>';
+    actEl.innerHTML += '<button class="pp-btn pp-btn-sec" onclick="window.closePublicProfile();setTimeout(function(){if(typeof openFicheEtab===\'function\')openFicheEtab(' + id + ');},120);">🏠 Voir la fiche complète pour réservation</button>';
   }
   // Pour chauffeur: bouton appeler
   if(type === 'chauffeur' && rawData.phone) {
