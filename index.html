@@ -106,6 +106,9 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 .forum-daily-dot{width:11px;height:11px;border-radius:3px;background:rgba(255,255,255,0.1);}
 .forum-daily-dot.used{background:var(--amber);}
 .forum-daily-dot.vid.used{background:var(--cyan);}
+/* ══ MEDIA GRID OVERLAYS ══ */
+.fm-overlay-more{position:absolute;inset:0;background:rgba(0,0,0,0.58);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:1.35rem;font-weight:900;color:#fff;letter-spacing:-0.02em;z-index:2;}
+.fm-vid-badge{position:absolute;bottom:7px;left:7px;background:rgba(0,0,0,0.68);border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:#fff;z-index:2;}
 
 /* ══════════════════════════════════════════════════════════════
    ══ OPTION 1 — FLASH ÉVÉNEMENT (bandeau dans la carte)       ══
@@ -51754,8 +51757,8 @@ window._lazyInitSection = function(name) {
 
   /* ── Supprimer un seul établissement Firebase ── */
   function deleteOneEtabl(docId, cb){
-    if(!window.db){cb('Firebase non disponible');return;}
-    window.db.collection('etablissements').doc(docId).delete()
+    if(!window.db || !window.fbDoc || !window.fbDeleteDoc){cb('Firebase non disponible');return;}
+    window.fbDeleteDoc(window.fbDoc(window.db,'etablissements',docId))
       .then(function(){ cb(null); })
       .catch(function(e){ cb(e.message||'Erreur inconnue'); });
   }
@@ -51765,9 +51768,9 @@ window._lazyInitSection = function(name) {
   ════════════════════════════════════════════════════════ */
   window.detectDoublonsEtabl = function(){
     var panel = $id('admpanel-doublons');
-    if(!panel || panel.style.display==='none') return;
+    if(!panel) return;
 
-    if(!window.db){
+    if(!window.db || !window.fbCollection || !window.fbGetDocs){
       $id('dblGroupsList').innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--red);font-size:0.82rem;">⚠️ Firebase non disponible. Reconnectez-vous.</div>';
       return;
     }
@@ -51781,13 +51784,13 @@ window._lazyInitSection = function(name) {
     setText('dblKpiGroups','…');
     setText('dblKpiCount','…');
 
-    window.db.collection('etablissements').get().then(function(snap){
+    window.fbGetDocs(window.fbCollection(window.db,'etablissements')).then(function(snap){
       hide('dblLoader');
 
       var allDocs = [];
       snap.forEach(function(doc){
         var d = doc.data();
-        allDocs.push({ id: doc.id, nom: d.nom||d.name||'', quartier: d.quartier||d.neighborhood||'', type: d.type||d.categorie||'' });
+        allDocs.push({ id: doc.id, nom: d.nom||d.name||'', quartier: d.quartier||d.neighborhood||'', type: d.type||d.categorie||'', createdAt: d.createdAt||null });
       });
 
       setText('dblKpiTotal', allDocs.length);
@@ -52004,9 +52007,23 @@ window._lazyInitSection = function(name) {
   </div>
 </div>
 
-<!-- ══ LIGHTBOX PHOTO FORUM ══ -->
-<div id="forumLightbox" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.95);align-items:center;justify-content:center;" onclick="document.getElementById('forumLightbox').style.display='none'">
-  <img id="forumLightboxImg" style="max-width:95vw;max-height:90vh;border-radius:12px;object-fit:contain;">
+<!-- ══ LIGHTBOX FORUM — prev/next + vidéo ══ -->
+<div id="forumLightbox" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.96);align-items:center;justify-content:center;flex-direction:column;">
+  <!-- Close -->
+  <button onclick="forumLightboxClose()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.12);border:none;color:#fff;width:38px;height:38px;border-radius:50%;font-size:1.1rem;cursor:pointer;z-index:10;display:flex;align-items:center;justify-content:center;transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.22)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">✕</button>
+  <!-- Counter -->
+  <div id="forumLbCounter" style="position:absolute;top:20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.55);color:#fff;font-size:0.72rem;font-weight:700;padding:0.25rem 0.7rem;border-radius:99px;letter-spacing:0.05em;z-index:10;"></div>
+  <!-- Prev -->
+  <button id="forumLbPrev" onclick="forumLbNav(-1)" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.12);border:none;color:#fff;width:42px;height:42px;border-radius:50%;font-size:1.2rem;cursor:pointer;z-index:10;display:none;align-items:center;justify-content:center;transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.22)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">‹</button>
+  <!-- Media container -->
+  <div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;padding:60px 64px 40px;">
+    <img id="forumLightboxImg" style="max-width:100%;max-height:100%;border-radius:12px;object-fit:contain;display:none;">
+    <video id="forumLightboxVid" style="max-width:100%;max-height:100%;border-radius:12px;display:none;" controls playsinline></video>
+  </div>
+  <!-- Next -->
+  <button id="forumLbNext" onclick="forumLbNav(1)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.12);border:none;color:#fff;width:42px;height:42px;border-radius:50%;font-size:1.2rem;cursor:pointer;z-index:10;display:none;align-items:center;justify-content:center;transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.22)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">›</button>
+  <!-- Tap backdrop to close -->
+  <div onclick="forumLightboxClose()" style="position:absolute;inset:0;z-index:1;"></div>
 </div>
 
 <script>
@@ -52165,36 +52182,62 @@ window._lazyInitSection = function(name) {
   };
 
   /* ══════════════════════════════════════════
-     CONSTRUCTION D'UNE CARD
+     CONSTRUCTION D'UNE CARD — grille mixte, +N overlay, badge rôle
   ══════════════════════════════════════════ */
   function _buildCard(id, data){
     var el = document.createElement('article');
     el.className = 'forum-card';
     el.setAttribute('data-pub-id', id);
     el.setAttribute('data-type', data.type||'ambiance');
+    el.setAttribute('data-author-uid', data.uid||data.authorId||'');
 
-    // Media HTML
+    /* Médias mixtes : video + photos[], max 5 affichés */
+    var allMedia = [];
+    if(data.video)  allMedia.push({ src: data.video,  type:'video' });
+    if(data.photos && data.photos.length){
+      data.photos.forEach(function(src){ allMedia.push({ src:src, type:'photo' }); });
+    }
     var mediaHtml = '';
-    if(data.video){
-      mediaHtml = '<video class="forum-card-video" src="'+data.video+'" controls playsinline preload="metadata"></video>';
-    } else if(data.photos && data.photos.length){
-      var cols = data.photos.length===1?'g1':(data.photos.length===2?'g2':'g3');
-      var h = data.photos.length===1?'tall':'short';
-      mediaHtml = '<div class="forum-card-media-grid '+cols+'">';
-      data.photos.forEach(function(src,i){
-        mediaHtml += '<img class="forum-card-img '+h+'" src="'+src+'" loading="lazy" onclick="forumLightbox(''+id+'','+i+')" alt="Photo">';
+    if(allMedia.length){
+      var shown  = allMedia.slice(0, 5);
+      var hidden = allMedia.length - shown.length;
+      var count  = shown.length;
+      var gridCls = count===1?'g1':count===2?'g2':'g3';
+      mediaHtml = '<div class="forum-card-media-grid '+gridCls+'" style="border-radius:12px;overflow:hidden;margin-bottom:0.65rem;">';
+      shown.forEach(function(m, i){
+        var isLast = (i===shown.length-1) && hidden>0;
+        var hCls   = count===1?'tall':'short';
+        var ovr    = isLast ? '<div class="fm-overlay-more">+'+hidden+'</div>' : '';
+        var vidBdg = m.type==='video' ? '<div class="fm-vid-badge">\u25B6</div>' : '';
+        mediaHtml +=
+          '<div class="fcm-item" data-src="'+_esc(m.src)+'" data-mtype="'+m.type+'" '+
+               'onclick="forumLightbox(\''+id+'\','+i+')" '+
+               'style="position:relative;overflow:hidden;cursor:pointer;background:#000;">'+
+            (m.type==='video'
+              ? '<video src="'+_esc(m.src)+'" class="forum-card-img '+hCls+'" preload="metadata" muted playsinline style="pointer-events:none;"></video>'
+              : '<img src="'+_esc(m.src)+'" class="forum-card-img '+hCls+'" loading="lazy" alt="Photo">')+
+            vidBdg+ovr+
+          '</div>';
       });
       mediaHtml += '</div>';
     }
 
-    // Type badge
-    var typeColors = {ambiance:'var(--pink)',photo:'var(--cyan)',video:'var(--green)',soiree:'var(--amber)',annonce:'var(--purple)',texte:'var(--muted)'};
-    var typeColor = typeColors[data.type]||'var(--muted)';
-    var typeIcons = {ambiance:'🔥',photo:'📷',video:'🎬',soiree:'🎉',annonce:'📣',texte:'✍️'};
-    var typeIcon = typeIcons[data.type]||'✍️';
+    /* Badge rôle */
+    var role = data.role||data.userRole||'';
+    var roleBadge = '';
+    if(role==='admin'||role==='superadmin'){
+      roleBadge='<span style="display:inline-flex;align-items:center;gap:2px;background:rgba(255,45,155,0.13);border:1px solid rgba(255,45,155,0.28);border-radius:5px;font-size:0.55rem;font-weight:800;padding:1px 5px;margin-left:5px;color:#ff2d9b;text-transform:uppercase;letter-spacing:.04em;vertical-align:middle;">\u{1F451} Admin</span>';
+    } else if(role==='chauffeur'){
+      roleBadge='<span style="display:inline-flex;align-items:center;gap:2px;background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.25);border-radius:5px;font-size:0.55rem;font-weight:800;padding:1px 5px;margin-left:5px;color:#ffd700;text-transform:uppercase;letter-spacing:.04em;vertical-align:middle;">\u{1F695} Chauffeur</span>';
+    } else if(role==='membre'){
+      roleBadge='<span style="display:inline-flex;align-items:center;gap:2px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);border-radius:5px;font-size:0.55rem;font-weight:800;padding:1px 5px;margin-left:5px;color:#00e5ff;text-transform:uppercase;letter-spacing:.04em;vertical-align:middle;">\u2736 Membre</span>';
+    }
 
-    // Likes count
-    var likes = data.likes||0;
+    var typeColors={ambiance:'var(--pink)',photo:'var(--cyan)',video:'var(--green)',soiree:'var(--amber)',annonce:'var(--purple)',texte:'var(--muted)'};
+    var typeIcons ={ambiance:'\U0001f525',photo:'\U0001f4f7',video:'\U0001f3ac',soiree:'\U0001f389',annonce:'\U0001f4e3',texte:'\u270d\ufe0f'};
+    var typeColor = typeColors[data.type]||'var(--muted)';
+    var typeIcon  = typeIcons[data.type]||'\u270d\ufe0f';
+    var likes    = data.likes||0;
     var comments = data.comments||0;
 
     el.innerHTML =
@@ -52202,29 +52245,29 @@ window._lazyInitSection = function(name) {
         '<div class="forum-card-avatar">'+_esc(_letter(data.pseudo||data.author||'?'))+'</div>'+
         '<div class="forum-card-meta">'+
           '<div class="forum-card-author">'+_esc(data.pseudo||data.author||'Utilisateur')+
-            ' <span style="background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.22);border-radius:5px;font-size:0.58rem;padding:1px 5px;margin-left:4px;color:'+typeColor+';">'+typeIcon+' '+(data.type||'ambiance')+'</span>'+
-            (data.mood ? ' <span style="font-size:0.85rem;">'+_esc(data.mood)+'</span>' : '')+
+            roleBadge+
+            ' <span style="background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.22);border-radius:5px;font-size:0.55rem;padding:1px 5px;margin-left:4px;color:'+typeColor+';">'+typeIcon+' '+(data.type||'ambiance')+'</span>'+
+            (data.mood?' <span style="font-size:0.85rem;">'+_esc(data.mood)+'</span>':'')+
           '</div>'+
-          '<div class="forum-card-time">'+_timeAgo(data.timestamp)+(data.location?' · 📍 '+_esc(data.location):'')+'</div>'+
+          '<div class="forum-card-time">'+_timeAgo(data.timestamp)+(data.location?' \u00b7 \U0001f4cd '+_esc(data.location):'')+'</div>'+
         '</div>'+
-        '<div style="font-size:1.1rem;cursor:pointer;color:var(--muted);padding:0.2rem 0.4rem;" onclick="forumMoreMenu(''+id+'',this)">⋯</div>'+
+        '<div style="font-size:1.1rem;cursor:pointer;color:var(--muted);padding:0.2rem 0.4rem;position:relative;" onclick="forumMoreMenu(\''+id+'\',this)">\u22ef</div>'+
       '</div>'+
-      (data.text ? '<p class="forum-card-text">'+_esc(data.text).replace(/
-/g,'<br>')+'</p>' : '')+
+      (data.text?'<p class="forum-card-text">'+_esc(data.text).replace(/\n/g,'<br>')+'</p>':'')+
       mediaHtml+
       '<div class="forum-card-actions">'+
-        '<button class="forum-action-btn" id="flike_'+id+'" onclick="forumToggleLike(''+id+'',this)">❤️ <span class="flike-count">'+likes+'</span></button>'+
-        '<button class="forum-action-btn" onclick="forumToggleComments(''+id+'')">💬 <span id="fcmt_count_'+id+'">'+comments+'</span></button>'+
-        '<button class="forum-action-btn" onclick="forumShare(''+id+'',''+_esc(data.text||'')+'')"  >↪️ Partager</button>'+
+        '<button class="forum-action-btn" id="flike_'+id+'" onclick="forumToggleLike(\''+id+'\',this)">\u2764\ufe0f <span class="flike-count">'+likes+'</span></button>'+
+        '<button class="forum-action-btn" onclick="forumToggleComments(\''+id+'\')">💬 <span id="fcmt_count_'+id+'">'+comments+'</span></button>'+
+        '<button class="forum-action-btn" onclick="forumShare(\''+id+'\',\''+_esc(data.text||'')+'\')">↪\ufe0f Partager</button>'+
       '</div>'+
       '<div class="forum-comments-section" id="fcmts_'+id+'">'+
         '<div id="fcmts_list_'+id+'" style="margin-bottom:0.4rem;"></div>'+
-        (_isLoggedIn() ?
+        (_isLoggedIn()?
           '<div class="forum-comment-input-row">'+
             '<div class="forum-card-avatar" style="width:28px;height:28px;font-size:0.65rem;">'+_esc(_letter(_pseudo()))+'</div>'+
-            '<textarea class="forum-comment-input" id="fcmt_inp_'+id+'" placeholder="Votre commentaire… 😊" rows="1" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,90)+'px'"></textarea>'+
-            '<button class="forum-comment-send" onclick="forumSendComment(''+id+'')">➤</button>'+
-          '</div>' :
+            '<textarea class="forum-comment-input" id="fcmt_inp_'+id+'" placeholder="Votre commentaire\u2026 \U0001f60a" rows="1" oninput="this.style.height=\'auto\';this.style.height=Math.min(this.scrollHeight,90)+\'px\'"></textarea>'+
+            '<button class="forum-comment-send" onclick="forumSendComment(\''+id+'\')">\u27a4</button>'+
+          '</div>':
           '<div style="font-size:0.72rem;color:var(--muted);text-align:center;padding:0.4rem;">🔒 Connectez-vous pour commenter</div>'
         )+
       '</div>';
@@ -52540,35 +52583,173 @@ window._lazyInitSection = function(name) {
      MORE MENU
   ══════════════════════════════════════════ */
   window.forumMoreMenu = function(id, btn){
-    // Vérifier si c'est l'auteur
-    var card = document.querySelector('[data-pub-id="'+id+'"]');
-    if(!card) return;
-    // Simple confirm pour supprimer si auteur ou admin
+    // Créer ou récupérer le menu dropdown
+    var existing = document.getElementById('forumMoreMenuDrop');
+    if(existing) existing.remove();
+
+    var pub = document.querySelector('[data-pub-id="'+id+'"]');
+    var isAuthor = pub && pub.getAttribute('data-author-uid') === (window.currentUserUID||'__');
     var isAdmin = window.currentUserRole==='admin' || window.currentUserRole==='superadmin';
-    if(!_isLoggedIn() && !isAdmin) return;
-    if(confirm('Supprimer cette publication ?')){
-      if(_col() && window.fbDoc && window.fbDeleteDoc){
-        window.fbDeleteDoc(window.fbDoc(window.db,'forum_publications',id)).then(function(){
-          card.remove(); _toast('🗑️ Publication supprimée');
-        }).catch(function(e){ _toast('❌ '+e.message); });
-      } else { card.remove(); }
+    var canDelete = isAuthor || isAdmin;
+
+    var menu = document.createElement('div');
+    menu.id = 'forumMoreMenuDrop';
+    menu.style.cssText = 'position:fixed;z-index:1000;background:#2c1040;border:1px solid rgba(255,45,155,0.28);border-radius:14px;padding:0.35rem;min-width:168px;box-shadow:0 10px 36px rgba(0,0,0,0.55);animation:fmMenuPop 0.17s cubic-bezier(0.34,1.56,0.64,1);';
+
+    var items = [
+      { icon:'🔗', label:'Copier le lien', action: function(){ forumShare(id,''); menu.remove(); } },
+      { icon:'🚩', label:'Signaler', action: function(){ _toast('🚩 Publication signalée'); menu.remove(); } },
+    ];
+    if(canDelete) items.push({ icon:'🗑️', label:'Supprimer', danger:true, action: function(){
+      menu.remove();
+      _forumConfirmDelete(id);
+    }});
+
+    items.forEach(function(it, idx){
+      if(it.danger && idx > 0){
+        var div=document.createElement('div');
+        div.style.cssText='height:1px;background:rgba(255,255,255,0.07);margin:0.2rem 0;';
+        menu.appendChild(div);
+      }
+      var el=document.createElement('div');
+      el.style.cssText='display:flex;align-items:center;gap:0.5rem;padding:0.55rem 0.75rem;border-radius:10px;cursor:pointer;font-size:0.8rem;font-weight:600;color:'+(it.danger?'#ff4466':'#fff0f8')+';transition:background 0.13s;';
+      el.innerHTML='<span>'+it.icon+'</span><span>'+it.label+'</span>';
+      el.onmouseover=function(){ this.style.background=it.danger?'rgba(255,68,102,0.12)':'rgba(255,255,255,0.07)'; };
+      el.onmouseout=function(){ this.style.background='transparent'; };
+      el.onclick=it.action;
+      menu.appendChild(el);
+    });
+
+    // Injecter keyframes si pas encore présent
+    if(!document.getElementById('fmMenuKeyframes')){
+      var s=document.createElement('style'); s.id='fmMenuKeyframes';
+      s.textContent='@keyframes fmMenuPop{from{opacity:0;transform:scale(0.88) translateY(-4px)}to{opacity:1;transform:scale(1) translateY(0)}}';
+      document.head.appendChild(s);
     }
+
+    document.body.appendChild(menu);
+
+    // Positionner près du bouton ⋯
+    var rect = btn.getBoundingClientRect ? btn.getBoundingClientRect() : {bottom:100,right:100};
+    var mw = 168;
+    var left = Math.min(rect.right - mw, window.innerWidth - mw - 8);
+    menu.style.top = (rect.bottom + 6) + 'px';
+    menu.style.left = Math.max(8, left) + 'px';
+
+    // Fermer au clic extérieur
+    setTimeout(function(){
+      document.addEventListener('click', function _close(e){
+        if(!menu.contains(e.target)){ menu.remove(); document.removeEventListener('click',_close); }
+      });
+    }, 50);
   };
 
+  function _forumConfirmDelete(id){
+    // Mini modal de confirmation propre
+    var overlay = document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.75);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:1rem;';
+    overlay.innerHTML=
+      '<div style="background:#230d35;border:1.5px solid rgba(255,68,102,0.35);border-radius:20px;padding:1.4rem 1.3rem;max-width:300px;width:100%;text-align:center;animation:fmMenuPop 0.2s cubic-bezier(0.34,1.56,0.64,1);">'+
+        '<div style="font-size:2rem;margin-bottom:0.6rem;">🗑️</div>'+
+        '<div style="font-family:\'Syne\',sans-serif;font-size:0.95rem;font-weight:800;margin-bottom:0.4rem;">Supprimer ?</div>'+
+        '<div style="font-size:0.78rem;color:#b088c0;margin-bottom:1.1rem;line-height:1.5;">Cette publication sera définitivement supprimée.</div>'+
+        '<div style="display:flex;gap:0.6rem;">'+
+          '<button id="_fmCancelDel" style="flex:1;padding:0.65rem;border-radius:12px;border:1.5px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:#fff0f8;font-weight:700;cursor:pointer;font-size:0.82rem;">Annuler</button>'+
+          '<button id="_fmConfirmDel" style="flex:1;padding:0.65rem;border-radius:12px;border:none;background:linear-gradient(135deg,#ff4466,#cc1133);color:#fff;font-weight:800;cursor:pointer;font-size:0.82rem;">Supprimer</button>'+
+        '</div>'+
+      '</div>';
+    document.body.appendChild(overlay);
+    document.getElementById('_fmCancelDel').onclick = function(){ overlay.remove(); };
+    document.getElementById('_fmConfirmDel').onclick = function(){
+      overlay.remove();
+      var card = document.querySelector('[data-pub-id="'+id+'"]');
+      if(_col() && window.fbDoc && window.fbDeleteDoc){
+        window.fbDeleteDoc(window.fbDoc(window.db,'forum_publications',id)).then(function(){
+          if(card) card.remove(); _toast('🗑️ Publication supprimée');
+        }).catch(function(e){ _toast('❌ '+e.message); });
+      } else { if(card) card.remove(); _toast('🗑️ Supprimé (local)'); }
+    };
+    overlay.onclick = function(e){ if(e.target===overlay) overlay.remove(); };
+  }
+
   /* ══════════════════════════════════════════
-     LIGHTBOX PHOTO
+     LIGHTBOX — prev/next + photo + vidéo
   ══════════════════════════════════════════ */
-  window.forumLightbox = function(pubId, photoIdx){
-    var card = document.querySelector('[data-pub-id="'+pubId+'"]'); if(!card) return;
-    var imgs = card.querySelectorAll('.forum-card-img');
-    var src = imgs[photoIdx] ? imgs[photoIdx].src : '';
-    if(!src) return;
+  var _lbItems = [];
+  var _lbIdx   = 0;
+
+  window.forumLightbox = function(pubId, mediaIdx){
+    var card = document.querySelector('[data-pub-id="'+pubId+'"]');
+    if(!card) return;
+
+    // Collecter tous les médias de la card (photos + vidéos)
+    _lbItems = [];
+    card.querySelectorAll('.fcm-item[data-src]').forEach(function(el){
+      _lbItems.push({ src: el.getAttribute('data-src'), type: el.getAttribute('data-mtype')||'photo' });
+    });
+    // Fallback : images simples si pas de data-src
+    if(!_lbItems.length){
+      card.querySelectorAll('.forum-card-img').forEach(function(el){
+        _lbItems.push({ src: el.src, type:'photo' });
+      });
+      card.querySelectorAll('.forum-card-video').forEach(function(el){
+        _lbItems.push({ src: el.src||el.currentSrc, type:'video' });
+      });
+    }
+    if(!_lbItems.length) return;
+
+    _lbIdx = Math.min(mediaIdx||0, _lbItems.length-1);
+    _lbRender();
+
     var lb = document.getElementById('forumLightbox');
-    var img = document.getElementById('forumLightboxImg');
-    if(!lb||!img) return;
-    img.src=src;
     lb.style.display='flex';
+    document.body.style.overflow='hidden';
   };
+
+  function _lbRender(){
+    var item = _lbItems[_lbIdx];
+    if(!item) return;
+    var img = document.getElementById('forumLightboxImg');
+    var vid = document.getElementById('forumLightboxVid');
+    var ctr = document.getElementById('forumLbCounter');
+    var prev = document.getElementById('forumLbPrev');
+    var next = document.getElementById('forumLbNext');
+
+    if(item.type==='video'){
+      img.style.display='none'; img.src='';
+      vid.style.display='block'; vid.src=item.src;
+      vid.play().catch(function(){});
+    } else {
+      vid.style.display='none'; vid.pause(); vid.src='';
+      img.style.display='block'; img.src=item.src;
+    }
+
+    if(ctr) ctr.textContent = _lbItems.length > 1 ? (_lbIdx+1)+' / '+_lbItems.length : '';
+    if(prev) prev.style.display = _lbIdx > 0 ? 'flex' : 'none';
+    if(next) next.style.display = _lbIdx < _lbItems.length-1 ? 'flex' : 'none';
+  }
+
+  window.forumLbNav = function(dir){
+    _lbIdx = Math.max(0, Math.min(_lbItems.length-1, _lbIdx+dir));
+    _lbRender();
+  };
+
+  window.forumLightboxClose = function(){
+    var lb = document.getElementById('forumLightbox');
+    lb.style.display='none';
+    document.body.style.overflow='';
+    var vid = document.getElementById('forumLightboxVid');
+    if(vid){ vid.pause(); vid.src=''; }
+  };
+
+  // Navigation clavier
+  document.addEventListener('keydown', function(e){
+    var lb = document.getElementById('forumLightbox');
+    if(!lb || lb.style.display==='none') return;
+    if(e.key==='ArrowLeft')  forumLbNav(-1);
+    if(e.key==='ArrowRight') forumLbNav(1);
+    if(e.key==='Escape')     forumLightboxClose();
+  });
 
   /* ══════════════════════════════════════════
      SYNC AUTH STATE
@@ -52626,286 +52807,6 @@ window._lazyInitSection = function(name) {
 })();
 </script>
 
-<script>
-/* ═══════════════════════════════════════════════════════════
-   MODULE DOUBLONS ÉTABLISSEMENTS — Panneau social Admin
-   DÉSACTIVÉ — fonctionnalité gérée par admpanel-doublons
-   ═══════════════════════════════════════════════════════════ */
-(function(){
-  'use strict';
-  console.log('[AMBI241] ℹ️ socDoublons désactivé — voir onglet Admin > Doublons');
-  return;
-
-  var _sd = {
-    selected: {},      // { docId: true }
-    allDocs: [],       // tous les docs
-    groups: [],        // groupes de doublons { name, items[] }
-    scanned: false
-  };
-
-  /* ── Afficher/masquer selon le rôle ── */
-  function _checkAdminVisibility(){
-    var panel = document.getElementById('socDblPanel');
-    if(!panel) return;
-    var show = (window.isAdmin === true) || (window.currentUserRole === 'admin') || (window.currentUserRole === 'super_admin') || (window.currentUserRole === 'superadmin');
-    panel.style.display = show ? 'block' : 'none';
-  }
-
-  /* ── Polling léger sur l'état admin ── */
-  setInterval(_checkAdminVisibility, 1500);
-  setTimeout(_checkAdminVisibility, 800);
-  if(document.readyState !== 'loading'){
-    setTimeout(_checkAdminVisibility, 200);
-  } else {
-    document.addEventListener('DOMContentLoaded', function(){ setTimeout(_checkAdminVisibility, 400); });
-  }
-
-  /* ── Utilitaires ── */
-  function _norm(s){ return (s||'').toLowerCase().trim().replace(/\s+/g,' '); }
-  function _setText(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; }
-  function _show(id){ var e=document.getElementById(id); if(e) e.style.display='block'; }
-  function _hide(id){ var e=document.getElementById(id); if(e) e.style.display='none'; }
-  function _showFlex(id){ var e=document.getElementById(id); if(e) e.style.display='flex'; }
-  function _esc(s){ var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
-
-  /* ── Mise à jour compteur sélectionnés ── */
-  function _updateSelCount(){
-    var n = Object.keys(_sd.selected).length;
-    _setText('socDblSelCount', n);
-    var btn = document.getElementById('socDblDeleteBtn');
-    if(btn){ btn.style.opacity = n>0?'1':'0.45'; btn.style.cursor = n>0?'pointer':'not-allowed'; }
-  }
-
-  /* ══════════════════════════════════════
-     SCAN — Recherche automatique
-  ══════════════════════════════════════ */
-  window.socDblScan = function(){
-    if(!window.db || !window.fbCollection || !window.fbGetDocs){
-      alert('⚠️ Firebase non disponible. Reconnectez-vous.');
-      return;
-    }
-    // Reset
-    _sd.selected = {}; _sd.allDocs = []; _sd.groups = []; _sd.scanned = false;
-    _updateSelCount();
-    document.getElementById('socDblList').innerHTML = '';
-    _hide('socDblEmpty'); _hide('socDblActions');
-    _show('socDblLoader');
-    _setText('socDblKpiTotal','…'); _setText('socDblKpiGroups','…'); _setText('socDblKpiCount','…');
-
-    // Désactiver le bouton scan pendant le chargement
-    var scanBtn = document.getElementById('socDblScanBtn');
-    if(scanBtn){ scanBtn.disabled=true; scanBtn.style.opacity='0.6'; scanBtn.textContent='⏳ Analyse en cours…'; }
-
-    window.fbGetDocs(window.fbCollection(window.db,'etablissements')).then(function(snap){
-      _hide('socDblLoader');
-      if(scanBtn){ scanBtn.disabled=false; scanBtn.style.opacity='1'; scanBtn.innerHTML='<span style="font-size:1.1rem;">🔍</span> Recherche automatique des doublons'; }
-
-      _sd.allDocs = snap.docs.map(function(d){ return Object.assign({_id:d.id},d.data()); });
-      _setText('socDblKpiTotal', _sd.allDocs.length);
-
-      // Grouper par nom normalisé
-      var groups = {};
-      _sd.allDocs.forEach(function(doc){
-        var key = _norm(doc.nom||doc.name||'');
-        if(!key) return;
-        if(!groups[key]) groups[key]=[];
-        groups[key].push(doc);
-      });
-
-      // Garder uniquement les vrais doublons (≥2 entrées)
-      var dupGroups = Object.entries(groups).filter(function(e){ return e[1].length >= 2; });
-      dupGroups.sort(function(a,b){ return b[1].length - a[1].length; });
-      _sd.groups = dupGroups;
-
-      var totalDups = dupGroups.reduce(function(acc,g){ return acc + g[1].length - 1; }, 0);
-      _setText('socDblKpiGroups', dupGroups.length);
-      _setText('socDblKpiCount', totalDups);
-
-      _sd.scanned = true;
-
-      if(!dupGroups.length){
-        _show('socDblEmpty');
-        return;
-      }
-
-      _showFlex('socDblActions');
-      var list = document.getElementById('socDblList');
-      dupGroups.forEach(function(entry){
-        list.appendChild(_buildGroupCard(entry[0], entry[1]));
-      });
-
-    }).catch(function(err){
-      _hide('socDblLoader');
-      if(scanBtn){ scanBtn.disabled=false; scanBtn.style.opacity='1'; scanBtn.innerHTML='<span style="font-size:1.1rem;">🔍</span> Recherche automatique des doublons'; }
-      document.getElementById('socDblList').innerHTML =
-        '<div style="background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);border-radius:12px;padding:0.9rem;color:#ff4466;font-size:0.75rem;text-align:center;">❌ Erreur : '+_esc(err.message||String(err))+'</div>';
-    });
-  };
-
-  /* ══════════════════════════════════════
-     CONSTRUIRE UNE CARD DE GROUPE
-  ══════════════════════════════════════ */
-  function _buildGroupCard(groupName, items){
-    // Trier : plus ancien = original
-    items = items.slice().sort(function(a,b){
-      var ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      var tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return ta - tb;
-    });
-
-    var card = document.createElement('div');
-    card.style.cssText = 'background:rgba(255,68,102,0.05);border:1.5px solid rgba(255,68,102,0.22);border-radius:14px;padding:0.85rem;margin-bottom:0.75rem;';
-
-    // Header groupe
-    var hdr = document.createElement('div');
-    hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;gap:0.4rem;flex-wrap:wrap;';
-    hdr.innerHTML =
-      '<div style="display:flex;align-items:center;gap:0.4rem;">'+
-        '<span style="font-size:0.9rem;">🔁</span>'+
-        '<span style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.82rem;color:#ff4466;">'+_esc(groupName)+'</span>'+
-        '<span style="background:rgba(255,68,102,0.18);color:#ff4466;border:1px solid rgba(255,68,102,0.35);border-radius:20px;padding:0.05rem 0.45rem;font-size:0.58rem;font-weight:800;">'+items.length+' entrées</span>'+
-      '</div>'+
-      '<button onclick="socDblDeleteGroup(''+groupName.replace(/'/g,"\'")+'')" style="padding:0.28rem 0.6rem;border-radius:8px;border:1px solid rgba(255,68,102,0.45);background:rgba(255,68,102,0.1);color:#ff4466;font-size:0.66rem;font-weight:700;cursor:pointer;">🗑️ Supprimer doublons</button>';
-    card.appendChild(hdr);
-
-    // Lignes items
-    items.forEach(function(item, idx){
-      var isFirst = idx === 0;
-      var row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:0.45rem;padding:0.45rem 0.5rem;border-radius:9px;margin-bottom:0.28rem;'+
-        'background:'+(isFirst?'rgba(0,255,170,0.06)':'rgba(255,255,255,0.03)')+';'+
-        'border:1px solid '+(isFirst?'rgba(0,255,170,0.2)':'rgba(255,255,255,0.06)')+';';
-
-      // Checkbox
-      var cb = document.createElement('input');
-      cb.type='checkbox'; cb.id='sdbl_cb_'+item._id;
-      cb.style.cssText='accent-color:#ff4466;width:15px;height:15px;flex-shrink:0;cursor:pointer;';
-      cb.disabled = isFirst; // ne pas cocher l'original
-      if(!isFirst) cb.checked = !!_sd.selected[item._id];
-      cb.onchange = function(){
-        if(this.checked) _sd.selected[item._id]=true;
-        else delete _sd.selected[item._id];
-        _updateSelCount();
-      };
-      row.appendChild(cb);
-
-      // Info
-      var info = document.createElement('div');
-      info.style.cssText='flex:1;min-width:0;';
-      info.innerHTML=
-        '<div style="display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap;">'+
-          '<span style="font-size:0.75rem;font-weight:700;color:'+(isFirst?'var(--green)':'var(--text)')+';">'+_esc(item.nom||item.name||'(sans nom)')+'</span>'+
-          (isFirst
-            ? '<span style="font-size:0.52rem;background:rgba(0,255,170,0.14);color:var(--green);border-radius:4px;padding:0.03rem 0.28rem;font-weight:800;">ORIGINAL</span>'
-            : '<span style="font-size:0.52rem;background:rgba(255,68,102,0.14);color:#ff4466;border-radius:4px;padding:0.03rem 0.28rem;font-weight:800;">DOUBLON</span>')+
-        '</div>'+
-        '<div style="font-size:0.6rem;color:var(--muted);margin-top:0.1rem;display:flex;gap:0.4rem;flex-wrap:wrap;">'+
-          '<span title="ID Firestore" style="cursor:text;user-select:all;">🆔 '+_esc(item._id.slice(0,12))+'…</span>'+
-          (item.quartier?'<span>📍 '+_esc(item.quartier)+'</span>':'')+
-          (item.type?'<span>🏷️ '+_esc(item.type)+'</span>':'')+
-        '</div>';
-      row.appendChild(info);
-
-      // Bouton supprimer individuel (uniquement pour les doublons)
-      if(!isFirst){
-        var delBtn = document.createElement('button');
-        delBtn.title='Supprimer ce doublon';
-        delBtn.style.cssText='background:rgba(255,68,102,0.12);border:1px solid rgba(255,68,102,0.35);border-radius:8px;color:#ff4466;font-size:0.8rem;width:28px;height:28px;cursor:pointer;flex-shrink:0;';
-        delBtn.textContent='🗑️';
-        delBtn.onclick=(function(id,r){ return function(){
-          if(!confirm('Supprimer ce doublon ?')) return;
-          _deleteOne(id, function(err){
-            if(err){ alert('❌ '+err.message); return; }
-            r.remove(); delete _sd.selected[id]; _updateSelCount();
-          });
-        }; })(item._id, row);
-        row.appendChild(delBtn);
-      }
-
-      card.appendChild(row);
-    });
-
-    return card;
-  }
-
-  /* ══════════════════════════════════════
-     SÉLECTION / DÉSÉLECTION GLOBALE
-  ══════════════════════════════════════ */
-  window.socDblSelectAll = function(){
-    document.querySelectorAll('#socDblList input[type=checkbox]:not(:disabled)').forEach(function(cb){
-      cb.checked=true;
-      var id=cb.id.replace('sdbl_cb_','');
-      _sd.selected[id]=true;
-    });
-    _updateSelCount();
-  };
-  window.socDblDeselectAll = function(){
-    document.querySelectorAll('#socDblList input[type=checkbox]').forEach(function(cb){ cb.checked=false; });
-    _sd.selected={};
-    _updateSelCount();
-  };
-
-  /* ══════════════════════════════════════
-     SUPPRESSION
-  ══════════════════════════════════════ */
-  function _deleteOne(id, cb){
-    if(!window.db || !window.fbDoc || !window.fbDeleteDoc){ cb&&cb(new Error('Firebase indisponible')); return; }
-    window.fbDeleteDoc(window.fbDoc(window.db,'etablissements',id)).then(function(){ cb&&cb(null); }).catch(cb);
-  }
-
-  window.socDblDeleteSelected = function(){
-    var ids = Object.keys(_sd.selected);
-    if(!ids.length) return;
-    if(!confirm('⚠️ Supprimer définitivement '+ids.length+' doublon(s) ?
-
-Les originaux seront conservés. Cette action est irréversible.')) return;
-    var done=0, errors=0;
-    function next(){
-      if(!ids.length){
-        alert('✅ '+done+' supprimé(s)'+(errors?' — '+errors+' erreur(s)':'')+'.');
-        _sd.selected={}; _updateSelCount();
-        window.socDblScan(); // relancer un scan propre
-        return;
-      }
-      var id=ids.shift();
-      _deleteOne(id,function(err){
-        if(err) errors++; else { done++; delete _sd.selected[id]; }
-        next();
-      });
-    }
-    next();
-  };
-
-  window.socDblDeleteGroup = function(groupName){
-    // Trouver le groupe
-    var entry = _sd.groups.find(function(g){ return g[0]===groupName; });
-    if(!entry) return;
-    var items=entry[1].slice().sort(function(a,b){
-      var ta=a.createdAt?new Date(a.createdAt).getTime():0;
-      var tb=b.createdAt?new Date(b.createdAt).getTime():0; return ta-tb;
-    });
-    var dups=items.slice(1); // skip original (idx 0)
-    if(!dups.length){ alert('Aucun doublon dans ce groupe.'); return; }
-    if(!confirm('⚠️ Supprimer '+dups.length+' doublon(s) pour "'+groupName+'" ?
-
-L'original (1ère entrée) sera conservé.')) return;
-    var done=0,errors=0;
-    function next(){
-      if(!dups.length){
-        alert('✅ '+done+' doublon(s) supprimé(s)'+(errors?' — '+errors+' erreur(s)':'')+'.');
-        window.socDblScan();
-        return;
-      }
-      var item=dups.shift();
-      _deleteOne(item._id,function(err){ if(err)errors++; else done++; next(); });
-    }
-    next();
-  };
-
-  console.log('[AMBI241] ✅ Module socDoublons chargé');
-})();
-</script>
-</body>
 <script>
 /* ── Sensibilité nav : supprime délai 300ms UNIQUEMENT sur la bottom-nav ── */
 (function(){
