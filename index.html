@@ -9600,7 +9600,7 @@ if (document.readyState === 'loading') {
     <div id="forumPubSection" style="margin-bottom:1rem;">
 
       <!-- Barre de création (inscrit) -->
-      <div id="forumComposeBar" style="display:none;background:var(--surface);border:1.5px solid rgba(255,45,155,0.2);border-radius:16px;padding:0.7rem 1rem;margin:0 1rem 0.8rem;align-items:center;gap:0.65rem;">
+      <div id="forumComposeBar" style="display:flex;background:var(--surface);border:1.5px solid rgba(255,45,155,0.2);border-radius:16px;padding:0.7rem 1rem;margin:0 1rem 0.8rem;align-items:center;gap:0.65rem;">
         <div id="forumComposeAvatar" style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.9rem;color:#fff;flex-shrink:0;">?</div>
         <div style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:22px;padding:0.45rem 0.9rem;font-size:0.8rem;color:var(--muted);cursor:pointer;" onclick="forumOpenPublish()">✍️ Partagez une ambiance, photo, vidéo…</div>
         <div style="display:flex;gap:0.4rem;">
@@ -52053,7 +52053,7 @@ window._lazyInitSection = function(name) {
       <!-- Toolbar médias -->
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.8rem;">
         <button class="forum-media-btn" onclick="document.getElementById('forumPhotoInput').click()">📷 Photo <span style="font-size:0.6rem;opacity:0.6;" id="forumPhotoCount">(0/5)</span></button>
-        <button class="forum-media-btn" onclick="document.getElementById('forumVideoInput').click()">🎬 Vidéo <span style="font-size:0.6rem;opacity:0.6;" id="forumVideoCount">(0/2)</span></button>
+        <button class="forum-media-btn" onclick="document.getElementById('forumVideoInput').click()">🎬 Vidéo <span style="font-size:0.6rem;opacity:0.6;" id="forumVideoCount">(0/2 · 40s max)</span></button>
         <button class="forum-media-btn" onclick="forumPickEmoji()">😊 Emoji</button>
       </div>
       <!-- Emoji panel -->
@@ -52072,7 +52072,7 @@ window._lazyInitSection = function(name) {
           <div style="display:flex;gap:3px;" id="forumPhotoDotsBar"></div>
         </div>
         <div style="display:flex;align-items:center;gap:0.5rem;">
-          <span style="font-size:0.68rem;color:var(--muted);flex:1;">🎬 Vidéos aujourd'hui : <strong id="forumDailyVideos" style="color:var(--cyan);">0</strong>/2</span>
+          <span style="font-size:0.68rem;color:var(--muted);flex:1;">🎬 Vidéos aujourd'hui : <strong id="forumDailyVideos" style="color:var(--cyan);">0</strong>/2 <span style="opacity:0.6;">(40s max)</span></span>
           <div style="display:flex;gap:3px;" id="forumVideoDotsBar"></div>
         </div>
       </div>
@@ -52178,18 +52178,24 @@ window._lazyInitSection = function(name) {
   function _updateComposeBar(){
     var cb = document.getElementById('forumComposeBar');
     var gb = document.getElementById('forumGuestBanner');
-    if(!cb || !gb) return;
+    if(!cb) return;
     if(_isLoggedIn()){
       cb.style.display = 'flex';
-      gb.style.display = 'none';
+      if(gb) gb.style.display = 'none';
       var av = document.getElementById('forumComposeAvatar');
       if(av){
         av.textContent = _letter(_pseudo());
         if(window.currentUserPhotoURL){ av.style.backgroundImage='url('+window.currentUserPhotoURL+')'; av.style.backgroundSize='cover'; av.textContent=''; }
       }
     } else {
-      cb.style.display = 'none';
-      gb.style.display = 'block';
+      // Même en mode invité, garder la barre visible mais afficher le banner connexion
+      cb.style.display = 'flex';
+      if(gb) gb.style.display = 'none';
+      // Remplacer le contenu par un prompt connexion stylé
+      cb.innerHTML =
+        '<div style="width:36px;height:36px;border-radius:50%;background:rgba(255,45,155,0.12);border:1.5px dashed rgba(255,45,155,0.3);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;">👤</div>'+
+        '<div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:22px;padding:0.45rem 0.9rem;font-size:0.8rem;color:var(--muted);cursor:pointer;" onclick="openModal(\'loginModal\')">✍️ Connecte-toi pour publier…</div>'+
+        '<button onclick="openModal(\'loginModal\')" style="background:linear-gradient(135deg,var(--pink),var(--purple));border:none;border-radius:10px;color:#fff;font-weight:700;font-size:0.72rem;padding:0.38rem 0.75rem;cursor:pointer;white-space:nowrap;flex-shrink:0;">Se connecter</button>';
     }
   }
 
@@ -52478,11 +52484,32 @@ window._lazyInitSection = function(name) {
     var file = inp.files[0]; if(!file) return;
     if(!file.type.startsWith('video/')){ _toast('⚠️ Fichier vidéo uniquement'); inp.value=''; return; }
     if(file.size > 50*1024*1024){ _toast('⚠️ Vidéo trop lourde (50 Mo max)'); inp.value=''; return; }
-    _fm.videoBlob = URL.createObjectURL(file);
-    var reader = new FileReader();
-    reader.onload = function(ev){ _fm.video = ev.target.result; _renderMediaPreview(); _updateModalCounters(); };
-    reader.readAsDataURL(file);
-    inp.value='';
+    // ── Vérification durée 40 secondes max ──
+    var blobUrl = URL.createObjectURL(file);
+    var tmpVid = document.createElement('video');
+    tmpVid.preload = 'metadata';
+    tmpVid.onloadedmetadata = function(){
+      if(tmpVid.duration > 40){
+        URL.revokeObjectURL(blobUrl);
+        _toast('⏱️ Vidéo trop longue — 40 secondes maximum');
+        inp.value='';
+        return;
+      }
+      _fm.videoBlob = blobUrl;
+      var reader = new FileReader();
+      reader.onload = function(ev){ _fm.video = ev.target.result; _renderMediaPreview(); _updateModalCounters(); };
+      reader.readAsDataURL(file);
+      inp.value='';
+    };
+    tmpVid.onerror = function(){
+      // Si on ne peut pas lire les metadata, on laisse passer (vérification côté client échouée)
+      _fm.videoBlob = blobUrl;
+      var reader = new FileReader();
+      reader.onload = function(ev){ _fm.video = ev.target.result; _renderMediaPreview(); _updateModalCounters(); };
+      reader.readAsDataURL(file);
+      inp.value='';
+    };
+    tmpVid.src = blobUrl;
   };
 
   function _renderMediaPreview(){
@@ -52616,22 +52643,53 @@ window._lazyInitSection = function(name) {
         list.innerHTML='';
         snap.docs.forEach(function(d){
           var data=d.data();
-          list.appendChild(_buildComment(data));
+          list.appendChild(_buildComment(data, pubId, d.id));
         });
       }).catch(function(){});
     }catch(e){}
   }
 
-  function _buildComment(data){
+  function _buildComment(data, pubId, cmtId){
     var div=document.createElement('div');
     div.className='forum-comment';
+    if(cmtId) div.setAttribute('data-cmt-id', cmtId);
+    var isAuthor = data.uid && data.uid === (window.currentUserUID||'__');
+    var isAdmin  = window.currentUserRole==='admin' || window.currentUserRole==='superadmin';
+    var canDel   = (isAuthor || isAdmin) && pubId && cmtId;
+    var delBtn   = canDel
+      ? '<button onclick="forumDeleteComment(\''+pubId+'\',\''+cmtId+'\',this)" style="background:none;border:none;color:rgba(255,68,102,0.55);font-size:0.72rem;cursor:pointer;padding:0.1rem 0.25rem;transition:color 0.15s;margin-left:auto;align-self:flex-start;flex-shrink:0;" title="Supprimer" onmouseover="this.style.color=\'#ff4466\'" onmouseout="this.style.color=\'rgba(255,68,102,0.55)\'">🗑</button>'
+      : '';
     div.innerHTML='<div class="forum-comment-avatar">'+_esc(_letter(data.pseudo||'?'))+'</div>'+
-      '<div class="forum-comment-bubble">'+
+      '<div class="forum-comment-bubble" style="flex:1;">'+
         '<div class="forum-comment-author">'+_esc(data.pseudo||'Utilisateur')+'</div>'+
         '<div class="forum-comment-text">'+_esc(data.text||'')+'</div>'+
-      '</div>';
+      '</div>'+
+      delBtn;
     return div;
   }
+
+  window.forumDeleteComment = function(pubId, cmtId, btn){
+    var row = btn ? btn.closest('.forum-comment') : null;
+    if(!_col() || !window.fbDoc || !window.fbDeleteDoc){
+      if(row) row.remove();
+      // décrémenter compteur local
+      var ccEl = document.getElementById('fcmt_count_'+pubId);
+      if(ccEl) ccEl.textContent = Math.max(0, parseInt(ccEl.textContent||'0')-1);
+      return;
+    }
+    try{
+      var cmtRef = window.fbDoc(window.db,'forum_publications',pubId,'comments',cmtId);
+      window.fbDeleteDoc(cmtRef).then(function(){
+        if(row) row.remove();
+        var ccEl = document.getElementById('fcmt_count_'+pubId);
+        if(ccEl) ccEl.textContent = Math.max(0, parseInt(ccEl.textContent||'0')-1);
+        if(window.fbDoc && window.fbUpdateDoc && window.fbIncrement){
+          window.fbUpdateDoc(window.fbDoc(window.db,'forum_publications',pubId),{comments:window.fbIncrement(-1)}).catch(function(){});
+        }
+        _toast('🗑️ Commentaire supprimé');
+      }).catch(function(e){ _toast('❌ '+e.message); });
+    }catch(e){ _toast('❌ '+e.message); }
+  };
 
   window.forumSendComment = function(pubId){
     if(!_isLoggedIn()){ _toast('🔒 Connectez-vous pour commenter'); return; }
@@ -52639,9 +52697,9 @@ window._lazyInitSection = function(name) {
     var text = inp.value.trim(); if(!text) return;
     inp.value=''; inp.style.height='auto';
     var cmtData = { text:text, pseudo:_pseudo(), uid:_uid(), timestamp:Date.now() };
-    // Afficher immédiatement
+    // Afficher immédiatement (sans ID définitif, donc pas de bouton supprimer pour l'instant)
     var list = document.getElementById('fcmts_list_'+pubId);
-    if(list) list.appendChild(_buildComment(cmtData));
+    if(list) list.appendChild(_buildComment(cmtData, pubId, null));
     // Incrémenter compteur local
     var ccEl = document.getElementById('fcmt_count_'+pubId);
     if(ccEl) ccEl.textContent = parseInt(ccEl.textContent||'0')+1;
@@ -52649,7 +52707,16 @@ window._lazyInitSection = function(name) {
     if(!_col() || !window.fbAddDoc) return;
     try{
       var cmtCol = window.fbCollection(window.db,'forum_publications',pubId,'comments');
-      window.fbAddDoc(cmtCol, cmtData).then(function(){
+      window.fbAddDoc(cmtCol, cmtData).then(function(ref){
+        // Remplacer le commentaire temporaire par la version avec ID
+        if(list){
+          var tmpNodes = list.querySelectorAll('.forum-comment:not([data-cmt-id])');
+          if(tmpNodes.length){
+            var lastTmp = tmpNodes[tmpNodes.length-1];
+            var withId = _buildComment(cmtData, pubId, ref.id);
+            list.replaceChild(withId, lastTmp);
+          }
+        }
         if(window.fbDoc && window.fbUpdateDoc && window.fbIncrement){
           window.fbUpdateDoc(window.fbDoc(window.db,'forum_publications',pubId),{comments:window.fbIncrement(1)}).catch(function(){});
         }
