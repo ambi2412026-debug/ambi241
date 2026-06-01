@@ -4951,11 +4951,19 @@ button,
   max-width:100%;
 }
 /* Empêcher tout texte de sortir des conteneurs */
-.card-name, .cr-name, .tt-name, .forum-card-author {
+.cr-name, .tt-name, .forum-card-author {
   max-width:100%;
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
+}
+/* Nom fiche complète : autoriser retour à la ligne + taille réduite si long */
+.card-name {
+  max-width:100%;
+  overflow:hidden;
+  white-space:normal;
+  word-break:break-word;
+  font-size:clamp(0.78rem,4vw,1rem);
 }
 
 /* ── Search wrap focus ring ── */
@@ -8123,7 +8131,7 @@ if (document.readyState === 'loading') {
       </div>
     </div>
     <div class="sort-row">
-      <span class="sort-label">Trier par</span>
+      <span class="sort-label">T par</span>
       <div class="sort-btns">
         <button class="sort-btn active" data-sort="affluence">Affluence</button>
         <button class="sort-btn" data-sort="note">Note</button>
@@ -13954,39 +13962,13 @@ function goToTypeFilter(type){
 function goToTop6Etab(id, cat){
   // Appliquer le filtre de type AVANT le changement de section
   window._filterOnSwitch = { type: cat || 'all', status: 'all' };
+  // Basculer en vue groupe (troisième mode) : N°1 fiche complète, reste compact
+  currentView = 'groupe';
+  document.querySelectorAll('[data-view]').forEach(function(b){ b.classList.remove('active'); });
+  var groupeBtn = document.querySelector('[data-view="groupe"]');
+  if(groupeBtn) groupeBtn.classList.add('active');
   switchSection('etablissements', document.querySelectorAll('.nav-item')[1]);
   window.scrollTo(0, 0);
-
-  // Ouvrir la quickSheet du N°1 de la catégorie après le rendu
-  setTimeout(function(){
-    var d = window.etablissements || [];
-    // Trouver le top de la catégorie (même scoring que le top6)
-    var scored = d.filter(function(e){ return getCategory(e.type||'') === cat; });
-    if(!scored.length){
-      // Fallback : ouvrir directement l'établissement cliqué
-      var etab = d.find(function(x){ return x.id === id || String(x.id) === String(id); });
-      if(etab && window.openPublicProfile) window.openPublicProfile('etablissement', etab.id, etab);
-      return;
-    }
-    // Tri par score (même logique que le top6)
-    scored = scored.map(function(e){
-      var base = (e.affluence||0)*1.2 + (e.note||0)*15 + (e.avis||0)*2;
-      var presBonus = (e.statut||'').indexOf('Bonde')!==-1?30:(e.statut||'').indexOf('Anime')!==-1?18:0;
-      var voteBonus = (e._voteScore||0)*8;
-      var noteBonus = (e.note||0)*10;
-      var score = Math.max(0, Math.min(200, base + presBonus + voteBonus + noteBonus));
-      if(cat === 'Hotel'){
-        var nbEt = parseEtoiles(e.etoiles);
-        score = score * 0.4 + nbEt * 50;
-      }
-      return Object.assign({}, e, { _score: score });
-    });
-    scored.sort(function(a,b){ return b._score - a._score; });
-    var top1 = scored[0];
-    if(top1 && window.openPublicProfile){
-      window.openPublicProfile('etablissement', top1.id, top1);
-    }
-  }, 320);
 }
 window.goToTop6Etab = goToTop6Etab;
 
@@ -18517,7 +18499,16 @@ function renderAllImmediate(){
           catHtml+="<div class=\"cat-section\">";
           catHtml+="<div class=\"cat-header\"><span class=\"cat-icon\">"+cat.icon+"</span><span class=\"cat-name\">"+cat.label+"</span><span class=\"cat-count\">"+groupSorted.length+" lieu"+(groupSorted.length>1?"x":"")+"</span></div>";
           catHtml+="<div class=\"cards-list\">";
-          groupSorted.forEach(function(e,i){globalRank++;catHtml+=buildCard(e,i*0.04,false,globalRank);});
+          groupSorted.forEach(function(e,i){
+            globalRank++;
+            if(i === 0){
+              // N°1 de chaque catégorie : fiche complète visible
+              catHtml+=buildCard(e,i*0.04,false,globalRank);
+            } else {
+              // Autres : ligne compacte — clic ouvre la fiche publique
+              catHtml+=buildCompactRow(e,globalRank);
+            }
+          });
           catHtml+="</div></div>";
         }
       });
