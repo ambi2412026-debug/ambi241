@@ -52188,14 +52188,12 @@ window._lazyInitSection = function(name) {
         if(window.currentUserPhotoURL){ av.style.backgroundImage='url('+window.currentUserPhotoURL+')'; av.style.backgroundSize='cover'; av.textContent=''; }
       }
     } else {
-      // Même en mode invité, garder la barre visible mais afficher le banner connexion
+      // Mode invité : garder la barre complète visible (boutons 📷 🎬 fonctionnels)
       cb.style.display = 'flex';
       if(gb) gb.style.display = 'none';
-      // Remplacer le contenu par un prompt connexion stylé
-      cb.innerHTML =
-        '<div style="width:36px;height:36px;border-radius:50%;background:rgba(255,45,155,0.12);border:1.5px dashed rgba(255,45,155,0.3);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;">👤</div>'+
-        '<div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:22px;padding:0.45rem 0.9rem;font-size:0.8rem;color:var(--muted);cursor:pointer;" onclick="openModal(\'loginModal\')">✍️ Connecte-toi pour publier…</div>'+
-        '<button onclick="openModal(\'loginModal\')" style="background:linear-gradient(135deg,var(--pink),var(--purple));border:none;border-radius:10px;color:#fff;font-weight:700;font-size:0.72rem;padding:0.38rem 0.75rem;cursor:pointer;white-space:nowrap;flex-shrink:0;">Se connecter</button>';
+      // Juste changer l'avatar en icône invité sans réécrire tout le HTML
+      var av2 = document.getElementById('forumComposeAvatar');
+      if(av2){ av2.textContent='👤'; av2.style.backgroundImage=''; av2.style.background='rgba(255,45,155,0.12)'; av2.style.border='1.5px dashed rgba(255,45,155,0.3)'; }
     }
   }
 
@@ -52371,11 +52369,7 @@ window._lazyInitSection = function(name) {
      OUVRIR MODAL PUBLICATION
   ══════════════════════════════════════════ */
   window.forumOpenPublish = function(type){
-    if(!_isLoggedIn()){
-      _toast('🔒 Connectez-vous pour publier');
-      if(typeof window.openModal==='function') window.openModal('loginModal');
-      return;
-    }
+    // Pas de blocage ici — la vérification se fait au moment de publier
     var modal = document.getElementById('forumPubModal');
     if(!modal) return;
     _fm.photos = [];
@@ -52539,7 +52533,7 @@ window._lazyInitSection = function(name) {
      SOUMETTRE LA PUBLICATION
   ══════════════════════════════════════════ */
   window.forumSubmitPost = function(){
-    if(!_isLoggedIn()){ _toast('🔒 Connectez-vous pour publier'); return; }
+    if(!_isLoggedIn()){ _toast('🔒 Connectez-vous pour publier'); forumClosePubModal(); if(typeof window.openModal==='function') window.openModal('loginModal'); return; }
     if(_fm.submitting) return;
     var ta = document.getElementById('forumPubTextarea');
     var text = ta ? ta.value.trim() : '';
