@@ -20011,16 +20011,31 @@ window.openFicheEtab = function(id){
   var body  = document.getElementById('ficheEtabBody');
   if(!ov||!img||!title||!sub||!body) return;
 
-  /* Photo hero */
-  var permPhoto = (e._fallback_svg) || '';
-  /* Chercher une vraie photo dans les slots locaux */
-  try{
-    var slotKey = 'ambi241_photos_' + e.id;
-    var slotData = localStorage.getItem(slotKey);
-    if(slotData){ var slots = JSON.parse(slotData); if(slots&&slots[0]&&slots[0].url) permPhoto = slots[0].url; }
-  }catch(ex){}
-  if(permPhoto && permPhoto.startsWith('data:image')){ img.src = permPhoto; }
-  else if(permPhoto && (permPhoto.startsWith('http')||permPhoto.startsWith('/'))){ img.src = permPhoto; }
+  /* Photo hero — priorité : profile_approved > Google Places > slots locaux > fallback SVG */
+  var permPhoto = '';
+  /* 1. Photo de profil approuvée */
+  if(e._photo_profile_approved) permPhoto = e._photo_profile_approved;
+  /* 2. Photos Google Places */
+  if(!permPhoto && e._gphoto_urls && e._gphoto_urls.length > 0) permPhoto = e._gphoto_urls[0];
+  /* 3. Photos manuelles Firestore */
+  if(!permPhoto && e.photo_exterieur) permPhoto = e.photo_exterieur;
+  if(!permPhoto && e.photo_interieur) permPhoto = e.photo_interieur;
+  /* 4. Chercher dans les slots localStorage (clés avec et sans suffixe type) */
+  if(!permPhoto){
+    try{
+      var _slotKeys = ['ambi241_photos_'+e.id+'_exterieur','ambi241_photos_'+e.id+'_interieur','ambi241_photos_'+e.id];
+      for(var _ki=0;_ki<_slotKeys.length;_ki++){
+        var _sd = localStorage.getItem(_slotKeys[_ki]);
+        if(_sd){ var _sl=JSON.parse(_sd); if(_sl&&_sl[0]&&_sl[0].url){ permPhoto=_sl[0].url; break; } }
+      }
+    }catch(ex){}
+  }
+  /* 5. Appel getGooglePhotoUrl si disponible (lance le fetch si pas en cache) */
+  if(!permPhoto && typeof getGooglePhotoUrl==='function') permPhoto = getGooglePhotoUrl(e,'exterieur')||'';
+  /* 6. Fallback SVG généré */
+  if(!permPhoto) permPhoto = e._fallback_svg||'';
+
+  if(permPhoto && (permPhoto.startsWith('data:')||permPhoto.startsWith('http')||permPhoto.startsWith('/'))){ img.src = permPhoto; img.style.display=''; }
   else { img.src = ''; img.style.display='none'; }
 
   /* Status badge */
@@ -40309,7 +40324,19 @@ function _renderView(type, id, rawData, profData) {
     (rawData.photos && rawData.photos[0]) || '';
   // Fallback établissement : photo principale
   if(!avatarSrc && type === 'etablissement') {
-    avatarSrc = rawData._photo_profile_approved || rawData.photo_interieur || rawData.photo_exterieur || '';
+    avatarSrc = rawData._photo_profile_approved || '';
+    if(!avatarSrc && rawData._gphoto_urls && rawData._gphoto_urls.length>0) avatarSrc = rawData._gphoto_urls[0];
+    if(!avatarSrc) avatarSrc = rawData.photo_interieur || rawData.photo_exterieur || '';
+    /* Slots localStorage */
+    if(!avatarSrc){
+      try{
+        var _aKeys=['ambi241_photos_'+id+'_exterieur','ambi241_photos_'+id+'_interieur','ambi241_photos_'+id];
+        for(var _ai=0;_ai<_aKeys.length;_ai++){
+          var _ad=localStorage.getItem(_aKeys[_ai]);
+          if(_ad){var _as=JSON.parse(_ad);if(_as&&_as[0]&&_as[0].url){avatarSrc=_as[0].url;break;}}
+        }
+      }catch(ex3){}
+    }
   }
   // Fallback chauffeur
   if(!avatarSrc && type === 'chauffeur') {
@@ -40327,11 +40354,27 @@ function _renderView(type, id, rawData, profData) {
   /* ── Banner ── */
   var bannerImg = document.getElementById('ppBannerImg');
   var bannerTitle = document.getElementById('ppBannerTitle');
-  // Chercher la meilleure photo disponible (extérieur > intérieur > photo principale)
+  // Chercher la meilleure photo disponible
   var bannerSrc = '';
   if(type === 'etablissement') {
-    bannerSrc = rawData.photo_exterieur || rawData.photo_interieur ||
-      rawData._photo_profile_approved || profData.avatar || '';
+    bannerSrc = rawData._photo_profile_approved || '';
+    if(!bannerSrc && rawData._gphoto_urls && rawData._gphoto_urls.length>0) bannerSrc = rawData._gphoto_urls[0];
+    if(!bannerSrc) bannerSrc = rawData.photo_exterieur || rawData.photo_interieur || profData.avatar || '';
+    /* Slots localStorage */
+    if(!bannerSrc){
+      try{
+        var _bKeys=['ambi241_photos_'+id+'_exterieur','ambi241_photos_'+id+'_interieur','ambi241_photos_'+id];
+        for(var _bi=0;_bi<_bKeys.length;_bi++){
+          var _bd=localStorage.getItem(_bKeys[_bi]);
+          if(_bd){var _bs=JSON.parse(_bd);if(_bs&&_bs[0]&&_bs[0].url){bannerSrc=_bs[0].url;break;}}
+        }
+      }catch(ex2){}
+    }
+    /* Appel getGooglePhotoUrl si disponible */
+    if(!bannerSrc && typeof getGooglePhotoUrl==='function'){
+      var _gp=getGooglePhotoUrl(rawData,'exterieur');
+      if(_gp && !_gp.startsWith('data:image/svg')) bannerSrc=_gp;
+    }
   } else if(type === 'membre') {
     bannerSrc = profData.avatar || rawData.photo || '';
   } else if(type === 'chauffeur') {
@@ -40460,6 +40503,23 @@ function _renderView(type, id, rawData, profData) {
   // Pour établissement: bouton voir fiche
   if(type === 'etablissement') {
     actEl.innerHTML += '<button class="pp-btn pp-btn-sec" onclick="window.closePublicProfile();setTimeout(function(){if(typeof openFicheEtab===\'function\')openFicheEtab(' + id + ');},120);">🏠 Voir la fiche complète pour réservation</button>';
+    /* Rechargement réactif si la photo Google arrive après l'ouverture */
+    if(!bannerSrc && rawData._gphoto_urls === undefined && typeof _gphotoEnqueue === 'function') {
+      _gphotoEnqueue(rawData);
+      var _ppPhotoWait = 0;
+      var _ppPhotoTimer = setInterval(function(){
+        _ppPhotoWait++;
+        var _newBanner = rawData._photo_profile_approved || (rawData._gphoto_urls && rawData._gphoto_urls[0]) || '';
+        if(_newBanner || _ppPhotoWait > 12) {
+          clearInterval(_ppPhotoTimer);
+          if(_newBanner && document.getElementById('ppBannerImg')) {
+            var _bImgEl = document.getElementById('ppBannerImg');
+            _bImgEl.src = _newBanner;
+            _bImgEl.style.display = 'block';
+          }
+        }
+      }, 500);
+    }
   }
   // Pour chauffeur: bouton appeler
   if(type === 'chauffeur' && rawData.phone) {
