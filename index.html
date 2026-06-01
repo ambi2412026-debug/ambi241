@@ -19262,6 +19262,8 @@ function _lazyInitSection(name){
       // Charger les publications sociales au premier accès
       if(typeof window.loadSocialFeed === 'function') setTimeout(window.loadSocialFeed, 150);
       if(typeof window._initSocialSection === 'function') setTimeout(window._initSocialSection, 150);
+      // ── Forum publications : déclencher au 1er accès à l'onglet ──
+      if(typeof window._initForumOnce === 'function') setTimeout(window._initForumOnce, 300);
       break;
     case 'profil':
       // Synchroniser le profil utilisateur au premier accès
@@ -23511,7 +23513,22 @@ function switchAdmTab(tab){
     var btn=document.getElementById("admtab-"+t);
     var panel=document.getElementById("admpanel-"+t);
     if(btn) btn.classList.toggle("active",t===tab);
-    if(panel) panel.style.display=(t===tab?"block":"none");
+    if(panel){
+      if(t===tab){
+        panel.style.display="block";
+        panel.style.visibility="visible";
+        panel.style.height="";
+        panel.style.overflow="";
+      } else {
+        panel.style.display="none";
+        // Fix bouton "Lancer la recherche Google Maps" fantôme sur Android
+        if(t==="importgmaps"){
+          panel.style.visibility="hidden";
+          panel.style.height="0";
+          panel.style.overflow="hidden";
+        }
+      }
+    }
   });
   // Render content
   if(tab==="overview") renderAdmOverview();
@@ -27231,7 +27248,7 @@ window.doAssignEtab = doAssignEtab;
       </div>
 
       <!-- ══ Import Google Maps ══ -->
-      <div id="admpanel-importgmaps" class="adm-panel" style="display:none;">
+      <div id="admpanel-importgmaps" class="adm-panel" style="display:none;visibility:hidden;overflow:hidden;height:0;">
 
         <!-- Steps -->
         <div class="igm-steps" id="igmSteps2">
@@ -52119,12 +52136,22 @@ window._lazyInitSection = function(name) {
   /* ══════════════════════════════════════════
      CHARGEMENT DU FIL (Firestore)
   ══════════════════════════════════════════ */
+  var _loadFeedRetries = 0;
   function _loadFeed(append){
     if(!_col()){
-      // Firebase pas encore prêt → retry
-      setTimeout(_loadFeed, 800);
+      // Firebase pas encore prêt → retry borné (max 10 × 800ms = 8s)
+      if(_loadFeedRetries++ < 10){
+        setTimeout(function(){ _loadFeed(append); }, 800);
+      } else {
+        console.warn('[Forum] Firebase non disponible après 8s');
+        var loader = document.getElementById('forumFeedLoader');
+        if(loader) loader.style.display='none';
+        var empty = document.getElementById('forumFeedEmpty');
+        if(empty) empty.style.display='block';
+      }
       return;
     }
+    _loadFeedRetries = 0; // reset pour prochain appel
     var loader = document.getElementById('forumFeedLoader');
     if(loader) loader.style.display = 'block';
     var empty = document.getElementById('forumFeedEmpty');
@@ -52793,14 +52820,32 @@ window._lazyInitSection = function(name) {
   };
 
   /* ══════════════════════════════════════════
-     DÉMARRAGE
+     DÉMARRAGE — robuste, attend Firebase
   ══════════════════════════════════════════ */
+
+  // Fonction idempotente exposée pour le lazy-init de switchSection('social')
+  var _forumInited = false;
+  window._initForumOnce = function(){
+    if(_forumInited) return;
+    _forumInited = true;
+    initForum();
+  };
+
+  // Fallback au chargement : attendre que Firebase soit prêt (max 8 × 700ms)
+  var _fbWaitTries = 0;
+  function _waitFirebaseThenInit(){
+    if(_forumInited) return;
+    if(window.db && window.fbCollection){
+      window._initForumOnce();
+    } else if(_fbWaitTries++ < 8){
+      setTimeout(_waitFirebaseThenInit, 700);
+    }
+  }
+
   if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded', function(){
-      setTimeout(initForum, 600);
-    });
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(_waitFirebaseThenInit, 800); });
   } else {
-    setTimeout(initForum, 600);
+    setTimeout(_waitFirebaseThenInit, 800);
   }
 
   console.log('[AMBI241] ✅ Module Forum Publications chargé');
