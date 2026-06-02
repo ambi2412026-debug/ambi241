@@ -1153,12 +1153,22 @@ onAuthStateChanged(auth, async function(user) {
     var tokenResult = await user.getIdTokenResult(true);
     var isAdminClaim = tokenResult.claims && tokenResult.claims.admin === true;
 
+    // ── Fallback 1 : email hardcodé superadmin ──
+    var HARDCODED_ADMINS = ['pcinformatique28@gmail.com'];
+    if (!isAdminClaim && HARDCODED_ADMINS.indexOf((user.email||'').toLowerCase()) !== -1) {
+      isAdminClaim = true;
+    }
+
     if (!isAdminClaim) {
       // Vérifier dans Firestore comme fallback
-      var admDoc = await getDoc(doc(db, 'config', 'admins'));
-      var admData = admDoc.exists() ? admDoc.data() : {};
-      var adminList = admData.list || [];
-      isAdminClaim = adminList.includes(user.email);
+      try {
+        var admDoc = await getDoc(doc(db, 'config', 'admins'));
+        var admData = admDoc.exists() ? admDoc.data() : {};
+        var adminList = admData.list || [];
+        isAdminClaim = adminList.includes(user.email);
+      } catch(firestoreErr) {
+        console.warn('Firestore config/admins inaccessible, fallback email utilisé');
+      }
     }
 
     if (!isAdminClaim) {
@@ -1256,7 +1266,6 @@ window.showToast = function(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 2500);
 };
-function showToast(msg){ window.showToast(msg); }
 
 window.showUploadProgress = function(pct, label) {
   var bar  = document.getElementById('uploadProgressBar');
@@ -9732,13 +9741,7 @@ function saveMapsUrl(id){
   showToast("Lien Maps sauvegarde !");
 }
 
-var toastTimer;
-function showToast(msg){
-  var t=document.getElementById("toast");
-  t.textContent=msg;t.classList.add("show");
-  clearTimeout(toastTimer);
-  toastTimer=setTimeout(function(){t.classList.remove("show");},2500);
-}
+/* showToast défini plus haut via window.showToast */
 
 // ── BARRE DE PROGRESSION UPLOAD GLOBALE ──────────────────────────
 var _upbHideTimer = null;
