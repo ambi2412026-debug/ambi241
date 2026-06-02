@@ -38309,7 +38309,22 @@ window.switchAdmTab = function(tab){
     var btn   = document.getElementById('admtab-'+t);
     var panel = document.getElementById('admpanel-'+t);
     if(btn)   btn.classList.toggle('active', t===tab);
-    if(panel) panel.style.display = (t===tab ? 'block' : 'none');
+    if(panel){
+      if(t===tab){
+        panel.style.display='block';
+        panel.style.visibility='visible';
+        panel.style.height='';
+        panel.style.overflow='';
+      } else {
+        panel.style.display='none';
+        // Fix bouton "Lancer la recherche Google Maps" fantôme sur Android
+        if(t==='importgmaps'){
+          panel.style.visibility='hidden';
+          panel.style.height='0';
+          panel.style.overflow='hidden';
+        }
+      }
+    }
   });
   if(tab === 'content'){
     if(typeof window.renderAdmContent==='function') window.renderAdmContent();
@@ -44999,6 +45014,14 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     }
     /* Forcer un refresh du token pour s'assurer que les claims sont à jour */
     try { await window.auth.currentUser.getIdToken(true); } catch(e) { console.warn('[IGM2] Token refresh failed:', e); }
+    /* FIX Bug 3: s'assurer que le panel parent est visible avant d'activer l'étape 4 */
+    var _igmPanel = document.getElementById('admpanel-importgmaps');
+    if(_igmPanel){
+      _igmPanel.style.display='block';
+      _igmPanel.style.visibility='visible';
+      _igmPanel.style.height='';
+      _igmPanel.style.overflow='';
+    }
     igm2Step(4);
     var lw=document.getElementById('igm2ImportLog');
     function il(msg,type){var l=document.createElement('div');l.className='igm-log-line'+(type?' igm-'+type:'');l.textContent=new Date().toLocaleTimeString('fr')+' — '+msg;lw.appendChild(l);lw.scrollTop=lw.scrollHeight;}
