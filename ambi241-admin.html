@@ -1148,28 +1148,11 @@ onAuthStateChanged(auth, async function(user) {
     return;
   }
 
-  // Connecté → vérifier claim admin
+  // Connecté → vérifier accès admin
   try {
-    var tokenResult = await user.getIdTokenResult(true);
-    var isAdminClaim = tokenResult.claims && tokenResult.claims.admin === true;
-
-    // ── Fallback 1 : email hardcodé superadmin ──
+    // ── Vérification par email hardcodé (sans Firestore) ──
     var HARDCODED_ADMINS = ['pcinformatique28@gmail.com'];
-    if (!isAdminClaim && HARDCODED_ADMINS.indexOf((user.email||'').toLowerCase()) !== -1) {
-      isAdminClaim = true;
-    }
-
-    if (!isAdminClaim) {
-      // Vérifier dans Firestore comme fallback
-      try {
-        var admDoc = await getDoc(doc(db, 'config', 'admins'));
-        var admData = admDoc.exists() ? admDoc.data() : {};
-        var adminList = admData.list || [];
-        isAdminClaim = adminList.includes(user.email);
-      } catch(firestoreErr) {
-        console.warn('Firestore config/admins inaccessible, fallback email utilisé');
-      }
-    }
+    var isAdminClaim = HARDCODED_ADMINS.indexOf((user.email||'').toLowerCase()) !== -1;
 
     if (!isAdminClaim) {
       if(loader) loader.style.display = 'none';
@@ -1186,13 +1169,8 @@ onAuthStateChanged(auth, async function(user) {
     window.isAdmin = true;
     window.isSuperAdmin = false;
 
-    // Vérifier super admin
-    try {
-      var superDoc = await getDoc(doc(db, 'config', 'super_admin'));
-      if(superDoc.exists() && superDoc.data().email === user.email) {
-        window.isSuperAdmin = true;
-      }
-    } catch(e) {}
+    // Super admin = même email que admin principal
+    window.isSuperAdmin = true;
 
     if(loader) loader.style.display = 'none';
     if(loginScreen) loginScreen.style.display = 'none';
