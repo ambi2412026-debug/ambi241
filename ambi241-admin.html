@@ -1213,18 +1213,30 @@ window.doLogin = async function() {
   if(!email || !pwd) { errEl.textContent = 'Email et mot de passe requis.'; return; }
   btn.disabled = true; btn.textContent = 'Connexion…';
   errEl.textContent = '';
+  // Timeout de sécurité — débloquer le bouton après 8s quoi qu'il arrive
+  var _loginTimeout = setTimeout(function() {
+    btn.disabled = false;
+    btn.textContent = 'Connexion Admin';
+    if(errEl) errEl.textContent = 'Délai dépassé — vérifiez votre connexion et réessayez.';
+  }, 8000);
+
   try {
     await signInWithEmailAndPassword(auth, email, pwd);
+    clearTimeout(_loginTimeout);
     // onAuthStateChanged prend le relais
   } catch(e) {
+    clearTimeout(_loginTimeout);
     var msgs = {
       'auth/user-not-found':'Compte introuvable.',
       'auth/wrong-password':'Mot de passe incorrect.',
       'auth/invalid-credential':'Identifiants invalides.',
       'auth/too-many-requests':'Trop de tentatives. Réessayez plus tard.',
-      'auth/network-request-failed':'Erreur réseau.'
+      'auth/network-request-failed':'Erreur réseau — vérifiez votre connexion internet.',
+      'auth/quota-exceeded':'Quota Firebase dépassé — réessayez dans quelques heures.'
     };
-    errEl.textContent = msgs[e.code] || ('Erreur : ' + e.message);
+    var msg = msgs[e.code] || ('Erreur (' + e.code + ') : ' + e.message);
+    if(errEl) errEl.textContent = msg;
+    else alert(msg);
     btn.disabled = false; btn.textContent = 'Connexion Admin';
   }
 };
