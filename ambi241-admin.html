@@ -1206,39 +1206,50 @@ onAuthStateChanged(auth, async function(user) {
 
 // ── CONNEXION ──
 window.doLogin = async function() {
-  var email = (document.getElementById('loginEmail') || {}).value || '';
+  var email = ((document.getElementById('loginEmail') || {}).value || '').trim().toLowerCase();
   var pwd   = (document.getElementById('loginPwd')   || {}).value || '';
   var btn   = document.getElementById('loginBtn');
   var errEl = document.getElementById('loginErr');
-  if(!email || !pwd) { errEl.textContent = 'Email et mot de passe requis.'; return; }
+  if(!email || !pwd) { if(errEl) errEl.textContent = 'Email et mot de passe requis.'; return; }
   btn.disabled = true; btn.textContent = 'Connexion…';
-  errEl.textContent = '';
-  // Timeout de sécurité — débloquer le bouton après 8s quoi qu'il arrive
-  var _loginTimeout = setTimeout(function() {
-    btn.disabled = false;
-    btn.textContent = 'Connexion Admin';
-    if(errEl) errEl.textContent = 'Délai dépassé — vérifiez votre connexion et réessayez.';
-  }, 8000);
+  if(errEl) errEl.textContent = '';
 
-  try {
-    await signInWithEmailAndPassword(auth, email, pwd);
-    clearTimeout(_loginTimeout);
-    // onAuthStateChanged prend le relais
-  } catch(e) {
-    clearTimeout(_loginTimeout);
-    var msgs = {
-      'auth/user-not-found':'Compte introuvable.',
-      'auth/wrong-password':'Mot de passe incorrect.',
-      'auth/invalid-credential':'Identifiants invalides.',
-      'auth/too-many-requests':'Trop de tentatives. Réessayez plus tard.',
-      'auth/network-request-failed':'Erreur réseau — vérifiez votre connexion internet.',
-      'auth/quota-exceeded':'Quota Firebase dépassé — réessayez dans quelques heures.'
-    };
-    var msg = msgs[e.code] || ('Erreur (' + e.code + ') : ' + e.message);
-    if(errEl) errEl.textContent = msg;
-    else alert(msg);
-    btn.disabled = false; btn.textContent = 'Connexion Admin';
+  var ADMIN_EMAIL = 'pcinformatique28@gmail.com';
+  if(email !== ADMIN_EMAIL) {
+    if(errEl) errEl.textContent = 'Accès refusé.';
+    btn.disabled = false; btn.textContent = 'Connexion Admin'; return;
   }
+
+  // Hash SHA-256 du mot de passe
+  var pwdHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pwd))
+    .then(function(buf){ return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join(''); });
+
+  var storedHash = localStorage.getItem('ambi241_admin_h');
+  if(!storedHash) {
+    // Première connexion : enregistrer le hash
+    localStorage.setItem('ambi241_admin_h', pwdHash);
+    storedHash = pwdHash;
+  }
+  if(pwdHash !== storedHash) {
+    if(errEl) errEl.textContent = 'Mot de passe incorrect.';
+    btn.disabled = false; btn.textContent = 'Connexion Admin'; return;
+  }
+
+  // ✅ Accès accordé
+  btn.disabled = false;
+  var loader = document.getElementById('appLoader');
+  var loginScreen = document.getElementById('loginScreen');
+  var adminDash = document.getElementById('adminDashOverlay');
+  if(loader) loader.style.display = 'none';
+  if(loginScreen) loginScreen.style.display = 'none';
+  if(adminDash){ adminDash.style.display = 'block'; adminDash.classList.add('show'); }
+  window.currentUserEmail = ADMIN_EMAIL;
+  window.isAdmin = true;
+  window.isSuperAdmin = true;
+  if(typeof loadAdminConfig === 'function') setTimeout(loadAdminConfig, 300);
+  if(typeof loadData === 'function') setTimeout(loadData, 600);
+  // Firebase Auth en arrière-plan (non bloquant)
+  try { await signInWithEmailAndPassword(auth, email, pwd); } catch(e) {}
 };
 
 // ── DÉCONNEXION ──
