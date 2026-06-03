@@ -9782,7 +9782,7 @@ if (document.readyState === 'loading') {
   <div class="soc-pane active" id="pane-amis">
 
     <!-- ══ FIL DE PUBLICATIONS FORUM (nouveau) ══ -->
-    <div id="forumPubSection" style="margin-bottom:1rem;">
+    <div id="forumPubSection" style="margin-bottom:0.5rem;">
 
       <!-- Barre de création (inscrit) -->
       <div id="forumComposeBar" style="display:flex;background:var(--surface);border:1.5px solid rgba(255,45,155,0.2);border-radius:16px;padding:0.7rem 1rem;margin:0 1rem 0.8rem;align-items:center;gap:0.65rem;">
@@ -9810,21 +9810,21 @@ if (document.readyState === 'loading') {
       </div>
 
       <!-- Fil Firebase -->
-      <div id="forumFeed" style="padding:0 1rem;">
-        <div id="forumFeedEmpty" style="text-align:center;padding:2.5rem 1rem;color:var(--muted);">
-          <div style="font-size:2rem;margin-bottom:0.5rem;">💬</div>
+      <div id="forumFeed" style="padding:0 1rem 0.3rem;">
+        <div id="forumFeedEmpty" style="text-align:center;padding:1rem 1rem 0.8rem;color:var(--muted);">
+          <div style="font-size:1.5rem;margin-bottom:0.3rem;">💬</div>
           <div style="font-family:'Syne',sans-serif;font-size:0.9rem;font-weight:700;color:var(--text);margin-bottom:0.3rem;">Aucune publication</div>
           <div style="font-size:0.74rem;">Soyez le premier à partager !</div>
         </div>
         <div id="forumFeedLoader" style="text-align:center;padding:1.2rem;color:var(--muted);font-size:0.77rem;display:none;">⏳ Chargement…</div>
       </div>
-      <div style="text-align:center;padding:0.4rem 1rem 0.1rem;">
+      <div style="text-align:center;padding:0.1rem 1rem 0;">
         <button id="forumLoadMore" style="display:none;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;color:var(--muted);font-size:0.74rem;font-weight:700;padding:0.5rem 1.1rem;cursor:pointer;" onclick="forumLoadMorePosts()">Voir plus de publications</button>
       </div>
     </div>
 
     <!-- Séparateur -->
-    <div style="height:1px;background:rgba(255,45,155,0.12);margin:0.3rem 1rem 0.9rem;"></div>
+    <div style="height:1px;background:rgba(255,45,155,0.12);margin:0.2rem 1rem 0.5rem;"></div>
 
     <!-- Suggestions -->
     <div class="soc-suggest-strip">
@@ -12052,7 +12052,6 @@ function approvePhotoProfile(eid, docId, url) {
     var etab = etablissements.find(function(x){ return String(x.id) === eidStr; });
     if (etab) etab._photo_profile_approved = url;
     showToast("✅ Photo approuvée comme photo de profil !");
-    renderAdmModeration();
     if(typeof renderAll === "function") setTimeout(renderAll, 300);
   }).catch(function(e){ showToast("Erreur: " + e.message); });
 }
@@ -12068,7 +12067,6 @@ function rejectPhotoProfile(eid, docId) {
     rejectedAt: Date.now()
   }).then(function(){
     showToast("❌ Photo rejetée");
-    renderAdmModeration();
   }).catch(function(e){ showToast("Erreur: " + e.message); });
 }
 window.rejectPhotoProfile = rejectPhotoProfile;
@@ -23720,7 +23718,7 @@ window.closeAdminDashboard=closeAdminDashboard;
 
 function switchAdmTab(tab){
   _currentAdmTab=tab;
-  var tabs=["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support","content","appconfig","importgmaps","qrvotes","doublons"];
+  var tabs=["overview","etabl","users","notifs","payments","connexions","settings","reservations","classement","support","content","appconfig","importgmaps","qrvotes","doublons"];
   tabs.forEach(function(t){
     var btn=document.getElementById("admtab-"+t);
     var panel=document.getElementById("admpanel-"+t);
@@ -23751,7 +23749,6 @@ function switchAdmTab(tab){
   }
   else if(tab==="notifs") renderAdminNotifs();
   else if(tab==="payments") renderAdmPayments();
-  else if(tab==="moderation") renderAdmModeration();
   else if(tab==="connexions") renderAdmConnexions();
   else if(tab==="settings"){
     if(!_superAdminEmail && window.db) loadAdminConfig();
@@ -23855,7 +23852,6 @@ function renderAdmOverview(){
   html+="<button data-adm-action='addPlace' class='adm-action-btn' onclick='openAdminAddModal()' style='background:rgba(0,255,170,0.08);border-color:rgba(0,255,170,0.3);color:var(--green);'>&#43; Ajouter lieu</button>";
   html+="<button data-adm-action='payments' class='adm-action-btn' onclick='switchAdmTab(\"payments\")' style='background:rgba(255,215,0,0.08);border-color:rgba(255,215,0,0.3);color:var(--amber);'>&#128179; Paiements ("+pending+" att.)</button>";
   html+="<button data-adm-action='notifs' class='adm-action-btn' onclick='switchAdmTab(\"notifs\")' style='background:rgba(255,45,155,0.08);border-color:rgba(255,45,155,0.3);color:var(--pink);'>&#128276; Notifs ("+totalNotifs+")</button>";
-  html+="<button data-adm-action='moderation' class='adm-action-btn' onclick='switchAdmTab(\"moderation\")' style='background:rgba(204,68,255,0.08);border-color:rgba(204,68,255,0.3);color:var(--purple);'>&#128737; Modération</button>";
   html+="<button data-adm-action='sync' class='adm-action-btn' onclick='loadData();showToast&&showToast(\"Synchronisation…\")' style='background:rgba(0,229,255,0.08);border-color:rgba(0,229,255,0.3);color:var(--cyan);'>&#8635; Synchroniser Firebase</button>";
   html+="<button data-adm-action='users' class='adm-action-btn' onclick='switchAdmTab(\"users\")' style='background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.1);color:var(--text);'>&#128100; Membres</button>";
   html+="<button data-adm-action='support' class='adm-action-btn' onclick='switchAdmTab(\"support\")' style='background:rgba(255,215,0,0.07);border-color:rgba(255,215,0,0.25);color:var(--amber);position:relative;'>💬 Support (<span id='admOverviewSupportCount'>…</span>)</button>";
@@ -23900,7 +23896,6 @@ function renderAdmOverview(){
       case "addPlace":   openAdminAddModal(); break;
       case "payments":   switchAdmTab("payments"); break;
       case "notifs":     switchAdmTab("notifs"); break;
-      case "moderation": switchAdmTab("moderation"); break;
       case "sync":       loadData(); showToast && showToast("Synchronisation…"); break;
       case "users":      switchAdmTab("users"); break;
       case "support":    switchAdmTab("support"); break;
@@ -27251,7 +27246,6 @@ window.doAssignEtab = doAssignEtab;
       <button class="adm-tab active" id="admtab-overview"      onclick="switchAdmTab('overview')">📊 Vue d'ensemble</button>
       <button class="adm-tab"        id="admtab-users"         onclick="switchAdmTab('users')">👤 Membres</button>
       <button class="adm-tab"        id="admtab-etabl"         onclick="switchAdmTab('etabl')">🏙️ Établissements</button>
-      <button class="adm-tab"        id="admtab-moderation"    onclick="switchAdmTab('moderation')">🛡️ Modération</button>
       <button class="adm-tab"        id="admtab-connexions"    onclick="switchAdmTab('connexions')">📡 Status Live</button>
       <button class="adm-tab"        id="admtab-reservations"  onclick="switchAdmTab('reservations')">⭐ Réserv. VIP</button>
       <button class="adm-tab"        id="admtab-classement"    onclick="switchAdmTab('classement')">🏆 Classement</button>
@@ -27288,10 +27282,6 @@ window.doAssignEtab = doAssignEtab;
         <div id="adminEtablList">Chargement...</div>
       </div>
 
-      <!-- ══ Modération ══ -->
-      <div id="admpanel-moderation" class="adm-panel" style="display:none;">
-        <div id="adminModerationContent">Chargement...</div>
-      </div>
 
       <!-- ══ Status Live / Connexions ══ -->
       <div id="admpanel-connexions" class="adm-panel" style="display:none;">
@@ -38316,7 +38306,7 @@ window.switchAdmTab = function(tab){
   try{ _currentAdmTab = tab; }catch(e){}
   // Gérer les nouveaux panels
   var newTabs = ['content','appconfig'];
-  var allTabs = ["overview","etabl","users","notifs","payments","moderation","connexions","settings","reservations","classement","support","content","appconfig","importgmaps","qrvotes"];
+  var allTabs = ["overview","etabl","users","notifs","payments","connexions","settings","reservations","classement","support","content","appconfig","importgmaps","qrvotes"];
   allTabs.forEach(function(t){
     var btn   = document.getElementById('admtab-'+t);
     var panel = document.getElementById('admpanel-'+t);
@@ -52232,6 +52222,21 @@ window._lazyInitSection = function(name) {
 <!-- ══════════════════════════════════════════
      MODAL PUBLICATION FORUM AMIS & COMMUNAUTÉS
      ══════════════════════════════════════════ -->
+
+<!-- ══ FORUM INVITE OVERLAY — non-inscrits ══ -->
+<div id="forumInviteOverlay" style="display:none;position:fixed;inset:0;z-index:600;background:rgba(10,0,20,0.88);align-items:center;justify-content:center;padding:1.5rem;" onclick="if(event.target===this){this.style.display='none'}">
+  <div style="background:var(--surface);border:1.5px solid rgba(255,45,155,0.35);border-radius:22px;padding:1.6rem 1.4rem;max-width:340px;width:100%;text-align:center;animation:fadeUp 0.28s ease both;">
+    <div style="font-size:2.2rem;margin-bottom:0.55rem;">🔒</div>
+    <div style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:var(--text);margin-bottom:0.4rem;">Rejoins la communauté !</div>
+    <div style="font-size:0.78rem;color:var(--muted);line-height:1.55;margin-bottom:1.1rem;">Inscris-toi gratuitement pour publier des photos, vidéos, textes, liker et commenter les publications de la communauté AMBI241.</div>
+    <div style="display:flex;flex-direction:column;gap:0.55rem;">
+      <button onclick="document.getElementById('forumInviteOverlay').style.display='none';if(typeof openModal==='function')openModal('registerModal');" style="background:linear-gradient(135deg,var(--pink),var(--purple));border:none;border-radius:12px;color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:0.85rem;padding:0.7rem 1.2rem;cursor:pointer;transition:opacity 0.18s;" onmouseover="this.style.opacity='0.88'" onmouseout="this.style.opacity='1'">✨ S'inscrire gratuitement</button>
+      <button onclick="document.getElementById('forumInviteOverlay').style.display='none';if(typeof openModal==='function')openModal('loginModal');" style="background:rgba(255,45,155,0.1);border:1.5px solid rgba(255,45,155,0.35);border-radius:12px;color:var(--pink);font-family:'Syne',sans-serif;font-weight:700;font-size:0.82rem;padding:0.6rem 1.2rem;cursor:pointer;transition:opacity 0.18s;" onmouseover="this.style.opacity='0.75'" onmouseout="this.style.opacity='1'">🔑 Déjà inscrit ? Se connecter</button>
+      <button onclick="document.getElementById('forumInviteOverlay').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:0.75rem;cursor:pointer;padding:0.3rem;">Continuer sans s'inscrire</button>
+    </div>
+  </div>
+</div>
+
 <div id="forumPubModal" onclick="if(event.target===this)forumClosePubModal()">
   <div class="forum-modal-sheet">
     <div class="forum-modal-body">
@@ -52413,10 +52418,9 @@ window._lazyInitSection = function(name) {
         if(window.currentUserPhotoURL){ av.style.backgroundImage='url('+window.currentUserPhotoURL+')'; av.style.backgroundSize='cover'; av.textContent=''; }
       }
     } else {
-      // Mode invité : garder la barre complète visible (boutons 📷 🎬 fonctionnels)
+      // Mode invité : barre visible → clic → invitation d'inscription
       cb.style.display = 'flex';
       if(gb) gb.style.display = 'none';
-      // Juste changer l'avatar en icône invité sans réécrire tout le HTML
       var av2 = document.getElementById('forumComposeAvatar');
       if(av2){ av2.textContent='👤'; av2.style.backgroundImage=''; av2.style.background='rgba(255,45,155,0.12)'; av2.style.border='1.5px dashed rgba(255,45,155,0.3)'; }
     }
@@ -52599,7 +52603,16 @@ window._lazyInitSection = function(name) {
      OUVRIR MODAL PUBLICATION
   ══════════════════════════════════════════ */
   window.forumOpenPublish = function(type){
-    // Pas de blocage ici — la vérification se fait au moment de publier
+    // Vérification connexion AVANT d'ouvrir le modal
+    if(!_isLoggedIn()){
+      // Afficher invitation d'inscription
+      var inv = document.getElementById('forumInviteOverlay');
+      if(inv){ inv.style.display='flex'; return; }
+      // Fallback : ouvrir modal connexion
+      if(typeof window.openModal==='function') window.openModal('loginModal');
+      else _toast('🔒 Connectez-vous ou inscrivez-vous pour publier');
+      return;
+    }
     var modal = document.getElementById('forumPubModal');
     if(!modal) return;
     _fm.photos = [];
@@ -52839,6 +52852,10 @@ window._lazyInitSection = function(name) {
   ══════════════════════════════════════════ */
   window.forumToggleLike = function(id, btn){
     if(!btn) return;
+    if(!_isLoggedIn()){
+      _toast('🔒 Connectez-vous pour liker');
+      return;
+    }
     var liked = btn.classList.toggle('liked');
     var countEl = btn.querySelector('.flike-count');
     var count = parseInt(countEl ? countEl.textContent : '0') || 0;
