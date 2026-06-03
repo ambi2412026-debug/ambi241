@@ -6660,12 +6660,17 @@ if (document.readyState === 'loading') {
   border-radius: 18px !important;
   padding: 0.75rem 1rem !important;
   transition: border-color 0.2s, box-shadow 0.2s !important;
-  position: relative; overflow: hidden;
+  position: relative; overflow: visible;
 }
 #forumComposeBar::before {
   content:''; position:absolute; inset:0;
   background:linear-gradient(90deg, transparent, rgba(255,45,155,0.03));
   pointer-events:none;
+  z-index:0;
+}
+#forumComposeBar > * {
+  position: relative;
+  z-index: 1;
 }
 #forumComposeBar:hover {
   border-color: rgba(255,45,155,0.4) !important;
@@ -9785,12 +9790,12 @@ if (document.readyState === 'loading') {
     <div id="forumPubSection" style="margin-bottom:0.5rem;">
 
       <!-- Barre de création (inscrit) -->
-      <div id="forumComposeBar" style="display:flex;background:var(--surface);border:1.5px solid rgba(255,45,155,0.2);border-radius:16px;padding:0.7rem 1rem;margin:0 1rem 0.8rem;align-items:center;gap:0.65rem;">
-        <div id="forumComposeAvatar" style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.9rem;color:#fff;flex-shrink:0;">?</div>
-        <div style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:22px;padding:0.45rem 0.9rem;font-size:0.8rem;color:var(--muted);cursor:pointer;" onclick="forumOpenPublish()">✍️ Partagez une ambiance, photo, vidéo…</div>
-        <div style="display:flex;gap:0.4rem;">
-          <button style="background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.3);border-radius:10px;padding:0.32rem 0.5rem;font-size:0.95rem;cursor:pointer;" onclick="forumOpenPublish('photo');event.stopPropagation()" title="Photo">📷</button>
-          <button style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);border-radius:10px;padding:0.32rem 0.5rem;font-size:0.95rem;cursor:pointer;" onclick="forumOpenPublish('video');event.stopPropagation()" title="Vidéo">🎬</button>
+      <div id="forumComposeBar" style="display:flex;background:var(--surface);border:1.5px solid rgba(255,45,155,0.2);border-radius:16px;padding:0.7rem 1rem;margin:0 1rem 0.8rem;align-items:center;gap:0.65rem;cursor:pointer;" onclick="if(event.target===this||event.target===document.getElementById('forumComposeAvatar'))forumOpenPublish()">
+        <div id="forumComposeAvatar" style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.9rem;color:#fff;flex-shrink:0;position:relative;z-index:1;">?</div>
+        <div style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:22px;padding:0.45rem 0.9rem;font-size:0.8rem;color:var(--muted);cursor:pointer;position:relative;z-index:1;" onclick="event.stopPropagation();forumOpenPublish()">✍️ Partagez une ambiance, photo, vidéo…</div>
+        <div style="display:flex;gap:0.4rem;position:relative;z-index:2;">
+          <button style="background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.3);border-radius:10px;padding:0.42rem 0.65rem;font-size:0.95rem;cursor:pointer;min-width:38px;min-height:38px;-webkit-tap-highlight-color:rgba(255,45,155,0.2);touch-action:manipulation;" onclick="event.stopPropagation();forumOpenPublish('photo')" title="Photo">📷</button>
+          <button style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);border-radius:10px;padding:0.42rem 0.65rem;font-size:0.95rem;cursor:pointer;min-width:38px;min-height:38px;-webkit-tap-highlight-color:rgba(0,229,255,0.2);touch-action:manipulation;" onclick="event.stopPropagation();forumOpenPublish('video')" title="Vidéo">🎬</button>
         </div>
       </div>
 
@@ -53246,5 +53251,35 @@ window._lazyInitSection = function(name) {
     document.addEventListener('DOMContentLoaded', boostNav);
   } else { boostNav(); }
   setTimeout(boostNav, 800);
+})();
+</script>
+
+<script>
+/* ── Supprime délai 300ms sur les boutons du Forum ComposeBar (📷🎬 + texte) ── */
+(function(){
+  function boostForumCompose(){
+    var cb = document.getElementById('forumComposeBar');
+    if(!cb) return;
+    var targets = cb.querySelectorAll('button, [onclick], div[style*="cursor:pointer"]');
+    targets.forEach(function(el){
+      if(el._forumTouchBoosted) return;
+      el._forumTouchBoosted = true;
+      el.style.touchAction = 'manipulation'; /* supprime double-tap zoom = retire délai 300ms */
+      el.addEventListener('touchend', function(e){
+        var modal = document.querySelector('#forumPubModal.open, #forumInviteOverlay[style*="flex"]');
+        if(modal) return;
+        e.preventDefault();
+        el.click();
+      }, {passive:false});
+    });
+    /* Aussi le container lui-même */
+    if(!cb._forumTouchBoosted){
+      cb._forumTouchBoosted = true;
+      cb.style.touchAction = 'manipulation';
+    }
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(boostForumCompose, 900); });
+  } else { setTimeout(boostForumCompose, 900); }
 })();
 </script>
