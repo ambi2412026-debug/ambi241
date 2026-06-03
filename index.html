@@ -4068,8 +4068,8 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   -webkit-backdrop-filter:blur(20px);
   border:2px solid #c8960c;
   color:#FFD700;
-  width:68px;height:68px;border-radius:50%;
-  font-size:26px;font-weight:800;cursor:pointer;
+  width:58px;height:58px;border-radius:50%;
+  font-size:22px;font-weight:800;cursor:pointer;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
   box-shadow:
     0 0 0 4px rgba(200,150,12,0.18),
@@ -4087,7 +4087,7 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 .taxi-btn-main::before{content:'';position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 35% 20%,rgba(255,230,100,0.14) 0%,transparent 60%);pointer-events:none;}
 .taxi-btn-main::after{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:conic-gradient(from 180deg,transparent 60%,rgba(255,215,0,0.07) 75%,transparent 90%);animation:taxiRotateShine 4s linear infinite;pointer-events:none;border-radius:50%;}
 @keyframes taxiRotateShine{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-.taxi-btn-label{font-family:'Syne',sans-serif;font-size:8px;font-weight:900;letter-spacing:0.14em;color:#FFD700;text-transform:uppercase;line-height:1;text-shadow:0 0 8px rgba(255,200,0,0.6);position:relative;z-index:1;}
+.taxi-btn-label{font-family:'Syne',sans-serif;font-size:7px;font-weight:900;letter-spacing:0.12em;color:#FFD700;text-transform:uppercase;line-height:1;text-shadow:0 0 8px rgba(255,200,0,0.6);position:relative;z-index:1;}
 
 @keyframes floatPulse{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 
@@ -7549,9 +7549,6 @@ if (document.readyState === 'loading') {
   <div class="sitenav-item" id="sitenavFichesItem" onclick="navHandleFiches(null);closeSiteNav();" style="display:none;">
     <span class="sni-icon">📋</span><span class="sni-label">Fiches Sectorielles</span>
   </div>
-  <div class="sitenav-item" onclick="switchSection('social',null);closeSiteNav()">
-    <span class="sni-icon">💬</span><span class="sni-label">Forum Communauté</span>
-  </div>
   <div class="sitenav-item" onclick="document.getElementById('userOverlay').classList.add('show');closeSiteNav()">
     <span class="sni-icon">👤</span><span class="sni-label">Mon Profil</span>
   </div>
@@ -9742,7 +9739,7 @@ if (document.readyState === 'loading') {
      AMBI241 — MODULE SOCIAL : Section Amis & Communautés
      ═══════════════════════════════════════════════════════════ -->
 <!-- ══ SECTION AMIS & COMMUNAUTÉS ══ -->
-<section id="sec-social" class="section-hidden">
+<section id="sec-social" class="section-hidden" style="display:none!important;pointer-events:none;">
 
   <!-- En-tête -->
   <div class="soc-hero">
@@ -10438,7 +10435,6 @@ window.closePhotoViewer = closePhotoViewer;
   <button class="nav-item active" onclick="switchSection('accueil',this)"><span class="nav-icon">&#127968;</span>Accueil</button>
   <button class="nav-item" onclick="switchSection('etablissements',this)"><span class="nav-icon">&#128269;</span>Lieux</button>
   <button class="nav-item" id="navProfilBtn" onclick="navHandleProfil(this)"><span class="nav-unread-badge" id="navBadgeProfil"></span><span class="nav-icon" id="navProfilIcon">&#128273;</span><span id="navProfilLabel">Connexion</span></button>
-  <button class="nav-item" onclick="switchSection('social',this)"><span class="nav-unread-badge" id="navBadgeForum"></span><span class="nav-icon">👥</span>Forum</button>
   <button class="nav-item" id="navFichesBtn" onclick="navHandleFiches(this)" style="display:none;"><span class="nav-icon">📋</span>Fiches</button>
   <button class="nav-item" id="navPaiementsBtn" onclick="switchSection('paiements',this)"><span class="nav-unread-badge" id="navBadgePaiements"></span><span class="nav-icon">&#128179;</span>Paiements</button>
   <button class="nav-item" id="navAdminSettings" style="display:none;" onclick="openAdminDashboard(this)"><span class="nav-unread-badge" id="navBadgeAdmin"></span><span class="nav-icon">&#9881;</span>Paramètres</button>
@@ -19459,11 +19455,8 @@ function _lazyInitSection(name){
       if(typeof window.initTaxiSection === 'function') setTimeout(window.initTaxiSection, 100);
       break;
     case 'social':
-      // Charger les publications sociales au premier accès
-      if(typeof window.loadSocialFeed === 'function') setTimeout(window.loadSocialFeed, 150);
-      if(typeof window._initSocialSection === 'function') setTimeout(window._initSocialSection, 150);
-      // ── Forum publications : déclencher au 1er accès à l'onglet ──
-      if(typeof window._initForumOnce === 'function') setTimeout(window._initForumOnce, 300);
+      // Forum supprimé — rediriger vers accueil
+      setTimeout(function(){ switchSection('accueil', null); }, 50);
       break;
     case 'profil':
       // Synchroniser le profil utilisateur au premier accès
@@ -31991,13 +31984,22 @@ document.addEventListener('DOMContentLoaded', () => {
     taxiModule.style.userSelect = 'none';
     taxiModule.style.touchAction = 'none';
 
-    // Restaurer la dernière position sauvegardée
+    // Restaurer la dernière position sauvegardée — uniquement si elle est raisonnable
     const savedPos = JSON.parse(localStorage.getItem('taxiBtnPos') || 'null');
-    if(savedPos) {
+    // Position par défaut : droite, au niveau du contenu principal (après le header)
+    const defaultRight = 14;
+    const defaultTop = Math.round(window.innerHeight * 0.30); // ~30% du haut = niveau visible sur l'image 2
+    if(savedPos && savedPos.x > 0 && savedPos.y > 100 && savedPos.y < window.innerHeight - 80) {
       taxiModule.style.left = savedPos.x + 'px';
       taxiModule.style.top  = savedPos.y + 'px';
       taxiModule.style.bottom = 'auto';
       taxiModule.style.right  = 'auto';
+    } else {
+      // Position par défaut côté droit, niveau milieu-haut du contenu
+      taxiModule.style.right  = defaultRight + 'px';
+      taxiModule.style.top    = defaultTop + 'px';
+      taxiModule.style.bottom = 'auto';
+      taxiModule.style.left   = 'auto';
     }
 
     let isDragging = false;
@@ -50151,7 +50153,7 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
     var TAB_MAP = {
       'home':    { section: 'accueil',        social: null   },
       'map':     { section: 'etablissements', social: null   },
-      'social':  { section: 'social',         social: null   },
+      'social':  { section: 'accueil',         social: null   },  /* forum supprimé */
       'taxi':    { section: 'accueil',        social: null   }, /* taxi = widget accueil */
       'profil':  { section: 'profil',         social: null   },
       'paiements':{ section: 'paiements',     social: null   },
