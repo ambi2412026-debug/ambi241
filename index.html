@@ -1759,7 +1759,11 @@ header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0
 .success-msg p{font-size:0.82rem;color:var(--muted);margin-top:0.4rem;line-height:1.5;}
 
 /* ══ SUBSCRIPTION PLAN CARDS ══ */
-.sub-plan-card{position:relative;background:var(--surface2);border:2px solid rgba(255,255,255,0.07);border-radius:14px;padding:0.75rem 0.5rem;text-align:center;cursor:pointer;transition:all 0.22s;overflow:hidden;user-select:none;}
+#plansScroll::-webkit-scrollbar{display:none;}
+#plansScroll{scrollbar-width:none;}
+#sec-paiements{padding:0 0.8rem;}
+
+background:var(--surface2);border:2px solid rgba(255,255,255,0.07);border-radius:14px;padding:0.75rem 0.5rem;text-align:center;cursor:pointer;transition:all 0.22s;overflow:hidden;user-select:none;}
 .sub-plan-card:active{transform:scale(0.96);}
 .sub-plan-card.active{border-color:var(--amber);background:rgba(255,215,0,0.08);box-shadow:0 0 16px rgba(255,215,0,0.18);}
 .sub-plan-card[data-plan="trimestriel"].active{border-color:var(--pink);background:rgba(255,45,155,0.09);box-shadow:0 0 16px rgba(255,45,155,0.2);}
@@ -8196,7 +8200,7 @@ if (document.readyState === 'loading') {
   <div id="sec-etablissements" class="section-hidden">
     <div class="sync-bar"><div class="sync-left"><div class="sync-spinner" id="syncSpinner"></div><span id="syncStatus">Donnees en direct</span></div><div style="display:flex;align-items:center;gap:0.5rem;"><span id="meteoMiniSyncBar" class="meteo-mini" title="Météo Libreville">⏳</span><span class="sync-time" id="syncTime"></span><button onclick="loadData();showToast('Actualisation...')" style="background:rgba(0,255,170,0.1);border:1px solid rgba(0,255,170,0.25);color:var(--green);font-size:0.72rem;font-weight:700;padding:0.22rem 0.55rem;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;" title="Actualiser">&#8635;</button></div></div>
     <div class="traffic-badge" id="trafficBadge"><div class="tb-left">&#128202; Visiteurs aujourd hui</div><div class="tb-val" id="trafficVal">0</div></div>
-    <div class="stats-scroll" id="statsRow"></div>
+    <div class="home-stats-strip" id="statsRow" style="padding:0 0.8rem;"></div>
     <!-- ══ BOUTON GÉOLOCALISATION AVANCÉE ══ -->
     <button class="gps-nearby-btn" id="gpsNearbyBtn" onclick="openGeoMethodSheet()">
       <span class="gnb-icon" id="gnbIcon">&#128205;</span>
@@ -9136,35 +9140,34 @@ if (document.readyState === 'loading') {
       <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.15rem;color:var(--text);">💎 Nos <span style="color:var(--pink);">Formules</span></div>
       <div style="font-size:0.78rem;color:var(--muted);margin-top:0.3rem;">Choisissez la formule qui convient à votre établissement</div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:1.2rem;padding-top:0.6rem;">
+    <div style="overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:0.4rem 0.8rem 1.4rem;margin:0 -0.8rem 1.2rem;" id="plansScroll">
+      <div style="display:flex;gap:0.75rem;min-width:max-content;padding:0.4rem 0.2rem 0.2rem;">
       <!-- Mensuel -->
-      <div onclick="selectSubPlan('mensuel', document.querySelector('#subPlansGrid [data-plan=mensuel]')); document.getElementById('etablModal').classList.add('show');" style="background:rgba(255,215,0,0.06);border:2px solid rgba(255,215,0,0.2);border-radius:14px;padding:0.75rem 0.4rem;text-align:center;cursor:pointer;transition:transform 0.15s,box-shadow 0.15s;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform=''">
-        <div style="font-size:1.2rem;margin-bottom:0.2rem;">📅</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.75rem;color:var(--amber);margin-bottom:0.3rem;">Mensuel</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem;color:var(--text);line-height:1.1;">5 000</div>
-        <div style="font-size:0.55rem;color:var(--muted);margin-top:0.1rem;">XAF/mois</div>
-        <div style="font-size:0.55rem;color:var(--green);margin-top:0.25rem;">Flexible</div>
-        <div style="font-size:0.5rem;color:var(--amber);margin-top:0.4rem;font-weight:700;opacity:0.8;">Choisir →</div>
+      <div onclick="selectSubPlan('mensuel', document.querySelector('#subPlansGrid [data-plan=mensuel]')); document.getElementById('etablModal').classList.add('show');" style="background:rgba(255,215,0,0.06);border:2px solid rgba(255,215,0,0.2);border-radius:16px;padding:1rem 1.1rem;text-align:center;cursor:pointer;transition:transform 0.15s,box-shadow 0.15s;width:160px;flex-shrink:0;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform=''">
+        <div style="font-size:1.5rem;margin-bottom:0.35rem;">📅</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.88rem;color:var(--amber);margin-bottom:0.5rem;">Mensuel</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.35rem;color:var(--text);white-space:nowrap;">5 000 <span style="font-size:0.65rem;color:var(--muted);font-weight:500;">XAF/mois</span></div>
+        <div style="font-size:0.62rem;color:var(--green);margin-top:0.35rem;font-weight:700;">Flexible</div>
+        <div style="font-size:0.58rem;color:var(--amber);margin-top:0.5rem;font-weight:800;opacity:0.9;">Choisir →</div>
       </div>
       <!-- Trimestriel - Populaire -->
-      <div onclick="selectSubPlan('trimestriel', document.querySelector('#subPlansGrid [data-plan=trimestriel]')); document.getElementById('etablModal').classList.add('show');" style="background:rgba(255,45,155,0.08);border:2px solid rgba(255,45,155,0.4);border-radius:14px;padding:0.75rem 0.4rem;text-align:center;position:relative;cursor:pointer;transition:transform 0.15s;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform=''">
-        <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--pink);color:#000;font-size:0.48rem;font-weight:800;padding:0.12rem 0.4rem;border-radius:20px;white-space:nowrap;">⭐ POPULAIRE</div>
-        <div style="font-size:1.2rem;margin-bottom:0.2rem;">📆</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.75rem;color:var(--pink);margin-bottom:0.3rem;">Trimestriel</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem;color:var(--text);line-height:1.1;">12 000</div>
-        <div style="font-size:0.55rem;color:var(--muted);margin-top:0.1rem;">XAF/3 mois</div>
-        <div style="font-size:0.55rem;color:var(--green);margin-top:0.25rem;">-3 000 XAF</div>
-        <div style="font-size:0.5rem;color:var(--pink);margin-top:0.4rem;font-weight:700;opacity:0.8;">Choisir →</div>
+      <div onclick="selectSubPlan('trimestriel', document.querySelector('#subPlansGrid [data-plan=trimestriel]')); document.getElementById('etablModal').classList.add('show');" style="background:rgba(255,45,155,0.08);border:2px solid rgba(255,45,155,0.4);border-radius:16px;padding:1rem 1.1rem;text-align:center;position:relative;cursor:pointer;transition:transform 0.15s;width:160px;flex-shrink:0;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform=''">
+        <div style="position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:var(--pink);color:#000;font-size:0.52rem;font-weight:800;padding:0.14rem 0.55rem;border-radius:20px;white-space:nowrap;">⭐ POPULAIRE</div>
+        <div style="font-size:1.5rem;margin-bottom:0.35rem;">📆</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.88rem;color:var(--pink);margin-bottom:0.5rem;">Trimestriel</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.35rem;color:var(--text);white-space:nowrap;">12 000 <span style="font-size:0.65rem;color:var(--muted);font-weight:500;">XAF/3 mois</span></div>
+        <div style="font-size:0.62rem;color:var(--green);margin-top:0.35rem;font-weight:700;">-3 000 XAF</div>
+        <div style="font-size:0.58rem;color:var(--pink);margin-top:0.5rem;font-weight:800;opacity:0.9;">Choisir →</div>
       </div>
       <!-- Annuel - Best -->
-      <div onclick="selectSubPlan('annuel', document.querySelector('#subPlansGrid [data-plan=annuel]')); document.getElementById('etablModal').classList.add('show');" style="background:rgba(0,229,255,0.06);border:2px solid rgba(0,229,255,0.25);border-radius:14px;padding:0.75rem 0.4rem;text-align:center;position:relative;cursor:pointer;transition:transform 0.15s;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform=''">
-        <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--cyan);color:#000;font-size:0.48rem;font-weight:800;padding:0.12rem 0.4rem;border-radius:20px;white-space:nowrap;">🏆 BEST</div>
-        <div style="font-size:1.2rem;margin-bottom:0.2rem;">🗓️</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.75rem;color:var(--cyan);margin-bottom:0.3rem;">Annuel</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem;color:var(--text);line-height:1.1;">40 000</div>
-        <div style="font-size:0.55rem;color:var(--muted);margin-top:0.1rem;">XAF/an</div>
-        <div style="font-size:0.55rem;color:var(--green);margin-top:0.25rem;">-20 000 XAF</div>
-        <div style="font-size:0.5rem;color:var(--cyan);margin-top:0.4rem;font-weight:700;opacity:0.8;">Choisir →</div>
+      <div onclick="selectSubPlan('annuel', document.querySelector('#subPlansGrid [data-plan=annuel]')); document.getElementById('etablModal').classList.add('show');" style="background:rgba(0,229,255,0.06);border:2px solid rgba(0,229,255,0.25);border-radius:16px;padding:1rem 1.1rem;text-align:center;position:relative;cursor:pointer;transition:transform 0.15s;width:160px;flex-shrink:0;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform=''">
+        <div style="position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:var(--cyan);color:#000;font-size:0.52rem;font-weight:800;padding:0.14rem 0.55rem;border-radius:20px;white-space:nowrap;">🏆 BEST</div>
+        <div style="font-size:1.5rem;margin-bottom:0.35rem;">🗓️</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.88rem;color:var(--cyan);margin-bottom:0.5rem;">Annuel</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.35rem;color:var(--text);white-space:nowrap;">40 000 <span style="font-size:0.65rem;color:var(--muted);font-weight:500;">XAF/an</span></div>
+        <div style="font-size:0.62rem;color:var(--green);margin-top:0.35rem;font-weight:700;">-20 000 XAF</div>
+        <div style="font-size:0.58rem;color:var(--cyan);margin-top:0.5rem;font-weight:800;opacity:0.9;">Choisir →</div>
+      </div>
       </div>
     </div>
     <div id="payVisitor" style="margin-bottom:1rem;">
@@ -15978,9 +15981,15 @@ function renderStats(){
     var total=paiements.filter(function(p){return p.statut==="Confirme";}).reduce(function(s,p){return s+p.montant;},0);
     chips.push({val:total.toLocaleString("fr-FR")+" XAF",lbl:"Percu",cls:"sc-purple"});
   }
-  var html='<div class="stat-chip sc-pink"><div class="val">'+d.length+'</div><div class="lbl" style="line-height:1.3;">Lieux<br><span style="color:var(--green);font-weight:800;font-size:0.6rem;">'+actifs+' actifs</span></div></div>';
-  chips.forEach(function(c){
-    html+="<div class=\"stat-chip "+c.cls+"\"><div class=\"val\">"+c.val+"</div><div class=\"lbl\">"+c.lbl+"</div></div>";
+  var allChips=[
+    {val:d.length, lbl:'Lieux<br><span style="color:var(--green);font-weight:800;font-size:0.6rem;">'+actifs+' actifs</span>', cls:'hss-pink'},
+    {val:calmes,   lbl:'Calmes',  cls:'hss-amber'},
+    {val:animes,   lbl:'Animés',  cls:'hss-cyan'},
+    {val:bondes,   lbl:'Bondés',  cls:'hss-red'}
+  ];
+  var html='';
+  allChips.forEach(function(c){
+    html+='<div class="hss-chip '+c.cls+'" style="cursor:default;"><div class="hss-val">'+c.val+'</div><div class="hss-lbl" style="line-height:1.35;">'+c.lbl+'</div></div>';
   });
   document.getElementById("statsRow").innerHTML=html;
 }
