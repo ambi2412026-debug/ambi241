@@ -12979,6 +12979,48 @@ function getCatInfo(key){
   return CATEGORIES[0];
 }
 
+/* ── Icône spécifique au sous-type pour les badges dans les cartes liste ──
+   Hôtels : badge "H" pour hôtels, "M" pour motels
+   Restos  : 🎂 pour pâtisseries, SVG fourchette/assiette pour restos
+   Autres  : fallback sur getCatInfo standard
+*/
+function getCatInfoForEtab(e){
+  var base = getCatInfo(getCategory(e.type));
+  var t = (e.type||'').toLowerCase().trim();
+
+  // ── Hôtel vs Motel ──
+  if(base.key === 'Hotel'){
+    var isMotel = t.indexOf('motel') !== -1;
+    if(isMotel){
+      return {
+        key:'Hotel', badge:'cb-hotel',
+        label:'Motel',
+        icon:'<span style="display:inline-flex;align-items:center;justify-content:center;width:1.5em;height:1.5em;border-radius:4px;background:rgba(0,229,255,0.18);border:1.5px solid rgba(0,229,255,0.55);font-family:Syne,sans-serif;font-weight:900;font-size:0.85em;color:var(--cyan);line-height:1;vertical-align:middle;">M</span>'
+      };
+    } else {
+      return {
+        key:'Hotel', badge:'cb-hotel',
+        label:'Hôtel',
+        icon:'<span style="display:inline-flex;align-items:center;justify-content:center;width:1.5em;height:1.5em;border-radius:4px;background:rgba(0,229,255,0.18);border:1.5px solid rgba(0,229,255,0.55);font-family:Syne,sans-serif;font-weight:900;font-size:0.85em;color:var(--cyan);line-height:1;vertical-align:middle;">H</span>'
+      };
+    }
+  }
+
+  // ── Pâtisserie vs Restaurant ──
+  if(base.key === 'Restaurant'){
+    var isPat = t.indexOf('p\u00e2tisserie') !== -1 || t.indexOf('patisserie') !== -1 || t.indexOf('pastry') !== -1;
+    if(isPat){
+      return {
+        key:'Restaurant', badge:'cb-resto',
+        label:'Pâtisserie',
+        icon:'<span style="font-size:1.15em;vertical-align:middle;">🎂</span>'
+      };
+    }
+  }
+
+  return base;
+}
+
 // CLOCK
 function updateClock(){
   var now=new Date();
@@ -16835,7 +16877,7 @@ function buildLiveDispoBar(e, canManage){
 function buildCompactRow(e, rank, extraClass){
   extraClass = extraClass || "";
   var cat  = getCategory(e.type);
-  var ci   = getCatInfo(cat);
+  var ci   = getCatInfoForEtab(e);
   var sc   = computeRankScore(e);
   var aff  = e.affluence || 0;
   var st   = (e.statut || "").toLowerCase();
@@ -16953,7 +16995,7 @@ function buildCard(e,delay,compact,rank,extraClass){
   delay=delay||0;compact=compact||false;extraClass=extraClass||"";
   var sc=statusClass(e.statut);
   var cat=getCategory(e.type);
-  var ci=getCatInfo(cat);
+  var ci=getCatInfoForEtab(e);
   var aff=e.affluence||0;
   var affColor=aff>70?"var(--red)":aff>40?"var(--amber)":"var(--green)";
 
