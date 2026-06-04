@@ -14032,14 +14032,18 @@ function renderHomeImmediate(){
   if(statsEl){
     var actifs  = d.filter(function(e){ return e.paiement && e.paiement.indexOf("Actif") !== -1; }).length;
     var bondes  = d.filter(function(e){ return e.statut  && e.statut.indexOf("Bonde") !== -1;  }).length;
+    var animes  = d.filter(function(e){ return e.statut  && e.statut.indexOf("Anime") !== -1;  }).length;
     var calmes  = d.filter(function(e){ return e.statut  && e.statut.indexOf("Calme") !== -1;  }).length;
     var chips   = [
-      {val: d.length,  lbl: "Lieux",  cls: "hss-pink",  action: "switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);"},
-      {val: actifs,    lbl: "Actifs", cls: "hss-green", action: "window._filterOnSwitch={type:'all',status:'Anime'};switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);"},
-      {val: bondes,    lbl: "Bondés", cls: "hss-red",   action: "window._filterOnSwitch={type:'all',status:'Bonde'};switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);"},
-      {val: calmes,    lbl: "Calmes", cls: "hss-amber",  action: "window._filterOnSwitch={type:'all',status:'Calme'};switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);"}
+      {val: calmes, lbl: "Calmes", cls: "hss-amber", action: "window._filterOnSwitch={type:'all',status:'Calme'};switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);"},
+      {val: animes, lbl: "Animés", cls: "hss-cyan",  action: "window._filterOnSwitch={type:'all',status:'Anime'};switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);"},
+      {val: bondes, lbl: "Bondés", cls: "hss-red",   action: "window._filterOnSwitch={type:'all',status:'Bonde'};switchSection('etablissements',document.querySelectorAll('.nav-item')[1]);"}
     ];
-    statsEl.innerHTML = chips.map(function(c){
+    var lieuActifsChip = '<div class="hss-chip hss-pink" onclick="switchSection(\'etablissements\',document.querySelectorAll(\'.nav-item\')[1]);" style="cursor:pointer;transition:transform 0.15s,opacity 0.15s;" onmousedown="this.style.transform=\'scale(0.93)\'" onmouseup="this.style.transform=\'\'" ontouchstart="this.style.transform=\'scale(0.93)\'" ontouchend="this.style.transform=\'\'">'
+      + '<div class="hss-val">' + d.length + '</div>'
+      + '<div class="hss-lbl" style="line-height:1.3;">Lieux<br><span style="color:var(--green);font-weight:800;font-size:0.6rem;">' + actifs + ' actifs</span></div>'
+      + '</div>';
+    statsEl.innerHTML = lieuActifsChip + chips.map(function(c){
       return '<div class="hss-chip '+c.cls+'" onclick="'+c.action+'" style="cursor:pointer;transition:transform 0.15s,opacity 0.15s;" onmousedown="this.style.transform=\'scale(0.93)\'" onmouseup="this.style.transform=\'\'" ontouchstart="this.style.transform=\'scale(0.93)\'" ontouchend="this.style.transform=\'\'"><div class="hss-val">'+c.val+'</div><div class="hss-lbl">'+c.lbl+'</div></div>';
     }).join("");
   }
@@ -15957,18 +15961,18 @@ function renderStats(){
   var d=etablissements;if(!d.length)return;
   var actifs=d.filter(function(e){return e.paiement&&e.paiement.indexOf("Actif")!==-1;}).length;
   var bondes=d.filter(function(e){return e.statut&&e.statut.indexOf("Bonde")!==-1;}).length;
-  var avg=(d.reduce(function(s,e){return s+(e.note||0);},0)/d.length).toFixed(1);
+  var animes=d.filter(function(e){return e.statut&&e.statut.indexOf("Anime")!==-1;}).length;
+  var calmes=d.filter(function(e){return e.statut&&e.statut.indexOf("Calme")!==-1;}).length;
   var chips=[
-    {val:d.length,lbl:"Lieux",cls:"sc-pink"},
-    {val:actifs,lbl:"Actifs",cls:"sc-green"},
-    {val:bondes,lbl:"Bondes",cls:"sc-red"},
-    {val:avg+" &#9733;",lbl:"Note",cls:"sc-cyan"}
+    {val:calmes, lbl:"Calmes", cls:"sc-amber"},
+    {val:animes, lbl:"Animés", cls:"sc-cyan"},
+    {val:bondes, lbl:"Bondés", cls:"sc-red"}
   ];
   if(isAdmin){
     var total=paiements.filter(function(p){return p.statut==="Confirme";}).reduce(function(s,p){return s+p.montant;},0);
     chips.push({val:total.toLocaleString("fr-FR")+" XAF",lbl:"Percu",cls:"sc-purple"});
   }
-  var html="";
+  var html='<div class="stat-chip sc-pink"><div class="val">'+d.length+'</div><div class="lbl" style="line-height:1.3;">Lieux<br><span style="color:var(--green);font-weight:800;font-size:0.6rem;">'+actifs+' actifs</span></div></div>';
   chips.forEach(function(c){
     html+="<div class=\"stat-chip "+c.cls+"\"><div class=\"val\">"+c.val+"</div><div class=\"lbl\">"+c.lbl+"</div></div>";
   });
@@ -23792,13 +23796,11 @@ function switchAdmTab(tab){
         panel.style.height="";
         panel.style.overflow="";
       } else {
+        // Fix boutons fantômes sur Android — appliqué à TOUS les panels
         panel.style.display="none";
-        // Fix bouton "Lancer la recherche Google Maps" fantôme sur Android
-        if(t==="importgmaps"){
-          panel.style.visibility="hidden";
-          panel.style.height="0";
-          panel.style.overflow="hidden";
-        }
+        panel.style.visibility="hidden";
+        panel.style.height="0";
+        panel.style.overflow="hidden";
       }
     }
   });
@@ -38391,13 +38393,11 @@ window.switchAdmTab = function(tab){
         panel.style.height='';
         panel.style.overflow='';
       } else {
+        // Fix boutons fantômes sur Android — appliqué à TOUS les panels
         panel.style.display='none';
-        // Fix bouton "Lancer la recherche Google Maps" fantôme sur Android
-        if(t==='importgmaps'){
-          panel.style.visibility='hidden';
-          panel.style.height='0';
-          panel.style.overflow='hidden';
-        }
+        panel.style.visibility='hidden';
+        panel.style.height='0';
+        panel.style.overflow='hidden';
       }
     }
   });
@@ -52065,8 +52065,17 @@ window._lazyInitSection = function(name) {
       cb.type='checkbox';
       cb.id='dbl_cb_'+item.id;
       cb.style.cssText='accent-color:#ff4466;width:16px;height:16px;flex-shrink:0;cursor:pointer;';
-      if(!isFirst) cb.checked = !!_dblSelected[item.id]; // ne pré-cocher que les doublons (pas le premier)
+      if(isFirst){
+        // L'ORIGINAL ne doit jamais être sélectionné ni supprimé en masse
+        cb.disabled = true;
+        cb.checked = false;
+        cb.style.cssText='width:16px;height:16px;flex-shrink:0;cursor:not-allowed;opacity:0.3;';
+        cb.title = 'L\'original ne peut pas être supprimé en masse';
+      } else {
+        cb.checked = !!_dblSelected[item.id];
+      }
       cb.onchange = function(){
+        if(isFirst){ this.checked = false; return; } // sécurité supplémentaire
         if(this.checked) _dblSelected[item.id]=true;
         else delete _dblSelected[item.id];
         updateSelectedCount();
@@ -52132,6 +52141,8 @@ window._lazyInitSection = function(name) {
      FONCTION PRINCIPALE : Détecter les doublons
   ════════════════════════════════════════════════════════ */
   window.detectDoublonsEtabl = function(){
+    // Sécurité : uniquement accessible aux admins
+    if(!window.isAdmin){ console.warn('[AMBI241] detectDoublonsEtabl: accès refusé (non-admin)'); return; }
     var panel = $id('admpanel-doublons');
     if(!panel) return;
 
@@ -52219,6 +52230,7 @@ window._lazyInitSection = function(name) {
   window.dblSelectAllDuplicates = function(){
     var checkboxes = document.querySelectorAll('#dblGroupsList input[type=checkbox]');
     checkboxes.forEach(function(cb){
+      if(cb.disabled) return; // Ne pas sélectionner les originaux
       cb.checked = true;
       var id = cb.id.replace('dbl_cb_','');
       _dblSelected[id] = true;
@@ -52254,17 +52266,22 @@ window._lazyInitSection = function(name) {
 
   /* ── Supprimer tout un groupe (sauf le 1er — l'original) ── */
   window.dblDeleteGroup = function(groupName){
-    /* Trouver toutes les checkboxes du groupe et cocher les doublons */
-    var rows = document.querySelectorAll('#dblGroupsList input[type=checkbox]');
-    var groupIds = [];
-    rows.forEach(function(cb){
-      /* On identifie les doublons (ceux qui ont le badge DOUBLON, pas ORIGINAL) */
-      var row = cb.closest('div[style*="border-radius:9px"]');
-      if(row && row.innerHTML.indexOf('DOUBLON')!==-1){
-        var id = cb.id.replace('dbl_cb_','');
-        groupIds.push(id);
-      }
+    /* Trouver le groupe par son nom dans l'en-tête */
+    var allGroupDivs = document.querySelectorAll('#dblGroupsList > div');
+    var groupDiv = null;
+    allGroupDivs.forEach(function(d){
+      var titleEl = d.querySelector('span[style*="color:#ff4466"]');
+      if(titleEl && titleEl.textContent.trim() === groupName) groupDiv = d;
     });
+
+    var groupIds = [];
+    if(groupDiv){
+      groupDiv.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+        if(!cb.disabled){ // disabled = original, on ne le supprime pas
+          groupIds.push(cb.id.replace('dbl_cb_',''));
+        }
+      });
+    }
 
     if(groupIds.length === 0){
       alert('Aucun doublon à supprimer dans ce groupe (seul l\'original reste).');
