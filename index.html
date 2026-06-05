@@ -4642,13 +4642,16 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   font-weight: 800;
   color: var(--text);
   margin-bottom: 0.4rem;
+  text-align: center;
 }
 #profil-visitor-screen .pvs-sub {
   font-size: 0.82rem;
   color: var(--muted);
   margin-bottom: 1.8rem;
   line-height: 1.6;
+  text-align: center;
 }
+/* Cartes en colonne, hauteur uniforme via min-height */
 .pvs-cards { display: flex; flex-direction: column; gap: 0.85rem; }
 .pvs-card {
   background: var(--surface2);
@@ -4663,6 +4666,9 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   text-align: left;
   position: relative;
   overflow: hidden;
+  /* hauteur uniforme : les 3 cartes s'alignent quelle que soit la longueur du texte */
+  min-height: 96px;
+  box-sizing: border-box;
 }
 .pvs-card:active { transform: scale(0.97); }
 .pvs-card::before {
@@ -4680,7 +4686,7 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 .pvs-card.c-gerant  { border-color: rgba(255,45,155,0.25); }
 .pvs-card.c-gerant::before  { background: rgba(255,45,155,0.05); }
 .pvs-card-icon {
-  font-size: 2.4rem;
+  font-size: 2.2rem;
   flex-shrink: 0;
   width: 56px;
   height: 56px;
@@ -4692,13 +4698,17 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
 .pvs-card.c-membre  .pvs-card-icon { background: rgba(0,229,255,0.12); }
 .pvs-card.c-chauffeur .pvs-card-icon { background: rgba(255,215,0,0.12); }
 .pvs-card.c-gerant  .pvs-card-icon { background: rgba(255,45,155,0.12); }
-.pvs-card-body { flex: 1; }
+/* body prend tout l'espace restant, texte ne déborde plus */
+.pvs-card-body { flex: 1; min-width: 0; }
 .pvs-card-title {
   font-family: 'Syne', sans-serif;
   font-weight: 800;
   font-size: 1rem;
   color: var(--text);
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .pvs-card.c-membre  .pvs-card-title { color: #00e5ff; }
 .pvs-card.c-chauffeur .pvs-card-title { color: #ffd700; }
@@ -4707,6 +4717,9 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   font-size: 0.72rem;
   color: var(--muted);
   line-height: 1.5;
+  /* empêche le texte de déborder hors de la carte */
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 .pvs-card-arrow {
   font-size: 1.2rem;
@@ -4717,6 +4730,7 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   margin-top: 1.6rem;
   font-size: 0.78rem;
   color: var(--muted);
+  text-align: center;
 }
 .pvs-login-link button {
   background: none; border: none;
@@ -5874,12 +5888,16 @@ textarea.soc-input{resize:vertical;min-height:80px;line-height:1.5;}
 }
 .nav-item{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:0.15rem;padding:0.55rem 0.15rem 0.4rem;cursor:pointer;
-  color:var(--muted);font-size:0.5rem;font-weight:700;
-  text-transform:uppercase;letter-spacing:0.03em;
+  gap:0.15rem;padding:0.55rem 0.1rem 0.4rem;cursor:pointer;
+  color:var(--muted);font-size:0.48rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:0.02em;
   transition:color 0.12s, transform 0.1s;
   min-height:62px;min-width:0;
   text-align:center;line-height:1.1;overflow:hidden;
+  /* Empêche le texte de déborder */
+  white-space:nowrap;
+  text-overflow:ellipsis;
+  max-width:100%;
   /* Zone tactile élargie — comme les noms d'établissements cliquables */
   touch-action:manipulation;
   -webkit-touch-callout:none;
@@ -9178,35 +9196,35 @@ if (document.readyState === 'loading') {
       <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.15rem;color:var(--text);">💎 Nos <span style="color:var(--pink);">Formules</span></div>
       <div style="font-size:0.78rem;color:var(--muted);margin-top:0.3rem;">Choisissez la formule qui convient à votre établissement</div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:1.2rem;padding-top:0.6rem;">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.6rem;margin-bottom:1.2rem;padding-top:0.6rem;align-items:stretch;">
       <!-- Mensuel -->
-      <div onclick="selectSubPlan('mensuel', document.querySelector('#subPlansGrid [data-plan=mensuel]')); document.getElementById('etablModal').classList.add('show');" style="background:rgba(255,215,0,0.06);border:2px solid rgba(255,215,0,0.2);border-radius:14px;padding:0.75rem 0.4rem;text-align:center;cursor:pointer;transition:transform 0.15s,box-shadow 0.15s;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform=''">
+      <div onclick="selectSubPlan('mensuel', document.querySelector('#subPlansGrid [data-plan=mensuel]')); document.getElementById('etablModal').classList.add('show');" style="background:rgba(255,215,0,0.06);border:2px solid rgba(255,215,0,0.2);border-radius:14px;padding:0.8rem 0.5rem;text-align:center;cursor:pointer;transition:transform 0.15s,box-shadow 0.15s;display:flex;flex-direction:column;align-items:center;justify-content:space-between;min-height:148px;box-sizing:border-box;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform=''">
         <div style="font-size:1.2rem;margin-bottom:0.2rem;">📅</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.75rem;color:var(--amber);margin-bottom:0.3rem;">Mensuel</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.75rem;color:var(--amber);margin-bottom:0.25rem;">Mensuel</div>
         <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem;color:var(--text);line-height:1.1;">5 000</div>
         <div style="font-size:0.55rem;color:var(--muted);margin-top:0.1rem;">XAF/mois</div>
-        <div style="font-size:0.55rem;color:var(--green);margin-top:0.25rem;">Flexible</div>
-        <div style="font-size:0.5rem;color:var(--amber);margin-top:0.4rem;font-weight:700;opacity:0.8;">Choisir →</div>
+        <div style="font-size:0.55rem;color:var(--green);margin-top:0.2rem;">Flexible</div>
+        <div style="font-size:0.5rem;color:var(--amber);margin-top:0.35rem;font-weight:700;">Choisir →</div>
       </div>
       <!-- Trimestriel - Populaire -->
-      <div onclick="selectSubPlan('trimestriel', document.querySelector('#subPlansGrid [data-plan=trimestriel]')); document.getElementById('etablModal').classList.add('show');" style="background:rgba(255,45,155,0.08);border:2px solid rgba(255,45,155,0.4);border-radius:14px;padding:0.75rem 0.4rem;text-align:center;position:relative;cursor:pointer;transition:transform 0.15s;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform=''">
+      <div onclick="selectSubPlan('trimestriel', document.querySelector('#subPlansGrid [data-plan=trimestriel]')); document.getElementById('etablModal').classList.add('show');" style="background:rgba(255,45,155,0.08);border:2px solid rgba(255,45,155,0.4);border-radius:14px;padding:0.8rem 0.5rem;text-align:center;position:relative;cursor:pointer;transition:transform 0.15s;display:flex;flex-direction:column;align-items:center;justify-content:space-between;min-height:148px;box-sizing:border-box;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform=''">
         <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--pink);color:#000;font-size:0.48rem;font-weight:800;padding:0.12rem 0.4rem;border-radius:20px;white-space:nowrap;">⭐ POPULAIRE</div>
         <div style="font-size:1.2rem;margin-bottom:0.2rem;">📆</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.75rem;color:var(--pink);margin-bottom:0.3rem;">Trimestriel</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.75rem;color:var(--pink);margin-bottom:0.25rem;">Trimestriel</div>
         <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem;color:var(--text);line-height:1.1;">12 000</div>
         <div style="font-size:0.55rem;color:var(--muted);margin-top:0.1rem;">XAF/3 mois</div>
-        <div style="font-size:0.55rem;color:var(--green);margin-top:0.25rem;">-3 000 XAF</div>
-        <div style="font-size:0.5rem;color:var(--pink);margin-top:0.4rem;font-weight:700;opacity:0.8;">Choisir →</div>
+        <div style="font-size:0.55rem;color:var(--green);margin-top:0.2rem;">-3 000 XAF</div>
+        <div style="font-size:0.5rem;color:var(--pink);margin-top:0.35rem;font-weight:700;">Choisir →</div>
       </div>
       <!-- Annuel - Best -->
-      <div onclick="selectSubPlan('annuel', document.querySelector('#subPlansGrid [data-plan=annuel]')); document.getElementById('etablModal').classList.add('show');" style="background:rgba(0,229,255,0.06);border:2px solid rgba(0,229,255,0.25);border-radius:14px;padding:0.75rem 0.4rem;text-align:center;position:relative;cursor:pointer;transition:transform 0.15s;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform=''">
+      <div onclick="selectSubPlan('annuel', document.querySelector('#subPlansGrid [data-plan=annuel]')); document.getElementById('etablModal').classList.add('show');" style="background:rgba(0,229,255,0.06);border:2px solid rgba(0,229,255,0.25);border-radius:14px;padding:0.8rem 0.5rem;text-align:center;position:relative;cursor:pointer;transition:transform 0.15s;display:flex;flex-direction:column;align-items:center;justify-content:space-between;min-height:148px;box-sizing:border-box;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform=''">
         <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--cyan);color:#000;font-size:0.48rem;font-weight:800;padding:0.12rem 0.4rem;border-radius:20px;white-space:nowrap;">🏆 BEST</div>
         <div style="font-size:1.2rem;margin-bottom:0.2rem;">🗓️</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.75rem;color:var(--cyan);margin-bottom:0.3rem;">Annuel</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.75rem;color:var(--cyan);margin-bottom:0.25rem;">Annuel</div>
         <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem;color:var(--text);line-height:1.1;">40 000</div>
         <div style="font-size:0.55rem;color:var(--muted);margin-top:0.1rem;">XAF/an</div>
-        <div style="font-size:0.55rem;color:var(--green);margin-top:0.25rem;">-20 000 XAF</div>
-        <div style="font-size:0.5rem;color:var(--cyan);margin-top:0.4rem;font-weight:700;opacity:0.8;">Choisir →</div>
+        <div style="font-size:0.55rem;color:var(--green);margin-top:0.2rem;">-20 000 XAF</div>
+        <div style="font-size:0.5rem;color:var(--cyan);margin-top:0.35rem;font-weight:700;">Choisir →</div>
       </div>
     </div>
     <div id="payVisitor" style="margin-bottom:1rem;">
