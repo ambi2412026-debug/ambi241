@@ -9537,7 +9537,7 @@ if (document.readyState === 'loading') {
       <!-- FIN PANEL PUBLICATIONS MOD ═══════════════════════════ -->
 
       <!-- ══ PANEL IMPORT GOOGLE MAPS ══════════════════════════ -->
-      <div id="panelImportGMaps" style="display:none;visibility:hidden;overflow:hidden;height:0;animation:fadeUp 0.3s ease both;">
+      <div id="panelImportGMaps" style="display:none;width:100%;box-sizing:border-box;animation:fadeUp 0.3s ease both;">
 
         <!-- Steps -->
         <div class="igm-steps" id="igmSteps">
@@ -9620,12 +9620,7 @@ if (document.readyState === 'loading') {
                 <div class="igm-cat-name">Boîtes de Nuit</div>
                 <div class="igm-cat-count" id="igm-cnt-Discotheque">—</div>
               </div>
-                <div class="igm-cat-count" id="igm-cnt-Salle">—</div>
-              </div>
-                <div class="igm-cat-count" id="igm-cnt-Stade">—</div>
-              </div>
-                <div class="igm-cat-count" id="igm-cnt-Tourisme">—</div>
-              </div>
+
             </div>
             <button class="igm-btn igm-btn-primary" onclick="igmStartSearch()">🔍 Lancer la recherche OpenStreetMap</button>
           </div>
@@ -14640,17 +14635,7 @@ function switchAdminTab(tab){
   var igActive=tab==="importgmaps";
   if(btnIG){btnIG.style.background=igActive?"rgba(0,255,170,0.18)":"transparent";btnIG.style.color="var(--green)";btnIG.style.borderColor=igActive?"var(--green)":"rgba(0,255,170,0.45)";}
   if(panelIG){
-    if(igActive){
-      panelIG.style.display="block";
-      panelIG.style.visibility="visible";
-      panelIG.style.height="";
-      panelIG.style.overflow="";
-    } else {
-      panelIG.style.display="none";
-      panelIG.style.visibility="hidden";
-      panelIG.style.height="0";
-      panelIG.style.overflow="hidden";
-    }
+    panelIG.style.display = igActive ? "block" : "none";
   }
   if(igActive && !window._igmInited) igmInit();
   if(tab==="contacts") renderContactsAdmin();
@@ -20260,14 +20245,12 @@ window.updateNavLabels = updateNavLabels;
 
 // ── Navigation vers un établissement spécifique ─────────────────
 function goToEtab(id) {
-  // Si vue compacte : ouvrir la fiche complète directement
-  if(currentView === 'compact'){
-    var etab = etablissements.find(function(x){ return x.id === id || String(x.id) === String(id); });
-    if(etab && typeof window.openPublicProfile === 'function'){
-      switchSection('etablissements', document.querySelectorAll('.nav-item')[1]);
-      setTimeout(function(){ window.openPublicProfile('etablissement', id, etab); }, 200);
-      return;
-    }
+  // Si vue compacte : forcer vue liste pour afficher la fiche complète
+  if(currentView === 'compact' || currentView === 'carte'){
+    currentView = 'liste';
+    document.querySelectorAll('[data-view]').forEach(function(b){ b.classList.remove('active'); });
+    var listBtn = document.querySelector('[data-view="liste"]');
+    if(listBtn) listBtn.classList.add('active');
   }
   // 1. Aller sur la section Lieux
   switchSection('etablissements', document.querySelectorAll('.nav-item')[1]);
@@ -20292,7 +20275,7 @@ function goToEtab(id) {
       setTimeout(tryScroll, 100);
     }
   }
-  setTimeout(tryScroll, 250);
+  setTimeout(tryScroll, 300);
 }
 window.goToEtab = goToEtab;
 
@@ -40951,7 +40934,7 @@ function _renderView(type, id, rawData, profData) {
   }
   // Pour établissement: bouton voir fiche
   if(type === 'etablissement') {
-    actEl.innerHTML += '<button class="pp-btn pp-btn-sec" onclick="window.closePublicProfile();setTimeout(function(){if(typeof openFicheEtab===\'function\')openFicheEtab(' + id + ');},120);">🏠 Voir la fiche complète pour réservation</button>';
+    actEl.innerHTML += '<button class="pp-btn pp-btn-sec" onclick="window.closePublicProfile();setTimeout(function(){if(typeof goToEtab===\'function\')goToEtab(' + id + ');},180);">🏠 Voir la fiche complète pour réservation</button>';
     /* Rechargement réactif si la photo Google arrive après l'ouverture */
     if(!bannerSrc && rawData._gphoto_urls === undefined && typeof _gphotoEnqueue === 'function') {
       _gphotoEnqueue(rawData);
@@ -45954,7 +45937,7 @@ console.log('[AMBI241] ✅ Module publication & live chargé v2');
 
     var avatarStyle = 'background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1rem;color:#fff;';
     var avatarInner = (p.photoURL || p.authorPhoto)
-      ? '<img src="'+_esc(p.photoURL||p.authorPhoto)+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" onerror="this.parentNode.innerHTML=''+letter+'';this.parentNode.style.background='linear-gradient(135deg,var(--pink),var(--purple))'">'
+      ? '<img src="'+_esc(p.photoURL||p.authorPhoto)+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" onerror="this.parentNode.innerHTML=\''+letter+'\';this.parentNode.style.background=\'linear-gradient(135deg,var(--pink),var(--purple))\'">'
       : letter;
     return '<article class="socpub-card" data-pub-id="'+pid+'" data-type="'+_esc(p.type||'ambiance')+'">'
       +'<div class="socpub-card-header">'
@@ -50815,7 +50798,6 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
         if (modal && typeof window.openModal === 'function') {
           setTimeout(function() { window.openModal(modal); }, 500);
         }
-      });
     }
 
     console.log('[AMBI241] ✅ Routeur notifications → sections initialisé');
@@ -52949,7 +52931,7 @@ window._lazyInitSection = function(name) {
   function _timeAgo(ts){
     if(!ts) return '';
     var diff = Date.now() - ts;
-    if(diff < 60000) return 'À l'instant';
+    if(diff < 60000) return 'À l\'instant';
     if(diff < 3600000) return Math.floor(diff/60000)+'min';
     if(diff < 86400000) return Math.floor(diff/3600000)+'h';
     return Math.floor(diff/86400000)+'j';
@@ -53197,7 +53179,7 @@ window._lazyInitSection = function(name) {
     var lb = document.getElementById('forumDailyLimitBanner'); if(lb) lb.style.display='none';
     // Update type chips
     document.querySelectorAll('.forum-type-chip').forEach(function(c){ c.classList.remove('active'); });
-    var chip = document.querySelector('.forum-type-chip[onclick*="''+_fm.type+''"]');
+    var chip = document.querySelector('.forum-type-chip[onclick*="\''+_fm.type+'\'"]');
     if(chip) chip.classList.add('active');
     // Update counters
     _updateModalCounters();
