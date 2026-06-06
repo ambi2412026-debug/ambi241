@@ -18941,11 +18941,13 @@ function renderAllImmediate(){
           catHtml+="<div class=\"cards-list\">";
           groupSorted.forEach(function(e,i){
             globalRank++;
-            if(i === 0){
-              // N°1 de chaque catégorie : fiche complète visible
+            /* MODE SPOTLIGHT : si un établissement est en vedette (depuis "Voir la fiche complète"),
+               lui seul s'affiche en carte complète, tous les autres sont compactés */
+            var isSpotlight = (_spotlightEtabId !== null && String(e.id) === String(_spotlightEtabId));
+            var isN1 = (i === 0 && _spotlightEtabId === null);
+            if(isSpotlight || isN1){
               catHtml+=buildCard(e,i*0.04,false,globalRank);
             } else {
-              // Autres : ligne compacte — clic ouvre la fiche publique
               catHtml+=buildCompactRow(e,globalRank);
             }
           });
@@ -20353,6 +20355,10 @@ window.updateNavLabels = updateNavLabels;
 (function(){ setTimeout(updateNavLabels, 800); })();
 
 // ── Navigation vers un établissement spécifique ─────────────────
+/* ID de l'établissement actuellement "spotlight" dans la liste groupe */
+var _spotlightEtabId = null;
+window._spotlightEtabId = null;
+
 function goToEtab(id) {
   // Si vue compacte : forcer vue liste pour afficher la fiche complète
   if(currentView === 'compact' || currentView === 'carte'){
@@ -20366,7 +20372,7 @@ function goToEtab(id) {
   // 2. Après rendu, trouver la carte et scroller dessus
   var attempts = 0;
   function tryScroll() {
-    var el = document.getElementById('card-etab-' + id);
+    var el = document.getElementById('card-etab-' + id) || document.getElementById('cr-' + id);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       el.style.animation = 'none';
@@ -20387,6 +20393,88 @@ function goToEtab(id) {
   setTimeout(tryScroll, 300);
 }
 window.goToEtab = goToEtab;
+
+/* ─────────────────────────────────────────────────────────────────
+   goToEtabWithFiche(id)
+   Appelé depuis le bouton "Voir la fiche complète pour réservation"
+   dans le modal public profile.
+   Comportement :
+   1. Ferme le profil public
+   2. Bascule vers la vue "groupe" (par catégorie)
+   3. Ouvre le bottom-sheet ficheEtab avec tous les détails techniques
+   4. À la fermeture, la liste défile (scroll) sur la position de
+      l'établissement en mode "spotlight" :
+        – sa fiche est affichée en mode complet (buildCard)
+        – les autres sont en mode compact (buildCompactRow)
+      Un 2e clic sur le bouton "Fiche complète →" de la carte rouvre le sheet.
+───────────────────────────────────────────────────────────────── */
+window.goToEtabWithFiche = function(id) {
+  /* 1. Fermer le profil public */
+  if(typeof window.closePublicProfile === 'function') window.closePublicProfile();
+
+  /* 2. Activer la vue "groupe" (par catégorie) si besoin */
+  if(currentView === 'compact' || currentView === 'carte' || currentView === 'liste'){
+    currentView = 'groupe';
+    document.querySelectorAll('[data-view]').forEach(function(b){ b.classList.remove('active'); });
+    var gb = document.querySelector('[data-view="groupe"]');
+    if(gb) gb.classList.add('active');
+  }
+
+  /* 3. Mémoriser l'établissement en spotlight (utilisé par renderAllImmediate) */
+  _spotlightEtabId = id;
+  window._spotlightEtabId = id;
+
+  /* 4. Naviguer vers la section Lieux */
+  switchSection('etablissements', document.querySelectorAll('.nav-item')[1]);
+
+  /* 5. Ouvrir la fiche complète (bottom-sheet) après rendu */
+  var attempts = 0;
+  function tryOpenFiche() {
+    if(typeof window.openFicheEtab === 'function'){
+      window.openFicheEtab(id);
+      /* 6. Scroll sur la carte après ouverture de la fiche */
+      setTimeout(function(){
+        var el = document.getElementById('card-etab-' + id) || document.getElementById('cr-' + id);
+        if(el){
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.style.transition = 'box-shadow 0.3s ease';
+          el.style.boxShadow = '0 0 0 3px rgba(255,45,155,0.9), 0 12px 40px rgba(255,45,155,0.4)';
+          setTimeout(function(){
+            el.style.transition = 'box-shadow 1s ease';
+            el.style.boxShadow = '';
+          }, 2200);
+        }
+      }, 200);
+    } else if(attempts < 12){
+      attempts++;
+      setTimeout(tryOpenFiche, 150);
+    }
+  }
+  setTimeout(tryOpenFiche, 380);
+
+  /* 7. Quand la fiche est fermée, scroller sur la carte spotlight */
+  var _origClose = window.closeFicheEtab;
+  window.closeFicheEtab = function(){
+    if(typeof _origClose === 'function') _origClose();
+    /* Restaurer la fermeture d'origine */
+    window.closeFicheEtab = _origClose;
+    /* Scroll sur la carte après fermeture */
+    setTimeout(function(){
+      var el = document.getElementById('card-etab-' + id) || document.getElementById('cr-' + id);
+      if(el){
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.style.transition = 'box-shadow 0.3s ease, transform 0.2s ease';
+        el.style.boxShadow = '0 0 0 3px rgba(0,229,255,0.8), 0 8px 32px rgba(0,229,255,0.25)';
+        el.style.transform = 'scale(1.012)';
+        setTimeout(function(){
+          el.style.transition = 'box-shadow 1s ease, transform 1s ease';
+          el.style.boxShadow = '';
+          el.style.transform = '';
+        }, 2000);
+      }
+    }, 120);
+  };
+};
 
 /* ══════════════════════════════════════════════════════════════
    FICHE COMPLÈTE — Modal de présentation intégrale d'un établissement
@@ -20518,14 +20606,19 @@ window.openFicheEtab = function(id){
   /* ── Corps de la fiche ── */
   var h = '';
 
-  /* Stats */
+  /* Stats row */
   var note  = e.note  ? parseFloat(e.note).toFixed(1) : '—';
   var avis  = e.avis  || 0;
   var aff   = e.affluence ? e.affluence + '%' : '—';
+  var places = e.places || e.capacite || e.nb_places || null;
   h += '<div class="fiche-stat-row">';
   h += '<div class="fiche-stat"><div class="fiche-stat-val" style="color:var(--amber);">⭐ '+note+'</div><div class="fiche-stat-lbl">Note</div></div>';
-  h += '<div class="fiche-stat"><div class="fiche-stat-val" style="color:var(--cyan);">'+avis+'</div><div class="fiche-stat-lbl">Avis</div></div>';
-  h += '<div class="fiche-stat"><div class="fiche-stat-val" style="color:var(--green);">'+aff+'</div><div class="fiche-stat-lbl">Affluence</div></div>';
+  h += '<div class="fiche-stat"><div class="fiche-stat-val" style="color:var(--cyan);">'+aff+'</div><div class="fiche-stat-lbl">Affluence</div></div>';
+  if(places){
+    h += '<div class="fiche-stat"><div class="fiche-stat-val" style="color:var(--purple);">🪑 '+places+'</div><div class="fiche-stat-lbl">Places</div></div>';
+  } else {
+    h += '<div class="fiche-stat"><div class="fiche-stat-val" style="color:var(--text);">'+avis+'</div><div class="fiche-stat-lbl">Avis</div></div>';
+  }
   h += '</div>';
 
   /* Description */
@@ -20534,6 +20627,38 @@ window.openFicheEtab = function(id){
     h += '<div class="fiche-section-title">À propos</div>';
     h += '<div class="fiche-desc">'+escHtml(e.description)+'</div>';
     h += '</div>';
+  }
+
+  /* ── Détails techniques (ambiance, musique, dress code, VIP, places) ── */
+  var hasTech = e.ambiance || e.type_musique || e.musique || e.dress_code || e.dresscode ||
+                e.vip || e.vip_dispo || places || e.reservation || e.reservation_requise ||
+                e.prix_moyen || e.prix_entree || e.entree || e.happy_hour;
+  if(hasTech){
+    h += '<div class="fiche-section"><div class="fiche-section-title">🎯 Détails de l\'établissement</div>';
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.45rem;">';
+    var techItems = [];
+    if(places)                          techItems.push({icon:'🪑',lbl:'Capacité',val:places+' places'});
+    if(e.ambiance)                      techItems.push({icon:'✨',lbl:'Ambiance',val:e.ambiance});
+    var musVal = e.type_musique || e.musique;
+    if(musVal)                          techItems.push({icon:'🎵',lbl:'Musique',val:musVal});
+    var dcVal = e.dress_code || e.dresscode;
+    if(dcVal)                           techItems.push({icon:'👔',lbl:'Dress code',val:dcVal});
+    if(e.vip || e.vip_dispo)           techItems.push({icon:'🏆',lbl:'Espace VIP',val:e.vip||e.vip_dispo||'Disponible'});
+    var resaVal = e.reservation || e.reservation_requise;
+    if(resaVal)                         techItems.push({icon:'📞',lbl:'Réservation',val:typeof resaVal==='boolean'?'Requise':resaVal});
+    var prixVal = e.prix_moyen || e.prix_entree || e.entree;
+    if(prixVal)                         techItems.push({icon:'💰',lbl:'Prix / Entrée',val:prixVal});
+    if(e.happy_hour)                    techItems.push({icon:'🍹',lbl:'Happy hour',val:e.happy_hour});
+    techItems.forEach(function(item){
+      h += '<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:11px;padding:0.55rem 0.65rem;">';
+      h += '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.15rem;">'+item.icon+' '+escHtml(item.lbl)+'</div>';
+      h += '<div style="font-size:0.78rem;font-weight:700;color:var(--text);">'+escHtml(String(item.val))+'</div>';
+      h += '</div>';
+    });
+    h += '</div>';
+    /* Si aucun item dans la grille mais hasTech = true à cause de champs booléens */
+    if(techItems.length === 0) h = h.replace('<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.45rem;">','').replace('</div>','');
+    h += '</div></div>';
   }
 
   /* Infos pratiques */
@@ -20546,8 +20671,6 @@ window.openFicheEtab = function(id){
     h += '<div class="fiche-info-line"><span class="fiche-info-icon">💬</span><span class="fiche-info-val"><a href="https://wa.me/'+waNum+'?text='+waMsg+'" target="_blank">WhatsApp</a></span></div>';
   }
   if(e.horaires)    h += '<div class="fiche-info-line"><span class="fiche-info-icon">🕐</span><span class="fiche-info-val">'+escHtml(e.horaires)+'</span></div>';
-  if(e.entree||e.prix_entree) h += '<div class="fiche-info-line"><span class="fiche-info-icon">🎟️</span><span class="fiche-info-val">'+escHtml(e.entree||e.prix_entree||'')+'</span></div>';
-  if(e.ambiance)    h += '<div class="fiche-info-line"><span class="fiche-info-icon">✨</span><span class="fiche-info-val">'+escHtml(e.ambiance)+'</span></div>';
   if(e.type)        h += '<div class="fiche-info-line"><span class="fiche-info-icon">🏷️</span><span class="fiche-info-val">'+escHtml(e.type)+'</span></div>';
   h += '</div>';
 
@@ -20579,7 +20702,7 @@ window.openFicheEtab = function(id){
 
   /* Boutons d'action */
   var contact = e.contact||'';
-  var waUrl   = contact ? 'https://wa.me/'+(contact.replace(/\+/g,'').replace(/\s/g,''))+'?text='+encodeURIComponent('Bonjour '+e.nom+' (via AMBI241)') : '';
+  var waUrl   = contact ? 'https://wa.me/'+(contact.replace(/\+/g,'').replace(/\s/g,''))+'?text='+encodeURIComponent('Bonjour '+e.nom+' (via AMBI241) — Je souhaite faire une réservation') : '';
   var telUrl  = contact ? 'tel:'+contact : '';
   var _ficheRawUrl = e.maps_url || '';
   var _ficheOsmBroken = _ficheRawUrl && _ficheRawUrl.indexOf('place_id:osm') !== -1;
@@ -20588,12 +20711,17 @@ window.openFicheEtab = function(id){
     : (e.lat && e.lng)
       ? ('https://maps.google.com/?q=' + e.lat + ',' + e.lng + '&query=' + encodeURIComponent((e.nom||'') + ' Libreville'))
       : ('https://maps.google.com/?q=' + encodeURIComponent((e.nom||'') + ' ' + (e.quartier||'') + ' Libreville Gabon'));
-  h += '<div class="fiche-section"><div class="fiche-section-title">Contacts</div>';
+  h += '<div class="fiche-section"><div class="fiche-section-title">Contacts & Réservation</div>';
   h += '<div class="fiche-action-row">';
   if(waUrl)  h += '<a href="'+waUrl+'" target="_blank" class="fiche-btn fiche-btn-wa" style="border:1px solid;">💬 WhatsApp</a>';
   if(telUrl) h += '<a href="'+telUrl+'" class="fiche-btn fiche-btn-tel" style="border:1px solid;">📞 Appeler</a>';
   if(mapsUrl)h += '<a href="'+mapsUrl+'" target="_blank" class="fiche-btn fiche-btn-maps" style="border:1px solid;">📍 Maps</a>';
-  h += '</div></div>';
+  h += '</div>';
+  /* Bouton VIP réservation si disponible */
+  if(waUrl){
+    h += '<button onclick="closeFicheEtab();setTimeout(function(){var etab=window.etablissements&&window.etablissements.find(function(x){return x.id==='+e.id+';});if(etab&&typeof window._openReservSheet===\'function\')window._openReservSheet(etab);else if(typeof window.openReservationModal===\'function\')window.openReservationModal('+e.id+');},120);" style="margin-top:0.55rem;width:100%;background:linear-gradient(135deg,var(--pink),var(--purple));border:none;border-radius:12px;color:#fff;font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;padding:0.8rem;cursor:pointer;letter-spacing:0.02em;">🏠 Réserver une table / soirée VIP</button>';
+  }
+  h += '</div>';
 
   body.innerHTML = h;
   ov.classList.add('show');
@@ -41064,7 +41192,7 @@ function _renderView(type, id, rawData, profData) {
   }
   // Pour établissement: bouton voir fiche
   if(type === 'etablissement') {
-    actEl.innerHTML += '<button class="pp-btn pp-btn-sec" onclick="window.closePublicProfile();setTimeout(function(){if(typeof goToEtab===\'function\')goToEtab(' + id + ');},180);">🏠 Voir la fiche complète pour réservation</button>';
+    actEl.innerHTML += '<button class="pp-btn pp-btn-sec" onclick="if(typeof window.goToEtabWithFiche===\'function\')window.goToEtabWithFiche(' + id + ');else{window.closePublicProfile();setTimeout(function(){if(typeof goToEtab===\'function\')goToEtab(' + id + ');},180);}">🏠 Voir la fiche complète pour réservation</button>';
     /* Rechargement réactif si la photo Google arrive après l'ouverture */
     if(!bannerSrc && rawData._gphoto_urls === undefined && typeof _gphotoEnqueue === 'function') {
       _gphotoEnqueue(rawData);
