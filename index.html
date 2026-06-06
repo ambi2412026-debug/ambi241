@@ -28258,8 +28258,12 @@ window.doAssignEtab = doAssignEtab;
           <!-- ══ Enrichissement photos établissements existants ══ -->
           <div class="igm-panel" style="margin-top:0.75rem;border-color:rgba(204,68,255,0.25);">
             <div class="igm-panel-title" style="color:var(--purple);">🌐 Enrichir les photos existantes</div>
-            <div class="igm-panel-sub">Récupère automatiquement les photos Google Maps pour tous les établissements déjà dans Firebase qui n'ont pas encore de galerie photo.</div>
-            <button class="igm-btn igm-btn-outline igm-btn-sm" style="border-color:rgba(204,68,255,0.5);color:var(--purple);margin-top:0.5rem;" onclick="igm2AutoPhotoAll()">📸 Enrichir tous les établissements</button>
+            <div class="igm-panel-sub">Récupère automatiquement les photos Google Maps pour les établissements <strong>des catégories AMBI241</strong> (Bars, Restos, Hôtels, Clubs, Snacks, Bar Terrasses) qui n'ont pas encore de galerie photo. Les établissements hors-scope sont ignorés. <span style="color:var(--amber);font-weight:700;">⚡ Traitement en lots de 5 en parallèle.</span></div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
+              <button class="igm-btn igm-btn-outline igm-btn-sm" style="border-color:rgba(0,229,255,0.4);color:var(--cyan);" onclick="igm2CountAppEtab()">📊 Analyser Firebase</button>
+              <button class="igm-btn igm-btn-outline igm-btn-sm" style="border-color:rgba(204,68,255,0.5);color:var(--purple);" onclick="igm2AutoPhotoAll()">📸 Enrichir (nouveaux seulement)</button>
+              <button class="igm-btn igm-btn-outline igm-btn-sm" style="border-color:rgba(255,68,102,0.4);color:var(--red);" onclick="igm2AutoPhotoAll(true)">🔄 Forcer re-traitement total</button>
+            </div>
             <div id="igm2AutoPhotoAllStatus" class="igm-gallery-status" style="margin-top:0.5rem;"></div>
             <div id="igm2AutoPhotoProgress" style="display:none;margin-top:0.5rem;">
               <div class="igm-progress-wrap" style="margin-bottom:0.5rem;">
@@ -28267,7 +28271,7 @@ window.doAssignEtab = doAssignEtab;
                 <div class="igm-progress-label"><span id="igm2AutoPhotoPLabel">0%</span><span id="igm2AutoPhotoPDetail" style="color:var(--muted);font-size:0.62rem;"></span></div>
               </div>
             </div>
-            <div class="igm-log-wrap" id="igm2AutoPhotoLog" style="max-height:140px;margin-top:0.5rem;"></div>
+            <div class="igm-log-wrap" id="igm2AutoPhotoLog" style="max-height:180px;margin-top:0.5rem;"></div>
           </div>
 
         </div>
@@ -46539,71 +46543,111 @@ window.igm2AutoFetchAllPhotos = async function(){
   if(typeof renderHome === 'function') setTimeout(renderHome, 600);
 };
 
-/* Enrichir TOUS les établissements Firebase (y compris déjà enrichis si forcé) */
+/* Catégories valides de l'application AMBI241 */
+var AMBI_APP_CATEGORIES = ['Bar','Discotheque','Restaurant','Bar Terrasse','Snack','Hotel'];
+
+/* Vérifie si un établissement appartient aux catégories AMBI241 */
+function _ambiIsAppCategory(etab){
+  var type=(etab.type||'').trim();
+  if(!type)return false;
+  if(typeof getCategory==='function'){
+    return AMBI_APP_CATEGORIES.indexOf(getCategory(type))!==-1;
+  }
+  var t=type.toLowerCase();
+  var frags=['bar','lounge','pub','taverne','disco','nightclub','night club','club','restaurant','resto','pâtisserie','patisserie','brasserie','pizzeria','bistro','café','cafe','maquis','terrasse','rooftop','snack','hôtel','hotel','motel','résidence','residence','resort','lodge'];
+  for(var i=0;i<frags.length;i++){if(t.indexOf(frags[i])!==-1)return true;}
+  return false;
+}
+
+/* Analyse Firebase et affiche un résumé par catégorie */
+window.igm2CountAppEtab = async function(){
+  var statusEl=document.getElementById('igm2AutoPhotoAllStatus');
+  if(!statusEl)return;
+  if(!window.db||!window.fbGetDocs||!window.fbCollection){statusEl.innerHTML='<span style="color:var(--red);">❌ Firebase non disponible</span>';return;}
+  statusEl.innerHTML='<span style="color:var(--cyan);">⏳ Comptage en cours…</span>';
+  try{
+    var snap=await window.fbGetDocs(window.fbCollection(window.db,'etablissements'));
+    var total=0,appCat=0,enriched=0,toProcess=0;
+    var byCategory={};
+    AMBI_APP_CATEGORIES.forEach(function(c){byCategory[c]=0;});
+    snap.forEach(function(d){
+      var v=d.data();total++;
+      if(_ambiIsAppCategory(v)){
+        appCat++;
+        var cat=(typeof getCategory==='function')?getCategory(v.type||''):'Bar';
+        if(byCategory[cat]!==undefined)byCategory[cat]++;
+        if(v._gphoto_enriched&&v.gallery&&v.gallery.length){enriched++;}else{toProcess++;}
+      }
+    });
+    var icons={Bar:'🍺',Discotheque:'🪩',Restaurant:'🍽️','Bar Terrasse':'🌴',Snack:'🥤',Hotel:'🏨'};
+    var catList=AMBI_APP_CATEGORIES.filter(function(c){return byCategory[c]>0;}).map(function(c){
+      return '<span style="background:rgba(255,255,255,0.06);border-radius:6px;padding:2px 6px;font-size:0.65rem;">'+(icons[c]||'')+' '+c+' <strong>'+byCategory[c]+'</strong></span>';
+    }).join(' ');
+    statusEl.innerHTML='<div style="background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.2);border-radius:10px;padding:0.7rem 0.9rem;margin-top:0.5rem;">'
+      +'<div style="font-size:0.72rem;font-weight:700;color:var(--cyan);margin-bottom:0.4rem;">📊 Résumé Firebase</div>'
+      +'<div style="font-size:0.68rem;color:var(--muted);line-height:1.8;">'
+      +'• Total docs Firebase : <strong style="color:var(--text);">'+total+'</strong><br>'
+      +'• Catégories AMBI241 : <strong style="color:var(--green);">'+appCat+'</strong> <span style="color:var(--muted);font-size:0.62rem;">(hors scope ignorés : '+(total-appCat)+')</span><br>'
+      +'• Déjà enrichis : <strong style="color:var(--amber);">'+enriched+'</strong><br>'
+      +'• À traiter : <strong style="color:var(--pink);">'+toProcess+'</strong>'
+      +'</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:0.5rem;">'+catList+'</div>'
+      +'</div>';
+  }catch(e){statusEl.innerHTML='<span style="color:var(--red);">❌ Erreur : '+e.message+'</span>';}
+};
+
+/* Enrichir TOUS les établissements Firebase — filtré catégories AMBI241 + lots parallèles */
 window.igm2AutoPhotoAll = async function(forceAll){
-  if(!window.db || !window.fbGetDocs || !window.fbCollection){
-    _apStatus('❌ Firebase non disponible','err');
-    return;
-  }
-  // Ouvrir le panel
-  var panel = document.getElementById('igm2AutoPhotoPanel');
-  if(panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-  var w = document.getElementById('igm2AutoPhotoLog');
-  if(w) w.innerHTML = '';
-
-  _apStatus('<span style="color:var(--cyan);">⏳ Chargement de tous les établissements…</span>');
-  _apProg(2, 'Chargement…');
-
+  var BATCH_SIZE=5;
+  var BATCH_DELAY=120;
+  if(!window.db||!window.fbGetDocs||!window.fbCollection){_apStatus('❌ Firebase non disponible','err');return;}
+  var panel=document.getElementById('igm2AutoPhotoPanel');
+  if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});
+  var w=document.getElementById('igm2AutoPhotoLog');
+  if(w)w.innerHTML='';
+  _apStatus('<span style="color:var(--cyan);">⏳ Chargement des établissements AMBI241…</span>');
+  _apProg(2,'Chargement Firebase…');
   var snap;
-  try {
-    snap = await window.fbGetDocs(window.fbCollection(window.db,'etablissements'));
-  } catch(e){
-    _apStatus('❌ Erreur Firebase : ' + e.message,'err');
-    return;
-  }
-
-  var docs = [];
+  try{snap=await window.fbGetDocs(window.fbCollection(window.db,'etablissements'));}
+  catch(e){_apStatus('❌ Erreur Firebase : '+e.message,'err');return;}
+  var docs=[],skipped=0;
   snap.forEach(function(d){
-    var v = d.data();
-    if(forceAll || !v._gphoto_enriched || !v.gallery || !v.gallery.length){
-      docs.push({ firestoreId: d.id, etab: Object.assign({}, v, {id: v.id||d.id}) });
+    var v=d.data();
+    if(!_ambiIsAppCategory(v)){skipped++;return;}
+    if(forceAll||!v._gphoto_enriched||!v.gallery||!v.gallery.length){
+      docs.push({firestoreId:d.id,etab:Object.assign({},v,{id:v.id||d.id})});
     }
   });
-
   if(!docs.length){
-    _apLog('✅ Tous les établissements ont déjà leurs photos.','ok');
-    _apStatus('✅ Photos déjà à jour.','ok');
+    _apLog('✅ Tous les établissements AMBI241 ont déjà leurs photos.','ok');
+    _apStatus('✅ Photos déjà à jour pour tous les établissements de l\'app.','ok');
     return;
   }
-
-  _apLog('🌐 ' + docs.length + ' établissement(s) à traiter (Text Search + Photos API)…');
-  var ok = 0, noPhoto = 0, err = 0;
-
-  for(var i = 0; i < docs.length; i++){
-    var item = docs[i];
-    _apProg(Math.round(((i) / docs.length) * 100), (i+1) + '/' + docs.length);
-    _apLog('  → ' + (item.etab.nom || item.firestoreId));
-
-    await new Promise(function(resolve){
-      _apEnrichOne(item.etab, item.firestoreId, function(result){
-        if(result === 'ok'){ ok++; _apLog('  ✅ Photos importées','ok'); }
-        else if(result === 'no_photos'){ noPhoto++; _apLog('  📷 Photo admin par défaut','warn'); }
-        else { err++; _apLog('  ❌ Erreur','err'); }
-        resolve();
+  _apLog('🎯 Filtre actif : catégories AMBI241 · <strong>'+docs.length+'</strong> à traiter · <span style="color:var(--muted);">'+skipped+' hors-scope ignorés</span>');
+  _apLog('⚡ Traitement en lots de '+BATCH_SIZE+' · délai '+BATCH_DELAY+'ms entre lots');
+  var ok=0,noPhoto=0,err=0,total=docs.length;
+  for(var i=0;i<total;i+=BATCH_SIZE){
+    var batch=docs.slice(i,Math.min(i+BATCH_SIZE,total));
+    _apProg(Math.round((i/total)*100),(i+1)+'–'+Math.min(i+BATCH_SIZE,total)+'/'+total);
+    await Promise.all(batch.map(function(item){
+      return new Promise(function(resolve){
+        _apLog('  → '+(item.etab.nom||item.firestoreId));
+        _apEnrichOne(item.etab,item.firestoreId,function(result){
+          if(result==='ok'){ok++;_apLog('  ✅ '+(item.etab.nom||'?')+' — photos importées','ok');}
+          else if(result==='no_photos'){noPhoto++;_apLog('  📷 '+(item.etab.nom||'?')+' — photo admin par défaut','warn');}
+          else{err++;_apLog('  ❌ '+(item.etab.nom||'?')+' — erreur','err');}
+          resolve();
+        });
       });
-    });
-    // Délai respectueux des quotas Google (500ms pour Text Search + Photos)
-    await new Promise(function(r){ setTimeout(r, 500); });
+    }));
+    if(i+BATCH_SIZE<total)await new Promise(function(r){setTimeout(r,BATCH_DELAY);});
   }
-
-  _apProg(100, 'Terminé !');
-  var summary = '✅ ' + ok + ' enrichis · 📷 ' + noPhoto + ' photo admin · ❌ ' + err + ' erreur(s)';
-  _apLog('🎉 ' + summary,'ok');
-  _apStatus(summary,'ok');
-
-  if(typeof renderAll === 'function') setTimeout(renderAll, 500);
-  if(typeof renderHome === 'function') setTimeout(renderHome, 600);
+  _apProg(100,'Terminé !');
+  _apLog('🎉 Terminé : <strong>'+ok+'</strong> enrichis · '+noPhoto+' sans photos Google · '+err+' erreur(s)','ok');
+  _apStatus('✅ '+ok+' établissement(s) enrichis · <span style="color:var(--muted);">'+skipped+' hors-scope ignorés</span>','ok');
+  if(typeof renderAll==='function')setTimeout(renderAll,500);
+  if(typeof renderHome==='function')setTimeout(renderHome,600);
+  if(typeof igm2CountAppEtab==='function')setTimeout(igm2CountAppEtab,800);
 };
 
 console.log('[AMBI241] ✅ Module Auto-Photos Google Maps — chargé');
