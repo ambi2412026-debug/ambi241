@@ -2742,12 +2742,14 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .inscrire-big-btn{display:block;width:100%;padding:0.75rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--pink),var(--cyan));color:#000;font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;text-align:center;text-decoration:none;box-shadow:0 4px 20px rgba(255,45,155,0.3);}
 
 /* STATS */
-.stats-scroll{display:flex;gap:0.7rem;overflow-x:auto;padding-bottom:0.5rem;margin-bottom:1.2rem;scrollbar-width:none;}
+.stats-scroll{display:grid;grid-template-columns:repeat(4,1fr);gap:0.5rem;margin-bottom:1.2rem;padding:0 1rem;}
 .stats-scroll::-webkit-scrollbar{display:none;}
-.stat-chip{flex-shrink:0;border-radius:14px;padding:0.8rem 1rem;min-width:95px;backdrop-filter:blur(10px);}
-.stat-chip .val{font-family:'Syne',sans-serif;font-weight:800;font-size:1.15rem;}
-.stat-chip .lbl{font-size:0.6rem;text-transform:uppercase;letter-spacing:0.06em;margin-top:0.15rem;opacity:0.8;}
+.stat-chip{border-radius:12px;padding:0.7rem 0.4rem;text-align:center;cursor:pointer;transition:transform 0.15s,border-color 0.2s,box-shadow 0.2s;-webkit-tap-highlight-color:transparent;user-select:none;border:1px solid rgba(255,255,255,0.07);}
+.stat-chip:active{transform:scale(0.93);opacity:0.8;}
+.stat-chip .val{font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem;line-height:1;}
+.stat-chip .lbl{font-size:0.52rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-top:0.2rem;}
 .sc-pink{background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.25);}.sc-pink .val{color:var(--pink);}
+.sc-amber{background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.22);}.sc-amber .val{color:var(--amber);}
 .sc-green{background:rgba(0,255,170,0.1);border:1px solid rgba(0,255,170,0.2);}.sc-green .val{color:var(--green);}
 .sc-red{background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.2);}.sc-red .val{color:var(--red);}
 .sc-cyan{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.2);}.sc-cyan .val{color:var(--cyan);}
@@ -9189,41 +9191,70 @@ if (document.readyState === 'loading') {
   <!-- SEC: PAIEMENTS -->
   <div id="sec-paiements" class="section-hidden">
     <!-- Grille des formules d'abonnement -->
-    <div style="text-align:center;margin-bottom:1.2rem;">
+    <div style="text-align:center;margin-bottom:1.4rem;">
       <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.15rem;color:var(--text);">💎 Nos <span style="color:var(--pink);">Formules</span></div>
       <div style="font-size:0.78rem;color:var(--muted);margin-top:0.3rem;">Choisissez la formule qui convient à votre établissement</div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.6rem;margin-bottom:1.2rem;padding-top:0.6rem;align-items:stretch;">
+    <!-- CSS cartes formules — centré, taille réduite, aucun débordement -->
+    <style>
+    .plan-wrap{display:flex;justify-content:center;padding:0 1rem;margin-bottom:1.4rem;}
+    .plan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;width:100%;max-width:340px;padding-top:0.9rem;align-items:stretch;}
+    .plan-card{position:relative;border-radius:14px;padding:0.85rem 0.3rem 0.75rem;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:0.15rem;box-sizing:border-box;overflow:hidden;transition:transform 0.15s;-webkit-tap-highlight-color:transparent;user-select:none;min-width:0;}
+    .plan-card:active{transform:scale(0.95);}
+    .plan-card-m{background:rgba(255,215,0,0.07);border:2px solid rgba(255,215,0,0.3);}
+    .plan-card-t{background:rgba(255,45,155,0.09);border:2px solid rgba(255,45,155,0.45);}
+    .plan-card-a{background:rgba(0,229,255,0.07);border:2px solid rgba(0,229,255,0.32);}
+    .plan-badge{position:absolute;top:-1px;left:0;right:0;font-size:0.42rem;font-weight:800;padding:0.1rem 0;text-align:center;white-space:nowrap;letter-spacing:0.04em;color:#000;width:100%;}
+    .plan-icon{font-size:1.1rem;line-height:1;margin-top:0.55rem;}
+    .plan-name{font-family:'Syne',sans-serif;font-weight:800;font-size:0.68rem;line-height:1.1;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .plan-name-m{color:var(--amber);}
+    .plan-name-t{color:var(--pink);}
+    .plan-name-a{color:var(--cyan);}
+    .plan-amount{font-family:'Syne',sans-serif;font-weight:900;font-size:1rem;color:var(--text);line-height:1.05;width:100%;text-align:center;word-break:break-all;}
+    .plan-unit{font-size:0.48rem;color:var(--muted);font-weight:400;white-space:nowrap;}
+    .plan-saving{font-size:0.46rem;font-weight:700;color:var(--green);white-space:nowrap;}
+    .plan-cta{font-size:0.48rem;font-weight:800;margin-top:0.15rem;}
+    .plan-cta-m{color:var(--amber);}
+    .plan-cta-t{color:var(--pink);}
+    .plan-cta-a{color:var(--cyan);}
+    </style>
+    <div class="plan-wrap"><div class="plan-grid">
       <!-- Mensuel -->
-      <div onclick="selectSubPlan('mensuel', document.querySelector('#subPlansGrid [data-plan=mensuel]')); document.getElementById('etablModal').classList.add('show');" style="background:rgba(255,215,0,0.06);border:2px solid rgba(255,215,0,0.2);border-radius:14px;padding:0.8rem 0.5rem;text-align:center;cursor:pointer;transition:transform 0.15s,box-shadow 0.15s;display:flex;flex-direction:column;align-items:center;justify-content:space-between;min-height:148px;box-sizing:border-box;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform=''">
-        <div style="font-size:1.2rem;margin-bottom:0.2rem;">📅</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.75rem;color:var(--amber);margin-bottom:0.25rem;">Mensuel</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem;color:var(--text);line-height:1.1;">5 000</div>
-        <div style="font-size:0.55rem;color:var(--muted);margin-top:0.1rem;">XAF/mois</div>
-        <div style="font-size:0.55rem;color:var(--green);margin-top:0.2rem;">Flexible</div>
-        <div style="font-size:0.5rem;color:var(--amber);margin-top:0.35rem;font-weight:700;">Choisir →</div>
+      <div class="plan-card plan-card-m"
+           onclick="selectSubPlan('mensuel', document.querySelector('#subPlansGrid [data-plan=mensuel]')); document.getElementById('etablModal').classList.add('show');"
+           ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform=''">
+        <div class="plan-icon">📅</div>
+        <div class="plan-name plan-name-m">Mensuel</div>
+        <div class="plan-amount">5 000</div>
+        <div class="plan-unit">XAF / mois</div>
+        <div class="plan-saving">Flexible</div>
+        <div class="plan-cta plan-cta-m">Choisir →</div>
       </div>
       <!-- Trimestriel - Populaire -->
-      <div onclick="selectSubPlan('trimestriel', document.querySelector('#subPlansGrid [data-plan=trimestriel]')); document.getElementById('etablModal').classList.add('show');" style="background:rgba(255,45,155,0.08);border:2px solid rgba(255,45,155,0.4);border-radius:14px;padding:0.8rem 0.5rem;text-align:center;position:relative;cursor:pointer;transition:transform 0.15s;display:flex;flex-direction:column;align-items:center;justify-content:space-between;min-height:148px;box-sizing:border-box;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform=''">
-        <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--pink);color:#000;font-size:0.48rem;font-weight:800;padding:0.12rem 0.4rem;border-radius:20px;white-space:nowrap;">⭐ POPULAIRE</div>
-        <div style="font-size:1.2rem;margin-bottom:0.2rem;">📆</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.75rem;color:var(--pink);margin-bottom:0.25rem;">Trimestriel</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem;color:var(--text);line-height:1.1;">12 000</div>
-        <div style="font-size:0.55rem;color:var(--muted);margin-top:0.1rem;">XAF/3 mois</div>
-        <div style="font-size:0.55rem;color:var(--green);margin-top:0.2rem;">-3 000 XAF</div>
-        <div style="font-size:0.5rem;color:var(--pink);margin-top:0.35rem;font-weight:700;">Choisir →</div>
+      <div class="plan-card plan-card-t"
+           onclick="selectSubPlan('trimestriel', document.querySelector('#subPlansGrid [data-plan=trimestriel]')); document.getElementById('etablModal').classList.add('show');"
+           ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform=''">
+        <div class="plan-badge" style="background:var(--pink);">⭐ POPULAIRE</div>
+        <div class="plan-icon">📆</div>
+        <div class="plan-name plan-name-t">Trimestriel</div>
+        <div class="plan-amount">12 000</div>
+        <div class="plan-unit">XAF / 3 mois</div>
+        <div class="plan-saving">−3 000 XAF</div>
+        <div class="plan-cta plan-cta-t">Choisir →</div>
       </div>
       <!-- Annuel - Best -->
-      <div onclick="selectSubPlan('annuel', document.querySelector('#subPlansGrid [data-plan=annuel]')); document.getElementById('etablModal').classList.add('show');" style="background:rgba(0,229,255,0.06);border:2px solid rgba(0,229,255,0.25);border-radius:14px;padding:0.8rem 0.5rem;text-align:center;position:relative;cursor:pointer;transition:transform 0.15s;display:flex;flex-direction:column;align-items:center;justify-content:space-between;min-height:148px;box-sizing:border-box;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform=''">
-        <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--cyan);color:#000;font-size:0.48rem;font-weight:800;padding:0.12rem 0.4rem;border-radius:20px;white-space:nowrap;">🏆 BEST</div>
-        <div style="font-size:1.2rem;margin-bottom:0.2rem;">🗓️</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.75rem;color:var(--cyan);margin-bottom:0.25rem;">Annuel</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem;color:var(--text);line-height:1.1;">40 000</div>
-        <div style="font-size:0.55rem;color:var(--muted);margin-top:0.1rem;">XAF/an</div>
-        <div style="font-size:0.55rem;color:var(--green);margin-top:0.2rem;">-20 000 XAF</div>
-        <div style="font-size:0.5rem;color:var(--cyan);margin-top:0.35rem;font-weight:700;">Choisir →</div>
+      <div class="plan-card plan-card-a"
+           onclick="selectSubPlan('annuel', document.querySelector('#subPlansGrid [data-plan=annuel]')); document.getElementById('etablModal').classList.add('show');"
+           ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform=''">
+        <div class="plan-badge" style="background:var(--cyan);">🏆 BEST</div>
+        <div class="plan-icon">🗓️</div>
+        <div class="plan-name plan-name-a">Annuel</div>
+        <div class="plan-amount">40 000</div>
+        <div class="plan-unit">XAF / an</div>
+        <div class="plan-saving">−20 000 XAF</div>
+        <div class="plan-cta plan-cta-a">Choisir →</div>
       </div>
-    </div>
+    </div></div>
     <div id="payVisitor" style="margin-bottom:1rem;">
       <div style="background:rgba(0,255,170,0.06);border:1px solid rgba(0,255,170,0.15);border-radius:14px;padding:1.2rem;margin-bottom:0.8rem;">
         <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:var(--green);margin-bottom:0.6rem;">&#10003; Ce qui est inclus (toutes formules)</div>
@@ -13586,6 +13617,12 @@ window.resetCycleClassement = resetCycleClassement;
 (function(){ loadRankWeights(); })();
 
 function getDefaults(){
+  /* IMPORTANT : Les données réelles sont dans Firebase (1028+ lieux).
+     Retourne [] pour ne jamais afficher les anciennes 65 entrées statiques.
+     Si Firebase est indisponible, l'app affichera un tableau vide. */
+  return [];
+}
+function _getDefaultsLegacy_DISABLED(){
   return [
     // Établissements réels vérifiés via Google Places (place_id + coordonnées GPS)
     {id:9,nom:"Yoka_Lounge",type:"Discotheque",quartier:"Centre-ville",ambiance:"Festif",statut:"",note:0,avis:0,contact:"+241 77 46 11 46",paiement:"En attente",affluence:0,lat:0.4399067,lng:9.4178608,place_id:"ChIJdX05QME7fxAR2Pvl8RHwxhM",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJdX05QME7fxAR2Pvl8RHwxhM",photo_interieur:"",photo_exterieur:""},
@@ -13788,8 +13825,17 @@ function triggerPhotoPermUpload(){
    Évite un aller-retour Firestore à chaque ouverture de l'app.
    Sur réseau 3G Libreville (~300ms RTT), gain de ~600-900ms.
    ══════════════════════════════════════════════════════════════ */
-var _ETAB_CACHE_KEY = 'ambi241_etab_cache_v3';
+var _ETAB_CACHE_KEY = 'ambi241_etab_cache_v4'; // v4 : invalide tous les anciens caches (65 lieux)
 var _ETAB_CACHE_TTL = 30 * 1000; // 30 secondes — Firestore remplace rapidement
+
+/* ── Purge automatique des anciennes clés cache (v1/v2/v3) au démarrage ── */
+(function _purgeOldEtabCaches(){
+  try {
+    ['ambi241_etab_cache_v1','ambi241_etab_cache_v2','ambi241_etab_cache_v3'].forEach(function(k){
+      if(localStorage.getItem(k)) localStorage.removeItem(k);
+    });
+  } catch(e) {}
+})();
 
 function _saveEtabCache(data) {
   try {
@@ -16019,7 +16065,7 @@ function closeFullscreenPhoto(){
   }
 }
 
-// RENDER STATS
+// RENDER STATS — grid 4 colonnes identique à l'accueil (Lieux / Calmes / Animés / Bondés)
 function renderStats(){
   var d=etablissements;if(!d.length)return;
   var actifs=d.filter(function(e){return e.paiement&&e.paiement.indexOf("Actif")!==-1;}).length;
@@ -16027,20 +16073,20 @@ function renderStats(){
   var animes=d.filter(function(e){return e.statut&&e.statut.indexOf("Anime")!==-1;}).length;
   var calmes=d.filter(function(e){return e.statut&&e.statut.indexOf("Calme")!==-1;}).length;
   var chips=[
-    {val:calmes, lbl:"Calmes", cls:"sc-amber"},
-    {val:animes, lbl:"Animés", cls:"sc-cyan"},
-    {val:bondes, lbl:"Bondés", cls:"sc-red"}
+    {val:calmes, lbl:"Calmes", cls:"sc-amber", filter:"Calme"},
+    {val:animes, lbl:"Animés", cls:"sc-cyan",  filter:"Anime"},
+    {val:bondes, lbl:"Bondés", cls:"sc-red",   filter:"Bonde"}
   ];
-  if(isAdmin){
-    var total=paiements.filter(function(p){return p.statut==="Confirme";}).reduce(function(s,p){return s+p.montant;},0);
-    chips.push({val:total.toLocaleString("fr-FR")+" XAF",lbl:"Percu",cls:"sc-purple"});
-  }
-  var html='<div class="stat-chip sc-pink"><div class="val">'+d.length+'</div><div class="lbl" style="line-height:1.3;">Lieux<br><span style="color:var(--green);font-weight:800;font-size:0.6rem;">'+actifs+' actifs</span></div></div>';
+  var touch='ontouchstart="this.style.transform=\'scale(0.93)\'" ontouchend="this.style.transform=\'\'"';
+  var html='<div class="stat-chip sc-pink" style="cursor:pointer;" '+touch+'><div class="val">'+d.length+'</div>'
+    +'<div class="lbl" style="line-height:1.3;">Lieux<br><span style="color:var(--green);font-weight:800;font-size:0.55rem;">'+actifs+' ACTIFS</span></div></div>';
   chips.forEach(function(c){
-    html+="<div class=\"stat-chip "+c.cls+"\"><div class=\"val\">"+c.val+"</div><div class=\"lbl\">"+c.lbl+"</div></div>";
+    html+='<div class="stat-chip '+c.cls+'" onclick="window._filterOnSwitch={type:\'all\',status:\''+c.filter+'\'};" style="cursor:pointer;" '+touch+'>'
+      +'<div class="val">'+c.val+'</div><div class="lbl">'+c.lbl+'</div></div>';
   });
   document.getElementById("statsRow").innerHTML=html;
 }
+
 
 // FILTER DATA
 function estPaiementConfirme(etab){
