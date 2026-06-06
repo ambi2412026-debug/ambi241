@@ -12567,6 +12567,7 @@ window.renderMeteoSoireeHtml = renderMeteoSoireeHtml;
 
 // Démarrage + refresh automatique (90 min) — pause quand onglet invisible
 var _meteoIntervalId = null;
+var _meteoInitDone = false; // garde contre double appel
 function _startMeteoInterval() {
   if (_meteoIntervalId) return;
   _meteoIntervalId = setInterval(function(){
@@ -12574,6 +12575,8 @@ function _startMeteoInterval() {
   }, METEO_CACHE_TTL);
 }
 function initMeteo() {
+  if (_meteoInitDone) return; // déjà initialisé — évite double intervalle/listener
+  _meteoInitDone = true;
   fetchMeteo(false);
   _startMeteoInterval();
   // Page Visibility API : refresh uniquement quand l'onglet redevient actif ET que le cache est périmé
@@ -25265,11 +25268,16 @@ function renderAdmPayments(){
 
   html += "</div>"; /* fin barre actions */
 
-  /* ── KPIs ── */
-  html += "<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:1rem;'>";
-  html += "<div class='adm-kpi'><div class='kv' style='color:var(--green);'>"+confirmed.length+"</div><div class='kl'>Confirmés</div></div>";
-  html += "<div class='adm-kpi'><div class='kv' style='color:var(--amber);'>"+pending.length+"</div><div class='kl'>En attente</div></div>";
-  html += "<div class='adm-kpi'><div class='kv' style='color:var(--cyan);font-size:0.85rem;'>"+rev.toLocaleString('fr-FR')+" XAF</div><div class='kl'>Revenus</div></div>";
+  /* ── KPIs synchronisés avec page Accueil/Lieux (4 cellules, mêmes chiffres) ── */
+  var _d = etablissements;
+  var _bondes  = _d.filter(function(e){ return e.statut && e.statut.indexOf('Bonde') !== -1; }).length;
+  var _animes  = _d.filter(function(e){ return e.statut && e.statut.indexOf('Anime') !== -1; }).length;
+  var _calmes  = _d.filter(function(e){ return e.statut && e.statut.indexOf('Calme') !== -1; }).length;
+  html += "<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:0.45rem;margin-bottom:1rem;'>";
+  html += "<div class='stat-chip sc-pink'><div class='val'>"+_d.length+"</div><div class='lbl' style='line-height:1.3;'>Lieux<br><span style='color:var(--green);font-weight:800;font-size:0.5rem;'>"+_d.length+" ACTIFS</span></div></div>";
+  html += "<div class='stat-chip sc-amber'><div class='val'>"+_calmes+"</div><div class='lbl'>Calmes</div></div>";
+  html += "<div class='stat-chip sc-cyan'><div class='val'>"+_animes+"</div><div class='lbl'>Animés</div></div>";
+  html += "<div class='stat-chip sc-red'><div class='val'>"+_bondes+"</div><div class='lbl'>Bondés</div></div>";
   html += "</div>";
 
   /* ── Alertes abonnements expirants ── */
