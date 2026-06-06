@@ -14524,14 +14524,38 @@ function goToTypeFilter(type){
       de cette catégorie (trié par score décroissant)
 ══════════════════════════════════════════════════════════════ */
 function goToTop6Etab(id, cat){
-  // Appliquer le filtre de type AVANT le changement de section
-  window._filterOnSwitch = { type: cat || 'all', status: 'all' };
-  // Basculer en vue groupe (troisième mode) : N°1 fiche complète, reste compact
-  currentView = 'groupe';
+  // 1. Vue compacte (liste triee par score = Image 2)
+  currentView = 'compact';
   document.querySelectorAll('[data-view]').forEach(function(b){ b.classList.remove('active'); });
-  var groupeBtn = document.querySelector('[data-view="groupe"]');
-  if(groupeBtn) groupeBtn.classList.add('active');
+  var compactBtn = document.querySelector('[data-view="compact"]');
+  if(compactBtn) compactBtn.classList.add('active');
+
+  // 2. Filtre categorie + memoriser le spotlight AVANT switchSection
+  window._filterOnSwitch = { type: cat || 'all', status: 'all' };
+  _spotlightEtabId = id;
+  window._spotlightEtabId = id;
+
+  // 3. Naviguer vers Lieux (declenche renderAll avec le filtre)
   switchSection('etablissements', document.querySelectorAll('.nav-item')[1]);
+
+  // 4. Apres rendu : ouvrir le profil public de l'etab clique (Image 3)
+  var _att = 0;
+  function _tryOpen(){
+    var etab = etablissements.find(function(x){ return String(x.id) === String(id); });
+    if(typeof window.openPublicProfile === 'function' && etab){
+      window.openPublicProfile('etablissement', id, etab);
+    } else if(typeof window.openPublicProfile === 'function' && !etab && _att < 15){
+      _att++;
+      setTimeout(_tryOpen, 120);
+    } else if(typeof window.openEtab === 'function' && etab){
+      window.openEtab(id);
+    } else if(_att < 15){
+      _att++;
+      setTimeout(_tryOpen, 120);
+    }
+  }
+  setTimeout(_tryOpen, 350);
+
   window.scrollTo(0, 0);
 }
 window.goToTop6Etab = goToTop6Etab;
@@ -19020,14 +19044,31 @@ function renderAllImmediate(){
     // GPS actif → trier par distance d'abord + classe proche
     if(gpsActive) data = sortGpsData(data);
     var PROX_KM_C = (gpsActive && typeof _gpsState !== "undefined") ? (_gpsState.radius >= 999 ? 3 : _gpsState.radius) : 0;
+
+    // SPOTLIGHT (depuis Top du moment) : remonter l'etab en N°1, l'afficher en fiche complete
+    var _spId = _spotlightEtabId;
+    if(_spId !== null){
+      var _spIdx = data.findIndex(function(e){ return String(e.id) === String(_spId); });
+      if(_spIdx > 0){ var _spEtab = data.splice(_spIdx,1)[0]; data.unshift(_spEtab); }
+    }
+
     // PERF PATCH : afficher _VIRT_INIT items, sentinel charge la suite (sauf si GPS actif)
     var _compactSlice = gpsActive ? data : data.slice(0, _VIRT_INIT);
     html+="<div class=\"compact-list\">";
     _compactSlice.forEach(function(e,i){
       var _ec = (gpsActive && typeof e._distKm === "number" && e._distKm <= PROX_KM_C) ? "card-prox-near" : "";
-      html+=buildCompactRow(e,i+1,_ec);
+      if(_spId !== null && String(e.id) === String(_spId)){
+        html += buildCard(e, 0, false, 1);
+      } else {
+        html += buildCompactRow(e, i+1, _ec);
+      }
     });
     html+="</div>";
+
+    // Reinitialiser spotlight apres consommation
+    _spotlightEtabId = null;
+    window._spotlightEtabId = null;
+
     if(!gpsActive && data.length > _VIRT_INIT){
       window._virtPendingCompact = { data: data, from: _VIRT_INIT };
     }
