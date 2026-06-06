@@ -24366,7 +24366,7 @@ window.closeAdminDashboard=closeAdminDashboard;
 
 function switchAdmTab(tab){
   _currentAdmTab=tab;
-  var tabs=["overview","etabl","users","notifs","payments","connexions","settings","reservations","classement","support","content","appconfig","importgmaps","qrvotes","doublons"];
+  var tabs=["overview","etabl","users","notifs","payments","connexions","settings","reservations","classement","support","content","appconfig","importgmaps"];
   tabs.forEach(function(t){
     var btn=document.getElementById("admtab-"+t);
     var panel=document.getElementById("admpanel-"+t);
@@ -24406,39 +24406,6 @@ function switchAdmTab(tab){
   else if(tab==="content") { if(typeof window.renderAdmContent==="function") window.renderAdmContent(); }
   else if(tab==="appconfig") { if(typeof window.renderAdmAppConfig==="function") window.renderAdmAppConfig(0); }
   else if(tab==="importgmaps") { if(!window._igm2Inited) igm2Init(); }
-  else if(tab==="qrvotes") {
-    var _qrListO = document.getElementById('qrAdminVotesList');
-    if(_qrListO) _qrListO.innerHTML = '<div style="text-align:center;padding:1rem;font-size:0.72rem;color:rgba(255,240,248,0.4);">⏳ Chargement des votes…</div>';
-    /* FIX: forcer visibilité panel + dashboard avant chargement */
-    var _qrPanel = document.getElementById('admpanel-qrvotes');
-    if(_qrPanel){ _qrPanel.style.display='block'; _qrPanel.style.visibility='visible'; }
-    var _qrDash = document.getElementById('ambiQrAdminDashboard');
-    if(_qrDash){ _qrDash.style.display='block'; _qrDash.style.visibility='visible'; }
-    function _loadQrWithRetry(attempt){
-      attempt = attempt || 0;
-      if(typeof ambiQrLoadAdminVotes==="function"){
-        ambiQrLoadAdminVotes();
-        if(!window.db && attempt < 5) setTimeout(function(){ _loadQrWithRetry(attempt+1); }, 800);
-      } else if(attempt < 8){
-        setTimeout(function(){ _loadQrWithRetry(attempt+1); }, 400);
-      }
-    }
-    setTimeout(function(){ _loadQrWithRetry(0); }, 150);
-  }
-  else if(tab==="doublons") {
-    /* FIX: forcer visibilité panel AVANT d'appeler detectDoublonsEtabl */
-    var _dblPanel = document.getElementById('admpanel-doublons');
-    if(_dblPanel){ _dblPanel.style.display='block'; _dblPanel.style.visibility='visible'; }
-    function _loadDoublonsWithRetry(attempt){
-      attempt = attempt || 0;
-      if(typeof detectDoublonsEtabl==="function"){
-        detectDoublonsEtabl();
-      } else if(attempt < 8){
-        setTimeout(function(){ _loadDoublonsWithRetry(attempt+1); }, 400);
-      }
-    }
-    setTimeout(function(){ _loadDoublonsWithRetry(0); }, 150);
-  }
 }
 window.switchAdmTab=switchAdmTab;
 window.openAdminAddModal=openAdminAddModal;
@@ -27932,8 +27899,7 @@ window.doAssignEtab = doAssignEtab;
       <button class="adm-tab"        id="admtab-content"       onclick="switchAdmTab('content');setTimeout(function(){if(typeof window.renderAdmContent==='function'&&document.getElementById('adminContentPanel').innerHTML.indexOf('Chargement')!==-1)window.renderAdmContent(0);},200);">📋 Contenu</button>
       <button class="adm-tab"        id="admtab-support"       onclick="switchAdmTab('support')" style="position:relative;">💬 Support<span id="admSupportBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:#fff;font-size:0.5rem;font-weight:800;width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center;border:1px solid var(--bg);"></span></button>
       <button class="adm-tab"        id="admtab-importgmaps"   onclick="switchAdmTab('importgmaps')" style="color:var(--green);">🗺️ Import Maps</button>
-      <button class="adm-tab"        id="admtab-qrvotes"       onclick="switchAdmTab('qrvotes');setTimeout(function(){if(typeof ambiQrLoadAdminVotes==='function')ambiQrLoadAdminVotes();},200);" style="color:var(--cyan);">📱 Votes QR</button>
-      <button class="adm-tab"        id="admtab-doublons"      onclick="switchAdmTab('doublons');setTimeout(function(){if(typeof detectDoublonsEtabl==='function')detectDoublonsEtabl();},200);" style="color:#ff4466;position:relative;">🔁 Doublons<span id="admDoublonsBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:#fff;font-size:0.5rem;font-weight:800;width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center;border:1px solid var(--bg);"></span></button>
+
     </div>
 
     <!-- ── Contenu des panneaux ── -->
@@ -28092,21 +28058,21 @@ window.doAssignEtab = doAssignEtab;
       <div id="admpanel-settings" class="adm-panel" style="display:none;">
         <div id="adminSettingsContent">Chargement...</div>
 
-        <!-- ══ DÉTECTION DOUBLONS — Renvoi vers onglet dédié ══ -->
+        <!-- ══ DÉTECTION DOUBLONS — Modal intégré ══ -->
         <div style="margin-top:1.8rem;border-top:1px solid rgba(255,68,102,0.2);padding-top:1.5rem;">
           <div style="background:rgba(255,68,102,0.06);border:1.5px solid rgba(255,68,102,0.25);border-radius:16px;padding:1.1rem 1.2rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
             <div style="font-size:2rem;flex-shrink:0;">🔁</div>
             <div style="flex:1;min-width:0;">
               <div style="font-family:'Syne',sans-serif;font-size:0.92rem;font-weight:800;color:#ff4466;margin-bottom:0.2rem;">Détection des doublons</div>
-              <div style="font-size:0.68rem;color:var(--muted);line-height:1.5;">L'outil de détection et suppression des établissements en double est disponible dans l'onglet dédié.</div>
+              <div style="font-size:0.68rem;color:var(--muted);line-height:1.5;">Détectez et supprimez les établissements en double directement ici.</div>
             </div>
-            <button onclick="switchAdmTab('doublons');setTimeout(function(){if(typeof detectDoublonsEtabl==='function')detectDoublonsEtabl();},200);"
+            <button onclick="openDoublonsModal();"
               style="flex-shrink:0;padding:0.55rem 1rem;border-radius:10px;border:1.5px solid rgba(255,68,102,0.5);background:rgba(255,68,102,0.12);color:#ff4466;font-family:'Syne',sans-serif;font-weight:800;font-size:0.75rem;cursor:pointer;white-space:nowrap;transition:all 0.2s;">
-              🔁 Aller aux Doublons →
+              🔁 Détecter les doublons
             </button>
           </div>
         </div>
-        <!-- FIN DOUBLONS — Renvoi ══ -->
+        <!-- FIN DOUBLONS ══ -->
 
       </div>
 
@@ -28271,93 +28237,8 @@ window.doAssignEtab = doAssignEtab;
       </div>
       <!-- FIN Import Google Maps ══ -->
 
-      <!-- ══ Votes QR Code — Temps Réel ══ -->
-      <div id="admpanel-qrvotes" class="adm-panel" style="display:none;">
-        <div id="ambiQrAdminDashboard" class="qr-adm-dashboard">
-  <div class="qr-adm-dashboard-title">
-    <span>📱 Votes QR — Tableau de bord</span>
-    <button class="qr-adm-refresh-btn" onclick="ambiQrRefreshAdminVotes()">🔄 Actualiser</button>
-  </div>
 
-  <!-- KPIs globaux -->
-  <div class="qr-adm-kpi-row">
-    <div class="qr-adm-kpi">
-      <div class="qr-adm-kpi-val" id="qrAdmKpiTotal">—</div>
-      <div class="qr-adm-kpi-lbl">Votes total</div>
-    </div>
-    <div class="qr-adm-kpi">
-      <div class="qr-adm-kpi-val" id="qrAdmKpiPos" style="color:#00ffaa;">—</div>
-      <div class="qr-adm-kpi-lbl">👍 Positifs</div>
-    </div>
-    <div class="qr-adm-kpi">
-      <div class="qr-adm-kpi-val" id="qrAdmKpiEtabs" style="color:#cc44ff;">—</div>
-      <div class="qr-adm-kpi-lbl">Établissements votés</div>
-    </div>
-  </div>
 
-  <!-- Classement par votes QR -->
-  <div class="qr-adm-section-title">🏆 Classement par votes QR (ce mois)</div>
-  <div id="qrAdminVotesList">
-    <div style="text-align:center;padding:1rem;font-size:0.72rem;color:rgba(255,240,248,0.3);">Chargement…</div>
-  </div>
-
-  <!-- Votes récents en temps réel -->
-  <div class="qr-adm-section-title">⏱ Votes récents (temps réel)</div>
-  <div class="qr-adm-recent-votes" id="qrAdmRecentVotes">
-    <div style="text-align:center;padding:0.5rem;font-size:0.68rem;color:rgba(255,240,248,0.3);">Aucun vote récent</div>
-  </div>
-
-  <!-- Actions admin -->
-  <div class="qr-adm-action-row">
-    <button class="qr-adm-action-btn primary" onclick="ambiQrAdmExportCSV()">📊 Export CSV</button>
-    <button class="qr-adm-action-btn" onclick="ambiQrAdmResetMonth()">🗑 Reset mois</button>
-    <button class="qr-adm-action-btn" onclick="ambiQrAdmForceReclassement()">🔄 Recalc. classement</button>
-  </div>
-</div>
-      </div>
-      <!-- FIN Votes QR ══ -->
-
-      <!-- ══ Doublons Établissements ══ -->
-      <div id="admpanel-doublons" class="adm-panel" style="display:none;">
-        <div style="margin-bottom:1.2rem;">
-          <div style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:#ff4466;display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem;">
-            🔁 Détection des doublons
-          </div>
-          <div style="font-size:0.72rem;color:var(--muted);line-height:1.5;">
-            Liste les établissements ayant le <strong style="color:var(--text)">même nom</strong> (insensible à la casse). Supprimez les doublons individuellement ou en groupe.
-          </div>
-        </div>
-
-        <!-- KPI row -->
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-bottom:1rem;">
-          <div class="adm-kpi"><div class="kv" id="dblKpiTotal" style="color:var(--cyan);">—</div><div class="kl">Total établ.</div></div>
-          <div class="adm-kpi"><div class="kv" id="dblKpiGroups" style="color:#ff4466;">—</div><div class="kl">Groupes doublons</div></div>
-          <div class="adm-kpi"><div class="kv" id="dblKpiCount" style="color:var(--amber);">—</div><div class="kl">Entrées en double</div></div>
-        </div>
-
-        <!-- Actions globales -->
-        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
-          <button onclick="detectDoublonsEtabl()" style="flex:1;min-width:120px;padding:0.6rem 0.8rem;border-radius:10px;border:1.5px solid rgba(0,229,255,0.4);background:rgba(0,229,255,0.08);color:var(--cyan);font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;transition:all 0.2s;">🔍 Actualiser</button>
-          <button onclick="dblSelectAllDuplicates()" style="flex:1;min-width:120px;padding:0.6rem 0.8rem;border-radius:10px;border:1.5px solid rgba(255,215,0,0.4);background:rgba(255,215,0,0.08);color:var(--amber);font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;transition:all 0.2s;">☑️ Tout sélectionner</button>
-          <button onclick="dblDeleteSelected()" id="dblBtnDeleteSelected" style="flex:1;min-width:140px;padding:0.6rem 0.8rem;border-radius:10px;border:1.5px solid rgba(255,68,102,0.5);background:rgba(255,68,102,0.12);color:#ff4466;font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;transition:all 0.2s;">🗑️ Supprimer sélectionnés (<span id="dblSelectedCount">0</span>)</button>
-        </div>
-
-        <!-- Loader -->
-        <div id="dblLoader" style="display:none;text-align:center;padding:2rem;color:var(--muted);font-size:0.82rem;">
-          <div style="font-size:1.8rem;margin-bottom:0.5rem;">⏳</div>Analyse en cours…
-        </div>
-
-        <!-- Pas de doublons -->
-        <div id="dblEmpty" style="display:none;text-align:center;padding:2.5rem 1rem;background:rgba(0,255,170,0.05);border:1px solid rgba(0,255,170,0.2);border-radius:16px;">
-          <div style="font-size:2rem;margin-bottom:0.5rem;">✅</div>
-          <div style="font-family:'Syne',sans-serif;font-weight:800;color:var(--green);margin-bottom:0.3rem;">Aucun doublon trouvé</div>
-          <div style="font-size:0.72rem;color:var(--muted);">Tous les établissements ont des noms uniques.</div>
-        </div>
-
-        <!-- Liste des groupes de doublons -->
-        <div id="dblGroupsList"></div>
-      </div>
-      <!-- FIN Doublons ══ -->
 
     </div><!-- /adm-content -->
   </div><!-- /adminDashPanel -->
@@ -39050,7 +38931,7 @@ window.switchAdmTab = function(tab){
   window._currentAdmTab = tab;
   try{ _currentAdmTab = tab; }catch(e){}
   // Gérer les nouveaux panels
-  var allTabs = ["overview","etabl","users","notifs","payments","connexions","settings","reservations","classement","support","content","appconfig","importgmaps","qrvotes","doublons"];
+  var allTabs = ["overview","etabl","users","notifs","payments","connexions","settings","reservations","classement","support","content","appconfig","importgmaps"];
   allTabs.forEach(function(t){
     var btn   = document.getElementById('admtab-'+t);
     var panel = document.getElementById('admpanel-'+t);
@@ -39075,42 +38956,6 @@ window.switchAdmTab = function(tab){
   }
   if(tab === 'appconfig'){
     renderAdmAppConfig(0);
-    return;
-  }
-  if(tab === 'qrvotes'){
-    /* FIX: forcer visibilité panel + dashboard avant chargement */
-    var _qrPanel = document.getElementById('admpanel-qrvotes');
-    if(_qrPanel){ _qrPanel.style.display='block'; _qrPanel.style.visibility='visible'; _qrPanel.style.height=''; _qrPanel.style.overflow=''; }
-    var _qrDash = document.getElementById('ambiQrAdminDashboard');
-    if(_qrDash){ _qrDash.style.display='block'; _qrDash.style.visibility='visible'; }
-    var _qrList = document.getElementById('qrAdminVotesList');
-    var _qrKpiT = document.getElementById('qrAdmKpiTotal');
-    var _qrKpiP = document.getElementById('qrAdmKpiPos');
-    var _qrKpiE = document.getElementById('qrAdmKpiEtabs');
-    if(_qrList) _qrList.innerHTML = '<div style="text-align:center;padding:1rem;font-size:0.72rem;color:rgba(255,240,248,0.4);">⏳ Chargement des votes…</div>';
-    if(_qrKpiT) _qrKpiT.textContent = '…';
-    if(_qrKpiP) _qrKpiP.textContent = '…';
-    if(_qrKpiE) _qrKpiE.textContent = '…';
-    var _qrRetry = 0;
-    var _qrTryLoad = function(){
-      _qrRetry++;
-      if(typeof ambiQrLoadAdminVotes === 'function') ambiQrLoadAdminVotes();
-      if(!window.db && _qrRetry < 6) setTimeout(_qrTryLoad, 600);
-    };
-    setTimeout(_qrTryLoad, 150);
-    return;
-  }
-  if(tab === 'doublons'){
-    /* FIX: forcer visibilité panel AVANT detectDoublonsEtabl */
-    var _dblPanel = document.getElementById('admpanel-doublons');
-    if(_dblPanel){ _dblPanel.style.display='block'; _dblPanel.style.visibility='visible'; _dblPanel.style.height=''; _dblPanel.style.overflow=''; }
-    var _dblRetry = 0;
-    var _dblTryLoad = function(){
-      _dblRetry++;
-      if(typeof detectDoublonsEtabl === 'function') detectDoublonsEtabl();
-      else if(_dblRetry < 8) setTimeout(_dblTryLoad, 400);
-    };
-    setTimeout(_dblTryLoad, 150);
     return;
   }
   _origSwitchAdmTab(tab);
@@ -53124,7 +52969,8 @@ window._lazyInitSection = function(name) {
   window.detectDoublonsEtabl = function(){
     // Sécurité : uniquement accessible aux admins
     if(!window.isAdmin){ console.warn('[AMBI241] detectDoublonsEtabl: accès refusé (non-admin)'); return; }
-    var panel = $id('admpanel-doublons');
+    /* Le panel est maintenant dans le modal doublons */
+    var panel = document.getElementById('doublonsModalBody') || document.getElementById('admpanel-doublons');
     if(!panel) return;
 
     if(!window.db || !window.fbCollection || !window.fbGetDocs){
@@ -54819,4 +54665,59 @@ setTimeout(_ambiBootClocks, 3000);
 
 console.log("[AMBI241] ✅ Système abonnement premium — compte à rebours chargé");
 })();
+</script>
+
+<!-- ══ MODAL DOUBLONS STANDALONE ══ -->
+<div id="doublonsModal" style="display:none;position:fixed;inset:0;z-index:9995;background:rgba(0,0,0,0.88);backdrop-filter:blur(14px);align-items:flex-end;justify-content:center;">
+  <div style="background:linear-gradient(145deg,#1e0a30,#230d35);border:1.5px solid rgba(255,68,102,0.35);border-radius:24px 24px 0 0;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;padding-bottom:env(safe-area-inset-bottom,12px);">
+    <!-- Header -->
+    <div style="position:sticky;top:0;z-index:2;background:#1e0a30;padding:1rem 1.2rem 0.8rem;border-bottom:1px solid rgba(255,68,102,0.2);display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:#ff4466;display:flex;align-items:center;gap:0.5rem;">🔁 Détection des doublons</div>
+      <button onclick="closeDoublonsModal()" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);color:#b088c0;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+    <!-- Body -->
+    <div id="doublonsModalBody" style="padding:1rem 1.2rem;">
+      <!-- KPI row -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-bottom:1rem;">
+        <div class="adm-kpi"><div class="kv" id="dblKpiTotal" style="color:var(--cyan);">—</div><div class="kl">Total établ.</div></div>
+        <div class="adm-kpi"><div class="kv" id="dblKpiGroups" style="color:#ff4466;">—</div><div class="kl">Groupes doublons</div></div>
+        <div class="adm-kpi"><div class="kv" id="dblKpiCount" style="color:var(--amber);">—</div><div class="kl">Entrées en double</div></div>
+      </div>
+      <!-- Actions globales -->
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <button onclick="detectDoublonsEtabl()" style="flex:1;min-width:120px;padding:0.6rem 0.8rem;border-radius:10px;border:1.5px solid rgba(0,229,255,0.4);background:rgba(0,229,255,0.08);color:var(--cyan);font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;">🔍 Actualiser</button>
+        <button onclick="dblSelectAllDuplicates()" style="flex:1;min-width:120px;padding:0.6rem 0.8rem;border-radius:10px;border:1.5px solid rgba(255,215,0,0.4);background:rgba(255,215,0,0.08);color:var(--amber);font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;">☑️ Tout sélectionner</button>
+        <button onclick="dblDeleteSelected()" id="dblBtnDeleteSelected" style="flex:1;min-width:140px;padding:0.6rem 0.8rem;border-radius:10px;border:1.5px solid rgba(255,68,102,0.5);background:rgba(255,68,102,0.12);color:#ff4466;font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;">🗑️ Supprimer sélectionnés (<span id="dblSelectedCount">0</span>)</button>
+      </div>
+      <!-- Loader -->
+      <div id="dblLoader" style="display:none;text-align:center;padding:2rem;color:var(--muted);font-size:0.82rem;"><div style="font-size:1.8rem;margin-bottom:0.5rem;">⏳</div>Analyse en cours…</div>
+      <!-- Pas de doublons -->
+      <div id="dblEmpty" style="display:none;text-align:center;padding:2.5rem 1rem;background:rgba(0,255,170,0.05);border:1px solid rgba(0,255,170,0.2);border-radius:16px;">
+        <div style="font-size:2rem;margin-bottom:0.5rem;">✅</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;color:var(--green);margin-bottom:0.3rem;">Aucun doublon trouvé</div>
+        <div style="font-size:0.72rem;color:var(--muted);">Tous les établissements ont des noms uniques.</div>
+      </div>
+      <!-- Liste des groupes -->
+      <div id="dblGroupsList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.openDoublonsModal = function(){
+  if(!window.isAdmin){ return; }
+  var m = document.getElementById('doublonsModal');
+  if(m){ m.style.display='flex'; }
+  setTimeout(function(){
+    if(typeof detectDoublonsEtabl === 'function') detectDoublonsEtabl();
+  }, 150);
+};
+window.closeDoublonsModal = function(){
+  var m = document.getElementById('doublonsModal');
+  if(m){ m.style.display='none'; }
+};
+// Fermer en cliquant l'overlay
+document.getElementById('doublonsModal').addEventListener('click', function(e){
+  if(e.target === this) window.closeDoublonsModal();
+});
 </script>
