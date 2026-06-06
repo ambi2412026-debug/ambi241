@@ -3642,12 +3642,8 @@ footer{background:rgba(13,0,20,0.95);border-top:1px solid rgba(255,45,155,0.15);
   flex-shrink:0;
 }
 /* BOTTOM NAV */
+/* bottom-nav — styles de base (complets dans section nav ci-dessous) */
 .bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:650;background:rgba(13,0,20,0.97);backdrop-filter:blur(20px);border-top:1px solid rgba(255,45,155,0.15);display:flex;height:62px;padding:0;padding-bottom:env(safe-area-inset-bottom,0px);width:100%;box-sizing:border-box;overflow:visible;}
-.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.15rem;cursor:pointer;color:var(--muted);font-size:0.5rem;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;padding:0.55rem 0.15rem 0.4rem;min-height:62px;min-width:0;touch-action:manipulation;-webkit-touch-callout:none;transition:color 0.12s,transform 0.1s;border:none;background:none;font-family:'DM Sans',sans-serif;-webkit-tap-highlight-color:rgba(255,45,155,0.15);user-select:none;position:relative;text-align:center;line-height:1.1;overflow:hidden;}
-.nav-item:active{opacity:0.75;transform:scale(0.93);color:var(--pink);}
-.nav-item .nav-icon{font-size:1.1rem;transition:transform 0.2s;}
-.nav-item.active .nav-icon{transform:scale(1.18);}
-.nav-item.active{color:var(--pink);}
 .section-hidden{display:none;}
 .loading-state{text-align:center;padding:3rem 1rem;color:var(--muted);}
 .loading-spin{font-size:2.5rem;animation:spin 1s linear infinite;display:inline-block;}
@@ -5890,37 +5886,58 @@ textarea.soc-input{resize:vertical;min-height:80px;line-height:1.5;}
 }
 .nav-item{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:0.15rem;padding:0.55rem 0.1rem 0.4rem;cursor:pointer;
+  gap:0.12rem;padding:0.4rem 0 0.35rem;cursor:pointer;
   color:var(--muted);font-size:0.48rem;font-weight:700;
-  text-transform:uppercase;letter-spacing:0.02em;
-  transition:color 0.12s, transform 0.1s;
+  text-transform:uppercase;letter-spacing:0.03em;
+  transition:color 0.12s,transform 0.1s;
   min-height:62px;min-width:0;
-  text-align:center;line-height:1.1;overflow:hidden;
-  /* Empêche le texte de déborder */
-  white-space:nowrap;
-  text-overflow:ellipsis;
-  max-width:100%;
-  /* Zone tactile élargie — comme les noms d'établissements cliquables */
+  text-align:center;line-height:1.1;
+  /* Zone tactile max — doigt entier */
   touch-action:manipulation;
   -webkit-touch-callout:none;
-  -webkit-tap-highlight-color:rgba(255,45,155,0.15);
-  /* Étendre la zone de clic invisible vers le haut et les côtés */
+  -webkit-tap-highlight-color:transparent;
   position:relative;
+  border:none;background:transparent;outline:none;
+  /* Padding invisible pour agrandir la zone sans changer le visuel */
+  padding-left:0.5rem;padding-right:0.5rem;
 }
-/* Zone de clic invisible élargie au-delà du bouton visible */
+/* Zone de clic invisible : 20px au-dessus, 10px sur les côtés */
 .nav-item::before{
   content:'';
   position:absolute;
-  top:-16px;left:-8px;right:-8px;bottom:-6px;
+  top:-20px;left:-10px;right:-10px;bottom:-4px;
   z-index:1;
 }
-.nav-item:active{
-  opacity:0.75;
-  transform:scale(0.93);
-  color:var(--pink);
+/* Label texte avec soulignement animé comme les tuiles et top du moment */
+.nav-label{
+  display:inline-block;
+  position:relative;
+  white-space:nowrap;
+  line-height:1.1;
 }
+.nav-label::after{
+  content:'';
+  position:absolute;
+  bottom:-1px;left:50%;right:50%;
+  height:1.5px;
+  background:var(--pink);
+  transition:left 0.18s ease,right 0.18s ease,opacity 0.18s;
+  opacity:0;
+  border-radius:2px;
+}
+.nav-item.active .nav-label::after,
+.nav-item:active .nav-label::after{
+  left:0;right:0;opacity:1;
+}
+.nav-item.active .nav-label{color:var(--pink);}
+.nav-item:active{
+  transform:scale(0.9);
+}
+.nav-item:active .nav-label{color:var(--pink);}
 .nav-item.active{color:var(--pink);}
-.nav-icon{font-size:1.15rem;line-height:1;}
+.nav-icon{font-size:1.2rem;line-height:1;transition:transform 0.15s;}
+.nav-item:active .nav-icon{transform:scale(0.85);}
+.nav-item.active .nav-icon{filter:drop-shadow(0 0 4px rgba(255,45,155,0.6));}
 .nav-active-dot{
   width:4px;height:4px;border-radius:50%;background:var(--pink);
   opacity:0;transition:opacity 0.2s;
@@ -10543,12 +10560,12 @@ window.closePhotoViewer = closePhotoViewer;
 </div>
 
 <nav class="bottom-nav">
-  <button class="nav-item active" onclick="switchSection('accueil',this)"><span class="nav-icon">&#127968;</span>Accueil</button>
-  <button class="nav-item" onclick="switchSection('etablissements',this)"><span class="nav-icon">&#128269;</span>Lieux</button>
-  <button class="nav-item" id="navProfilBtn" onclick="navHandleProfil(this)"><span class="nav-unread-badge" id="navBadgeProfil"></span><span class="nav-icon" id="navProfilIcon">&#128273;</span><span id="navProfilLabel">Connexion</span></button>
-  <button class="nav-item" id="navFichesBtn" onclick="navHandleFiches(this)" style="display:none;"><span class="nav-icon">📋</span>Fiches</button>
-  <button class="nav-item" id="navPaiementsBtn" onclick="switchSection('paiements',this)"><span class="nav-unread-badge" id="navBadgePaiements"></span><span class="nav-icon">&#128179;</span>Paiements</button>
-  <button class="nav-item" id="navAdminSettings" style="display:none;" onclick="openAdminDashboard(this)"><span class="nav-unread-badge" id="navBadgeAdmin"></span><span class="nav-icon">&#9881;</span>Paramètres</button>
+  <button class="nav-item active" onclick="switchSection('accueil',this)"><span class="nav-icon">&#127968;</span><span class="nav-label">Accueil</span></button>
+  <button class="nav-item" onclick="switchSection('etablissements',this)"><span class="nav-icon">&#128269;</span><span class="nav-label">Lieux</span></button>
+  <button class="nav-item" id="navProfilBtn" onclick="navHandleProfil(this)"><span class="nav-unread-badge" id="navBadgeProfil"></span><span class="nav-icon" id="navProfilIcon">&#128273;</span><span class="nav-label" id="navProfilLabel">Connexion</span></button>
+  <button class="nav-item" id="navFichesBtn" onclick="navHandleFiches(this)" style="display:none;"><span class="nav-icon">📋</span><span class="nav-label">Fiches</span></button>
+  <button class="nav-item" id="navPaiementsBtn" onclick="switchSection('paiements',this)"><span class="nav-unread-badge" id="navBadgePaiements"></span><span class="nav-icon">&#128179;</span><span class="nav-label">Paiements</span></button>
+  <button class="nav-item" id="navAdminSettings" style="display:none;" onclick="openAdminDashboard(this)"><span class="nav-unread-badge" id="navBadgeAdmin"></span><span class="nav-icon">&#9881;</span><span class="nav-label">Paramètres</span></button>
 </nav>
 
 
