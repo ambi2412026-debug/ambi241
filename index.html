@@ -6186,6 +6186,58 @@ textarea.soc-input{resize:vertical;min-height:80px;line-height:1.5;}
 /* ═══ FIN PATCH CSS ═══ */
 .qr-adm-live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px rgba(0,255,170,0.6);flex-shrink:0;animation:pulse 1.4s infinite;}
 
+/* ═══ PERF PATCH — Désactivation backdrop-filter sur mobile ═══
+   backdrop-filter force le GPU à recalculer des calques entiers à chaque frame.
+   Sur Android mid-range, c'est la cause principale des lags au scroll (20fps).
+   On remplace par un fond opaque équivalent sur écrans ≤768px.
+   ══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Header & bottom nav — les deux éléments les plus impactants au scroll */
+  header,
+  .bottom-nav {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  /* Modals / overlays — actifs ponctuellement, pas de lag au scroll mais on allège */
+  #forumPubModal,
+  #asmComposeModal,
+  #socPubModal,
+  .overlay,
+  .guide-overlay,
+  #ambiActivateModal,
+  #ambiIncomingCall,
+  .geo-method-sheet,
+  .profil-modal-overlay,
+  .sidenav-overlay,
+  .sitenav-overlay,
+  .taxi-modal-overlay,
+  .qr-modal-overlay {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  /* Panels & toasts */
+  .notif-panel,
+  .notif-toast,
+  .taxi-cmd-btn,
+  .taxi-contact-card,
+  .taxi-admin-form,
+  .qr-card-icon,
+  .qr-scanner-header,
+  .qr-scanner-success,
+  #sec-profil .demo-nav-profil,
+  #sec-profil .cover-edit-btn {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  /* Renforcer les backgrounds pour maintenir la lisibilité sans blur */
+  header { background: rgba(13,0,20,0.99) !important; }
+  .bottom-nav { background: rgba(13,0,20,0.99) !important; }
+  .notif-panel { background: rgba(10,2,20,0.97) !important; }
+  .notif-toast { background: rgba(20,5,32,0.98) !important; }
+  #sec-profil .demo-nav-profil { background: rgba(15,6,24,0.98) !important; }
+}
+/* ═══ FIN PERF PATCH backdrop-filter ═══ */
+
 </style>
 
 <!-- ══ AMBI241 i18n — Sélecteur de Langue 🌍 ══ -->
@@ -17115,7 +17167,7 @@ function buildCompactRow(e, rank, extraClass){
   // Photo + infos
   if(permPhoto){
     html += "<div style='height:90px;overflow:hidden;position:relative;background:#000;cursor:pointer;' onclick='openFullscreenPhoto(\""+permPhoto.replace(/"/g,"&quot;").replace(/'/g,"\\'")+'",'+e.id+',"profile","'+escHtml(e.nom).replace(/"/g,"&quot;")+"\")'>";
-    html += "<img src='"+permPhoto+"' style='width:100%;height:100%;object-fit:cover;display:block;opacity:0.85;'>";
+    html += "<img src='"+permPhoto+"' loading='lazy' style='width:100%;height:100%;object-fit:cover;display:block;opacity:0.85;'>";
     html += "<div style='position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0.6) 0%,transparent 50%);'></div>";
     html += "<div style='position:absolute;left:0.7rem;top:50%;transform:translateY(-50%);'>";
     html += "<div style='font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;color:#fff;'>"+escHtml(e.nom)+"</div>";
@@ -17238,7 +17290,7 @@ function buildCard(e,delay,compact,rank,extraClass){
   if(displayedPhoto){
     // Afficher la photo (slot ou permPhoto)
     var isSlotPhoto = slotPhotos.length > 0;
-    photosHtml += "<img src='"+displayedPhoto+"' style='width:100%;height:100%;object-fit:cover;display:block;' onclick='"+(isSlotPhoto ? "openSlotLightbox("+e.id+",0)" : "openFullscreenPhoto('"+displayedPhoto.replace(/'/g,"\\'")+"',"+e.id+",'profile','"+((e.nom||"").replace(/'/g,"\\'"))+"')")+"'>";
+    photosHtml += "<img src='"+displayedPhoto+"' loading='lazy' style='width:100%;height:100%;object-fit:cover;display:block;' onclick='"+(isSlotPhoto ? "openSlotLightbox("+e.id+",0)" : "openFullscreenPhoto('"+displayedPhoto.replace(/'/g,"\\'")+"',"+e.id+",'profile','"+((e.nom||"").replace(/'/g,"\\'"))+"')")+"'>";
     
     if(isSlotPhoto){
       // Compteur badge supprimé (photos permanentes dans la galerie)
@@ -17268,7 +17320,7 @@ function buildCard(e,delay,compact,rank,extraClass){
   var soireeHtml="";
   if(sp.length>0){
     soireeHtml="<div style='position:relative;width:100%;overflow:hidden;background:rgba(255,45,155,0.04);border-top:1px solid rgba(255,255,255,0.05);'>";
-    soireeHtml+="<img src='"+sp[0].url+"' style='width:100%;height:180px;object-fit:cover;display:block;cursor:zoom-in;' onclick=\"openFullscreenPhoto('"+sp[0].url.replace(/'/g,"\\'")+"',"+e.id+",'soiree','"+((e.nom||"").replace(/'/g,"\\'"))+"')\" onerror=\"this.onerror=null;this.style.height='70px';this.style.objectFit='contain';this.style.opacity='0.3';this.src='"+generateFallbackPhoto(e.type,e.nom).replace(/'/g,"\\'")+"'\">";
+    soireeHtml+="<img src='"+sp[0].url+"' loading='lazy' style='width:100%;height:180px;object-fit:cover;display:block;cursor:zoom-in;' onclick=\"openFullscreenPhoto('"+sp[0].url.replace(/'/g,"\\'")+"',"+e.id+",'soiree','"+((e.nom||"").replace(/'/g,"\\'"))+"')\" onerror=\"this.onerror=null;this.style.height='70px';this.style.objectFit='contain';this.style.opacity='0.3';this.src='"+generateFallbackPhoto(e.type,e.nom).replace(/'/g,"\\'")+"'\">";
     soireeHtml+="<div style='display:flex;align-items:center;gap:0.4rem;padding:0.4rem 0.55rem;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);border-top:1px solid rgba(255,255,255,0.06);'>";
     soireeHtml+="<span style='font-size:0.6rem;color:var(--muted);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>📸 Galerie</span>";
     soireeHtml+="<a href='"+sp[0].url+"' download style='display:flex;align-items:center;gap:0.25rem;padding:0.28rem 0.55rem;border-radius:100px;font-size:0.65rem;font-weight:700;font-family:DM Sans,sans-serif;background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.35);color:var(--pink);text-decoration:none;'>⬇ Télécharger</a>";
@@ -18761,7 +18813,7 @@ function restorePhotosPersistence(){
 
 function renderAll(){
   if(_renderAllTimer) clearTimeout(_renderAllTimer);
-  _renderAllTimer = setTimeout(renderAllImmediate, 30); // debounce 30ms — réactivité filtre améliorée
+  _renderAllTimer = setTimeout(renderAllImmediate, 150); // debounce 150ms — PERF PATCH : évite les appels en cascade (filtres/tris/scroll)
 }
 
 function renderAllImmediate(){
@@ -18850,6 +18902,45 @@ function renderAllImmediate(){
   }
 
   var html=gpsBannerHtml;
+  // ═══ PERF PATCH — Virtualisation par IntersectionObserver ═══
+  // Affiche _VIRT_INIT items au premier rendu, charge _VIRT_PAGE items supplémentaires
+  // à chaque fois que le sentinel (div invisible) entre dans le viewport.
+  // Sur 800 établissements : ~800 → ~30 nœuds DOM au démarrage.
+  var _VIRT_PAGE = 20;
+  var _VIRT_INIT = 30;
+  window._virtPendingListe   = null;
+  window._virtPendingCompact = null;
+
+  function _attachVirtSentinel(dataArr, from, buildFn, listSelector) {
+    if(window._virtObserver){ window._virtObserver.disconnect(); window._virtObserver = null; }
+    var oldSentinel = document.getElementById('_virtSentinel');
+    if(oldSentinel) oldSentinel.remove();
+    if(from >= dataArr.length) return;
+    var listEl = document.querySelector(listSelector);
+    if(!listEl) return;
+    var sentinel = document.createElement('div');
+    sentinel.id = '_virtSentinel';
+    sentinel.style.cssText = 'height:2px;width:100%;pointer-events:none;';
+    listEl.parentNode.insertBefore(sentinel, listEl.nextSibling);
+    var curFrom = from;
+    window._virtObserver = new IntersectionObserver(function(entries){
+      if(!entries[0].isIntersecting) return;
+      var chunk = dataArr.slice(curFrom, curFrom + _VIRT_PAGE);
+      if(!chunk.length){ window._virtObserver.disconnect(); sentinel.remove(); return; }
+      var frag = '';
+      chunk.forEach(function(e,i){ frag += buildFn(e, curFrom + i); });
+      listEl.insertAdjacentHTML('beforeend', frag);
+      curFrom += _VIRT_PAGE;
+      if(curFrom >= dataArr.length){
+        window._virtObserver.disconnect();
+        window._virtObserver = null;
+        sentinel.remove();
+      }
+    }, { rootMargin: '300px 0px', threshold: 0 });
+    window._virtObserver.observe(sentinel);
+  }
+  // ═══ FIN PERF PATCH virtualisation ═══
+
   if(currentView==="compact"){
     // Vue compacte : tri par score (avec cache)
     if(!isAdmin){
@@ -18860,12 +18951,17 @@ function renderAllImmediate(){
     // GPS actif → trier par distance d'abord + classe proche
     if(gpsActive) data = sortGpsData(data);
     var PROX_KM_C = (gpsActive && typeof _gpsState !== "undefined") ? (_gpsState.radius >= 999 ? 3 : _gpsState.radius) : 0;
+    // PERF PATCH : afficher _VIRT_INIT items, sentinel charge la suite (sauf si GPS actif)
+    var _compactSlice = gpsActive ? data : data.slice(0, _VIRT_INIT);
     html+="<div class=\"compact-list\">";
-    data.forEach(function(e,i){
+    _compactSlice.forEach(function(e,i){
       var _ec = (gpsActive && typeof e._distKm === "number" && e._distKm <= PROX_KM_C) ? "card-prox-near" : "";
       html+=buildCompactRow(e,i+1,_ec);
     });
     html+="</div>";
+    if(!gpsActive && data.length > _VIRT_INIT){
+      window._virtPendingCompact = { data: data, from: _VIRT_INIT };
+    }
   } else if(currentView==="liste"){
     // Tri par score dans la vue liste (visiteurs, avec cache)
     if(!isAdmin){
@@ -18886,16 +18982,13 @@ function renderAllImmediate(){
         html+="</div>";
       }
     } else {
-      var PAGE = 20;
-      var shown = data.slice(0, PAGE);
-      var rest  = data.length - PAGE;
+      // PERF PATCH : afficher _VIRT_INIT items, sentinel charge la suite
+      var _listeSlice = data.slice(0, _VIRT_INIT);
       html+="<div class=\"cards-list\">";
-      shown.forEach(function(e,i){html+=buildCard(e,i*0.02,false,i+1);});
+      _listeSlice.forEach(function(e,i){html+=buildCard(e,i*0.02,false,i+1);});
       html+="</div>";
-      if(rest > 0){
-        html += '<div style="text-align:center;padding:1rem 0;">'
-          +'<button onclick="renderAllPaged('+PAGE+','+data.length+')" style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;padding:0.55rem 1.4rem;border-radius:100px;cursor:pointer;">Voir '+rest+' lieux de plus ↓</button>'
-          +'</div>';
+      if(data.length > _VIRT_INIT){
+        window._virtPendingListe = { data: data, from: _VIRT_INIT };
       }
     }
   } else {
@@ -19019,38 +19112,31 @@ function renderAllImmediate(){
   // Bandeau archivés en bas de liste
   html+=archivedHtml;
   document.getElementById("mainList").innerHTML=html;
+  // ═══ PERF PATCH — Attacher les sentinels de virtualisation après injection HTML ═══
+  if(window._virtPendingListe){
+    var _vpl = window._virtPendingListe;
+    window._virtPendingListe = null;
+    _attachVirtSentinel(_vpl.data, _vpl.from, function(e, idx){
+      return buildCard(e, idx*0.02, false, idx+1);
+    }, '#mainList .cards-list');
+  }
+  if(window._virtPendingCompact){
+    var _vpc = window._virtPendingCompact;
+    window._virtPendingCompact = null;
+    _attachVirtSentinel(_vpc.data, _vpc.from, function(e, idx){
+      var _ec = "";
+      return buildCompactRow(e, idx+1, _ec);
+    }, '#mainList .compact-list');
+  }
+  // ═══ FIN PERF PATCH sentinels ═══
   // Mise à jour silencieuse des marqueurs si la carte a déjà été ouverte
   if(window._ambiMapReady && window._renderMapMarkers) window._renderMapMarkers(data);
 }
 
 // ── Charger plus d'établissements (pagination liste) ──
-window.renderAllPaged = function(from, total){
-  var data = filterData();
-  if(!isAdmin){
-    data = data.slice().sort(function(a,b){
-      return _getCachedScore(b).score - _getCachedScore(a).score;
-    });
-  }
-  var PAGE = 20;
-  var nextFrom = from + PAGE;
-  var chunk = data.slice(from, nextFrom);
-  var list = document.querySelector('#mainList .cards-list');
-  if(!list) return;
-  var frag = '';
-  chunk.forEach(function(e,i){ frag += buildCard(e,(from+i)*0.02,false,from+i+1); });
-  // Remplacer le bouton "Voir plus"
-  var btn = document.querySelector('#mainList [onclick^="renderAllPaged"]');
-  if(btn){
-    var wrap = btn.parentNode;
-    list.insertAdjacentHTML('beforeend', frag);
-    if(nextFrom < total){
-      wrap.querySelector('button').setAttribute('onclick','renderAllPaged('+nextFrom+','+total+')');
-      wrap.querySelector('button').textContent = 'Voir '+(total-nextFrom)+' lieux de plus ↓';
-    } else {
-      wrap.remove();
-    }
-  }
-};
+// PERF PATCH : renderAllPaged remplacé par IntersectionObserver dans renderAllImmediate.
+// Conservé ici en no-op pour compatibilité ascendante (anciens liens onclick éventuels).
+window.renderAllPaged = function(from, total){ /* no-op — virtualisation active */ };
 function toggleConfirme(index){
   if(!isAdmin)return;
   var p=paiements[index];
