@@ -20408,71 +20408,136 @@ window.goToEtab = goToEtab;
         – les autres sont en mode compact (buildCompactRow)
       Un 2e clic sur le bouton "Fiche complète →" de la carte rouvre le sheet.
 ───────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────
+   _ambiScrollToCard(id)
+   Scroll cinématique : remonte en haut de la liste, puis descend
+   progressivement et se bloque exactement sur la carte de l'étab.
+   Fonctionne en vue compacte (cr-{id}) et carte complète (card-etab-{id}).
+───────────────────────────────────────────────────────────────── */
+window._ambiScrollToCard = function(id) {
+  /* Trouver l'élément cible */
+  var el = document.getElementById('card-etab-' + id) || document.getElementById('cr-' + id);
+  if(!el) return;
+
+  /* Trouver le conteneur scrollable (mainList ou son parent scrollable) */
+  var scroller = document.scrollingElement || document.documentElement;
+
+  /* 1. Remonter instantanément en haut */
+  scroller.scrollTop = 0;
+
+  /* 2. Calculer la position finale de la cible */
+  setTimeout(function(){
+    var elRect    = el.getBoundingClientRect();
+    var finalTop  = scroller.scrollTop + elRect.top - 80; /* 80px de marge haute */
+    if(finalTop < 0) finalTop = 0;
+
+    /* 3. Animation easeInOut maison : du top → target */
+    var startTop  = 0;
+    var distance  = finalTop - startTop;
+    var duration  = Math.min(1200, Math.max(600, Math.abs(distance) * 0.6)); /* vitesse proportionnelle */
+    var startTime = null;
+
+    function easeInOutCubic(t){ return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2; }
+
+    function animateScroll(ts){
+      if(!startTime) startTime = ts;
+      var elapsed  = ts - startTime;
+      var progress = Math.min(elapsed / duration, 1);
+      var eased    = easeInOutCubic(progress);
+      scroller.scrollTop = startTop + distance * eased;
+      if(progress < 1){
+        requestAnimationFrame(animateScroll);
+      } else {
+        /* 4. Arrivée : halo + déploiement si vue compacte */
+        scroller.scrollTop = finalTop;
+        _ambiHighlightCard(id);
+      }
+    }
+    requestAnimationFrame(animateScroll);
+  }, 80);
+};
+
+/* Halo + déploiement du panneau compact si applicable */
+window._ambiHighlightCard = function(id) {
+  var el = document.getElementById('card-etab-' + id) || document.getElementById('cr-' + id);
+  if(!el) return;
+
+  /* Vue compacte : déployer le panneau et fermer tous les autres */
+  var detail = document.getElementById('cd-' + id);
+  if(detail){
+    /* Fermer tous les autres panneaux ouverts */
+    document.querySelectorAll('.compact-detail.open').forEach(function(d){
+      if(d.id !== 'cd-' + id){
+        d.classList.remove('open');
+        var rid = d.id.replace('cd-','');
+        var row = document.getElementById('cr-' + rid);
+        if(row) row.classList.remove('expanded');
+      }
+    });
+    /* Ouvrir ce panneau */
+    detail.classList.add('open');
+    el.classList.add('expanded');
+  }
+
+  /* Halo de focus (bordure rose pulsante puis cyan) */
+  el.style.transition = 'box-shadow 0.25s ease, transform 0.2s ease';
+  el.style.boxShadow  = '0 0 0 3px rgba(255,45,155,1), 0 8px 32px rgba(255,45,155,0.5)';
+  el.style.transform  = 'scale(1.012)';
+  setTimeout(function(){
+    el.style.boxShadow = '0 0 0 2px rgba(0,229,255,0.7), 0 4px 20px rgba(0,229,255,0.2)';
+    el.style.transform = '';
+    setTimeout(function(){
+      el.style.transition = 'box-shadow 1.2s ease';
+      el.style.boxShadow  = '';
+    }, 1800);
+  }, 600);
+};
+
 window.goToEtabWithFiche = function(id) {
   /* 1. Fermer le profil public */
   if(typeof window.closePublicProfile === 'function') window.closePublicProfile();
 
-  /* 2. Activer la vue "groupe" (par catégorie) si besoin */
-  if(currentView === 'compact' || currentView === 'carte' || currentView === 'liste'){
-    currentView = 'groupe';
+  /* 2. Conserver la vue actuelle (compact, liste ou groupe) — ne pas changer */
+  /* En vue groupe : mémoriser le spotlight pour que renderAll affiche la fiche complète */
+  if(currentView === 'groupe'){
+    _spotlightEtabId = id;
+    window._spotlightEtabId = id;
+  }
+  /* En vue carte : revenir en compact */
+  if(currentView === 'carte'){
+    currentView = 'compact';
     document.querySelectorAll('[data-view]').forEach(function(b){ b.classList.remove('active'); });
-    var gb = document.querySelector('[data-view="groupe"]');
-    if(gb) gb.classList.add('active');
+    var cb = document.querySelector('[data-view="compact"]');
+    if(cb) cb.classList.add('active');
   }
 
-  /* 3. Mémoriser l'établissement en spotlight (utilisé par renderAllImmediate) */
-  _spotlightEtabId = id;
-  window._spotlightEtabId = id;
-
-  /* 4. Naviguer vers la section Lieux */
+  /* 3. Naviguer vers la section Lieux */
   switchSection('etablissements', document.querySelectorAll('.nav-item')[1]);
 
-  /* 5. Ouvrir la fiche complète (bottom-sheet) après rendu */
-  var attempts = 0;
-  function tryOpenFiche() {
+  /* 4. Ouvrir le bottom-sheet ficheEtab après le rendu */
+  var _ficheAttempts = 0;
+  function tryOpenFiche(){
     if(typeof window.openFicheEtab === 'function'){
       window.openFicheEtab(id);
-      /* 6. Scroll sur la carte après ouverture de la fiche */
-      setTimeout(function(){
-        var el = document.getElementById('card-etab-' + id) || document.getElementById('cr-' + id);
-        if(el){
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          el.style.transition = 'box-shadow 0.3s ease';
-          el.style.boxShadow = '0 0 0 3px rgba(255,45,155,0.9), 0 12px 40px rgba(255,45,155,0.4)';
-          setTimeout(function(){
-            el.style.transition = 'box-shadow 1s ease';
-            el.style.boxShadow = '';
-          }, 2200);
-        }
-      }, 200);
-    } else if(attempts < 12){
-      attempts++;
-      setTimeout(tryOpenFiche, 150);
+    } else if(_ficheAttempts < 15){
+      _ficheAttempts++;
+      setTimeout(tryOpenFiche, 120);
     }
   }
-  setTimeout(tryOpenFiche, 380);
+  setTimeout(tryOpenFiche, 350);
 
-  /* 7. Quand la fiche est fermée, scroller sur la carte spotlight */
+  /* 5. À la fermeture du bottom-sheet :
+        scroll cinématique haut→bas qui bloque sur la carte */
   var _origClose = window.closeFicheEtab;
   window.closeFicheEtab = function(){
-    if(typeof _origClose === 'function') _origClose();
-    /* Restaurer la fermeture d'origine */
+    /* Restaurer immédiatement pour éviter la double-capture */
     window.closeFicheEtab = _origClose;
-    /* Scroll sur la carte après fermeture */
+    if(typeof _origClose === 'function') _origClose();
+
+    /* Petit délai pour laisser l'animation de fermeture se terminer */
     setTimeout(function(){
-      var el = document.getElementById('card-etab-' + id) || document.getElementById('cr-' + id);
-      if(el){
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.style.transition = 'box-shadow 0.3s ease, transform 0.2s ease';
-        el.style.boxShadow = '0 0 0 3px rgba(0,229,255,0.8), 0 8px 32px rgba(0,229,255,0.25)';
-        el.style.transform = 'scale(1.012)';
-        setTimeout(function(){
-          el.style.transition = 'box-shadow 1s ease, transform 1s ease';
-          el.style.boxShadow = '';
-          el.style.transform = '';
-        }, 2000);
-      }
-    }, 120);
+      window._ambiScrollToCard(id);
+    }, 180);
   };
 };
 
