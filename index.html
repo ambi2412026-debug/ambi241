@@ -8198,6 +8198,37 @@ if (document.readyState === 'loading') {
       </div>
     </div>
 
+    <!-- ══ BOUTON INSTALLER L'APPLICATION PWA ══ -->
+    <div id="pwaInstallBanner" style="display:none;margin:0 0 1rem 0;animation:fadeUp 0.5s ease both;">
+      <button id="pwaInstallBtn" onclick="triggerPwaInstall()" style="
+        width:100%;
+        display:flex;align-items:center;justify-content:space-between;
+        background:linear-gradient(135deg,rgba(255,45,155,0.18) 0%,rgba(0,229,255,0.10) 100%);
+        border:1.5px solid rgba(255,45,155,0.5);
+        border-radius:18px;padding:0.85rem 1.1rem;
+        cursor:pointer;position:relative;overflow:hidden;
+        box-shadow:0 4px 24px rgba(255,45,155,0.2),0 1px 4px rgba(0,0,0,0.3);
+        transition:all 0.22s;
+      ">
+        <!-- Shimmer background -->
+        <div style="position:absolute;inset:0;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.04) 50%,transparent 100%);background-size:200% auto;animation:tickerShimmer 3s linear infinite;pointer-events:none;"></div>
+        <!-- Icône + texte -->
+        <div style="display:flex;align-items:center;gap:0.75rem;position:relative;">
+          <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#ff2d9b,#cc44ff);display:flex;align-items:center;justify-content:center;font-size:1.4rem;box-shadow:0 4px 14px rgba(255,45,155,0.45);flex-shrink:0;">📲</div>
+          <div style="text-align:left;">
+            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.88rem;color:#fff0f8;line-height:1.2;">Télécharger AMBI241</div>
+            <div style="font-size:0.65rem;color:rgba(176,136,192,0.9);margin-top:0.15rem;font-weight:500;">Installer l'application gratuite</div>
+          </div>
+        </div>
+        <!-- Badge notifications + flèche -->
+        <div style="display:flex;align-items:center;gap:0.6rem;position:relative;flex-shrink:0;">
+          <div id="pwaNotifBadge" style="display:none;background:#ff4466;border-radius:50%;min-width:20px;height:20px;padding:0 4px;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:900;font-size:0.65rem;color:#fff;box-shadow:0 2px 8px rgba(255,68,102,0.6);animation:pulse 1.5s infinite;">3</div>
+          <div style="background:linear-gradient(135deg,#ff2d9b,#00e5ff);border-radius:10px;padding:0.42rem 0.85rem;font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;color:#000;white-space:nowrap;">Installer ↓</div>
+        </div>
+      </button>
+      <button onclick="document.getElementById('pwaInstallBanner').style.display='none'" style="display:block;margin:0.3rem auto 0;background:none;border:none;color:rgba(176,136,192,0.6);font-size:0.62rem;cursor:pointer;font-family:'DM Sans',sans-serif;">✕ Fermer</button>
+    </div>
+
     <!-- ══ STATS STRIP ══ -->
     <div class="home-stats-strip" id="statsRowHome"></div>
 
@@ -40747,6 +40778,100 @@ if (typeof window._admContentSave !== 'function') {
       setTimeout(function() { window.renderAdmContent(); }, 50);
     }
   };
+})();
+</script>
+
+<!-- ══ PWA INSTALL + NOTIFICATIONS BADGE ══ -->
+<script>
+(function() {
+  var deferredPrompt = null;
+
+  // Écouter l'événement beforeinstallprompt
+  window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    // Afficher le banner seulement si pas encore installé
+    var banner = document.getElementById('pwaInstallBanner');
+    if (banner) banner.style.display = 'block';
+  });
+
+  // Cacher le banner si l'app est déjà installée
+  window.addEventListener('appinstalled', function() {
+    var banner = document.getElementById('pwaInstallBanner');
+    if (banner) banner.style.display = 'none';
+    deferredPrompt = null;
+  });
+
+  // Fonction déclenchée par le bouton
+  window.triggerPwaInstall = function() {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function(result) {
+        if (result.outcome === 'accepted') {
+          var banner = document.getElementById('pwaInstallBanner');
+          if (banner) banner.style.display = 'none';
+        }
+        deferredPrompt = null;
+      });
+    } else {
+      // Fallback: instructions manuelles
+      if (typeof showToast === 'function') {
+        showToast('📲 Menu du navigateur → "Ajouter à l\'écran d\'accueil"');
+      } else {
+        alert('Pour installer: appuyez sur les 3 points du navigateur → "Ajouter à l\'écran d\'accueil"');
+      }
+    }
+  };
+
+  // ── BADGE NOTIFICATIONS (simulé + Notification API) ──
+  function updateNotifBadge(count) {
+    var badge = document.getElementById('pwaNotifBadge');
+    if (!badge) return;
+    if (count > 0) {
+      badge.style.display = 'flex';
+      badge.textContent = count > 99 ? '99+' : count;
+      // Badge natif Android (si supporté)
+      if ('setAppBadge' in navigator) {
+        navigator.setAppBadge(count).catch(function(){});
+      }
+    } else {
+      badge.style.display = 'none';
+      if ('clearAppBadge' in navigator) {
+        navigator.clearAppBadge().catch(function(){});
+      }
+    }
+  }
+
+  // Demander permission notifications au clic sur le bouton install
+  var installBtn = document.getElementById('pwaInstallBtn');
+  if (installBtn) {
+    installBtn.addEventListener('click', function() {
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then(function(perm) {
+          if (perm === 'granted') {
+            // Enregistrer service worker pour push si disponible
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.register('/sw.js').catch(function(){});
+            }
+          }
+        });
+      }
+    });
+  }
+
+  // Exposer la fonction pour que le reste de l'app puisse mettre à jour le badge
+  window.setAmbi241Badge = updateNotifBadge;
+
+  // Vérifier si l'app tourne en standalone (déjà installée) → cacher le banner
+  if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+    var banner = document.getElementById('pwaInstallBanner');
+    if (banner) banner.style.display = 'none';
+  }
+
+  // Enregistrement du service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(function(){});
+  }
 })();
 </script>
 </html>
