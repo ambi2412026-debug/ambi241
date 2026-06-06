@@ -2534,20 +2534,23 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .top6-see-all:active{opacity:0.7;}
 
 /* Barres horizontales compactes */
-.top6-grid{display:flex;flex-direction:column;gap:0.42rem;}
+.top6-grid{display:flex;flex-direction:row;gap:0.55rem;overflow-x:auto;-webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory;scrollbar-width:none;padding:0.1rem 0.1rem 0.5rem;}.top6-grid::-webkit-scrollbar{display:none;}
 .top6-card{
   position:relative;
   background:var(--surface);
   border:2px solid;
   border-radius:10px;
-  padding:0.48rem 0.6rem;
-  display:flex;align-items:center;gap:0.5rem;
+  padding:0.55rem 0.6rem;
+  display:flex;flex-direction:column;align-items:flex-start;gap:0.25rem;
   cursor:pointer;
   transition:all 0.22s;
   overflow:hidden;
   -webkit-tap-highlight-color:transparent;
   user-select:none;
-  min-height:48px;height:auto;
+  flex-shrink:0;
+  width:130px;
+  min-height:90px;
+  scroll-snap-align:start;
 }
 .top6-card:active{transform:scale(0.98);opacity:0.85;}
 .top6-card:hover{transform:translateX(3px);}
@@ -2653,7 +2656,7 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 }
 
 /* Infos compactes */
-.t6c-info{flex:1;min-width:0;}
+.t6c-info{flex:1;min-width:0;width:100%;}
 .t6c-cat{
   font-size:0.52rem;font-weight:800;color:#2a0040;
   text-transform:uppercase;letter-spacing:0.07em;
@@ -2677,22 +2680,19 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
   margin-top:0.04rem;
 }
 
-.t6c-right{
-  display:flex;align-items:center;gap:0.25rem;flex-shrink:0;
-  font-size:0.65rem;font-weight:800;color:#2a0040;
-}
+.t6c-right{display:none;}
 .t6c-note{color:#8a6000;}
 .t6c-arrow{color:#c0145a;opacity:0.7;font-size:0.58rem;}
 
 @media(max-width:600px){
-  .top6-card{min-height:45px;height:auto;padding:0.4rem 0.5rem;}
+  .top6-card{min-height:90px;width:130px;padding:0.5rem;}
   .t6c-icon{font-size:1.4rem;}
 }
 
 @media(max-width:420px){
-  .top6-card{min-height:42px;height:auto;padding:0.35rem 0.45rem;}
+  .top6-card{min-height:86px;width:122px;padding:0.45rem;}
   .t6c-icon{font-size:1.3rem;}
-  .t6c-name{font-size:0.72rem;}
+  .t6c-name{font-size:0.7rem;}
   .t6c-type{font-size:0.48rem;}
 }
 
@@ -3026,8 +3026,8 @@ main{max-width:640px;margin:0 auto;padding:1rem;position:relative;z-index:1;widt
 .cat-name{font-family:'Syne',sans-serif;font-weight:800;font-size:0.88rem;color:var(--text);}
 .cat-count{font-size:0.68rem;margin-left:auto;background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.2);padding:0.12rem 0.45rem;border-radius:100px;color:var(--pink);}
 /* ── Grille catégories accordion (vue groupe) ── */
-.cat-grid-wrap{display:grid;grid-template-columns:repeat(3,1fr);gap:0.55rem;margin-bottom:0.5rem;}
-.cat-cell{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.28rem;padding:0.65rem 0.3rem 0.55rem;border-radius:14px;cursor:pointer;user-select:none;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);transition:background 0.18s,border-color 0.18s,transform 0.15s;-webkit-tap-highlight-color:transparent;}
+.cat-grid-wrap{display:flex;flex-direction:row;gap:0.55rem;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory;scrollbar-width:none;padding:0 0.1rem 0.4rem;margin-bottom:0.5rem;}.cat-grid-wrap::-webkit-scrollbar{display:none;}
+.cat-cell{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.28rem;padding:0.65rem 0.55rem 0.55rem;border-radius:14px;cursor:pointer;user-select:none;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);transition:background 0.18s,border-color 0.18s,transform 0.15s;-webkit-tap-highlight-color:transparent;flex-shrink:0;width:88px;scroll-snap-align:start;}
 .cat-cell:active{transform:scale(0.95);}
 .cat-cell.open{background:rgba(255,45,155,0.10);border-color:rgba(255,45,155,0.45);box-shadow:0 0 0 2px rgba(255,45,155,0.25),0 4px 18px rgba(255,45,155,0.15);}
 .cat-cell-icon{font-size:1.45rem;line-height:1;}
@@ -20563,9 +20563,17 @@ window._toggleCatRibbon = function(catKey, forceOpen) {
   if(willOpen){
     cell.classList.add('open');
     ribbon.classList.add('open');
-    /* Scroll sur la cellule après ouverture */
+    /* Scroll horizontal pour centrer la tuile dans le carrousel */
     setTimeout(function(){
-      cell.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      var wrap = cell.closest('.cat-grid-wrap');
+      if(wrap){
+        var cellLeft = cell.offsetLeft;
+        var cellW = cell.offsetWidth;
+        var wrapW = wrap.offsetWidth;
+        wrap.scrollTo({ left: cellLeft - (wrapW/2 - cellW/2), behavior: 'smooth' });
+      }
+      /* Scroll vertical vers le ribbon déplié */
+      ribbon.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 60);
   }
 };
