@@ -160,9 +160,9 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 .igm-step.igm-active{background:rgba(0,255,170,0.1);border-color:rgba(0,255,170,0.4);color:var(--green);}
 .igm-step.igm-done{background:rgba(0,255,170,0.06);border-color:rgba(0,255,170,0.25);color:var(--green);opacity:0.6;}
 .igm-step-num{width:16px;height:16px;border-radius:50%;background:currentColor;color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:0.58rem;font-weight:900;flex-shrink:0;}
-.igm-section{display:none;}
-.igm-section.igm-active{display:block;}
-.igm-panel{background:var(--surface2);border:1px solid rgba(255,45,155,0.18);border-radius:16px;padding:1.2rem;margin-bottom:1rem;}
+.igm-section{display:none;width:100%;overflow-x:hidden;}
+.igm-section.igm-active{display:block;width:100%;overflow-x:hidden;}
+.igm-panel{background:var(--surface2);border:1px solid rgba(255,45,155,0.18);border-radius:16px;padding:1.2rem;margin-bottom:1rem;width:100%;box-sizing:border-box;overflow-x:hidden;}
 .igm-panel-title{font-family:'Syne',sans-serif;font-size:0.9rem;font-weight:800;margin-bottom:0.4rem;display:flex;align-items:center;gap:0.4rem;}
 .igm-panel-sub{font-size:0.7rem;color:var(--muted);line-height:1.5;margin-bottom:1rem;}
 .igm-cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0.45rem;margin-bottom:1rem;}
@@ -6143,8 +6143,8 @@ textarea.soc-input{resize:vertical;min-height:80px;line-height:1.5;}
 /* ── ADMIN DASHBOARD ── */
 .qr-adm-dashboard{background:var(--surface2,#2c1040);border:1px solid rgba(0,229,255,0.18);border-radius:20px;padding:1.2rem;margin:1rem 0;}
 /* Sécurité : le tableau de bord QR admin n'est visible QUE dans le panneau admin */
-#ambiQrAdminDashboard{display:none;}
-#adminDashOverlay #ambiQrAdminDashboard{display:block;}
+/* FIX: contrôle via JS uniquement — la règle CSS display:none bloquait l'affichage */
+#ambiQrAdminDashboard{display:block;}
 .qr-adm-dashboard-title{font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:#00e5ff;display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;}
 .qr-adm-refresh-btn{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:#00e5ff;font-size:0.65rem;font-weight:700;padding:0.25rem 0.6rem;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;}
 .qr-adm-kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-bottom:1rem;}
@@ -24408,14 +24408,35 @@ function switchAdmTab(tab){
   else if(tab==="qrvotes") {
     var _qrListO = document.getElementById('qrAdminVotesList');
     if(_qrListO) _qrListO.innerHTML = '<div style="text-align:center;padding:1rem;font-size:0.72rem;color:rgba(255,240,248,0.4);">⏳ Chargement des votes…</div>';
-    setTimeout(function(){
-      if(typeof ambiQrLoadAdminVotes==="function") ambiQrLoadAdminVotes();
-      /* Retry si Firebase pas prêt */
-      if(!window.db) setTimeout(function(){ if(typeof ambiQrLoadAdminVotes==="function") ambiQrLoadAdminVotes(); }, 1200);
-    }, 200);
+    /* FIX: forcer la visibilité du panel avant de charger */
+    var _qrPanel = document.getElementById('admpanel-qrvotes');
+    if(_qrPanel){ _qrPanel.style.display='block'; _qrPanel.style.visibility='visible'; _qrPanel.style.height=''; _qrPanel.style.overflow=''; }
+    var _qrDash = document.getElementById('ambiQrAdminDashboard');
+    if(_qrDash){ _qrDash.style.display='block'; _qrDash.style.visibility='visible'; }
+    function _loadQrWithRetry(attempt){
+      attempt = attempt || 0;
+      if(typeof ambiQrLoadAdminVotes==="function"){
+        ambiQrLoadAdminVotes();
+        if(!window.db && attempt < 5) setTimeout(function(){ _loadQrWithRetry(attempt+1); }, 800);
+      } else if(attempt < 8){
+        setTimeout(function(){ _loadQrWithRetry(attempt+1); }, 400);
+      }
+    }
+    setTimeout(function(){ _loadQrWithRetry(0); }, 150);
   }
   else if(tab==="doublons") {
-    setTimeout(function(){ if(typeof detectDoublonsEtabl==="function") detectDoublonsEtabl(); }, 200);
+    /* FIX: s'assurer que le panel est visible AVANT d'appeler detectDoublonsEtabl */
+    var _dblPanel = document.getElementById('admpanel-doublons');
+    if(_dblPanel){ _dblPanel.style.display='block'; _dblPanel.style.visibility='visible'; _dblPanel.style.height=''; _dblPanel.style.overflow=''; }
+    function _loadDoublonsWithRetry(attempt){
+      attempt = attempt || 0;
+      if(typeof detectDoublonsEtabl==="function"){
+        detectDoublonsEtabl();
+      } else if(attempt < 8){
+        setTimeout(function(){ _loadDoublonsWithRetry(attempt+1); }, 400);
+      }
+    }
+    setTimeout(function(){ _loadDoublonsWithRetry(0); }, 150);
   }
 }
 window.switchAdmTab=switchAdmTab;
@@ -27856,8 +27877,8 @@ window.doAssignEtab = doAssignEtab;
 
 <!-- ══ TABLEAU DE BORD ADMIN COMPLET ══ -->
 <!-- ⚙️ Dashboard AMBI241 — Design ambi241-admin injected -->
-<div class="overlay" id="adminDashOverlay" style="align-items:flex-start;padding:0;z-index:250;overflow-y:auto;">
-  <div style="width:100%;max-width:700px;margin:0 auto;background:var(--bg);min-height:100vh;padding-bottom:80px;" id="adminDashPanel">
+<div class="overlay" id="adminDashOverlay" style="align-items:flex-start;padding:0;z-index:250;overflow-y:auto;overflow-x:hidden;">
+  <div style="width:100%;max-width:700px;margin:0 auto;background:var(--bg);min-height:100vh;padding-bottom:80px;overflow-x:hidden;" id="adminDashPanel">
 
     <!-- ── Header Admin ── -->
     <div class="adm-header" style="position:sticky;top:0;z-index:10;">
@@ -27910,8 +27931,8 @@ window.doAssignEtab = doAssignEtab;
       <button class="adm-tab"        id="admtab-content"       onclick="switchAdmTab('content');setTimeout(function(){if(typeof window.renderAdmContent==='function'&&document.getElementById('adminContentPanel').innerHTML.indexOf('Chargement')!==-1)window.renderAdmContent(0);},200);">📋 Contenu</button>
       <button class="adm-tab"        id="admtab-support"       onclick="switchAdmTab('support')" style="position:relative;">💬 Support<span id="admSupportBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:#fff;font-size:0.5rem;font-weight:800;width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center;border:1px solid var(--bg);"></span></button>
       <button class="adm-tab"        id="admtab-importgmaps"   onclick="switchAdmTab('importgmaps')" style="color:var(--green);">🗺️ Import Maps</button>
-      <button class="adm-tab"        id="admtab-qrvotes"       onclick="switchAdmTab('qrvotes');setTimeout(function(){if(typeof ambiQrLoadAdminVotes==='function')ambiQrLoadAdminVotes();},200);" style="color:var(--cyan);">📱 Votes QR</button>
-      <button class="adm-tab"        id="admtab-doublons"      onclick="switchAdmTab('doublons');setTimeout(function(){if(typeof detectDoublonsEtabl==='function')detectDoublonsEtabl();},200);" style="color:#ff4466;position:relative;">🔁 Doublons<span id="admDoublonsBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:#fff;font-size:0.5rem;font-weight:800;width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center;border:1px solid var(--bg);"></span></button>
+      <button class="adm-tab"        id="admtab-qrvotes"       onclick="switchAdmTab('qrvotes');" style="color:var(--cyan);">📱 Votes QR</button>
+      <button class="adm-tab"        id="admtab-doublons"      onclick="switchAdmTab('doublons');" style="color:#ff4466;position:relative;">🔁 Doublons<span id="admDoublonsBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:#fff;font-size:0.5rem;font-weight:800;width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center;border:1px solid var(--bg);"></span></button>
     </div>
 
     <!-- ── Contenu des panneaux ── -->
@@ -28104,7 +28125,7 @@ window.doAssignEtab = doAssignEtab;
       </div>
 
       <!-- ══ Import Google Maps ══ -->
-      <div id="admpanel-importgmaps" class="adm-panel" style="display:none;visibility:hidden;overflow:hidden;height:0;">
+      <div id="admpanel-importgmaps" class="adm-panel" style="display:none;visibility:hidden;overflow:visible;height:auto;">
 
         <!-- Steps -->
         <div class="igm-steps" id="igmSteps2">
@@ -28547,8 +28568,8 @@ window.doAssignEtab = doAssignEtab;
 .adm-tabbar::-webkit-scrollbar{display:none;}
 .adm-tab{flex-shrink:0;padding:0.75rem 1.1rem;border:none;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:0.72rem;font-weight:600;cursor:pointer;white-space:nowrap;border-bottom:2.5px solid transparent;transition:all 0.2s;position:relative;}
 .adm-tab.active{color:var(--amber);border-bottom-color:var(--amber);background:rgba(255,215,0,0.04);}
-.adm-content{padding:1rem;}
-.adm-panel{display:block;}
+.adm-content{padding:1rem;overflow-x:hidden;width:100%;box-sizing:border-box;}
+.adm-panel{display:block;width:100%;overflow-x:hidden;}
 .kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0.55rem;margin-bottom:1rem;}
 .kpi{background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:0.9rem;text-align:center;}
 .kpi-val{font-family:'Syne',sans-serif;font-weight:800;font-size:1.5rem;line-height:1;}
@@ -39025,7 +39046,7 @@ window.switchAdmTab = function(tab){
   try{ _currentAdmTab = tab; }catch(e){}
   // Gérer les nouveaux panels
   var newTabs = ['content','appconfig'];
-  var allTabs = ["overview","etabl","users","notifs","payments","connexions","settings","reservations","classement","support","content","appconfig","importgmaps","qrvotes"];
+  var allTabs = ["overview","etabl","users","notifs","payments","connexions","settings","reservations","classement","support","content","appconfig","importgmaps","qrvotes","doublons"];
   allTabs.forEach(function(t){
     var btn   = document.getElementById('admtab-'+t);
     var panel = document.getElementById('admpanel-'+t);
@@ -39054,6 +39075,11 @@ window.switchAdmTab = function(tab){
     return;
   }
   if(tab === 'qrvotes'){
+    /* FIX: forcer visibilité panel + dashboard avant chargement */
+    var _qrPanel = document.getElementById('admpanel-qrvotes');
+    if(_qrPanel){ _qrPanel.style.display='block'; _qrPanel.style.visibility='visible'; _qrPanel.style.height=''; _qrPanel.style.overflow=''; }
+    var _qrDash = document.getElementById('ambiQrAdminDashboard');
+    if(_qrDash){ _qrDash.style.display='block'; _qrDash.style.visibility='visible'; }
     /* Afficher l'état de chargement immédiatement */
     var _qrList = document.getElementById('qrAdminVotesList');
     var _qrKpiT = document.getElementById('qrAdmKpiTotal');
@@ -39070,12 +39096,27 @@ window.switchAdmTab = function(tab){
       if(typeof ambiQrLoadAdminVotes === 'function'){
         ambiQrLoadAdminVotes();
       }
-      /* Si Firebase pas encore dispo, réessayer jusqu'à 5 fois (max 3s) */
-      if(!window.db && _qrRetry < 5){
+      if(!window.db && _qrRetry < 6){
         setTimeout(_qrTryLoad, 600);
       }
     };
     setTimeout(_qrTryLoad, 150);
+    return;
+  }
+  if(tab === 'doublons'){
+    /* FIX: forcer visibilité panel AVANT d'appeler detectDoublonsEtabl */
+    var _dblPanel = document.getElementById('admpanel-doublons');
+    if(_dblPanel){ _dblPanel.style.display='block'; _dblPanel.style.visibility='visible'; _dblPanel.style.height=''; _dblPanel.style.overflow=''; }
+    var _dblRetry = 0;
+    var _dblTryLoad = function(){
+      _dblRetry++;
+      if(typeof detectDoublonsEtabl === 'function'){
+        detectDoublonsEtabl();
+      } else if(_dblRetry < 8){
+        setTimeout(_dblTryLoad, 400);
+      }
+    };
+    setTimeout(_dblTryLoad, 150);
     return;
   }
   _origSwitchAdmTab(tab);
@@ -45509,11 +45550,17 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
   window.igm2Reset=igm2Reset;
 
   function igm2Step(n){
+    /* FIX: s'assurer que le panel parent est visible et dans la fenêtre */
+    var _p = document.getElementById('admpanel-importgmaps');
+    if(_p){ _p.style.display='block'; _p.style.visibility='visible'; _p.style.height=''; _p.style.overflow='visible'; }
     [1,2,3,4].forEach(function(i){
       var s=document.getElementById('igm2-step'+i), sec=document.getElementById('igm2-sec'+i);
       if(s){s.classList.toggle('igm-active',i===n);s.classList.toggle('igm-done',i<n);}
       if(sec) sec.classList.toggle('igm-active',i===n);
     });
+    /* Scroll vers le haut du panel admin */
+    var _adm = document.getElementById('admDashPanel') || document.querySelector('.adm-content');
+    if(_adm) _adm.scrollTop = 0;
   }
 
   function igm2ToggleCat(el){
