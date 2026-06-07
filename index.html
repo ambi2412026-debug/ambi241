@@ -46268,7 +46268,10 @@ function _apResolveGooglePlaceId(nom, quartier, callback){
         var data = JSON.parse(xhr.responseText);
         var places = (data && data.places) ? data.places : [];
         if(places.length > 0 && places[0].id){
-          callback(places[0].id);
+          // Places API v1 renvoie parfois "places/ChIJxxx" — on extrait juste l'ID pur
+          var rawId = places[0].id;
+          var pureId = rawId.replace(/^places\//i, '');
+          callback(pureId);
         } else {
           callback(null);
         }
@@ -46286,7 +46289,11 @@ function _apResolveGooglePlaceId(nom, quartier, callback){
 /* ── Fetcher les photos Places API pour un place_id Google ──
    Retourne un tableau d'URLs (max 10, triées par résolution décroissante) ── */
 function _apFetchPhotosForPlaceId(placeId, callback){
-  if(!placeId || !/^ChIJ/i.test(placeId)){
+  if(!placeId){ callback([]); return; }
+  // Normaliser : retirer le préfixe "places/" si présent
+  placeId = placeId.replace(/^places\//i, '');
+  // Accepter ChIJ... (Google Places legacy) et tout ID alphanumérique valide (Places API v1)
+  if(!/^[A-Za-z0-9_-]{5,}/.test(placeId)){
     callback([]);
     return;
   }
@@ -46301,6 +46308,7 @@ function _apFetchPhotosForPlaceId(placeId, callback){
   var xhr = new XMLHttpRequest();
   xhr.open('GET', url, true);
   xhr.setRequestHeader('X-Goog-FieldMask', 'photos');
+  if(window.AMBI_DEBUG) console.log('[Photos] Fetching place_id:', placeId);
   xhr.onreadystatechange = function(){
     if(xhr.readyState !== 4) return;
     try {
@@ -46371,7 +46379,10 @@ async function _apSavePhotosToFirestore(firestoreId, etabData, photoUrls){
    callback(result) : 'ok' | 'no_photos' | 'err'
 ── */
 function _apEnrichOne(etab, firestoreId, callback){
-  var isGoogleId = etab.place_id && /^ChIJ/i.test(etab.place_id);
+  // Normaliser le place_id avant test
+  if(etab.place_id) etab.place_id = etab.place_id.replace(/^places\\//i, '');
+  // Considérer comme Google ID tout ID alphanumérique valide (pas seulement ChIJ)
+  var isGoogleId = etab.place_id && /^[A-Za-z0-9_-]{5,}/.test(etab.place_id);
 
   function doFetchAndSave(placeId){
     _apFetchPhotosForPlaceId(placeId, function(urls){
@@ -53310,10 +53321,9 @@ window._lazyInitSection = function(name) {
 })();
 </script>
 <script>
-/* ══════════════════════════════════════════════════════════════════════
-   ══ DOUBLONS ÉTABLISSEMENTS v2.0 — Détection multi-critères, Batch  ══
-   ══ suppression, prévention à l'import, score de similarité         ══
-   ══════════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════
+   ══ DOUBLONS ÉTABLISSEMENTS — Détection & Suppression Admin  ══
+   ══════════════════════════════════════════════════════════════ */
 (function(){
 
   var _dblSelected = {}; // { firebaseId: true }
@@ -53324,91 +53334,12 @@ window._lazyInitSection = function(name) {
   function hide(id){ var e=$id(id); if(e) e.style.display='none'; }
   function setText(id,v){ var e=$id(id); if(e) e.textContent=v; }
 
-  /* ────────────────────────────────────────────────────────────────────
-     ALGORITHME DE SIMILARITÉ — Levenshtein normalisé (0..1)
-  ──────────────────────────────────────────────────────────────────── */
-  function levenshtein(a, b){
-    if(!a) return b ? b.length : 0;
-    if(!b) return a.length;
-    var m=a.length, n=b.length, dp=[];
-    for(var i=0;i<=m;i++){ dp[i]=[i]; }
-    for(var j=0;j<=n;j++){ dp[0][j]=j; }
-    for(var i=1;i<=m;i++){
-      for(var j=1;j<=n;j++){
-        dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1]
-          : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
-      }
-    }
-    return dp[m][n];
-  }
-  function simScore(a, b){
-    a = normName(a); b = normName(b);
-    if(!a||!b) return 0;
-    if(a===b) return 1;
-    var maxLen = Math.max(a.length, b.length);
-    return +(1 - levenshtein(a,b)/maxLen).toFixed(2);
-  }
-
-  /* ── Distance GPS en mètres (Haversine) ── */
-  function gpsDistance(lat1, lng1, lat2, lng2){
-    if(!lat1||!lng1||!lat2||!lng2) return Infinity;
-    var R=6371000, dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
-    var a=Math.sin(dLat/2)*Math.sin(dLat/2)+
-          Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*
-          Math.sin(dLng/2)*Math.sin(dLng/2);
-    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-  }
-
   /* ── Normalise un nom pour comparaison ── */
   function normName(n){
     if(!n) return '';
     return n.trim().toLowerCase()
-      .replace(/[''`]/g,"'")
-      .replace(/[-_]/g,' ')
       .replace(/\s+/g,' ')
-      .replace(/^(le|la|les|l'|bar|resto|restaurant|hotel|chez)\s+/i,'');
-  }
-
-  /* ── Score de similarité globale entre deux établissements ── */
-  function pairSimilarity(a, b){
-    var nameSim = simScore(a.nom, b.nom);
-    var dist = gpsDistance(a.lat, a.lng, b.lat, b.lng);
-    var gpsScore = dist < 50 ? 1 : dist < 150 ? 0.7 : dist < 300 ? 0.4 : 0;
-    // Pondération : nom 70%, GPS 30%
-    var score = nameSim * 0.7 + gpsScore * 0.3;
-    return { score: +score.toFixed(2), nameSim: nameSim, dist: isFinite(dist) ? Math.round(dist) : null };
-  }
-
-  /* ── Seuil à partir duquel on considère un doublon ── */
-  var SIMILARITY_THRESHOLD = 0.75;
-
-  /* ────────────────────────────────────────────────────────────────────
-     DÉTECTION DOUBLONS — nom exact + similarité fuzzy + GPS
-  ──────────────────────────────────────────────────────────────────── */
-  function findDuplicateGroups(docs){
-    var used = new Set ? new Set() : {};
-    var groups = [];
-
-    for(var i=0;i<docs.length;i++){
-      var id_i = docs[i].id;
-      if(used.has ? used.has(id_i) : used[id_i]) continue;
-      var group = [docs[i]];
-      for(var j=i+1;j<docs.length;j++){
-        var id_j = docs[j].id;
-        if(used.has ? used.has(id_j) : used[id_j]) continue;
-        var sim = pairSimilarity(docs[i], docs[j]);
-        if(sim.score >= SIMILARITY_THRESHOLD){
-          docs[j]._simInfo = sim; // stocker pour affichage
-          group.push(docs[j]);
-          if(used.has){ used.add(id_j); } else { used[id_j]=true; }
-        }
-      }
-      if(group.length > 1){
-        if(used.has){ used.add(id_i); } else { used[id_i]=true; }
-        groups.push(group);
-      }
-    }
-    return groups;
+      .replace(/[''`]/g,"'");
   }
 
   /* ── Mise à jour du compteur sélectionnés ── */
@@ -53422,43 +53353,29 @@ window._lazyInitSection = function(name) {
     }
   }
 
-  /* ── Escape HTML ── */
-  function _esc(s){
-    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-
-  /* ── Badge score couleur ── */
-  function scoreBadge(sim){
-    if(!sim) return '';
-    var pct = Math.round((sim.score||0)*100);
-    var col = pct >= 90 ? '#ff4466' : pct >= 80 ? 'var(--amber)' : 'var(--muted)';
-    var info = sim.dist !== null ? ' · ' + sim.dist + 'm' : '';
-    return '<span style="font-size:0.58rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:0.05rem 0.35rem;color:'+col+';font-weight:800;margin-left:0.3rem;">'+pct+'%'+info+'</span>';
-  }
-
   /* ── Render un groupe de doublons ── */
-  function renderGroup(group){
-    var groupName = group[0].nom || '(sans nom)';
+  function renderGroup(groupName, items){
     var div = document.createElement('div');
     div.style.cssText='background:rgba(255,68,102,0.05);border:1.5px solid rgba(255,68,102,0.25);border-radius:14px;padding:0.9rem;margin-bottom:0.8rem;';
 
+    /* En-tête du groupe */
     var header = document.createElement('div');
     header.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:0.7rem;flex-wrap:wrap;gap:0.4rem;';
     header.innerHTML =
-      '<div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">' +
+      '<div style="display:flex;align-items:center;gap:0.5rem;">' +
         '<span style="font-size:1rem;">🔁</span>' +
         '<span style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:0.88rem;color:#ff4466;">' + _esc(groupName) + '</span>' +
-        '<span style="background:rgba(255,68,102,0.2);color:#ff4466;border:1px solid rgba(255,68,102,0.4);border-radius:100px;padding:0.05rem 0.5rem;font-size:0.65rem;font-weight:800;">' + group.length + ' entrées</span>' +
+        '<span style="background:rgba(255,68,102,0.2);color:#ff4466;border:1px solid rgba(255,68,102,0.4);border-radius:100px;padding:0.05rem 0.5rem;font-size:0.65rem;font-weight:800;">' + items.length + ' entrées</span>' +
       '</div>' +
-      '<button onclick="dblDeleteGroup(this)" ' +
-        'style="padding:0.35rem 0.7rem;border-radius:8px;border:1px solid rgba(255,68,102,0.5);background:rgba(255,68,102,0.12);color:#ff4466;font-size:0.68rem;font-weight:800;cursor:pointer;">' +
-        '🗑️ Tout sauf original</button>';
+      '<button onclick="dblDeleteGroup(\'' + _escAttr(groupName) + '\')" ' +
+        'style="padding:0.35rem 0.7rem;border-radius:8px;border:1px solid rgba(255,68,102,0.5);background:rgba(255,68,102,0.12);color:#ff4466;font-size:0.68rem;font-weight:800;cursor:pointer;font-family:\'DM Sans\',sans-serif;">' +
+        '🗑️ Supprimer tout le groupe</button>';
     div.appendChild(header);
 
-    group.forEach(function(item, idx){
+    /* Lignes par item */
+    items.forEach(function(item, idx){
       var row = document.createElement('div');
       var isFirst = idx === 0;
-      row.dataset.docid = item.id;
       row.style.cssText = 'display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0.55rem;border-radius:9px;margin-bottom:0.3rem;background:' +
         (isFirst ? 'rgba(0,255,170,0.06)' : 'rgba(255,255,255,0.03)') + ';border:1px solid ' +
         (isFirst ? 'rgba(0,255,170,0.2)' : 'rgba(255,255,255,0.06)') + ';';
@@ -53466,280 +53383,249 @@ window._lazyInitSection = function(name) {
       var cb = document.createElement('input');
       cb.type='checkbox';
       cb.id='dbl_cb_'+item.id;
-      cb.style.cssText='width:16px;height:16px;flex-shrink:0;cursor:pointer;' + (isFirst ? 'opacity:0.25;cursor:not-allowed;' : 'accent-color:#ff4466;');
-      cb.disabled = isFirst;
-      cb.checked = !isFirst && !!_dblSelected[item.id];
-      cb.onchange = (function(docId){ return function(){
-        if(this.checked) _dblSelected[docId]=true; else delete _dblSelected[docId];
+      cb.style.cssText='accent-color:#ff4466;width:16px;height:16px;flex-shrink:0;cursor:pointer;';
+      if(isFirst){
+        // L'ORIGINAL ne doit jamais être sélectionné ni supprimé en masse
+        cb.disabled = true;
+        cb.checked = false;
+        cb.style.cssText='width:16px;height:16px;flex-shrink:0;cursor:not-allowed;opacity:0.3;';
+        cb.title = 'L\'original ne peut pas être supprimé en masse';
+      } else {
+        cb.checked = !!_dblSelected[item.id];
+      }
+      cb.onchange = function(){
+        if(isFirst){ this.checked = false; return; } // sécurité supplémentaire
+        if(this.checked) _dblSelected[item.id]=true;
+        else delete _dblSelected[item.id];
         updateSelectedCount();
-      }; })(item.id);
+      };
 
       var info = document.createElement('div');
       info.style.cssText='flex:1;min-width:0;';
-      var simBadge = (!isFirst && item._simInfo) ? scoreBadge(item._simInfo) : '';
       info.innerHTML =
         '<div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;">' +
-          '<span style="font-size:0.78rem;font-weight:700;color:'+(isFirst?'var(--green)':'var(--text)')+';">' + _esc(item.nom||'(sans nom)') + '</span>' +
-          (isFirst ? '<span style="font-size:0.55rem;background:rgba(0,255,170,0.15);color:var(--green);border-radius:4px;padding:0.05rem 0.3rem;font-weight:800;">ORIGINAL</span>'
-                   : '<span style="font-size:0.55rem;background:rgba(255,68,102,0.15);color:#ff4466;border-radius:4px;padding:0.05rem 0.3rem;font-weight:800;">DOUBLON</span>' + simBadge) +
+          '<span style="font-size:0.78rem;font-weight:700;color:' + (isFirst ? 'var(--green)' : 'var(--text)') + ';">' + _esc(item.nom||'(sans nom)') + '</span>' +
+          (isFirst ? '<span style="font-size:0.55rem;background:rgba(0,255,170,0.15);color:var(--green);border-radius:4px;padding:0.05rem 0.3rem;font-weight:800;">ORIGINAL</span>' : '<span style="font-size:0.55rem;background:rgba(255,68,102,0.15);color:#ff4466;border-radius:4px;padding:0.05rem 0.3rem;font-weight:800;">DOUBLON</span>') +
         '</div>' +
         '<div style="font-size:0.62rem;color:var(--muted);margin-top:0.15rem;display:flex;gap:0.5rem;flex-wrap:wrap;">' +
           '<span>🆔 <code style="color:var(--cyan);font-size:0.6rem;user-select:all;">' + _esc(item.id) + '</code></span>' +
           (item.quartier ? '<span>📍 '+_esc(item.quartier)+'</span>' : '') +
           (item.type ? '<span>🏷️ '+_esc(item.type)+'</span>' : '') +
-          (item.lat ? '<span style="color:rgba(255,255,255,0.3);">GPS ✓</span>' : '') +
         '</div>';
 
       var delBtn = document.createElement('button');
-      delBtn.title='Supprimer';
-      delBtn.style.cssText='padding:0.3rem 0.5rem;border-radius:7px;border:1px solid rgba(255,68,102,0.4);background:rgba(255,68,102,0.1);color:#ff4466;font-size:0.68rem;cursor:pointer;flex-shrink:0;' + (isFirst ? 'opacity:0.25;cursor:not-allowed;' : '');
-      delBtn.disabled = isFirst;
+      delBtn.title='Supprimer cet établissement';
+      delBtn.style.cssText='padding:0.3rem 0.5rem;border-radius:7px;border:1px solid rgba(255,68,102,0.4);background:rgba(255,68,102,0.1);color:#ff4466;font-size:0.68rem;cursor:pointer;flex-shrink:0;transition:all 0.15s;';
       delBtn.textContent='🗑';
-      if(!isFirst){
-        delBtn.onclick=(function(docId,rowEl){ return function(){
-          if(!confirm('Supprimer l\'établissement ?\nID: '+docId)) return;
+      delBtn.onclick=(function(docId, rowEl){
+        return function(){
+          if(!confirm('Supprimer l\'établissement Firebase ID:\n'+docId+' ?')) return;
           deleteOneEtabl(docId, function(err){
             if(err){ alert('Erreur: '+err); return; }
-            rowEl.style.opacity='0'; rowEl.style.transition='opacity 0.3s';
-            setTimeout(function(){ rowEl.remove(); },320);
-            delete _dblSelected[docId]; updateSelectedCount();
+            rowEl.style.opacity='0';
+            rowEl.style.transition='opacity 0.3s';
+            setTimeout(function(){ rowEl.remove(); }, 320);
+            delete _dblSelected[docId];
+            updateSelectedCount();
           });
-        }; })(item.id, row);
-      }
+        };
+      })(item.id, row);
 
-      row.appendChild(cb); row.appendChild(info); row.appendChild(delBtn);
+      row.appendChild(cb);
+      row.appendChild(info);
+      row.appendChild(delBtn);
       div.appendChild(row);
     });
 
     return div;
   }
 
-  /* ────────────────────────────────────────────────────────────────────
-     SUPPRESSION BATCH — par tranches de 10 en parallèle
-  ──────────────────────────────────────────────────────────────────── */
+  /* ── Escape HTML ── */
+  function _esc(s){
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function _escAttr(s){
+    return String(s||'').replace(/'/g,"\\'");
+  }
+
+  /* ── Supprimer un seul établissement Firebase ── */
   function deleteOneEtabl(docId, cb){
-    if(!window.db||!window.fbDoc||!window.fbDeleteDoc){ cb('Firebase non disponible'); return; }
+    if(!window.db || !window.fbDoc || !window.fbDeleteDoc){cb('Firebase non disponible');return;}
     window.fbDeleteDoc(window.fbDoc(window.db,'etablissements',docId))
       .then(function(){ cb(null); })
-      .catch(function(e){ cb(e.message||'Erreur'); });
+      .catch(function(e){ cb(e.message||'Erreur inconnue'); });
   }
 
-  function deleteBatch(ids, onProgress, onDone){
-    var total=ids.length, deleted=0, errors=0;
-    if(total===0){ onDone(0,0); return; }
-    var chunkSize=10;
-    function processChunk(start){
-      if(start>=total){ onDone(deleted,errors); return; }
-      var chunk=ids.slice(start, start+chunkSize);
-      var promises=chunk.map(function(id){
-        return new Promise(function(resolve){
-          deleteOneEtabl(id, function(err){
-            if(err) errors++; else { deleted++; delete _dblSelected[id]; }
-            if(onProgress) onProgress(deleted+errors, total);
-            resolve();
-          });
-        });
-      });
-      Promise.all(promises).then(function(){ processChunk(start+chunkSize); });
-    }
-    processChunk(0);
-  }
-
-  /* ────────────────────────────────────────────────────────────────────
+  /* ════════════════════════════════════════════════════════
      FONCTION PRINCIPALE : Détecter les doublons
-  ──────────────────────────────────────────────────────────────────── */
+  ════════════════════════════════════════════════════════ */
   window.detectDoublonsEtabl = function(){
-    if(!window.isAdmin) return;
-    if(!window.db||!window.fbCollection||!window.fbGetDocs){
-      var gl=$id('dblGroupsList');
-      if(gl) gl.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--red);font-size:0.82rem;">⚠️ Firebase non disponible.</div>';
+    // Sécurité : uniquement accessible aux admins
+    if(!window.isAdmin){ console.warn('[AMBI241] detectDoublonsEtabl: accès refusé (non-admin)'); return; }
+    /* Le panel est maintenant dans le modal doublons */
+    var panel = document.getElementById('doublonsModalBody') || document.getElementById('admpanel-doublons');
+    if(!panel) return;
+
+    if(!window.db || !window.fbCollection || !window.fbGetDocs){
+      $id('dblGroupsList').innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--red);font-size:0.82rem;">⚠️ Firebase non disponible. Reconnectez-vous.</div>';
       return;
     }
 
-    _dblSelected={}; updateSelectedCount();
-    hide('dblEmpty'); if($id('dblGroupsList')) $id('dblGroupsList').innerHTML='';
+    _dblSelected = {};
+    updateSelectedCount();
+    hide('dblEmpty');
+    $id('dblGroupsList').innerHTML='';
     show('dblLoader');
-    setText('dblKpiTotal','…'); setText('dblKpiGroups','…'); setText('dblKpiCount','…');
-
-    // Afficher le seuil actuel
-    var threshEl=$id('dblThresholdVal');
-    if(threshEl) threshEl.textContent=Math.round(SIMILARITY_THRESHOLD*100)+'%';
+    setText('dblKpiTotal','…');
+    setText('dblKpiGroups','…');
+    setText('dblKpiCount','…');
 
     window.fbGetDocs(window.fbCollection(window.db,'etablissements')).then(function(snap){
       hide('dblLoader');
-      var allDocs=[];
+
+      var allDocs = [];
       snap.forEach(function(doc){
-        var d=doc.data();
-        var lat=null,lng=null;
-        if(d.location&&d.location.latitude){ lat=d.location.latitude; lng=d.location.longitude; }
-        else if(d.lat){ lat=d.lat; lng=d.lng; }
-        else if(d.gps&&d.gps.lat){ lat=d.gps.lat; lng=d.gps.lng; }
-        allDocs.push({ id:doc.id, nom:d.nom||d.name||'', quartier:d.quartier||d.neighborhood||'',
-          type:d.type||d.categorie||'', createdAt:d.createdAt||null, lat:lat, lng:lng });
+        var d = doc.data();
+        allDocs.push({ id: doc.id, nom: d.nom||d.name||'', quartier: d.quartier||d.neighborhood||'', type: d.type||d.categorie||'', createdAt: d.createdAt||null });
       });
 
       setText('dblKpiTotal', allDocs.length);
 
-      // Trier du plus ancien au plus récent (original = plus ancien)
-      allDocs.sort(function(a,b){
-        var ta=a.createdAt?(a.createdAt.seconds||0):0, tb=b.createdAt?(b.createdAt.seconds||0):0;
-        return ta-tb;
+      /* Regrouper par nom normalisé */
+      var groups = {};
+      allDocs.forEach(function(item){
+        var key = normName(item.nom);
+        if(!key) return;
+        if(!groups[key]) groups[key]=[];
+        groups[key].push(item);
       });
 
-      var groups = findDuplicateGroups(allDocs);
-      var totalDups = groups.reduce(function(acc,g){ return acc+g.length-1; },0);
+      /* Garder uniquement les groupes avec doublons */
+      var dupGroups = {};
+      Object.keys(groups).forEach(function(k){
+        if(groups[k].length > 1) dupGroups[k] = groups[k];
+      });
 
-      setText('dblKpiGroups', groups.length);
+      var groupKeys = Object.keys(dupGroups);
+      var totalDups = groupKeys.reduce(function(acc,k){ return acc + dupGroups[k].length - 1; }, 0);
+
+      setText('dblKpiGroups', groupKeys.length);
       setText('dblKpiCount', totalDups);
 
-      // Mettre à jour badge onglet
-      var badge=$id('admDoublonsBadge');
+      /* Mettre à jour le badge onglet */
+      var badge = $id('admDoublonsBadge');
       if(badge){
-        if(totalDups>0){ badge.style.display='flex'; badge.textContent=totalDups>9?'9+':totalDups; }
-        else { badge.style.display='none'; }
+        if(totalDups > 0){
+          badge.style.display='flex';
+          badge.textContent = totalDups > 9 ? '9+' : totalDups;
+        } else {
+          badge.style.display='none';
+        }
       }
 
-      if(groups.length===0){ show('dblEmpty'); return; }
+      if(groupKeys.length === 0){
+        show('dblEmpty');
+        return;
+      }
 
-      var container=$id('dblGroupsList');
-      groups.forEach(function(group){ container.appendChild(renderGroup(group)); });
+      var container = $id('dblGroupsList');
+      groupKeys.sort().forEach(function(key){
+        var items = dupGroups[key];
+        /* Trier : garder le plus ancien en premier (comme "original") */
+        items.sort(function(a,b){
+          var ta = a.createdAt ? (a.createdAt.seconds||0) : 0;
+          var tb = b.createdAt ? (b.createdAt.seconds||0) : 0;
+          return ta - tb;
+        });
+        container.appendChild(renderGroup(items[0].nom || key, items));
+      });
 
     }).catch(function(err){
       hide('dblLoader');
-      if($id('dblGroupsList')) $id('dblGroupsList').innerHTML=
-        '<div style="background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);border-radius:12px;padding:1rem;color:#ff4466;font-size:0.78rem;">❌ '+_esc(err.message||err)+'</div>';
+      $id('dblGroupsList').innerHTML = '<div style="background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);border-radius:12px;padding:1rem;color:#ff4466;font-size:0.78rem;">❌ Erreur lors du chargement : ' + _esc(err.message||err) + '</div>';
     });
   };
 
   /* ── Sélectionner tous les doublons (pas les originaux) ── */
   window.dblSelectAllDuplicates = function(){
-    document.querySelectorAll('#dblGroupsList input[type=checkbox]').forEach(function(cb){
-      if(cb.disabled) return;
-      cb.checked=true;
-      _dblSelected[cb.id.replace('dbl_cb_','')]=true;
+    var checkboxes = document.querySelectorAll('#dblGroupsList input[type=checkbox]');
+    checkboxes.forEach(function(cb){
+      if(cb.disabled) return; // Ne pas sélectionner les originaux
+      cb.checked = true;
+      var id = cb.id.replace('dbl_cb_','');
+      _dblSelected[id] = true;
     });
     updateSelectedCount();
   };
 
-  /* ── Désélectionner tout ── */
-  window.dblClearSelection = function(){
-    document.querySelectorAll('#dblGroupsList input[type=checkbox]').forEach(function(cb){
-      cb.checked=false;
-    });
-    _dblSelected={}; updateSelectedCount();
-  };
-
-  /* ── Supprimer tous les sélectionnés (batch) ── */
+  /* ── Supprimer tous les sélectionnés ── */
   window.dblDeleteSelected = function(){
-    var ids=Object.keys(_dblSelected);
-    if(ids.length===0){ alert('Aucun établissement sélectionné.'); return; }
-    if(!confirm('⚠️ Supprimer définitivement '+ids.length+' établissement(s) ?\nCette action est irréversible.')) return;
+    var ids = Object.keys(_dblSelected);
+    if(ids.length === 0){ alert('Aucun établissement sélectionné.'); return; }
+    if(!confirm('⚠️ Supprimer définitivement ' + ids.length + ' établissement(s) ?\n\nCette action est irréversible.')) return;
 
-    // Afficher barre de progression inline
-    var progWrap=$id('dblDeleteProgress');
-    if(!progWrap){
-      progWrap=document.createElement('div');
-      progWrap.id='dblDeleteProgress';
-      progWrap.style.cssText='margin-bottom:0.8rem;';
-      progWrap.innerHTML='<div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.3rem;">Suppression en cours… <span id="dblDelCount">0</span>/'+ids.length+'</div>'+
-        '<div style="height:6px;background:rgba(255,255,255,0.07);border-radius:3px;overflow:hidden;"><div id="dblDelBar" style="height:100%;background:linear-gradient(90deg,#ff4466,var(--purple));width:0%;transition:width 0.2s;border-radius:3px;"></div></div>';
-      var gl=$id('dblGroupsList');
-      if(gl) gl.parentNode.insertBefore(progWrap, gl);
-    } else { progWrap.style.display='block'; }
+    var deleted = 0, errors = 0;
+    var total = ids.length;
 
-    deleteBatch(ids,
-      function(done, total){
-        setText('dblDelCount', done);
-        var bar=$id('dblDelBar');
-        if(bar) bar.style.width=Math.round(done/total*100)+'%';
-      },
-      function(deleted, errors){
-        setTimeout(function(){
-          if(progWrap) progWrap.style.display='none';
-          alert('✅ '+deleted+' supprimé(s)'+(errors>0?' — '+errors+' erreur(s)':'')+'.');
-          detectDoublonsEtabl();
-        }, 400);
+    function next(){
+      if(ids.length === 0){
+        alert('✅ ' + deleted + ' supprimé(s)' + (errors>0 ? ', ' + errors + ' erreur(s)' : '') + '.');
+        _dblSelected = {};
+        detectDoublonsEtabl();
+        return;
       }
-    );
-  };
-
-  /* ── Supprimer tout un groupe sauf l'original ── */
-  window.dblDeleteGroup = function(btn){
-    var groupDiv = btn.closest ? btn.closest('div[style*="rgba(255,68,102,0.05)"]') : btn.parentNode.parentNode;
-    if(!groupDiv) return;
-    var ids=[];
-    groupDiv.querySelectorAll('input[type=checkbox]').forEach(function(cb){
-      if(!cb.disabled) ids.push(cb.id.replace('dbl_cb_',''));
-    });
-    if(ids.length===0){ alert('Aucun doublon dans ce groupe.'); return; }
-    var groupName = (groupDiv.querySelector('span[style*="font-weight:800;font-size:0.88rem"]')||{}).textContent||'ce groupe';
-    if(!confirm('⚠️ Supprimer '+ids.length+' doublon(s) de "'+groupName+'" ?\nL\'original sera conservé.')) return;
-    deleteBatch(ids, null, function(deleted, errors){
-      alert('✅ '+deleted+' doublon(s) supprimé(s)'+(errors>0?' — '+errors+' erreur(s)':'')+'.');
-      detectDoublonsEtabl();
-    });
-  };
-
-  /* ────────────────────────────────────────────────────────────────────
-     RÉGLAGE DU SEUIL DE SENSIBILITÉ (UI slider dans le modal)
-  ──────────────────────────────────────────────────────────────────── */
-  window.dblSetThreshold = function(val){
-    SIMILARITY_THRESHOLD = parseFloat(val)||0.75;
-    var el=$id('dblThresholdVal');
-    if(el) el.textContent=Math.round(SIMILARITY_THRESHOLD*100)+'%';
-  };
-
-  /* ────────────────────────────────────────────────────────────────────
-     PRÉVENTION À L'IMPORT — hook appelé avant toute écriture Firebase
-     Usage : window.ambiCheckDuplicate(nomCandidat, lat, lng) → {isDup, similarity, matchId, matchNom}
-  ──────────────────────────────────────────────────────────────────── */
-  var _importCache = null; // cache en mémoire pour la session d'import
-
-  window.ambiRefreshImportCache = function(){
-    return new Promise(function(resolve){
-      if(!window.db||!window.fbCollection||!window.fbGetDocs){ resolve(false); return; }
-      window.fbGetDocs(window.fbCollection(window.db,'etablissements')).then(function(snap){
-        _importCache=[];
-        snap.forEach(function(doc){
-          var d=doc.data();
-          var lat=null,lng=null;
-          if(d.location&&d.location.latitude){ lat=d.location.latitude; lng=d.location.longitude; }
-          else if(d.lat){ lat=d.lat; lng=d.lng; }
-          _importCache.push({ id:doc.id, nom:d.nom||d.name||'', lat:lat, lng:lng });
-        });
-        resolve(true);
-      }).catch(function(){ resolve(false); });
-    });
-  };
-
-  window.ambiCheckDuplicate = function(nomCandidat, lat, lng){
-    if(!_importCache) return { isDup:false };
-    var best = { isDup:false, score:0, matchId:null, matchNom:null };
-    for(var i=0;i<_importCache.length;i++){
-      var existing=_importCache[i];
-      var sim=pairSimilarity(
-        { nom:nomCandidat, lat:lat, lng:lng },
-        { nom:existing.nom, lat:existing.lat, lng:existing.lng }
-      );
-      if(sim.score > best.score){
-        best.score=sim.score;
-        best.matchId=existing.id;
-        best.matchNom=existing.nom;
-        best.dist=sim.dist;
-        best.nameSim=sim.nameSim;
-      }
+      var id = ids.shift();
+      deleteOneEtabl(id, function(err){
+        if(err) errors++;
+        else { deleted++; delete _dblSelected[id]; }
+        next();
+      });
     }
-    best.isDup = best.score >= SIMILARITY_THRESHOLD;
-    return best;
+    next();
   };
 
-  /* Ajouter un nouvel établissement au cache local après import réussi */
-  window.ambiAddToImportCache = function(id, nom, lat, lng){
-    if(!_importCache) _importCache=[];
-    _importCache.push({ id:id, nom:nom||'', lat:lat||null, lng:lng||null });
+  /* ── Supprimer tout un groupe (sauf le 1er — l'original) ── */
+  window.dblDeleteGroup = function(groupName){
+    /* Trouver le groupe par son nom dans l'en-tête */
+    var allGroupDivs = document.querySelectorAll('#dblGroupsList > div');
+    var groupDiv = null;
+    allGroupDivs.forEach(function(d){
+      var titleEl = d.querySelector('span[style*="color:#ff4466"]');
+      if(titleEl && titleEl.textContent.trim() === groupName) groupDiv = d;
+    });
+
+    var groupIds = [];
+    if(groupDiv){
+      groupDiv.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+        if(!cb.disabled){ // disabled = original, on ne le supprime pas
+          groupIds.push(cb.id.replace('dbl_cb_',''));
+        }
+      });
+    }
+
+    if(groupIds.length === 0){
+      alert('Aucun doublon à supprimer dans ce groupe (seul l\'original reste).');
+      return;
+    }
+    if(!confirm('⚠️ Supprimer ' + groupIds.length + ' doublon(s) pour "' + groupName + '" ?\n\nL\'original (1ère entrée) sera conservé.')) return;
+
+    var deleted=0, errors=0;
+    function next(){
+      if(groupIds.length===0){
+        alert('✅ ' + deleted + ' doublon(s) supprimé(s)' + (errors>0?' — '+errors+' erreur(s)':'') + '.');
+        detectDoublonsEtabl();
+        return;
+      }
+      var id=groupIds.shift();
+      deleteOneEtabl(id,function(err){
+        if(err)errors++; else deleted++;
+        next();
+      });
+    }
+    next();
   };
 
-  console.log('[AMBI241] ✅ Module Doublons v2.0 — Levenshtein + GPS + Batch suppression + Hook import');
+  console.log('[AMBI241] ✅ Module Doublons Établissements chargé');
 })();
 </script>
 
@@ -55290,20 +55176,11 @@ console.log("[AMBI241] ✅ Système abonnement premium — compte à rebours cha
         <div class="adm-kpi"><div class="kv" id="dblKpiGroups" style="color:#ff4466;">—</div><div class="kl">Groupes doublons</div></div>
         <div class="adm-kpi"><div class="kv" id="dblKpiCount" style="color:var(--amber);">—</div><div class="kl">Entrées en double</div></div>
       </div>
-      <!-- Seuil de similarité -->
-      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:0.65rem 0.8rem;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.7rem;flex-wrap:wrap;">
-        <span style="font-size:0.72rem;color:var(--muted);white-space:nowrap;">🎯 Seuil similitude :</span>
-        <input type="range" min="60" max="95" value="75" step="5" oninput="dblSetThreshold(this.value/100)"
-          style="flex:1;min-width:80px;accent-color:#ff4466;cursor:pointer;" />
-        <span id="dblThresholdVal" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.8rem;color:#ff4466;min-width:2.8rem;text-align:right;">75%</span>
-        <button onclick="detectDoublonsEtabl()" style="padding:0.3rem 0.6rem;border-radius:7px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.07);color:var(--cyan);font-size:0.68rem;font-weight:800;cursor:pointer;">↻ Appliquer</button>
-      </div>
       <!-- Actions globales -->
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
-        <button onclick="detectDoublonsEtabl()" style="flex:1;min-width:100px;padding:0.6rem 0.8rem;border-radius:10px;border:1.5px solid rgba(0,229,255,0.4);background:rgba(0,229,255,0.08);color:var(--cyan);font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;">🔍 Actualiser</button>
-        <button onclick="dblSelectAllDuplicates()" style="flex:1;min-width:100px;padding:0.6rem 0.8rem;border-radius:10px;border:1.5px solid rgba(255,215,0,0.4);background:rgba(255,215,0,0.08);color:var(--amber);font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;">☑️ Tout sélect.</button>
-        <button onclick="dblClearSelection()" style="flex:1;min-width:80px;padding:0.6rem 0.8rem;border-radius:10px;border:1.5px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);color:var(--muted);font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;">✕ Vider</button>
-        <button onclick="dblDeleteSelected()" id="dblBtnDeleteSelected" style="flex:1;min-width:140px;padding:0.6rem 0.8rem;border-radius:10px;border:1.5px solid rgba(255,68,102,0.5);background:rgba(255,68,102,0.12);color:#ff4466;font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;opacity:0.45;">🗑️ Supprimer sélectionnés (<span id="dblSelectedCount">0</span>)</button>
+        <button onclick="detectDoublonsEtabl()" style="flex:1;min-width:120px;padding:0.6rem 0.8rem;border-radius:10px;border:1.5px solid rgba(0,229,255,0.4);background:rgba(0,229,255,0.08);color:var(--cyan);font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;">🔍 Actualiser</button>
+        <button onclick="dblSelectAllDuplicates()" style="flex:1;min-width:120px;padding:0.6rem 0.8rem;border-radius:10px;border:1.5px solid rgba(255,215,0,0.4);background:rgba(255,215,0,0.08);color:var(--amber);font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;">☑️ Tout sélectionner</button>
+        <button onclick="dblDeleteSelected()" id="dblBtnDeleteSelected" style="flex:1;min-width:140px;padding:0.6rem 0.8rem;border-radius:10px;border:1.5px solid rgba(255,68,102,0.5);background:rgba(255,68,102,0.12);color:#ff4466;font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;">🗑️ Supprimer sélectionnés (<span id="dblSelectedCount">0</span>)</button>
       </div>
       <!-- Loader -->
       <div id="dblLoader" style="display:none;text-align:center;padding:2rem;color:var(--muted);font-size:0.82rem;"><div style="font-size:1.8rem;margin-bottom:0.5rem;">⏳</div>Analyse en cours…</div>
