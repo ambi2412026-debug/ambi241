@@ -28673,6 +28673,7 @@ window.doAssignEtab = doAssignEtab;
               <button class="igm-btn igm-btn-outline igm-btn-sm" style="border-color:rgba(0,229,255,0.4);color:var(--cyan);" onclick="igm2CountAppEtab()">📊 Analyser Firebase</button>
               <button class="igm-btn igm-btn-outline igm-btn-sm" style="border-color:rgba(204,68,255,0.5);color:var(--purple);" onclick="igm2AutoPhotoAll()">📸 Enrichir (nouveaux seulement)</button>
               <button class="igm-btn igm-btn-outline igm-btn-sm" style="border-color:rgba(255,68,102,0.4);color:var(--red);" onclick="igm2AutoPhotoAll(true)">🔄 Forcer re-traitement total</button>
+              <button class="igm-btn igm-btn-outline igm-btn-sm" style="border-color:rgba(255,215,0,0.4);color:var(--amber);" onclick="(function(){var n=0;for(var i=localStorage.length-1;i>=0;i--){var k=localStorage.key(i);if(k&&k.indexOf('ambi241_gphoto_')===0){try{var v=JSON.parse(localStorage.getItem(k)||'{}');if(!v.urls||!v.urls.length){localStorage.removeItem(k);n++;}}catch(e){}}}alert('🧹 '+n+' caches vides supprimés. Relancez l\\'enrichissement.')})()">🧹 Purger caches vides</button>
             </div>
             <div id="igm2AutoPhotoAllStatus" class="igm-gallery-status" style="margin-top:0.5rem;"></div>
             <div id="igm2AutoPhotoProgress" style="display:none;margin-top:0.5rem;">
@@ -46733,12 +46734,15 @@ function _apFetchPhotosForPlaceId(placeId, callback){
     callback([]);
     return;
   }
-  // Vérifier le cache local d'abord
+  // Cache : on lit UNIQUEMENT si le cache contient des URLs réelles (> 0)
+  // Un cache vide [] signifie "échec précédent" — on réessaie en mode admin
   var cached = (typeof _gphotoReadCache === 'function') ? _gphotoReadCache(placeId) : null;
-  if(cached !== null){
+  if(cached !== null && cached.length > 0){
     callback(cached);
     return;
   }
+  // Si cache vide, on le supprime pour forcer un nouvel appel API
+  try { localStorage.removeItem(GPHOTO_CACHE_PREFIX + placeId); } catch(e){}
   var url = 'https://places.googleapis.com/v1/places/' + placeId
     + '?fields=photos&languageCode=fr&key=' + GPLACES_API_KEY;
   var xhr = new XMLHttpRequest();
@@ -46763,6 +46767,8 @@ function _apFetchPhotosForPlaceId(placeId, callback){
         if(typeof _gphotoWriteCache==='function') _gphotoWriteCache(placeId, urls);
         callback(urls);
       } else {
+        // Log du statut HTTP pour faciliter le diagnostic (quota, auth, etc.)
+        if(window.AMBI_DEBUG) console.error('[_apFetch] HTTP '+xhr.status+' pour '+placeId);
         callback([]);
       }
     } catch(e){ callback([]); }
@@ -46778,33 +46784,46 @@ function _apFetchPhotosForPlaceId(placeId, callback){
 ── */
 async function _apSavePhotosToFirestore(firestoreId, etabData, photoUrls){
   if(!window.db || !window.fbDoc || !window.fbUpdateDoc) return false;
-  var gallery = photoUrls.map(function(url, i){
+
+  // Construire la galerie Google (photos réelles)
+  var googleGallery = photoUrls.map(function(url, i){
     return { url: url, storagePath: '', isProfile: i === 0, label: 'Google Maps', source: 'google' };
   });
-  var profileUrl = photoUrls.length > 0 ? photoUrls[0] : '';
-  if(!profileUrl && typeof getAdminDefaultPhotoForEtab === 'function'){
-    profileUrl = getAdminDefaultPhotoForEtab(etabData) || '';
+
+  // Récupérer les photos admin existantes (source != 'google') pour les préserver
+  var local = etablissements ? etablissements.find(function(e){ return String(e.id) === String(etabData.id); }) : null;
+  var existingAdminPhotos = [];
+  if(local && local.gallery && Array.isArray(local.gallery)){
+    existingAdminPhotos = local.gallery.filter(function(g){ return g.source !== 'google'; });
   }
+
+  // Galerie finale : photos Google en premier, puis photos admin préservées
+  var finalGallery = googleGallery.concat(existingAdminPhotos);
+
+  // Photo de profil : 1ère Google en priorité absolue (écrase photo admin par défaut)
+  var profileUrl = photoUrls[0] || '';
+
   var update = {
-    gallery: gallery,
-    photo_profile_approved: profileUrl,
-    photo_interieur: photoUrls[1] || photoUrls[0] || '',
-    photo_exterieur: photoUrls[0] || '',
+    gallery: finalGallery,
+    photo_profile_approved: profileUrl,  // écrase la photo par défaut admin
+    photo_interieur: photoUrls[1] || photoUrls[0] || '',  // 2ème photo ou 1ère
+    photo_exterieur: photoUrls[0] || '',                   // 1ère photo = façade
     _gphoto_enriched: true,
-    _gphoto_enriched_at: Date.now()
+    _gphoto_enriched_at: Date.now(),
+    _gphoto_source: 'places_api'
   };
   try {
     await window.fbUpdateDoc(window.fbDoc(window.db, 'etablissements', firestoreId), update);
-    // Mettre à jour le cache local aussi
-    var local = etablissements ? etablissements.find(function(e){ return String(e.id) === String(etabData.id); }) : null;
+    // Synchroniser le cache mémoire local pour rendu immédiat
     if(local){
-      local.gallery = gallery;
+      local.gallery = finalGallery;
       local.photo_profile_approved = profileUrl;
       local._photo_profile_approved = profileUrl;
       local.photo_interieur = update.photo_interieur;
       local.photo_exterieur = update.photo_exterieur;
       local._gphoto_enriched = true;
-      if(photoUrls.length){ local._gphoto_urls = photoUrls.slice(); }
+      local._gphoto_urls = photoUrls.slice();
+      local._fallback_svg = null; // supprimer le fallback SVG — photo réelle disponible
     }
     return true;
   } catch(e){ return false; }
@@ -47032,6 +47051,19 @@ window.igm2AutoPhotoAll = async function(forceAll){
   if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});
   var w=document.getElementById('igm2AutoPhotoLog');
   if(w)w.innerHTML='';
+
+  // ── Vider tous les caches vides ([] = échecs passés) pour forcer de vrais appels API
+  var cachePurged=0;
+  try{
+    for(var ki=localStorage.length-1;ki>=0;ki--){
+      var kk=localStorage.key(ki);
+      if(kk && kk.indexOf(GPHOTO_CACHE_PREFIX)===0){
+        var cv=JSON.parse(localStorage.getItem(kk)||'{}');
+        if(!cv.urls || cv.urls.length===0){ localStorage.removeItem(kk); cachePurged++; }
+      }
+    }
+  }catch(e){}
+  if(cachePurged>0) _apLog('🧹 '+cachePurged+' caches vides purgés — les appels API vont réessayer');
   _apStatus('<span style="color:var(--cyan);">⏳ Chargement des établissements AMBI241…</span>');
   _apProg(2,'Chargement Firebase…');
   var snap;
@@ -47044,9 +47076,13 @@ window.igm2AutoPhotoAll = async function(forceAll){
     if(!_ambiIsAppCategory(v)){skipped++;return;}
     if(!forceAll && v._gphoto_enriched && v.gallery && v.gallery.length) return;
     var item={firestoreId:d.id,etab:Object.assign({},v,{id:v.id||d.id})};
-    var pid=(v.place_id||'');
+    // Normaliser le place_id : supprimer préfixe 'places/' si présent
+    var pid=(v.place_id||'').trim();
     if(pid.indexOf('places/')===0) pid=pid.slice(7);
-    if(pid.length>=5){ docsA.push(item); } else { docsB.push(item); }
+    // Stocker le place_id normalisé dans l'item pour que _apEnrichOne l'utilise directement
+    item.etab.place_id = pid;
+    // Voie A : place_id Google valide (commence par ChIJ, longueur ~27 chars)
+    if(/^ChIJ/i.test(pid) && pid.length >= 10){ docsA.push(item); } else { docsB.push(item); }
   });
 
   var total=docsA.length+docsB.length;
