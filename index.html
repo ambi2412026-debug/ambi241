@@ -28230,7 +28230,7 @@ window.doAssignEtab = doAssignEtab;
           <!-- ══ Enrichissement photos établissements existants ══ -->
           <div class="igm-panel" style="margin-top:0.75rem;border-color:rgba(204,68,255,0.25);">
             <div class="igm-panel-title" style="color:var(--purple);">🌐 Enrichir les photos existantes</div>
-            <div class="igm-panel-sub">Récupère automatiquement les photos Google Maps pour les établissements <strong>des catégories AMBI241</strong> (Bars, Restos, Hôtels, Clubs, Snacks, Bar Terrasses) qui n'ont pas encore de galerie photo. Les établissements hors-scope sont ignorés. <span style="color:var(--amber);font-weight:700;">⚡ Traitement en lots de 5 en parallèle.</span></div>
+            <div class="igm-panel-sub">Récupère automatiquement les photos Google Maps pour les établissements <strong>des catégories AMBI241</strong> (Bars, Restos, Hôtels, Clubs, Snacks, Bar Terrasses) qui n'ont pas encore de galerie photo. Les établissements hors-scope (pharmacies, cliniques, commerces, etc.) sont <strong>systématiquement ignorés</strong>. <span style="color:var(--amber);font-weight:700;">⚡ Traitement en lots de 5 en parallèle.</span></div>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
               <button class="igm-btn igm-btn-outline igm-btn-sm" style="border-color:rgba(0,229,255,0.4);color:var(--cyan);" onclick="igm2CountAppEtab()">📊 Analyser Firebase</button>
               <button class="igm-btn igm-btn-outline igm-btn-sm" style="border-color:rgba(204,68,255,0.5);color:var(--purple);" onclick="igm2AutoPhotoAll()">📸 Enrichir (nouveaux seulement)</button>
@@ -46462,9 +46462,11 @@ window.igm2AutoFetchAllPhotos = async function(){
     return;
   }
 
-  var docs = [];
+  var docs = [], skipped = 0;
   snap.forEach(function(d){
     var v = d.data();
+    // ✅ Filtre catégories AMBI241 — ignorer les établissements hors-scope (pharmacies, cliniques, etc.)
+    if(!_ambiIsAppCategory(v)){ skipped++; return; }
     // Prioriser les établissements sans galerie ou sans photo enrichie
     if(!v._gphoto_enriched || !v.gallery || !v.gallery.length){
       docs.push({ firestoreId: d.id, etab: Object.assign({}, v, {id: v.id||d.id}) });
@@ -46472,12 +46474,13 @@ window.igm2AutoFetchAllPhotos = async function(){
   });
 
   if(!docs.length){
-    _apLog('✅ Tous les établissements ont déjà leurs photos.','ok');
-    _apStatus('✅ Photos déjà à jour pour tous les établissements.','ok');
+    _apLog('✅ Tous les établissements AMBI241 ont déjà leurs photos.','ok');
+    _apStatus('✅ Photos déjà à jour pour tous les établissements de l\'app.','ok');
     if(btn) btn.disabled = false;
     return;
   }
 
+  _apLog('🎯 Filtre AMBI241 actif : <strong>' + docs.length + '</strong> à enrichir · <span style="color:var(--muted);">' + skipped + ' hors-scope ignorés</span>');
   _apLog('📸 ' + docs.length + ' établissement(s) à enrichir…');
   var ok = 0, noPhoto = 0, err = 0;
 
