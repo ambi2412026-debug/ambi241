@@ -39870,6 +39870,8 @@ function _renderAppConfigUI(){
   html += '<button onclick="admForceRefreshAll()" style="width:100%;padding:0.55rem;border-radius:10px;border:1px solid rgba(0,255,170,0.3);background:rgba(0,255,170,0.07);color:var(--green);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;">↻ Forcer rechargement des données</button>';
   html += '<button onclick="admExportUsers()" style="width:100%;padding:0.55rem;border-radius:10px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.07);color:var(--cyan);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;">📥 Exporter liste membres (CSV)</button>';
   html += '<button onclick="admClearPubCache()" style="width:100%;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,215,0,0.3);background:rgba(255,215,0,0.07);color:var(--amber);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;">🗑️ Réinitialiser compteurs publications</button>';
+  html += '<button onclick="purgerHorsScope()" style="width:100%;padding:0.55rem;border-radius:10px;border:1px solid rgba(255,68,102,0.4);background:rgba(255,68,102,0.07);color:var(--red);font-family:Syne,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;">🧹 Purger établissements hors-scope Firebase</button>';
+  html += '<div id="purgeHorsScopeStatus" style="font-size:0.72rem;color:var(--muted);text-align:center;min-height:1.2rem;margin-top:0.2rem;"></div>';
   html += '</div></div>';
 
   panel.innerHTML = html;
@@ -39908,6 +39910,78 @@ window.admForceRefreshAll = function(){
   if(typeof loadData==='function') loadData();
   showToast('↻ Rechargement en cours...');
   setTimeout(function(){ showToast('✅ Données rechargées'); }, 2000);
+};
+
+/* ══ PURGE ÉTABLISSEMENTS HORS-SCOPE ══
+   Supprime de Firestore tous les établissements dont le type
+   ne correspond pas aux catégories AMBI241 (Bar/Restaurant/Hotel/Club/Snack/Bar Terrasse).
+   Utilise la même logique que _apIsAppEtab pour la cohérence.
+*/
+window.purgerHorsScope = async function(){
+  if(!window.isAdmin){ showToast('❌ Accès admin requis'); return; }
+  if(!window.db || !window.fbGetDocs || !window.fbCollection || !window.fbDeleteDoc || !window.fbDoc){
+    showToast('❌ Firebase non disponible'); return;
+  }
+
+  var statusEl = document.getElementById('purgeHorsScopeStatus');
+  function setStatus(msg){ if(statusEl) statusEl.innerHTML = msg; }
+
+  // Aperçu d'abord
+  setStatus('⏳ Analyse en cours…');
+  var snap;
+  try{ snap = await window.fbGetDocs(window.fbCollection(window.db,'etablissements')); }
+  catch(e){ setStatus('❌ ' + e.message); return; }
+
+  var horsScope = [], inScope = [];
+  snap.forEach(function(d){
+    var v = d.data();
+    if(_apIsAppEtab(v)) inScope.push(d.id);
+    else horsScope.push({id: d.id, nom: v.nom||v.name||d.id, type: v.type||'?'});
+  });
+
+  if(!horsScope.length){
+    setStatus('✅ Aucun établissement hors-scope trouvé (' + inScope.length + ' valides).');
+    return;
+  }
+
+  // Confirmation avec détail
+  var preview = horsScope.slice(0,5).map(function(e){ return '• '+e.nom+' ['+e.type+']'; }).join('\n');
+  var more = horsScope.length > 5 ? '\n… et '+(horsScope.length-5)+' autres.' : '';
+  var msg = '⚠️ PURGE HORS-SCOPE\n\n'
+    + horsScope.length + ' établissements vont être supprimés de Firebase :\n\n'
+    + preview + more + '\n\n'
+    + inScope.length + ' établissements AMBI241 seront conservés.\n\n'
+    + 'Confirmer la suppression ?';
+
+  if(!confirm(msg)){ setStatus('Annulé.'); return; }
+
+  // Suppression par lots de 20 (limite Firestore batch)
+  setStatus('🗑️ Suppression en cours…');
+  var deleted = 0, errors = 0;
+  var CHUNK = 20;
+  for(var i = 0; i < horsScope.length; i += CHUNK){
+    var chunk = horsScope.slice(i, i + CHUNK);
+    await Promise.all(chunk.map(async function(e){
+      try{
+        await window.fbDeleteDoc(window.fbDoc(window.db,'etablissements',e.id));
+        deleted++;
+      } catch(err){
+        errors++;
+        console.error('Erreur suppression', e.id, err);
+      }
+    }));
+    setStatus('🗑️ ' + deleted + '/' + horsScope.length + ' supprimés…');
+  }
+
+  var msg2 = '✅ ' + deleted + ' hors-scope supprimés'
+    + (errors ? ' · ❌ ' + errors + ' erreur(s)' : '')
+    + ' — ' + inScope.length + ' établissements AMBI241 conservés.';
+  setStatus(msg2);
+  showToast(msg2);
+
+  // Recharger les données
+  if(typeof loadData === 'function') setTimeout(loadData, 500);
+  if(typeof renderAll === 'function') setTimeout(renderAll, 800);
 };
 
 window.admExportUsers = function(){
