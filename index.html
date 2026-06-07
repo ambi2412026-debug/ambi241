@@ -46258,64 +46258,64 @@ function _apResolveGooglePlaceId(nom, quartier, callback){
   var query = (nom || '') + ' ' + (quartier || 'Libreville') + ' Gabon';
   var url = 'https://places.googleapis.com/v1/places:searchText?key=' + GPLACES_API_KEY;
   var xhr = new XMLHttpRequest();
+  var _done = false;
+  function _cb(v){ if(_done) return; _done = true; callback(v); }
+  var _timer = setTimeout(function(){ try{ xhr.abort(); }catch(e){} _cb(null); }, 8000);
   xhr.open('POST', url, true);
   xhr.setRequestHeader('Content-Type', 'application/json');
   xhr.setRequestHeader('X-Goog-FieldMask', 'places.id,places.displayName');
   xhr.onreadystatechange = function(){
     if(xhr.readyState !== 4) return;
+    clearTimeout(_timer);
     try {
       if(xhr.status === 200){
         var data = JSON.parse(xhr.responseText);
         var places = (data && data.places) ? data.places : [];
         if(places.length > 0 && places[0].id){
-          // Places API v1 renvoie parfois "places/ChIJxxx" — on extrait juste l'ID pur
           var rawId = places[0].id;
-          var pureId = rawId.replace(/^places\//i, '');
-          callback(pureId);
+          var pureId = rawId.indexOf('places/') === 0 ? rawId.slice(7) : rawId;
+          _cb(pureId);
         } else {
-          callback(null);
+          _cb(null);
         }
       } else {
-        callback(null);
+        _cb(null);
       }
-    } catch(e){ callback(null); }
+    } catch(e){ _cb(null); }
   };
-  xhr.onerror = function(){ callback(null); };
+  xhr.onerror = function(){ clearTimeout(_timer); _cb(null); };
   try {
     xhr.send(JSON.stringify({ textQuery: query, languageCode: 'fr', maxResultCount: 1 }));
-  } catch(e){ callback(null); }
+  } catch(e){ clearTimeout(_timer); _cb(null); }
 }
 
 /* ── Fetcher les photos Places API pour un place_id Google ──
    Retourne un tableau d'URLs (max 10, triées par résolution décroissante) ── */
 function _apFetchPhotosForPlaceId(placeId, callback){
   if(!placeId){ callback([]); return; }
-  // Normaliser : retirer le préfixe "places/" si présent
-  placeId = placeId.replace(/^places\//i, '');
-  // Accepter ChIJ... (Google Places legacy) et tout ID alphanumérique valide (Places API v1)
-  if(!/^[A-Za-z0-9_-]{5,}/.test(placeId)){
-    callback([]);
-    return;
-  }
+  // Strip "places/" prefix if present (Places API v1 format)
+  if(placeId.indexOf('places/') === 0) placeId = placeId.slice(7);
+  // Accept ChIJ... and any alphanumeric place_id >= 5 chars
+  if(placeId.length < 5){ callback([]); return; }
   // Vérifier le cache local d'abord
   var cached = (typeof _gphotoReadCache === 'function') ? _gphotoReadCache(placeId) : null;
-  if(cached !== null){
-    callback(cached);
-    return;
-  }
+  if(cached !== null){ callback(cached); return; }
+  var _done2 = false;
+  function _cb2(v){ if(_done2) return; _done2 = true; callback(v); }
   var url = 'https://places.googleapis.com/v1/places/' + placeId
     + '?fields=photos&languageCode=fr&key=' + GPLACES_API_KEY;
   var xhr = new XMLHttpRequest();
+  var _timer2 = setTimeout(function(){ try{ xhr.abort(); }catch(e){} _cb2([]); }, 8000);
   xhr.open('GET', url, true);
   xhr.setRequestHeader('X-Goog-FieldMask', 'photos');
-  if(window.AMBI_DEBUG) console.log('[Photos] Fetching place_id:', placeId);
   xhr.onreadystatechange = function(){
     if(xhr.readyState !== 4) return;
+    clearTimeout(_timer2);
     try {
       if(xhr.status === 200){
         var data = JSON.parse(xhr.responseText);
         var photos = (data && data.photos) ? data.photos : [];
-        if(!photos.length){ if(typeof _gphotoWriteCache==='function') _gphotoWriteCache(placeId,[]); callback([]); return; }
+        if(!photos.length){ if(typeof _gphotoWriteCache==='function') _gphotoWriteCache(placeId,[]); _cb2([]); return; }
         var sorted = photos.slice().sort(function(a,b){
           return ((b.widthPx||0)*(b.heightPx||0)) - ((a.widthPx||0)*(a.heightPx||0));
         });
@@ -46324,14 +46324,14 @@ function _apFetchPhotosForPlaceId(placeId, callback){
           : function(n){ return 'https://places.googleapis.com/v1/' + n + '/media?maxHeightPx=800&maxWidthPx=1200&key=' + GPLACES_API_KEY; };
         var urls = sorted.slice(0, 10).map(function(p){ return makeUrl(p.name); });
         if(typeof _gphotoWriteCache==='function') _gphotoWriteCache(placeId, urls);
-        callback(urls);
+        _cb2(urls);
       } else {
-        callback([]);
+        _cb2([]);
       }
-    } catch(e){ callback([]); }
+    } catch(e){ _cb2([]); }
   };
-  xhr.onerror = function(){ callback([]); };
-  try { xhr.send(); } catch(e){ callback([]); }
+  xhr.onerror = function(){ clearTimeout(_timer2); _cb2([]); };
+  try { xhr.send(); } catch(e){ clearTimeout(_timer2); _cb2([]); }
 }
 
 /* ── Sauvegarder photos dans Firestore pour un établissement ──
@@ -46379,10 +46379,8 @@ async function _apSavePhotosToFirestore(firestoreId, etabData, photoUrls){
    callback(result) : 'ok' | 'no_photos' | 'err'
 ── */
 function _apEnrichOne(etab, firestoreId, callback){
-  // Normaliser le place_id avant test
-  if(etab.place_id) etab.place_id = etab.place_id.replace(/^places\\//i, '');
-  // Considérer comme Google ID tout ID alphanumérique valide (pas seulement ChIJ)
-  var isGoogleId = etab.place_id && /^[A-Za-z0-9_-]{5,}/.test(etab.place_id);
+  if(etab.place_id && etab.place_id.indexOf('places/') === 0) etab.place_id = etab.place_id.slice(7);
+  var isGoogleId = etab.place_id && etab.place_id.length >= 5;
 
   function doFetchAndSave(placeId){
     _apFetchPhotosForPlaceId(placeId, function(urls){
@@ -46584,8 +46582,8 @@ window.igm2CountAppEtab = async function(){
 
 /* Enrichir TOUS les établissements Firebase — filtré catégories AMBI241 + lots parallèles */
 window.igm2AutoPhotoAll = async function(forceAll){
-  var BATCH_SIZE=5;
-  var BATCH_DELAY=120;
+  var BATCH_SIZE=3;
+  var BATCH_DELAY=400;
   if(!window.db||!window.fbGetDocs||!window.fbCollection){_apStatus('❌ Firebase non disponible','err');return;}
   var panel=document.getElementById('igm2AutoPhotoPanel');
   if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});
@@ -46618,7 +46616,13 @@ window.igm2AutoPhotoAll = async function(forceAll){
     await Promise.all(batch.map(function(item){
       return new Promise(function(resolve){
         _apLog('  → '+(item.etab.nom||item.firestoreId));
+        var _itemDone = false;
+        var _itemTimer = setTimeout(function(){
+          if(_itemDone) return; _itemDone = true;
+          err++; _apLog('  ⏱️ '+(item.etab.nom||'?')+' — timeout 20s','err'); resolve();
+        }, 20000);
         _apEnrichOne(item.etab,item.firestoreId,function(result){
+          if(_itemDone) return; _itemDone = true; clearTimeout(_itemTimer);
           if(result==='ok'){ok++;_apLog('  ✅ '+(item.etab.nom||'?')+' — photos importées','ok');}
           else if(result==='no_photos'){noPhoto++;_apLog('  📷 '+(item.etab.nom||'?')+' — photo admin par défaut','warn');}
           else{err++;_apLog('  ❌ '+(item.etab.nom||'?')+' — erreur','err');}
