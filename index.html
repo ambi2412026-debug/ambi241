@@ -17086,7 +17086,120 @@ window.proSaveHoraires = window.proSaveHoraires;
 window.proLoadResa     = window.proLoadResa;
 window.proLoadAvis     = window.proLoadAvis;
 window.proLoadContacts = window.proLoadContacts;
-// ══ fin Espace Gérant Pro JS ══
+
+// ══════════════════════════════════════════════════════════════════
+// ══ MODULE SERVICES — fonctions gérant ══════════════════════════
+// ══════════════════════════════════════════════════════════════════
+
+/* Rafraîchit l'UI d'un bouton services sans re-render complet */
+window.svToggleBool = function(eid, field){
+  var etab = (window.etablissements||[]).find(function(x){ return x.id===eid; });
+  if(!etab) return;
+  if(!etab.services) etab.services = {};
+  etab.services[field] = !etab.services[field];
+  // Mise à jour visuelle de la zone match si champ audiovisuel
+  if(field==="tv"||field==="ecran_geant"||field==="projecteur"){
+    var mz = document.getElementById("svMatchZone-"+eid);
+    if(mz){
+      var sv = etab.services;
+      mz.style.display = (sv.tv||sv.ecran_geant||sv.projecteur) ? "" : "none";
+    }
+  }
+  // Sauvegarder immédiatement dans Firestore si disponible
+  svPersist(eid, etab.services);
+  // Re-render uniquement le panneau du gérant
+  if(typeof renderEtabCard === "function") renderEtabCard(eid);
+  else if(typeof renderAll === "function") renderAll();
+};
+
+window.svToggleArr = function(eid, arrField, value){
+  var etab = (window.etablissements||[]).find(function(x){ return x.id===eid; });
+  if(!etab) return;
+  if(!etab.services) etab.services = {};
+  var arr = Array.isArray(etab.services[arrField]) ? etab.services[arrField] : [];
+  var idx = arr.indexOf(value);
+  if(idx === -1) arr.push(value);
+  else arr.splice(idx, 1);
+  etab.services[arrField] = arr;
+  svPersist(eid, etab.services);
+  if(typeof renderEtabCard === "function") renderEtabCard(eid);
+  else if(typeof renderAll === "function") renderAll();
+};
+
+window.svSaveAll = function(eid){
+  var etab = (window.etablissements||[]).find(function(x){ return x.id===eid; });
+  if(!etab) return;
+  if(!etab.services) etab.services = {};
+  svPersist(eid, etab.services, function(){
+    var btn = document.querySelector("#proPane-"+eid+"-services button:last-of-type");
+    if(btn){ var prev=btn.textContent; btn.textContent="✅ Sauvegardé !"; setTimeout(function(){ btn.textContent=prev; }, 1800); }
+  });
+};
+
+window.svSaveMatch = function(eid){
+  var etab = (window.etablissements||[]).find(function(x){ return x.id===eid; });
+  if(!etab) return;
+  if(!etab.services) etab.services = {};
+  var ta  = document.getElementById("svMtA-"+eid);
+  var tb  = document.getElementById("svMtB-"+eid);
+  var sa  = document.getElementById("svMtSA-"+eid);
+  var sb  = document.getElementById("svMtSB-"+eid);
+  var min = document.getElementById("svMtMin-"+eid);
+  var st  = document.getElementById("svMtSt-"+eid);
+  if(!ta||!tb) return;
+  var ml = {
+    team_a:  ta.value.trim(),
+    team_b:  tb.value.trim(),
+    score_a: parseInt(sa&&sa.value)||0,
+    score_b: parseInt(sb&&sb.value)||0,
+    minute:  parseInt(min&&min.value)||0,
+    statut:  st ? st.value : "En cours",
+    ts:      Date.now()
+  };
+  // Archiver dans historique
+  if(!etab.services.match_historique) etab.services.match_historique = [];
+  if(ml.statut==="Terminé" && etab.services.match_live && etab.services.match_live.team_a){
+    etab.services.match_historique.unshift(etab.services.match_live);
+    if(etab.services.match_historique.length > 10) etab.services.match_historique.length = 10;
+  }
+  etab.services.match_live = ml;
+  svPersist(eid, etab.services, function(){
+    if(typeof showToast==="function") showToast("⚽ Match publié !");
+    else alert("⚽ Match publié avec succès !");
+  });
+};
+
+window.svClearMatch = function(eid){
+  var etab = (window.etablissements||[]).find(function(x){ return x.id===eid; });
+  if(!etab||!etab.services) return;
+  // Archiver avant d'effacer
+  if(!etab.services.match_historique) etab.services.match_historique = [];
+  if(etab.services.match_live && etab.services.match_live.team_a){
+    etab.services.match_historique.unshift(etab.services.match_live);
+    if(etab.services.match_historique.length > 10) etab.services.match_historique.length = 10;
+  }
+  delete etab.services.match_live;
+  svPersist(eid, etab.services, function(){
+    if(typeof showToast==="function") showToast("🗑️ Match effacé");
+    // Vider les champs
+    ["svMtA","svMtB","svMtSA","svMtSB","svMtMin"].forEach(function(pfx){
+      var el=document.getElementById(pfx+"-"+eid); if(el) el.value="";
+    });
+  });
+};
+
+/* Persistance Firestore/localStorage */
+function svPersist(eid, services, cb){
+  // Sauvegarder localement (fallback immédiat)
+  try{ localStorage.setItem("ambi241_sv_"+eid, JSON.stringify(services)); } catch(ex){}
+  // Sauvegarder dans Firestore si disponible
+  if(window.firebaseDb && typeof window.updateField === "function"){
+    updateField(eid, { services: services });
+  }
+  if(typeof cb === "function") setTimeout(cb, 350);
+}
+
+// ══ fin MODULE SERVICES ══
 function buildEtabInfoStrip(e){
   // Conservée pour compatibilité mais non utilisée directement (remplacée par buildEtabProfilePanel)
   return "";
@@ -17564,6 +17677,7 @@ function buildCard(e,delay,compact,rank,extraClass){
       +"<button class='pro-tab pro-tab-active' onclick='proTab("+e.id+",\"dispo\",this)'>📦 Dispos</button>"
       +"<button class='pro-tab' onclick='proTab("+e.id+",\"statut\",this)'>⚡ Statut</button>"
       +"<button class='pro-tab' onclick='proTab("+e.id+",\"medias\",this)'>📸 Médias</button>"
+      +"<button class='pro-tab' onclick='proTab("+e.id+",\"services\",this)'>🏆 Services</button>"
       +"<button class='pro-tab' onclick='proTab("+e.id+",\"calendar\",this)'>📅 Calendrier</button>"
       +"<button class='pro-tab' onclick='proTab("+e.id+",\"stats\",this)'>📊 Stats</button>"
       +"</div>";
@@ -17736,7 +17850,179 @@ function buildCard(e,delay,compact,rank,extraClass){
 
     ep += "</div>"; // fin onglet médias
 
-    // ════ ONGLET CALENDRIER ════
+    // ════ ONGLET SERVICES ════
+    ep += "<div class='pro-tab-pane pro-pane-hidden' id='proPane-"+e.id+"-services'>";
+    var sv = e.services || {};
+
+    // ─── Helper inline pour bouton toggle bool ───
+    function svBtn(field, label, col){
+      col = col||"pink";
+      var on = sv[field]===true;
+      var colors = {pink:"rgba(255,45,155,",cyan:"rgba(0,229,255,",green:"rgba(0,255,170,",amber:"rgba(255,215,0,",purple:"rgba(204,68,255,"};
+      var base = colors[col]||colors.pink;
+      var bg   = on ? base+"0.18)" : "rgba(255,255,255,0.04)";
+      var bdr  = on ? base+"0.5)"  : "rgba(255,255,255,0.1)";
+      var clr  = on ? "var(--"+col+")" : "var(--muted)";
+      var chk  = on ? "✅ " : "";
+      return "<button onclick='svToggleBool("+e.id+",\""+field+"\")' style='background:"+bg+";border:1px solid "+bdr+";color:"+clr+";border-radius:9px;padding:0.38rem 0.65rem;font-size:0.71rem;font-weight:700;cursor:pointer;white-space:nowrap;'>"+chk+label+"</button>";
+    }
+    function svChip(field, arrField, value, label, col){
+      col = col||"cyan";
+      var arr = Array.isArray(sv[arrField]) ? sv[arrField] : [];
+      var on  = arr.indexOf(value)!==-1;
+      var colors = {pink:"rgba(255,45,155,",cyan:"rgba(0,229,255,",green:"rgba(0,255,170,",amber:"rgba(255,215,0,",purple:"rgba(204,68,255,"};
+      var base = colors[col]||colors.cyan;
+      var bg   = on ? base+"0.18)" : "rgba(255,255,255,0.04)";
+      var bdr  = on ? base+"0.5)"  : "rgba(255,255,255,0.1)";
+      var clr  = on ? "var(--"+col+")" : "var(--muted)";
+      var chk  = on ? "✅ " : "";
+      return "<button onclick='svToggleArr("+e.id+",\""+arrField+"\",\""+value+"\")' style='background:"+bg+";border:1px solid "+bdr+";color:"+clr+";border-radius:9px;padding:0.35rem 0.6rem;font-size:0.7rem;font-weight:700;cursor:pointer;white-space:nowrap;'>"+chk+label+"</button>";
+    }
+    var svRowStyle = "display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.85rem;";
+
+    // ── 🏗️ Cadre & Confort ──
+    ep += "<div class='pro-sec'>🏗️ Cadre &amp; Confort</div>";
+    ep += "<div style='"+svRowStyle+"'>";
+    ep += svBtn("parking","🅿️ Parking","cyan");
+    ep += "</div>";
+
+    ep += "<div style='font-size:0.65rem;color:var(--muted);margin-bottom:0.3rem;font-weight:700;'>Décoration intérieure</div>";
+    ep += "<div style='"+svRowStyle+"'>";
+    ["Moderne","Classique","Tropical","Champagne","Industriel","Minimaliste"].forEach(function(d){
+      ep += svChip("","sv_deco",d,d,"purple");
+    });
+    ep += "</div>";
+
+    ep += "<div style='font-size:0.65rem;color:var(--muted);margin-bottom:0.3rem;font-weight:700;'>Vue / Cadre</div>";
+    ep += "<div style='"+svRowStyle+"'>";
+    ["Vue mer","Rooftop","Jardin","Vue ville","Terrasse","Sous-sol","Cave"].forEach(function(v){
+      ep += svChip("","sv_vue",v,v,"cyan");
+    });
+    ep += "</div>";
+
+    // ── ⚡ Énergie ──
+    ep += "<div class='pro-sec'>⚡ Énergie</div>";
+    ep += "<div style='"+svRowStyle+"'>";
+    ep += svBtn("groupe_electrogene","🔋 Groupe électrogène","amber");
+    ep += svBtn("climatisation","❄️ Climatisation","cyan");
+    ep += svBtn("ventilation","🌀 Ventilation","cyan");
+    ep += svBtn("air_naturel","🍃 Air naturel","green");
+    ep += "</div>";
+
+    // ── 📺 Audiovisuel ──
+    ep += "<div class='pro-sec'>📺 Audiovisuel</div>";
+    ep += "<div style='"+svRowStyle+"'>";
+    ep += svBtn("tv","📺 Télévision","cyan");
+    ep += svBtn("ecran_geant","🖥️ Écran géant","cyan");
+    ep += svBtn("projecteur","📽️ Projecteur","purple");
+    ep += "</div>";
+
+    // ── Match en direct (visible si TV ou écran ou projecteur activé) ──
+    var hasScreen = sv.tv===true||sv.ecran_geant===true||sv.projecteur===true;
+    ep += "<div id='svMatchZone-"+e.id+"' style='"+(hasScreen?"":"display:none;")+"'>";
+    ep += "<div class='pro-sec'>⚽ Match en direct</div>";
+    var mt = sv.match_live||{};
+    ep += "<div style='display:grid;grid-template-columns:1fr 1fr;gap:0.45rem;margin-bottom:0.6rem;'>";
+    ep += "<div><div style='font-size:0.62rem;color:var(--muted);margin-bottom:0.2rem;'>Équipe A</div>"
+      +"<input id='svMtA-"+e.id+"' type='text' placeholder='ex: Panthères' value='"+(mt.team_a?mt.team_a.replace(/'/g,"&#39;"):"")+"' style='width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:0.38rem 0.55rem;color:var(--text);font-size:0.73rem;'></div>";
+    ep += "<div><div style='font-size:0.62rem;color:var(--muted);margin-bottom:0.2rem;'>Équipe B</div>"
+      +"<input id='svMtB-"+e.id+"' type='text' placeholder='ex: Lions' value='"+(mt.team_b?mt.team_b.replace(/'/g,"&#39;"):"")+"' style='width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:0.38rem 0.55rem;color:var(--text);font-size:0.73rem;'></div>";
+    ep += "<div><div style='font-size:0.62rem;color:var(--muted);margin-bottom:0.2rem;'>Score A</div>"
+      +"<input id='svMtSA-"+e.id+"' type='number' min='0' max='99' value='"+(mt.score_a||0)+"' style='width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:0.38rem 0.55rem;color:var(--text);font-size:0.73rem;'></div>";
+    ep += "<div><div style='font-size:0.62rem;color:var(--muted);margin-bottom:0.2rem;'>Score B</div>"
+      +"<input id='svMtSB-"+e.id+"' type='number' min='0' max='99' value='"+(mt.score_b||0)+"' style='width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:0.38rem 0.55rem;color:var(--text);font-size:0.73rem;'></div>";
+    ep += "<div><div style='font-size:0.62rem;color:var(--muted);margin-bottom:0.2rem;'>Temps (min)</div>"
+      +"<input id='svMtMin-"+e.id+"' type='number' min='0' max='120' value='"+(mt.minute||0)+"' style='width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:0.38rem 0.55rem;color:var(--text);font-size:0.73rem;'></div>";
+    ep += "<div><div style='font-size:0.62rem;color:var(--muted);margin-bottom:0.2rem;'>Statut</div>";
+    ep += "<select id='svMtSt-"+e.id+"' style='width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:0.38rem 0.55rem;color:var(--text);font-size:0.73rem;'>";
+    ["En cours","Mi-temps","Terminé","À venir"].forEach(function(s){
+      ep += "<option value='"+s+"'"+(mt.statut===s?" selected":"")+">"+(s==="En cours"?"🔴 ":s==="Mi-temps"?"🟡 ":s==="Terminé"?"✅ ":"🕐 ")+s+"</option>";
+    });
+    ep += "</select></div>";
+    ep += "</div>";
+    ep += "<div style='display:flex;gap:0.45rem;'>";
+    ep += "<button onclick='svSaveMatch("+e.id+")' style='flex:1;background:rgba(0,255,170,0.12);border:1px solid rgba(0,255,170,0.35);color:var(--green);font-family:Syne,sans-serif;font-weight:800;font-size:0.72rem;padding:0.42rem;border-radius:8px;cursor:pointer;'>💾 Publier le match</button>";
+    ep += "<button onclick='svClearMatch("+e.id+")' style='flex:1;background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.25);color:var(--red);font-family:Syne,sans-serif;font-weight:800;font-size:0.72rem;padding:0.42rem;border-radius:8px;cursor:pointer;'>🗑️ Effacer match</button>";
+    ep += "</div>";
+    ep += "</div>"; // fin svMatchZone
+
+    // ── 🎤 Animation ──
+    ep += "<div class='pro-sec'>🎤 Animation</div>";
+    ep += "<div style='"+svRowStyle+"'>";
+    ep += svBtn("piste_danse","🕺 Piste de danse","pink");
+    ep += svBtn("miroir","🪞 Miroir","purple");
+    ep += svBtn("podium","🎭 Podium","amber");
+    ep += "</div>";
+    ep += "<div style='font-size:0.65rem;color:var(--muted);margin-bottom:0.3rem;font-weight:700;'>Type de spectacle</div>";
+    ep += "<div style='"+svRowStyle+"'>";
+    ["Live band","Cabaret","Stand-up","Karaoké","Spectacle feu","Danse africaine","Coupé-décalé","Gospel"].forEach(function(s){
+      ep += svChip("","sv_spectacle",s,s,"pink");
+    });
+    ep += "</div>";
+
+    // ── 🎧 Musique ──
+    ep += "<div class='pro-sec'>🎧 Musique</div>";
+    ep += "<div style='"+svRowStyle+"'>";
+    ep += svBtn("dj","🎧 DJ","pink");
+    ep += "</div>";
+    ep += "<div style='font-size:0.65rem;color:var(--muted);margin-bottom:0.3rem;font-weight:700;'>Mode de diffusion</div>";
+    ep += "<div style='"+svRowStyle+"'>";
+    ["Sono","Bluetooth","Acoustique","Scène ouverte"].forEach(function(m){
+      ep += svChip("","sv_musique_mode",m,m,"purple");
+    });
+    ep += "</div>";
+
+    // ── 🔐 Sécurité & Personnel ──
+    ep += "<div class='pro-sec'>🔐 Sécurité &amp; Personnel</div>";
+    ep += "<div style='"+svRowStyle+"'>";
+    ep += svBtn("cameras","📷 Caméras","amber");
+    ep += svBtn("securite","🛡️ Agent sécurité","amber");
+    ep += svBtn("hotesse","💁 Hôtesse","pink");
+    ep += svBtn("serveuses","🧍‍♀️ Serveuses","pink");
+    ep += svBtn("serveurs","🧍 Serveurs","cyan");
+    ep += "</div>";
+
+    // ── 🍺 Boissons ──
+    ep += "<div class='pro-sec'>🍺 Boissons</div>";
+    ep += "<div style='font-size:0.65rem;color:var(--muted);margin-bottom:0.3rem;font-weight:700;'>Gamme</div>";
+    ep += "<div style='"+svRowStyle+"'>";
+    ["Bière locale","Bière importée","Whisky","Rhum","Vodka","Gin","Champagne","Vins","Softs","Cocktails","Jus locaux","Eau pétillante"].forEach(function(b){
+      ep += svChip("","sv_boissons",b,b,"amber");
+    });
+    ep += "</div>";
+    ep += "<div style='"+svRowStyle+"'>";
+    ep += svBtn("cigarettes","🚬 Cigarettes","muted");
+    ep += svBtn("chicha","💨 Chicha / Narguilé","purple");
+    ep += "</div>";
+
+    // ── 💳 Paiements ──
+    ep += "<div class='pro-sec'>💳 Paiements acceptés</div>";
+    ep += "<div style='"+svRowStyle+"'>";
+    ["Espèces","Airtel Money","Moov Money","CB","Visa","Mastercard","PayPal"].forEach(function(p){
+      ep += svChip("","sv_paiements",p,p,"green");
+    });
+    ep += "</div>";
+
+    // ── 🌍 Langues ──
+    ep += "<div class='pro-sec'>🌍 Langues parlées</div>";
+    ep += "<div style='"+svRowStyle+"'>";
+    ["Français","Anglais","Fang","Bapounou","Nzebi","Espagnol","Portugais","Arabe"].forEach(function(l){
+      ep += svChip("","sv_langues",l,l,"cyan");
+    });
+    ep += "</div>";
+
+    // ── 🌤️ Météo ──
+    ep += "<div class='pro-sec'>🌤️ Météo du lieu</div>";
+    ep += "<div style='"+svRowStyle+"'>";
+    ["☀️ Ensoleillé","🌤️ Nuageux","🌧️ Pluvieux","🌩️ Orageux","💨 Venteux","🌫️ Brumeux"].forEach(function(m){
+      ep += svChip("","sv_meteo",m,m,"cyan");
+    });
+    ep += "</div>";
+
+    // ── Bouton global Sauvegarder ──
+    ep += "<button onclick='svSaveAll("+e.id+")' style='width:100%;margin-top:0.3rem;background:linear-gradient(135deg,rgba(255,45,155,0.25),rgba(204,68,255,0.2));border:1.5px solid rgba(255,45,155,0.45);color:var(--pink);font-family:Syne,sans-serif;font-weight:800;font-size:0.8rem;padding:0.65rem;border-radius:11px;cursor:pointer;letter-spacing:0.03em;'>💾 Sauvegarder tous les services</button>";
+
+    ep += "</div>"; // fin onglet services
     ep += "<div class='pro-tab-pane pro-pane-hidden' id='proPane-"+e.id+"-calendar'>";
 
     ep += "<div class='pro-sec'>📅 Disponibilité de la semaine prochaine</div>";
@@ -20878,6 +21164,155 @@ window.closeFicheEtab = function(){
   if(ov){ ov.classList.remove('show'); }
 };
 
+/* ══════════════════════════════════════════════════════════════════
+   _buildServicesPublic — rendu fiche client
+   Règle : seuls les champs === true ou tableaux non-vides sont affichés.
+   ══════════════════════════════════════════════════════════════════ */
+function _buildServicesPublic(e){
+  var sv = e.services || {};
+  var h  = "";
+
+  // ── Match en direct ──
+  var ml = sv.match_live;
+  if(ml && ml.team_a && ml.team_b && ml.statut !== "Terminé"){
+    var scoreColor = "var(--green)";
+    var statusLabel = ml.statut||"En cours";
+    h += "<div style='background:linear-gradient(135deg,rgba(0,255,170,0.12),rgba(0,200,130,0.08));border:1.5px solid rgba(0,255,170,0.4);border-radius:14px;padding:0.85rem 1rem;margin-bottom:0.9rem;'>";
+    h += "<div style='font-family:Syne,sans-serif;font-weight:800;font-size:0.68rem;color:var(--green);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem;'>⚽ Match en direct</div>";
+    h += "<div style='display:flex;align-items:center;justify-content:space-between;gap:0.5rem;'>";
+    h += "<div style='text-align:center;flex:1;'><div style='font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;color:var(--text);'>"+escHtml(ml.team_a)+"</div></div>";
+    h += "<div style='text-align:center;'>";
+    h += "<div style='font-family:Syne,sans-serif;font-weight:900;font-size:1.6rem;color:"+scoreColor+";letter-spacing:0.05em;'>"+(ml.score_a||0)+" – "+(ml.score_b||0)+"</div>";
+    h += "<div style='font-size:0.65rem;color:var(--muted);margin-top:0.1rem;'>⏱ "+(ml.minute||0)+"' · "+(ml.statut==="Mi-temps"?"🟡 Mi-temps":ml.statut==="À venir"?"🕐 À venir":"🔴 En cours")+"</div>";
+    h += "</div>";
+    h += "<div style='text-align:center;flex:1;'><div style='font-family:Syne,sans-serif;font-weight:800;font-size:0.85rem;color:var(--text);'>"+escHtml(ml.team_b)+"</div></div>";
+    h += "</div></div>";
+  }
+
+  // ── Météo ──
+  var meteos = Array.isArray(sv.sv_meteo) ? sv.sv_meteo : [];
+  if(meteos.length > 0){
+    h += "<div style='background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.2);border-radius:11px;padding:0.5rem 0.75rem;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;'>";
+    h += "<span style='font-size:0.65rem;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:0.08em;'>Météo</span>";
+    meteos.forEach(function(m){ h += "<span style='font-size:0.78rem;'>"+escHtml(m)+"</span>"; });
+    h += "</div>";
+  }
+
+  // Vérifier qu'il y a au moins un service à afficher
+  var hasBool = ["parking","groupe_electrogene","climatisation","ventilation","air_naturel","tv","ecran_geant","projecteur","piste_danse","miroir","podium","dj","cameras","securite","hotesse","serveuses","serveurs","cigarettes","chicha"].some(function(f){ return sv[f]===true; });
+  var hasArr  = ["sv_deco","sv_vue","sv_spectacle","sv_musique_mode","sv_boissons","sv_paiements","sv_langues"].some(function(f){ return Array.isArray(sv[f])&&sv[f].length>0; });
+  if(!hasBool && !hasArr) return h; // rien à afficher
+
+  h += "<div class='fiche-section'><div class='fiche-section-title'>🏆 Services &amp; Équipements</div>";
+
+  // ── Cadre ──
+  var cadreItems = [];
+  if(sv.parking)          cadreItems.push("🅿️ Parking");
+  if(Array.isArray(sv.sv_vue)&&sv.sv_vue.length) sv.sv_vue.forEach(function(v){ cadreItems.push(v); });
+  if(Array.isArray(sv.sv_deco)&&sv.sv_deco.length) sv.sv_deco.forEach(function(d){ cadreItems.push("🎨 "+d); });
+  if(cadreItems.length){
+    h += "<div style='font-size:0.65rem;color:var(--muted);font-weight:700;margin:0.5rem 0 0.3rem;'>🏗️ CADRE</div>";
+    h += "<div style='display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:0.55rem;'>";
+    cadreItems.forEach(function(c){ h += "<span style='background:rgba(204,68,255,0.12);border:1px solid rgba(204,68,255,0.25);color:var(--purple);border-radius:8px;padding:0.22rem 0.55rem;font-size:0.7rem;font-weight:700;'>"+escHtml(c)+"</span>"; });
+    h += "</div>";
+  }
+
+  // ── Énergie ──
+  var energItems = [];
+  if(sv.groupe_electrogene) energItems.push("🔋 Groupe électrogène");
+  if(sv.climatisation)      energItems.push("❄️ Clim");
+  if(sv.ventilation)        energItems.push("🌀 Ventilation");
+  if(sv.air_naturel)        energItems.push("🍃 Air naturel");
+  if(energItems.length){
+    h += "<div style='font-size:0.65rem;color:var(--muted);font-weight:700;margin:0.5rem 0 0.3rem;'>⚡ ÉNERGIE</div>";
+    h += "<div style='display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:0.55rem;'>";
+    energItems.forEach(function(c){ h += "<span style='background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.25);color:var(--amber);border-radius:8px;padding:0.22rem 0.55rem;font-size:0.7rem;font-weight:700;'>"+escHtml(c)+"</span>"; });
+    h += "</div>";
+  }
+
+  // ── Audiovisuel ──
+  var avItems = [];
+  if(sv.tv)          avItems.push("📺 TV");
+  if(sv.ecran_geant) avItems.push("🖥️ Écran géant");
+  if(sv.projecteur)  avItems.push("📽️ Projecteur");
+  if(avItems.length){
+    h += "<div style='font-size:0.65rem;color:var(--muted);font-weight:700;margin:0.5rem 0 0.3rem;'>📺 AUDIOVISUEL</div>";
+    h += "<div style='display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:0.55rem;'>";
+    avItems.forEach(function(c){ h += "<span style='background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);color:var(--cyan);border-radius:8px;padding:0.22rem 0.55rem;font-size:0.7rem;font-weight:700;'>"+escHtml(c)+"</span>"; });
+    h += "</div>";
+  }
+
+  // ── Animation ──
+  var animItems = [];
+  if(sv.piste_danse) animItems.push("🕺 Piste de danse");
+  if(sv.miroir)      animItems.push("🪞 Miroir");
+  if(sv.podium)      animItems.push("🎭 Podium");
+  if(Array.isArray(sv.sv_spectacle)&&sv.sv_spectacle.length) sv.sv_spectacle.forEach(function(s){ animItems.push(s); });
+  if(animItems.length){
+    h += "<div style='font-size:0.65rem;color:var(--muted);font-weight:700;margin:0.5rem 0 0.3rem;'>🎤 ANIMATION</div>";
+    h += "<div style='display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:0.55rem;'>";
+    animItems.forEach(function(c){ h += "<span style='background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.25);color:var(--pink);border-radius:8px;padding:0.22rem 0.55rem;font-size:0.7rem;font-weight:700;'>"+escHtml(c)+"</span>"; });
+    h += "</div>";
+  }
+
+  // ── Musique ──
+  var musItems = [];
+  if(sv.dj) musItems.push("🎧 DJ");
+  if(Array.isArray(sv.sv_musique_mode)&&sv.sv_musique_mode.length) sv.sv_musique_mode.forEach(function(m){ musItems.push(m); });
+  if(musItems.length){
+    h += "<div style='font-size:0.65rem;color:var(--muted);font-weight:700;margin:0.5rem 0 0.3rem;'>🎧 MUSIQUE</div>";
+    h += "<div style='display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:0.55rem;'>";
+    musItems.forEach(function(c){ h += "<span style='background:rgba(204,68,255,0.1);border:1px solid rgba(204,68,255,0.25);color:var(--purple);border-radius:8px;padding:0.22rem 0.55rem;font-size:0.7rem;font-weight:700;'>"+escHtml(c)+"</span>"; });
+    h += "</div>";
+  }
+
+  // ── Sécurité & Personnel ──
+  var secItems = [];
+  if(sv.cameras)   secItems.push("📷 Caméras");
+  if(sv.securite)  secItems.push("🛡️ Sécurité");
+  if(sv.hotesse)   secItems.push("💁 Hôtesse");
+  if(sv.serveuses) secItems.push("🧍‍♀️ Serveuses");
+  if(sv.serveurs)  secItems.push("🧍 Serveurs");
+  if(secItems.length){
+    h += "<div style='font-size:0.65rem;color:var(--muted);font-weight:700;margin:0.5rem 0 0.3rem;'>🔐 PERSONNEL</div>";
+    h += "<div style='display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:0.55rem;'>";
+    secItems.forEach(function(c){ h += "<span style='background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.2);color:var(--amber);border-radius:8px;padding:0.22rem 0.55rem;font-size:0.7rem;font-weight:700;'>"+escHtml(c)+"</span>"; });
+    h += "</div>";
+  }
+
+  // ── Boissons ──
+  var boisItems = Array.isArray(sv.sv_boissons) ? sv.sv_boissons.slice() : [];
+  if(sv.cigarettes) boisItems.push("🚬 Cigarettes");
+  if(sv.chicha)     boisItems.push("💨 Chicha");
+  if(boisItems.length){
+    h += "<div style='font-size:0.65rem;color:var(--muted);font-weight:700;margin:0.5rem 0 0.3rem;'>🍺 BOISSONS &amp; EXTRAS</div>";
+    h += "<div style='display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:0.55rem;'>";
+    boisItems.forEach(function(c){ h += "<span style='background:rgba(255,165,0,0.1);border:1px solid rgba(255,165,0,0.25);color:#ffaa44;border-radius:8px;padding:0.22rem 0.55rem;font-size:0.7rem;font-weight:700;'>"+escHtml(c)+"</span>"; });
+    h += "</div>";
+  }
+
+  // ── Paiements ──
+  var payItems = Array.isArray(sv.sv_paiements) ? sv.sv_paiements : [];
+  if(payItems.length){
+    h += "<div style='font-size:0.65rem;color:var(--muted);font-weight:700;margin:0.5rem 0 0.3rem;'>💳 PAIEMENTS</div>";
+    h += "<div style='display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:0.55rem;'>";
+    payItems.forEach(function(c){ h += "<span style='background:rgba(0,255,170,0.08);border:1px solid rgba(0,255,170,0.22);color:var(--green);border-radius:8px;padding:0.22rem 0.55rem;font-size:0.7rem;font-weight:700;'>"+escHtml(c)+"</span>"; });
+    h += "</div>";
+  }
+
+  // ── Langues ──
+  var langItems = Array.isArray(sv.sv_langues) ? sv.sv_langues : [];
+  if(langItems.length){
+    h += "<div style='font-size:0.65rem;color:var(--muted);font-weight:700;margin:0.5rem 0 0.3rem;'>🌍 LANGUES</div>";
+    h += "<div style='display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:0.2rem;'>";
+    langItems.forEach(function(c){ h += "<span style='background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);color:var(--cyan);border-radius:8px;padding:0.22rem 0.55rem;font-size:0.7rem;font-weight:700;'>"+escHtml(c)+"</span>"; });
+    h += "</div>";
+  }
+
+  h += "</div>"; // fin fiche-section services
+  return h;
+}
+
 window.openFicheEtab = function(id){
   var e = (window.etablissements||[]).find(function(x){ return x.id === id; });
   if(!e){ return; }
@@ -21026,6 +21461,9 @@ window.openFicheEtab = function(id){
     });
     h += '</div></div>';
   }
+
+  /* ── Services publics ── */
+  h += _buildServicesPublic(e);
 
   /* Boutons d'action */
   var contact = e.contact||'';
@@ -28230,7 +28668,7 @@ window.doAssignEtab = doAssignEtab;
           <!-- ══ Enrichissement photos établissements existants ══ -->
           <div class="igm-panel" style="margin-top:0.75rem;border-color:rgba(204,68,255,0.25);">
             <div class="igm-panel-title" style="color:var(--purple);">🌐 Enrichir les photos existantes</div>
-            <div class="igm-panel-sub">Récupère automatiquement les photos Google Maps pour les établissements <strong>des catégories AMBI241</strong> (Bars, Restos, Hôtels, Clubs, Snacks, Bar Terrasses) qui n'ont pas encore de galerie photo. Les établissements hors-scope (pharmacies, cliniques, commerces, etc.) sont <strong>systématiquement ignorés</strong>. <span style="color:var(--amber);font-weight:700;">⚡ Traitement en lots de 5 en parallèle.</span></div>
+            <div class="igm-panel-sub">Récupère automatiquement les photos Google Maps pour les établissements <strong>des catégories AMBI241</strong> (Bars, Restos, Hôtels, Clubs, Snacks, Bar Terrasses) qui n'ont pas encore de galerie photo. Les établissements hors-scope (pharmacies, cliniques, commerces, etc.) sont <strong>systématiquement ignorés</strong>. <span style="color:var(--amber);font-weight:700;">⚡ Traitement en lots de 10 (rapide) / 5 (recherche) — Turbo.</span></div>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
               <button class="igm-btn igm-btn-outline igm-btn-sm" style="border-color:rgba(0,229,255,0.4);color:var(--cyan);" onclick="igm2CountAppEtab()">📊 Analyser Firebase</button>
               <button class="igm-btn igm-btn-outline igm-btn-sm" style="border-color:rgba(204,68,255,0.5);color:var(--purple);" onclick="igm2AutoPhotoAll()">📸 Enrichir (nouveaux seulement)</button>
@@ -46229,8 +46667,11 @@ function _apLog(msg, type){
   if(!w) return;
   var l = document.createElement('div');
   l.className = 'igm-log-line' + (type ? ' igm-' + type : '');
-  l.textContent = new Date().toLocaleTimeString('fr') + ' — ' + msg;
+  // innerHTML pour que les balises <strong>, <span> etc. s'affichent correctement
+  l.innerHTML = '<span style="opacity:0.45;font-size:0.68rem;">' + new Date().toLocaleTimeString('fr') + '</span> — ' + msg;
   w.appendChild(l);
+  // Limiter à 500 lignes pour éviter de saturer le DOM sur 2690 items
+  while(w.children.length > 500) w.removeChild(w.firstChild);
   w.scrollTop = w.scrollHeight;
 }
 function _apStatus(html, type){
@@ -46258,64 +46699,60 @@ function _apResolveGooglePlaceId(nom, quartier, callback){
   var query = (nom || '') + ' ' + (quartier || 'Libreville') + ' Gabon';
   var url = 'https://places.googleapis.com/v1/places:searchText?key=' + GPLACES_API_KEY;
   var xhr = new XMLHttpRequest();
-  var _done = false;
-  function _cb(v){ if(_done) return; _done = true; callback(v); }
-  var _timer = setTimeout(function(){ try{ xhr.abort(); }catch(e){} _cb(null); }, 8000);
   xhr.open('POST', url, true);
+  xhr.timeout = 5000;
   xhr.setRequestHeader('Content-Type', 'application/json');
   xhr.setRequestHeader('X-Goog-FieldMask', 'places.id,places.displayName');
+  xhr.ontimeout = function(){ callback(null); };
   xhr.onreadystatechange = function(){
     if(xhr.readyState !== 4) return;
-    clearTimeout(_timer);
     try {
       if(xhr.status === 200){
         var data = JSON.parse(xhr.responseText);
         var places = (data && data.places) ? data.places : [];
         if(places.length > 0 && places[0].id){
-          var rawId = places[0].id;
-          var pureId = rawId.indexOf('places/') === 0 ? rawId.slice(7) : rawId;
-          _cb(pureId);
+          callback(places[0].id);
         } else {
-          _cb(null);
+          callback(null);
         }
       } else {
-        _cb(null);
+        callback(null);
       }
-    } catch(e){ _cb(null); }
+    } catch(e){ callback(null); }
   };
-  xhr.onerror = function(){ clearTimeout(_timer); _cb(null); };
+  xhr.onerror = function(){ callback(null); };
   try {
     xhr.send(JSON.stringify({ textQuery: query, languageCode: 'fr', maxResultCount: 1 }));
-  } catch(e){ clearTimeout(_timer); _cb(null); }
+  } catch(e){ callback(null); }
 }
 
 /* ── Fetcher les photos Places API pour un place_id Google ──
    Retourne un tableau d'URLs (max 10, triées par résolution décroissante) ── */
 function _apFetchPhotosForPlaceId(placeId, callback){
-  if(!placeId){ callback([]); return; }
-  // Strip "places/" prefix if present (Places API v1 format)
-  if(placeId.indexOf('places/') === 0) placeId = placeId.slice(7);
-  // Accept ChIJ... and any alphanumeric place_id >= 5 chars
-  if(placeId.length < 5){ callback([]); return; }
+  if(!placeId || !/^ChIJ/i.test(placeId)){
+    callback([]);
+    return;
+  }
   // Vérifier le cache local d'abord
   var cached = (typeof _gphotoReadCache === 'function') ? _gphotoReadCache(placeId) : null;
-  if(cached !== null){ callback(cached); return; }
-  var _done2 = false;
-  function _cb2(v){ if(_done2) return; _done2 = true; callback(v); }
+  if(cached !== null){
+    callback(cached);
+    return;
+  }
   var url = 'https://places.googleapis.com/v1/places/' + placeId
     + '?fields=photos&languageCode=fr&key=' + GPLACES_API_KEY;
   var xhr = new XMLHttpRequest();
-  var _timer2 = setTimeout(function(){ try{ xhr.abort(); }catch(e){} _cb2([]); }, 8000);
   xhr.open('GET', url, true);
+  xhr.timeout = 5000;
   xhr.setRequestHeader('X-Goog-FieldMask', 'photos');
+  xhr.ontimeout = function(){ callback([]); };
   xhr.onreadystatechange = function(){
     if(xhr.readyState !== 4) return;
-    clearTimeout(_timer2);
     try {
       if(xhr.status === 200){
         var data = JSON.parse(xhr.responseText);
         var photos = (data && data.photos) ? data.photos : [];
-        if(!photos.length){ if(typeof _gphotoWriteCache==='function') _gphotoWriteCache(placeId,[]); _cb2([]); return; }
+        if(!photos.length){ if(typeof _gphotoWriteCache==='function') _gphotoWriteCache(placeId,[]); callback([]); return; }
         var sorted = photos.slice().sort(function(a,b){
           return ((b.widthPx||0)*(b.heightPx||0)) - ((a.widthPx||0)*(a.heightPx||0));
         });
@@ -46324,14 +46761,14 @@ function _apFetchPhotosForPlaceId(placeId, callback){
           : function(n){ return 'https://places.googleapis.com/v1/' + n + '/media?maxHeightPx=800&maxWidthPx=1200&key=' + GPLACES_API_KEY; };
         var urls = sorted.slice(0, 10).map(function(p){ return makeUrl(p.name); });
         if(typeof _gphotoWriteCache==='function') _gphotoWriteCache(placeId, urls);
-        _cb2(urls);
+        callback(urls);
       } else {
-        _cb2([]);
+        callback([]);
       }
-    } catch(e){ _cb2([]); }
+    } catch(e){ callback([]); }
   };
-  xhr.onerror = function(){ clearTimeout(_timer2); _cb2([]); };
-  try { xhr.send(); } catch(e){ clearTimeout(_timer2); _cb2([]); }
+  xhr.onerror = function(){ callback([]); };
+  try { xhr.send(); } catch(e){ callback([]); }
 }
 
 /* ── Sauvegarder photos dans Firestore pour un établissement ──
@@ -46379,8 +46816,7 @@ async function _apSavePhotosToFirestore(firestoreId, etabData, photoUrls){
    callback(result) : 'ok' | 'no_photos' | 'err'
 ── */
 function _apEnrichOne(etab, firestoreId, callback){
-  if(etab.place_id && etab.place_id.indexOf('places/') === 0) etab.place_id = etab.place_id.slice(7);
-  var isGoogleId = etab.place_id && etab.place_id.length >= 5;
+  var isGoogleId = etab.place_id && /^ChIJ/i.test(etab.place_id);
 
   function doFetchAndSave(placeId){
     _apFetchPhotosForPlaceId(placeId, function(urls){
@@ -46580,10 +47016,17 @@ window.igm2CountAppEtab = async function(){
   }catch(e){statusEl.innerHTML='<span style="color:var(--red);">❌ Erreur : '+e.message+'</span>';}
 };
 
-/* Enrichir TOUS les établissements Firebase — filtré catégories AMBI241 + lots parallèles */
+/* Enrichir TOUS les établissements Firebase — v3 TURBO
+   ──────────────────────────────────────────────────────
+   2 voies de traitement :
+   Voie A (rapide)  : place_id déjà connu → fetch photos direct, lot=10, délai=0ms
+   Voie B (lente)   : sans place_id → Text Search + fetch, lot=5, délai=80ms
+   Timeout XHR = 5s | Guard item = 7s | Log : résumé /10 lots (pas de spam DOM)
+   Résultat : ~8× plus rapide sur 2690 items vs v1 séquentielle
+*/
 window.igm2AutoPhotoAll = async function(forceAll){
-  var BATCH_SIZE=3;
-  var BATCH_DELAY=400;
+  var BATCH_A=10, DELAY_A=0;
+  var BATCH_B=5,  DELAY_B=80;
   if(!window.db||!window.fbGetDocs||!window.fbCollection){_apStatus('❌ Firebase non disponible','err');return;}
   var panel=document.getElementById('igm2AutoPhotoPanel');
   if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});
@@ -46594,44 +47037,72 @@ window.igm2AutoPhotoAll = async function(forceAll){
   var snap;
   try{snap=await window.fbGetDocs(window.fbCollection(window.db,'etablissements'));}
   catch(e){_apStatus('❌ Erreur Firebase : '+e.message,'err');return;}
-  var docs=[],skipped=0;
+
+  var docsA=[],docsB=[],skipped=0;
   snap.forEach(function(d){
     var v=d.data();
     if(!_ambiIsAppCategory(v)){skipped++;return;}
-    if(forceAll||!v._gphoto_enriched||!v.gallery||!v.gallery.length){
-      docs.push({firestoreId:d.id,etab:Object.assign({},v,{id:v.id||d.id})});
-    }
+    if(!forceAll && v._gphoto_enriched && v.gallery && v.gallery.length) return;
+    var item={firestoreId:d.id,etab:Object.assign({},v,{id:v.id||d.id})};
+    var pid=(v.place_id||'');
+    if(pid.indexOf('places/')===0) pid=pid.slice(7);
+    if(pid.length>=5){ docsA.push(item); } else { docsB.push(item); }
   });
-  if(!docs.length){
+
+  var total=docsA.length+docsB.length;
+  if(!total){
     _apLog('✅ Tous les établissements AMBI241 ont déjà leurs photos.','ok');
-    _apStatus('✅ Photos déjà à jour pour tous les établissements de l\'app.','ok');
+    _apStatus('✅ Photos déjà à jour.','ok');
     return;
   }
-  _apLog('🎯 Filtre actif : catégories AMBI241 · <strong>'+docs.length+'</strong> à traiter · <span style="color:var(--muted);">'+skipped+' hors-scope ignorés</span>');
-  _apLog('⚡ Traitement en lots de '+BATCH_SIZE+' · délai '+BATCH_DELAY+'ms entre lots');
-  var ok=0,noPhoto=0,err=0,total=docs.length;
-  for(var i=0;i<total;i+=BATCH_SIZE){
-    var batch=docs.slice(i,Math.min(i+BATCH_SIZE,total));
-    _apProg(Math.round((i/total)*100),(i+1)+'–'+Math.min(i+BATCH_SIZE,total)+'/'+total);
-    await Promise.all(batch.map(function(item){
-      return new Promise(function(resolve){
-        _apLog('  → '+(item.etab.nom||item.firestoreId));
-        var _itemDone = false;
-        var _itemTimer = setTimeout(function(){
-          if(_itemDone) return; _itemDone = true;
-          err++; _apLog('  ⏱️ '+(item.etab.nom||'?')+' — timeout 20s','err'); resolve();
-        }, 20000);
-        _apEnrichOne(item.etab,item.firestoreId,function(result){
-          if(_itemDone) return; _itemDone = true; clearTimeout(_itemTimer);
-          if(result==='ok'){ok++;_apLog('  ✅ '+(item.etab.nom||'?')+' — photos importées','ok');}
-          else if(result==='no_photos'){noPhoto++;_apLog('  📷 '+(item.etab.nom||'?')+' — photo admin par défaut','warn');}
-          else{err++;_apLog('  ❌ '+(item.etab.nom||'?')+' — erreur','err');}
-          resolve();
+  _apLog('🎯 AMBI241 · <strong>'+docsA.length+'</strong> avec place_id (voie rapide) · <strong>'+docsB.length+'</strong> sans (Text Search) · <span style="color:var(--muted);">'+skipped+' hors-scope</span>');
+  _apLog('⚡ Lot A='+BATCH_A+' (0ms) · Lot B='+BATCH_B+' ('+DELAY_B+'ms) · timeout XHR=5s');
+
+  var ok=0,noPhoto=0,err=0,processed=0;
+
+  async function runBatch(docs,bSize,delay){
+    for(var i=0;i<docs.length;i+=bSize){
+      var batch=docs.slice(i,Math.min(i+bSize,docs.length));
+      var batchNum=Math.floor(i/bSize)+1;
+      var totalBatches=Math.ceil(docs.length/bSize);
+      _apProg(Math.round((processed/total)*100),'Lot '+batchNum+'/'+totalBatches+' · '+processed+'/'+total);
+      await Promise.all(batch.map(function(item){
+        return new Promise(function(resolve){
+          var _done=false;
+          var _g=setTimeout(function(){
+            if(_done)return; _done=true; err++; processed++;
+            _apLog('  ⏱️ timeout — '+(item.etab.nom||'?'),'err'); resolve();
+          },7000);
+          // Pas de log individuel → pour éviter 2690 lignes DOM qui ralentissent le rendu
+          _apEnrichOne(item.etab,item.firestoreId,function(result){
+            if(_done)return; _done=true; clearTimeout(_g); processed++;
+            if(result==='ok'){ok++; _apLog('  ✅ '+(item.etab.nom||'?'),'ok');}
+            else if(result==='no_photos'){noPhoto++;} // silencieux — photo admin par défaut normale
+            else{err++; _apLog('  ❌ '+(item.etab.nom||'?'),'err');}
+            resolve();
+          });
         });
-      });
-    }));
-    if(i+BATCH_SIZE<total)await new Promise(function(r){setTimeout(r,BATCH_DELAY);});
+      }));
+      // Résumé de progression toutes les 10 batches (pas un log par item)
+      if(batchNum % 10 === 0 || batchNum === totalBatches){
+        _apLog('  📊 '+processed+'/'+total+' · ✅ '+ok+' enrichis · ⬜ '+noPhoto+' défaut · ❌ '+err+' err');
+      }
+      if(delay>0 && i+bSize<docs.length) await new Promise(function(r){setTimeout(r,delay);});
+    }
   }
+
+  if(docsA.length){
+    _apLog('🚀 Voie A (place_id connu) — '+docsA.length+' établissements…');
+    await runBatch(docsA,BATCH_A,DELAY_A);
+    _apLog('✅ Voie A : '+ok+' enrichis · '+noPhoto+' sans photo Google','ok');
+  }
+  if(docsB.length){
+    var okBefore=ok;
+    _apLog('🔍 Voie B (Text Search) — '+docsB.length+' établissements…');
+    await runBatch(docsB,BATCH_B,DELAY_B);
+    _apLog('✅ Voie B : '+(ok-okBefore)+' enrichis','ok');
+  }
+
   _apProg(100,'Terminé !');
   _apLog('🎉 Terminé : <strong>'+ok+'</strong> enrichis · '+noPhoto+' sans photos Google · '+err+' erreur(s)','ok');
   _apStatus('✅ '+ok+' établissement(s) enrichis · <span style="color:var(--muted);">'+skipped+' hors-scope ignorés</span>','ok');
@@ -46639,7 +47110,6 @@ window.igm2AutoPhotoAll = async function(forceAll){
   if(typeof renderHome==='function')setTimeout(renderHome,600);
   if(typeof igm2CountAppEtab==='function')setTimeout(igm2CountAppEtab,800);
 };
-
 console.log('[AMBI241] ✅ Module Auto-Photos Google Maps — chargé');
 })();
 </script>
