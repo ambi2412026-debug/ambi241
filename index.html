@@ -46985,10 +46985,18 @@ window.igm2AutoFetchAllPhotos = async function(){
 /* Catégories valides de l'application AMBI241 */
 var AMBI_APP_CATEGORIES = ['Bar','Discotheque','Restaurant','Bar Terrasse','Snack','Hotel'];
 
-/* Vérifie si un établissement appartient aux catégories AMBI241 */
+/* Vérifie si un établissement appartient aux catégories AMBI241
+   STRICT : reproduit le filtre de _processEtabData (loadData)
+   → seuls les docs avec id numérique valide + catégorie AMBI241
+   = les mêmes ~1028 établissements affichés dans l'application */
 function _ambiIsAppCategory(etab){
+  // Critère 1 : id numérique valide > 0 (même condition que _processEtabData)
+  var numId = parseInt(etab.id, 10);
+  if(!numId || numId <= 0 || isNaN(numId)) return false;
+  // Critère 2 : type non vide
   var type=(etab.type||'').trim();
-  if(!type)return false;
+  if(!type) return false;
+  // Critère 3 : catégorie AMBI241 reconnue
   if(typeof getCategory==='function'){
     return AMBI_APP_CATEGORIES.indexOf(getCategory(type))!==-1;
   }
@@ -47041,7 +47049,7 @@ window.igm2CountAppEtab = async function(){
    Voie A (rapide)  : place_id déjà connu → fetch photos direct, lot=10, délai=0ms
    Voie B (lente)   : sans place_id → Text Search + fetch, lot=5, délai=80ms
    Timeout XHR = 5s | Guard item = 7s | Log : résumé /10 lots (pas de spam DOM)
-   Résultat : ~8× plus rapide sur 2690 items vs v1 séquentielle
+   Résultat : ~8× plus rapide | Limité aux ~1028 établissements de l'app (id numérique valide)
 */
 window.igm2AutoPhotoAll = async function(forceAll){
   var BATCH_A=10, DELAY_A=0;
