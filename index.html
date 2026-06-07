@@ -46711,12 +46711,25 @@ function _apCacheRead(placeId){
     var raw = localStorage.getItem(_AP_CACHE + placeId);
     if(!raw) return null;
     var obj = JSON.parse(raw);
-    if(Date.now() - obj.ts > _AP_TTL){ localStorage.removeItem(_AP_CACHE + placeId); return null; }
-    return (obj.urls && obj.urls.length > 0) ? obj.urls : null; // null si vide → réessayer
+    if(Date.now() - obj.ts > _AP_TTL){ 
+      localStorage.removeItem(_AP_CACHE + placeId); 
+      return null; 
+    }
+    // FIX #4 : Distinguer erreur API vs pas de photos
+    if(obj.status === 'error' || obj.status === 'auth_error') return null;  // Réessayer erreurs
+    if(obj.status === 'no_photos') return [];  // Pas de photos → ne pas réessayer
+    if(obj.urls && obj.urls.length > 0) return obj.urls;  // URLs ok
+    return null;  // Inconnu → réessayer
   }catch(e){ return null; }
 }
-function _apCacheWrite(placeId, urls){
-  try{ localStorage.setItem(_AP_CACHE + placeId, JSON.stringify({ts:Date.now(), urls:urls})); }catch(e){}
+function _apCacheWrite(placeId, urls, status){
+  try{ 
+    localStorage.setItem(_AP_CACHE + placeId, JSON.stringify({
+      ts: Date.now(), 
+      urls: urls,
+      status: status || (urls.length > 0 ? 'ok' : 'no_photos')
+    })); 
+  }catch(e){}
 }
 function _apCachePurgeEmpty(){
   var n = 0;
@@ -46726,7 +46739,10 @@ function _apCachePurgeEmpty(){
       if(k && k.indexOf(_AP_CACHE) === 0){
         try{
           var v = JSON.parse(localStorage.getItem(k)||'{}');
-          if(!v.urls || !v.urls.length){ localStorage.removeItem(k); n++; }
+          // FIX #4 : Ne purger QUE les erreurs, pas les "no_photos"
+          if(v.status === 'error' || v.status === 'auth_error' || (!v.urls && !v.status)){
+            localStorage.removeItem(k); n++;
+          }
         }catch(e){}
       }
     }
@@ -46759,40 +46775,77 @@ function _apGuessCategory(t){
 }
 
 /* ══ APPEL API : récupère les photos d'un place_id Google ══ */
-function _apFetchPhotos(placeId, callback){
-  // Cache hit (URLs non vides uniquement)
+function _apFetchPhotos(placeId, callback, retryCount){
+  retryCount = retryCount || 0;
   var cached = _apCacheRead(placeId);
-  if(cached){ callback(cached); return; }
+  if(cached !== null){ callback(cached); return; }
 
+  // FIX #2 : Supprimer ?fields=photos du paramètre
   var url = 'https://places.googleapis.com/v1/places/' + placeId
-    + '?fields=photos&languageCode=fr&key=' + _AP_KEY;
+    + '?languageCode=fr&key=' + _AP_KEY;
+  
   var xhr = new XMLHttpRequest();
   xhr.open('GET', url, true);
   xhr.timeout = 6000;
+  
+  // FIX #1 : Ajouter Accept header
+  xhr.setRequestHeader('Accept', 'application/json');
   xhr.setRequestHeader('X-Goog-FieldMask', 'photos');
+  
   xhr.ontimeout = function(){ callback([]); };
   xhr.onerror   = function(){ callback([]); };
+  
   xhr.onreadystatechange = function(){
     if(xhr.readyState !== 4) return;
     try{
       if(xhr.status === 200){
         var data = JSON.parse(xhr.responseText);
         var photos = (data && data.photos) ? data.photos : [];
-        if(!photos.length){ callback([]); return; }
+        if(!photos.length){ 
+          _apCacheWrite(placeId, [], 'no_photos');  // FIX #4
+          callback([]); 
+          return; 
+        }
+        
         var sorted = photos.slice().sort(function(a,b){
           return ((b.widthPx||0)*(b.heightPx||0)) - ((a.widthPx||0)*(a.heightPx||0));
         });
+        
+        // FIX #3 : Utiliser photoUri au lieu de /media
         var urls = sorted.slice(0,10).map(function(p){
-          return 'https://places.googleapis.com/v1/' + p.name
-            + '/media?maxHeightPx=800&maxWidthPx=1200&key=' + _AP_KEY;
-        });
-        _apCacheWrite(placeId, urls);
+          return p.photoUri || null;
+        }).filter(Boolean);
+        
+        _apCacheWrite(placeId, urls, 'ok');
         callback(urls);
+        
+      } else if(xhr.status === 429) {
+        // FIX #6 : Gestion du rate limit avec retry exponentiel
+        var delay = Math.pow(2, retryCount) * 1000;  // 1s, 2s, 4s, 8s
+        if(retryCount < 3){
+          if(window.AMBI_DEBUG) console.warn('[AP] 429 Too Many Requests — retry dans ' + delay + 'ms');
+          setTimeout(function(){
+            _apFetchPhotos(placeId, callback, retryCount + 1);
+          }, delay);
+          return;
+        } else {
+          if(window.AMBI_DEBUG) console.error('[AP] 429 après 3 retries — abandon pour ' + placeId);
+          callback([]);
+        }
+        
+      } else if(xhr.status === 403) {
+        _apCacheWrite(placeId, [], 'auth_error');
+        if(window.AMBI_DEBUG) console.error('[AP] 403 Forbidden — Vérifier la clé API');
+        callback([]);
+        
       } else {
         if(window.AMBI_DEBUG) console.error('[AP] HTTP ' + xhr.status + ' pour ' + placeId);
         callback([]);
       }
-    }catch(e){ callback([]); }
+    }catch(e){ 
+      if(window.AMBI_DEBUG) console.error('[AP] Parse error:', e);
+      callback([]); 
+    }
   };
   try{ xhr.send(); }catch(e){ callback([]); }
 }
@@ -46887,6 +46940,11 @@ async function _apSave(firestoreId, etab, urls){
       // Invalider le cache localStorage pour ce place_id
       var pid = local.place_id || etab.place_id || '';
       if(pid){ try{ localStorage.removeItem(_AP_CACHE + pid); }catch(ex){} }
+      
+      // FIX #5 : Trigger de re-rendu si fonction disponible
+      if(typeof window._reRenderCard === 'function'){
+        try { window._reRenderCard(firestoreId); } catch(renderErr){}
+      }
     }
     return true;
   }catch(e){
@@ -46995,7 +47053,7 @@ window.igm2CountAppEtab = async function(){
    Filtre strict : id entier > 0 + catégorie AMBI241 = ~1028 établissements
 */
 window.igm2AutoPhotoAll = async function(forceAll){
-  var BATCH_A=10, DELAY_A=0;
+  var BATCH_A=10, DELAY_A=50;
   var BATCH_B=5,  DELAY_B=100;
 
   if(!window.db || !window.fbGetDocs || !window.fbCollection){
