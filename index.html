@@ -46645,34 +46645,30 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 })();
 </script>
 
-<!-- ══ MODULE : AUTO-IMPORT PHOTOS GOOGLE MAPS ══════════════════════════
-     Enrichit automatiquement la galerie et la photo de profil de chaque
-     établissement en interrogeant Google Places API (Places New).
-     Déclenché :
-       • après un import Maps (igm2AutoFetchAllPhotos — session courante)
-       • manuellement sur tous les étabs Firebase (igm2AutoPhotoAll)
-     Règles :
-       • place_id Google (ChIJ…) requis — résolution Text Search si absent
-       • Meilleures 10 photos triées par résolution → gallery[] Firestore
-       • 1ère photo → photo_profile_approved (profil public)
-       • 0 photo Google → photo admin par défaut (getAdminDefaultPhotoForEtab)
-       • Cache localStorage 7 j réutilisé (_gphotoReadCache)
+<!-- ══ MODULE : AUTO-IMPORT PHOTOS GOOGLE MAPS — v4 REBUILD ══════════
+     Enrichit la galerie de chaque établissement via Google Places API.
+     v4 : réécriture complète — scope corrigé, filtre 1028, logique simple
      ════════════════════════════════════════════════════════════════════ -->
 <script>
 (function(){
 'use strict';
 
-/* ── Helpers log ── */
+/* ══ CONSTANTES (redéclarées localement pour garantir l'accès dans ce scope) ══ */
+var _AP_KEY    = window.GPLACES_API_KEY || 'AIzaSyCx3hD28Lb9EtUrawHbTnM-6vmXdgO1ABw';
+var _AP_CACHE  = 'ambi241_gphoto_';
+var _AP_TTL    = 7 * 24 * 3600 * 1000; // 7 jours
+var _AP_CATS   = ['Bar','Discotheque','Restaurant','Bar Terrasse','Snack','Hotel'];
+
+/* ══ LOG / PROGRESSION ══ */
 function _apLog(msg, type){
   var w = document.getElementById('igm2AutoPhotoLog');
   if(!w) return;
+  // Limiter à 300 lignes pour éviter de saturer le DOM
+  while(w.children.length >= 300) w.removeChild(w.firstChild);
   var l = document.createElement('div');
   l.className = 'igm-log-line' + (type ? ' igm-' + type : '');
-  // innerHTML pour que les balises <strong>, <span> etc. s'affichent correctement
   l.innerHTML = '<span style="opacity:0.45;font-size:0.68rem;">' + new Date().toLocaleTimeString('fr') + '</span> — ' + msg;
   w.appendChild(l);
-  // Limiter à 500 lignes pour éviter de saturer le DOM sur 2690 items
-  while(w.children.length > 500) w.removeChild(w.firstChild);
   w.scrollTop = w.scrollHeight;
 }
 function _apStatus(html, type){
@@ -46681,7 +46677,7 @@ function _apStatus(html, type){
     if(!el) return;
     el.innerHTML = html;
     el.className = 'igm-gallery-status' + (type ? ' ' + type : '');
-    if(type === 'ok') setTimeout(function(){ if(el.innerHTML === html) el.innerHTML = ''; }, 4000);
+    if(type === 'ok') setTimeout(function(){ if(el.innerHTML === html) el.innerHTML = ''; }, 5000);
   });
 }
 function _apProg(pct, detail){
@@ -46690,473 +46686,420 @@ function _apProg(pct, detail){
   var lbl  = document.getElementById('igm2AutoPhotoPLabel');
   var det  = document.getElementById('igm2AutoPhotoPDetail');
   if(prog) prog.style.display = 'block';
-  if(fill) fill.style.width = pct + '%';
+  if(fill) fill.style.width = Math.min(pct,100) + '%';
   if(lbl)  lbl.textContent  = Math.round(pct) + '%';
   if(det && detail) det.textContent = ' — ' + detail;
 }
 
-/* ── Résoudre le vrai place_id Google via Text Search API ── */
-function _apResolveGooglePlaceId(nom, quartier, callback){
-  var query = (nom || '') + ' ' + (quartier || 'Libreville') + ' Gabon';
-  var url = 'https://places.googleapis.com/v1/places:searchText?key=' + GPLACES_API_KEY;
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', url, true);
-  xhr.timeout = 5000;
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.setRequestHeader('X-Goog-FieldMask', 'places.id,places.displayName');
-  xhr.ontimeout = function(){ callback(null); };
-  xhr.onreadystatechange = function(){
-    if(xhr.readyState !== 4) return;
-    try {
-      if(xhr.status === 200){
-        var data = JSON.parse(xhr.responseText);
-        var places = (data && data.places) ? data.places : [];
-        if(places.length > 0 && places[0].id){
-          callback(places[0].id);
-        } else {
-          callback(null);
-        }
-      } else {
-        callback(null);
+/* ══ CACHE ══ */
+function _apCacheRead(placeId){
+  try{
+    var raw = localStorage.getItem(_AP_CACHE + placeId);
+    if(!raw) return null;
+    var obj = JSON.parse(raw);
+    if(Date.now() - obj.ts > _AP_TTL){ localStorage.removeItem(_AP_CACHE + placeId); return null; }
+    return (obj.urls && obj.urls.length > 0) ? obj.urls : null; // null si vide → réessayer
+  }catch(e){ return null; }
+}
+function _apCacheWrite(placeId, urls){
+  try{ localStorage.setItem(_AP_CACHE + placeId, JSON.stringify({ts:Date.now(), urls:urls})); }catch(e){}
+}
+function _apCachePurgeEmpty(){
+  var n = 0;
+  try{
+    for(var i = localStorage.length - 1; i >= 0; i--){
+      var k = localStorage.key(i);
+      if(k && k.indexOf(_AP_CACHE) === 0){
+        try{
+          var v = JSON.parse(localStorage.getItem(k)||'{}');
+          if(!v.urls || !v.urls.length){ localStorage.removeItem(k); n++; }
+        }catch(e){}
       }
-    } catch(e){ callback(null); }
-  };
-  xhr.onerror = function(){ callback(null); };
-  try {
-    xhr.send(JSON.stringify({ textQuery: query, languageCode: 'fr', maxResultCount: 1 }));
-  } catch(e){ callback(null); }
+    }
+  }catch(e){}
+  return n;
 }
 
-/* ── Fetcher les photos Places API pour un place_id Google ──
-   Retourne un tableau d'URLs (max 10, triées par résolution décroissante) ── */
-function _apFetchPhotosForPlaceId(placeId, callback){
-  if(!placeId || !/^ChIJ/i.test(placeId)){
-    callback([]);
-    return;
-  }
-  // Cache : on lit UNIQUEMENT si le cache contient des URLs réelles (> 0)
-  // Un cache vide [] signifie "échec précédent" — on réessaie en mode admin
-  var cached = (typeof _gphotoReadCache === 'function') ? _gphotoReadCache(placeId) : null;
-  if(cached !== null && cached.length > 0){
-    callback(cached);
-    return;
-  }
-  // Si cache vide, on le supprime pour forcer un nouvel appel API
-  try { localStorage.removeItem(GPHOTO_CACHE_PREFIX + placeId); } catch(e){}
+/* ══ FILTRE : exactement les ~1028 établissements de l'app ══
+   Critères identiques à _processEtabData (loadData) :
+   1. id entier > 0
+   2. type non vide → catégorie AMBI241 reconnue
+*/
+function _apIsAppEtab(v){
+  var numId = parseInt(v.id, 10);
+  if(!numId || numId <= 0 || isNaN(numId)) return false;
+  var type = (v.type || '').trim();
+  if(!type) return false;
+  var cat = (typeof getCategory === 'function') ? getCategory(type) : _apGuessCategory(type);
+  return _AP_CATS.indexOf(cat) !== -1;
+}
+function _apGuessCategory(t){
+  t = t.toLowerCase();
+  if(/h[oô]tel|motel|r[eé]sidence|resort|lodge/.test(t)) return 'Hotel';
+  if(/disco|nightclub|night club|club/.test(t)) return 'Discotheque';
+  if(/terrasse|rooftop/.test(t)) return 'Bar Terrasse';
+  if(/snack/.test(t)) return 'Snack';
+  if(/restaurant|resto|p[aâ]tisserie|brasserie|pizzeria|bistro|caf[eé]|maquis/.test(t)) return 'Restaurant';
+  if(/bar|lounge|pub|taverne/.test(t)) return 'Bar';
+  return '';
+}
+
+/* ══ APPEL API : récupère les photos d'un place_id Google ══ */
+function _apFetchPhotos(placeId, callback){
+  // Cache hit (URLs non vides uniquement)
+  var cached = _apCacheRead(placeId);
+  if(cached){ callback(cached); return; }
+
   var url = 'https://places.googleapis.com/v1/places/' + placeId
-    + '?fields=photos&languageCode=fr&key=' + GPLACES_API_KEY;
+    + '?fields=photos&languageCode=fr&key=' + _AP_KEY;
   var xhr = new XMLHttpRequest();
   xhr.open('GET', url, true);
-  xhr.timeout = 5000;
+  xhr.timeout = 6000;
   xhr.setRequestHeader('X-Goog-FieldMask', 'photos');
   xhr.ontimeout = function(){ callback([]); };
+  xhr.onerror   = function(){ callback([]); };
   xhr.onreadystatechange = function(){
     if(xhr.readyState !== 4) return;
-    try {
+    try{
       if(xhr.status === 200){
         var data = JSON.parse(xhr.responseText);
         var photos = (data && data.photos) ? data.photos : [];
-        if(!photos.length){ if(typeof _gphotoWriteCache==='function') _gphotoWriteCache(placeId,[]); callback([]); return; }
+        if(!photos.length){ callback([]); return; }
         var sorted = photos.slice().sort(function(a,b){
           return ((b.widthPx||0)*(b.heightPx||0)) - ((a.widthPx||0)*(a.heightPx||0));
         });
-        var makeUrl = (typeof _gphotoMakeUrl === 'function')
-          ? _gphotoMakeUrl
-          : function(n){ return 'https://places.googleapis.com/v1/' + n + '/media?maxHeightPx=800&maxWidthPx=1200&key=' + GPLACES_API_KEY; };
-        var urls = sorted.slice(0, 10).map(function(p){ return makeUrl(p.name); });
-        if(typeof _gphotoWriteCache==='function') _gphotoWriteCache(placeId, urls);
+        var urls = sorted.slice(0,10).map(function(p){
+          return 'https://places.googleapis.com/v1/' + p.name
+            + '/media?maxHeightPx=800&maxWidthPx=1200&key=' + _AP_KEY;
+        });
+        _apCacheWrite(placeId, urls);
         callback(urls);
       } else {
-        // Log du statut HTTP pour faciliter le diagnostic (quota, auth, etc.)
-        if(window.AMBI_DEBUG) console.error('[_apFetch] HTTP '+xhr.status+' pour '+placeId);
+        if(window.AMBI_DEBUG) console.error('[AP] HTTP ' + xhr.status + ' pour ' + placeId);
         callback([]);
       }
-    } catch(e){ callback([]); }
+    }catch(e){ callback([]); }
   };
-  xhr.onerror = function(){ callback([]); };
-  try { xhr.send(); } catch(e){ callback([]); }
+  try{ xhr.send(); }catch(e){ callback([]); }
 }
 
-/* ── Sauvegarder photos dans Firestore pour un établissement ──
-   firestoreId = ID du doc Firestore (chaîne)
-   etabData    = { nom, type, place_id, ... }
-   photoUrls   = [] ou [url1, url2, ...]
-── */
-async function _apSavePhotosToFirestore(firestoreId, etabData, photoUrls){
-  if(!window.db || !window.fbDoc || !window.fbUpdateDoc) return false;
-
-  // Construire la galerie Google (photos réelles)
-  var googleGallery = photoUrls.map(function(url, i){
-    return { url: url, storagePath: '', isProfile: i === 0, label: 'Google Maps', source: 'google' };
-  });
-
-  // Récupérer les photos admin existantes (source != 'google') pour les préserver
-  var local = etablissements ? etablissements.find(function(e){ return String(e.id) === String(etabData.id); }) : null;
-  var existingAdminPhotos = [];
-  if(local && local.gallery && Array.isArray(local.gallery)){
-    existingAdminPhotos = local.gallery.filter(function(g){ return g.source !== 'google'; });
-  }
-
-  // Galerie finale : photos Google en premier, puis photos admin préservées
-  var finalGallery = googleGallery.concat(existingAdminPhotos);
-
-  // Photo de profil : 1ère Google en priorité absolue (écrase photo admin par défaut)
-  var profileUrl = photoUrls[0] || '';
-
-  var update = {
-    gallery: finalGallery,
-    photo_profile_approved: profileUrl,  // écrase la photo par défaut admin
-    photo_interieur: photoUrls[1] || photoUrls[0] || '',  // 2ème photo ou 1ère
-    photo_exterieur: photoUrls[0] || '',                   // 1ère photo = façade
-    _gphoto_enriched: true,
-    _gphoto_enriched_at: Date.now(),
-    _gphoto_source: 'places_api'
+/* ══ TEXT SEARCH : résout un nom → place_id ══ */
+function _apTextSearch(nom, quartier, callback){
+  var query = (nom||'') + ' ' + (quartier||'Libreville') + ' Gabon';
+  var url = 'https://places.googleapis.com/v1/places:searchText?key=' + _AP_KEY;
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', url, true);
+  xhr.timeout = 6000;
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.setRequestHeader('X-Goog-FieldMask', 'places.id');
+  xhr.ontimeout = function(){ callback(null); };
+  xhr.onerror   = function(){ callback(null); };
+  xhr.onreadystatechange = function(){
+    if(xhr.readyState !== 4) return;
+    try{
+      if(xhr.status === 200){
+        var d = JSON.parse(xhr.responseText);
+        var pid = (d.places && d.places.length > 0) ? d.places[0].id : null;
+        callback(pid);
+      } else { callback(null); }
+    }catch(e){ callback(null); }
   };
-  try {
-    await window.fbUpdateDoc(window.fbDoc(window.db, 'etablissements', firestoreId), update);
-    // Synchroniser le cache mémoire local pour rendu immédiat
+  try{ xhr.send(JSON.stringify({textQuery:query, languageCode:'fr', maxResultCount:1})); }
+  catch(e){ callback(null); }
+}
+
+/* ══ SAUVEGARDE FIRESTORE ══ */
+async function _apSave(firestoreId, etab, urls){
+  if(!window.db || !window.fbDoc || !window.fbUpdateDoc) return false;
+  // Galerie Google + photos admin existantes préservées
+  var googleGallery = urls.map(function(u,i){
+    return {url:u, storagePath:'', isProfile:i===0, label:'Google Maps', source:'google'};
+  });
+  var local = (typeof etablissements !== 'undefined') ?
+    etablissements.find(function(e){ return String(e.id) === String(etab.id); }) : null;
+  var adminPhotos = (local && Array.isArray(local.gallery)) ?
+    local.gallery.filter(function(g){ return g && g.source !== 'google'; }) : [];
+  var finalGallery = googleGallery.concat(adminPhotos);
+  var update = {
+    gallery              : finalGallery,
+    photo_profile_approved: urls[0] || '',
+    photo_interieur      : urls[1] || urls[0] || '',
+    photo_exterieur      : urls[0] || '',
+    _gphoto_enriched     : true,
+    _gphoto_enriched_at  : Date.now(),
+    _gphoto_source       : 'places_api_v4'
+  };
+  try{
+    await window.fbUpdateDoc(window.fbDoc(window.db,'etablissements',firestoreId), update);
+    // Sync mémoire
     if(local){
-      local.gallery = finalGallery;
-      local.photo_profile_approved = profileUrl;
-      local._photo_profile_approved = profileUrl;
-      local.photo_interieur = update.photo_interieur;
-      local.photo_exterieur = update.photo_exterieur;
-      local._gphoto_enriched = true;
-      local._gphoto_urls = photoUrls.slice();
-      local._fallback_svg = null; // supprimer le fallback SVG — photo réelle disponible
+      Object.assign(local, {
+        gallery:finalGallery, photo_profile_approved:urls[0]||'',
+        _photo_profile_approved:urls[0]||'', photo_interieur:update.photo_interieur,
+        photo_exterieur:update.photo_exterieur, _gphoto_enriched:true,
+        _gphoto_urls:urls.slice(), _fallback_svg:null
+      });
     }
     return true;
-  } catch(e){ return false; }
+  }catch(e){ return false; }
 }
 
-/* ── Enrichir UN établissement (résolution place_id + fetch photos + save) ──
-   etab = objet local { id, nom, type, quartier, place_id, ... }
-   firestoreId = string ID du doc Firestore
-   callback(result) : 'ok' | 'no_photos' | 'err'
-── */
+/* ══ SAUVEGARDE PHOTO ADMIN PAR DÉFAUT (quand 0 photo Google) ══ */
+async function _apSaveAdminDefault(firestoreId, etab){
+  if(!window.db || !window.fbDoc || !window.fbUpdateDoc) return;
+  var adminUrl = (typeof getAdminDefaultPhotoForEtab === 'function') ?
+    (getAdminDefaultPhotoForEtab(etab) || '') : '';
+  if(!adminUrl) return;
+  try{
+    await window.fbUpdateDoc(window.fbDoc(window.db,'etablissements',firestoreId),{
+      photo_profile_approved: adminUrl,
+      _gphoto_enriched      : true,
+      _gphoto_enriched_at   : Date.now()
+    });
+    var local = (typeof etablissements !== 'undefined') ?
+      etablissements.find(function(e){ return String(e.id) === String(etab.id); }) : null;
+    if(local){ local.photo_profile_approved = adminUrl; local._photo_profile_approved = adminUrl; local._gphoto_enriched = true; }
+  }catch(e){}
+}
+
+/* ══ ENRICHIR UN ÉTABLISSEMENT ══ */
 function _apEnrichOne(etab, firestoreId, callback){
-  var isGoogleId = etab.place_id && /^ChIJ/i.test(etab.place_id);
+  var pid = (etab.place_id || '').trim();
+  // Normaliser préfixe places/
+  if(pid.indexOf('places/') === 0) pid = pid.slice(7);
+  var hasValidPid = /^ChIJ/i.test(pid) && pid.length >= 10;
 
-  function doFetchAndSave(placeId){
-    _apFetchPhotosForPlaceId(placeId, function(urls){
-      if(!urls.length){
-        // Pas de photos → sauvegarder uniquement la photo admin par défaut comme profil
-        var adminDefault = (typeof getAdminDefaultPhotoForEtab === 'function') ? getAdminDefaultPhotoForEtab(etab) : '';
-        if(adminDefault && firestoreId && window.db && window.fbDoc && window.fbUpdateDoc){
-          window.fbUpdateDoc(window.fbDoc(window.db,'etablissements',firestoreId),{
-            photo_profile_approved: adminDefault,
-            _gphoto_enriched: true,
-            _gphoto_enriched_at: Date.now()
-          }).then(function(){
-            /* Mapper en memoire pour affichage immediat */
-            var loc = etablissements ? etablissements.find(function(x){ return String(x.id)===String(etab.id); }) : null;
-            if(loc){ loc.photo_profile_approved = adminDefault; loc._photo_profile_approved = adminDefault; loc._gphoto_enriched = true; }
-            callback('no_photos');
-          }).catch(function(){ callback('no_photos'); });
-        } else {
-          callback('no_photos');
-        }
-        return;
+  function doFetch(placeId){
+    _apFetchPhotos(placeId, function(urls){
+      if(urls.length){
+        _apSave(firestoreId, etab, urls).then(function(ok){ callback(ok ? 'ok' : 'err'); }).catch(function(){ callback('err'); });
+      } else {
+        _apSaveAdminDefault(firestoreId, etab).then(function(){ callback('no_photos'); }).catch(function(){ callback('no_photos'); });
       }
-      // Photos trouvées → sauvegarder dans Firestore
-      _apSavePhotosToFirestore(firestoreId, etab, urls).then(function(ok){
-        callback(ok ? 'ok' : 'err');
-      }).catch(function(){ callback('err'); });
     });
   }
 
-  if(isGoogleId){
-    doFetchAndSave(etab.place_id);
+  if(hasValidPid){
+    doFetch(pid);
   } else {
-    // Résoudre le place_id via Text Search puis fetch
-    _apResolveGooglePlaceId(etab.nom, etab.quartier, function(resolvedId){
-      if(resolvedId){
-        etab.place_id = resolvedId;
-        // Mettre à jour le place_id dans Firestore aussi
+    // Text Search → résoudre le place_id
+    _apTextSearch(etab.nom, etab.quartier, function(resolvedPid){
+      if(resolvedPid){
+        etab.place_id = resolvedPid;
         if(firestoreId && window.db && window.fbDoc && window.fbUpdateDoc){
-          window.fbUpdateDoc(window.fbDoc(window.db,'etablissements',firestoreId),{ place_id: resolvedId }).catch(function(){});
+          window.fbUpdateDoc(window.fbDoc(window.db,'etablissements',firestoreId),{place_id:resolvedPid}).catch(function(){});
         }
-        doFetchAndSave(resolvedId);
+        doFetch(resolvedPid);
       } else {
-        // Pas de place_id trouvé → photo admin par défaut
-        var adminDefault2 = (typeof getAdminDefaultPhotoForEtab === 'function') ? getAdminDefaultPhotoForEtab(etab) : '';
-        if(adminDefault2 && firestoreId && window.db && window.fbDoc && window.fbUpdateDoc){
-          window.fbUpdateDoc(window.fbDoc(window.db,'etablissements',firestoreId),{
-            photo_profile_approved: adminDefault2,
-            _gphoto_enriched: true,
-            _gphoto_enriched_at: Date.now()
-          }).then(function(){
-            /* Mapper en memoire pour affichage immediat */
-            var loc = etablissements ? etablissements.find(function(x){ return String(x.id)===String(etab.id); }) : null;
-            if(loc){ loc.photo_profile_approved = adminDefault2; loc._photo_profile_approved = adminDefault2; loc._gphoto_enriched = true; }
-            callback('no_photos');
-          }).catch(function(){ callback('no_photos'); });
-        } else {
-          callback('no_photos');
-        }
+        _apSaveAdminDefault(firestoreId, etab).then(function(){ callback('no_photos'); }).catch(function(){ callback('no_photos'); });
       }
     });
   }
 }
 
-/* ══ API PUBLIQUE ══════════════════════════════════════════════════════ */
+/* ══ ANALYSE FIREBASE ══ */
+window.igm2CountAppEtab = async function(){
+  var statusEl = document.getElementById('igm2AutoPhotoAllStatus');
+  if(!statusEl) return;
+  if(!window.db || !window.fbGetDocs || !window.fbCollection){
+    statusEl.innerHTML = '<span style="color:var(--red);">❌ Firebase non disponible</span>'; return;
+  }
+  statusEl.innerHTML = '<span style="color:var(--cyan);">⏳ Analyse…</span>';
+  var snap;
+  try{ snap = await window.fbGetDocs(window.fbCollection(window.db,'etablissements')); }
+  catch(e){ statusEl.innerHTML = '<span style="color:var(--red);">❌ ' + e.message + '</span>'; return; }
+  var total=0, appCat=0, enriched=0, toProcess=0;
+  var byCategory = {};
+  _AP_CATS.forEach(function(c){ byCategory[c]=0; });
+  snap.forEach(function(d){
+    total++;
+    var v = d.data();
+    if(_apIsAppEtab(v)){
+      appCat++;
+      var cat = (typeof getCategory==='function') ? getCategory(v.type||'') : _apGuessCategory(v.type||'');
+      if(byCategory[cat] !== undefined) byCategory[cat]++;
+      if(v._gphoto_enriched && v.gallery && v.gallery.length) enriched++; else toProcess++;
+    }
+  });
+  var icons = {Bar:'🍺',Discotheque:'🪩',Restaurant:'🍽️','Bar Terrasse':'🌴',Snack:'🥤',Hotel:'🏨'};
+  var catList = _AP_CATS.filter(function(c){ return byCategory[c]>0; }).map(function(c){
+    return '<span style="background:rgba(255,255,255,0.06);border-radius:6px;padding:2px 6px;font-size:0.65rem;">'+(icons[c]||'')+' '+c+' <strong>'+byCategory[c]+'</strong></span>';
+  }).join(' ');
+  statusEl.innerHTML = '<div style="background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.2);border-radius:10px;padding:0.7rem 0.9rem;margin-top:0.5rem;">'
+    +'<div style="font-size:0.72rem;font-weight:700;color:var(--cyan);margin-bottom:0.4rem;">📊 Firebase — établissements AMBI241</div>'
+    +'<div style="font-size:0.68rem;color:var(--muted);line-height:1.8;">'
+    +'• Total docs Firebase : <strong style="color:var(--text);">'+total+'</strong><br>'
+    +'• Établissements app : <strong style="color:var(--green);">'+appCat+'</strong> <span style="color:var(--muted);font-size:0.62rem;">(ignorés : '+(total-appCat)+')</span><br>'
+    +'• Déjà enrichis : <strong style="color:var(--amber);">'+enriched+'</strong><br>'
+    +'• À enrichir : <strong style="color:var(--pink);">'+toProcess+'</strong>'
+    +'</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:0.5rem;">'+catList+'</div>'
+    +'</div>';
+};
 
-/* Enrichir les établissements de la session d'import courante */
+/* ══ ENRICHISSEMENT PRINCIPAL — v4 TURBO ══
+   Voie A : place_id ChIJ valide → fetch direct (lot=10, délai=0ms)
+   Voie B : sans place_id        → Text Search (lot=5, délai=100ms)
+   Timeout XHR=6s | Guard item=8s | Log résumé /10 lots
+   Filtre strict : id entier > 0 + catégorie AMBI241 = ~1028 établissements
+*/
+window.igm2AutoPhotoAll = async function(forceAll){
+  var BATCH_A=10, DELAY_A=0;
+  var BATCH_B=5,  DELAY_B=100;
+
+  if(!window.db || !window.fbGetDocs || !window.fbCollection){
+    _apStatus('❌ Firebase non disponible','err'); return;
+  }
+  var panel = document.getElementById('igm2AutoPhotoPanel');
+  if(panel) panel.scrollIntoView({behavior:'smooth', block:'start'});
+  var w = document.getElementById('igm2AutoPhotoLog');
+  if(w) w.innerHTML = '';
+
+  // Purge des caches vides (échecs passés → on réessaie)
+  var purged = _apCachePurgeEmpty();
+  if(purged > 0) _apLog('🧹 ' + purged + ' caches vides purgés');
+
+  _apStatus('<span style="color:var(--cyan);">⏳ Chargement Firebase…</span>');
+  _apProg(1, 'Chargement…');
+
+  var snap;
+  try{ snap = await window.fbGetDocs(window.fbCollection(window.db,'etablissements')); }
+  catch(e){ _apStatus('❌ Firebase : ' + e.message, 'err'); return; }
+
+  var docsA=[], docsB=[], skipped=0;
+  snap.forEach(function(d){
+    var v = d.data();
+    if(!_apIsAppEtab(v)){ skipped++; return; }
+    if(!forceAll && v._gphoto_enriched && v.gallery && v.gallery.length) return;
+    // Normaliser place_id
+    var pid = (v.place_id||'').trim();
+    if(pid.indexOf('places/') === 0) pid = pid.slice(7);
+    var item = {firestoreId:d.id, etab:Object.assign({},v,{id:v.id||d.id, place_id:pid})};
+    if(/^ChIJ/i.test(pid) && pid.length >= 10) docsA.push(item);
+    else docsB.push(item);
+  });
+
+  var total = docsA.length + docsB.length;
+  if(!total){
+    _apLog('✅ Tous les établissements AMBI241 ont déjà leurs photos.', 'ok');
+    _apStatus('✅ Déjà à jour.', 'ok');
+    return;
+  }
+
+  _apLog('🎯 <strong>'+docsA.length+'</strong> avec place_id (voie A) · <strong>'+docsB.length+'</strong> sans (voie B) · <span style="color:var(--muted);">'+skipped+' ignorés</span>');
+  _apLog('⚡ A=lot'+BATCH_A+'/0ms · B=lot'+BATCH_B+'/'+DELAY_B+'ms · XHR=6s');
+
+  var ok=0, noPhoto=0, err=0, processed=0;
+
+  async function runBatch(docs, bSize, delay){
+    var totalBatches = Math.ceil(docs.length / bSize);
+    for(var i = 0; i < docs.length; i += bSize){
+      var batch = docs.slice(i, Math.min(i+bSize, docs.length));
+      var batchNum = Math.floor(i/bSize) + 1;
+      _apProg(Math.round((processed/total)*100), 'Lot '+batchNum+'/'+totalBatches+' · '+processed+'/'+total);
+
+      await Promise.all(batch.map(function(item){
+        return new Promise(function(resolve){
+          var _done = false;
+          var _guard = setTimeout(function(){
+            if(_done) return; _done = true; err++; processed++;
+            _apLog('⏱️ timeout — ' + (item.etab.nom||'?'), 'err');
+            resolve();
+          }, 8000);
+          _apEnrichOne(item.etab, item.firestoreId, function(result){
+            if(_done) return; _done = true; clearTimeout(_guard); processed++;
+            if(result === 'ok')       { ok++;      _apLog('✅ ' + (item.etab.nom||'?'), 'ok'); }
+            else if(result === 'no_photos'){ noPhoto++; } // silencieux
+            else                      { err++;     _apLog('❌ ' + (item.etab.nom||'?'), 'err'); }
+            resolve();
+          });
+        });
+      }));
+
+      // Résumé toutes les 10 batches
+      if(batchNum % 10 === 0 || batchNum === totalBatches){
+        _apLog('📊 '+processed+'/'+total+' · ✅ '+ok+' · ⬜ '+noPhoto+' · ❌ '+err);
+      }
+      if(delay > 0 && i+bSize < docs.length)
+        await new Promise(function(r){ setTimeout(r, delay); });
+    }
+  }
+
+  if(docsA.length){
+    _apLog('🚀 Voie A — ' + docsA.length + ' établissements…');
+    await runBatch(docsA, BATCH_A, DELAY_A);
+    _apLog('✅ Voie A : ' + ok + ' enrichis · ' + noPhoto + ' sans photo Google', 'ok');
+  }
+  if(docsB.length){
+    var okBefore = ok;
+    _apLog('🔍 Voie B — ' + docsB.length + ' établissements…');
+    await runBatch(docsB, BATCH_B, DELAY_B);
+    _apLog('✅ Voie B : ' + (ok-okBefore) + ' enrichis', 'ok');
+  }
+
+  _apProg(100, 'Terminé !');
+  _apLog('🎉 <strong>'+ok+'</strong> enrichis · '+noPhoto+' sans photo · '+err+' erreur(s)', 'ok');
+  _apStatus('✅ '+ok+' établissement(s) enrichis · <span style="color:var(--muted);">'+skipped+' ignorés</span>', 'ok');
+  if(typeof renderAll==='function') setTimeout(renderAll, 500);
+  if(typeof renderHome==='function') setTimeout(renderHome, 600);
+  if(typeof igm2CountAppEtab==='function') setTimeout(igm2CountAppEtab, 800);
+};
+
+/* ══ IMPORT SESSION (après import Maps) ══ */
 window.igm2AutoFetchAllPhotos = async function(){
   var btn = document.getElementById('igm2AutoPhotoBtn');
   if(btn) btn.disabled = true;
   var w = document.getElementById('igm2AutoPhotoLog');
   if(w) w.innerHTML = '';
-
-  // Récupérer les étabs récemment importés depuis Firestore
   if(!window.db || !window.fbGetDocs || !window.fbCollection){
     _apStatus('❌ Firebase non disponible','err');
-    if(btn) btn.disabled = false;
-    return;
+    if(btn) btn.disabled = false; return;
   }
-  _apStatus('<span style="color:var(--cyan);">⏳ Chargement des établissements…</span>');
+  _apStatus('<span style="color:var(--cyan);">⏳ Chargement…</span>');
   _apProg(5, 'Chargement Firebase…');
-
   var snap;
-  try {
-    snap = await window.fbGetDocs(window.fbCollection(window.db,'etablissements'));
-  } catch(e){
-    _apStatus('❌ Erreur Firebase : ' + e.message,'err');
-    if(btn) btn.disabled = false;
-    return;
-  }
-
-  var docs = [], skipped = 0;
-  snap.forEach(function(d){
-    var v = d.data();
-    // ✅ Filtre catégories AMBI241 — ignorer les établissements hors-scope (pharmacies, cliniques, etc.)
-    if(!_ambiIsAppCategory(v)){ skipped++; return; }
-    // Prioriser les établissements sans galerie ou sans photo enrichie
-    if(!v._gphoto_enriched || !v.gallery || !v.gallery.length){
-      docs.push({ firestoreId: d.id, etab: Object.assign({}, v, {id: v.id||d.id}) });
-    }
-  });
-
-  if(!docs.length){
-    _apLog('✅ Tous les établissements AMBI241 ont déjà leurs photos.','ok');
-    _apStatus('✅ Photos déjà à jour pour tous les établissements de l\'app.','ok');
-    if(btn) btn.disabled = false;
-    return;
-  }
-
-  _apLog('🎯 Filtre AMBI241 actif : <strong>' + docs.length + '</strong> à enrichir · <span style="color:var(--muted);">' + skipped + ' hors-scope ignorés</span>');
-  _apLog('📸 ' + docs.length + ' établissement(s) à enrichir…');
-  var ok = 0, noPhoto = 0, err = 0;
-
-  for(var i = 0; i < docs.length; i++){
-    var item = docs[i];
-    _apProg(Math.round(((i) / docs.length) * 100), (i+1) + '/' + docs.length + ' — ' + (item.etab.nom || '?'));
-    _apLog('  → ' + (item.etab.nom || item.firestoreId) + '…');
-
-    await new Promise(function(resolve){
-      _apEnrichOne(item.etab, item.firestoreId, function(result){
-        if(result === 'ok'){
-          ok++;
-          _apLog('  ✅ ' + (item.etab.nom || '?') + ' — photos importées','ok');
-        } else if(result === 'no_photos'){
-          noPhoto++;
-          _apLog('  📷 ' + (item.etab.nom || '?') + ' — aucune photo Google, photo admin utilisée','warn');
-        } else {
-          err++;
-          _apLog('  ❌ ' + (item.etab.nom || '?') + ' — erreur','err');
-        }
-        resolve();
-      });
-      // Respecter les quotas API (300ms entre chaque requête)
-    });
-    await new Promise(function(r){ setTimeout(r, 350); });
-  }
-
-  _apProg(100, 'Terminé !');
-  _apLog('🎉 Terminé : ' + ok + ' enrichis · ' + noPhoto + ' sans photos Google · ' + err + ' erreur(s)','ok');
-  _apStatus('✅ ' + ok + ' établissement(s) enrichis avec photos Google Maps.','ok');
-
-  if(btn) btn.disabled = false;
-  // Rafraîchir l'affichage
-  if(typeof renderAll === 'function') setTimeout(renderAll, 500);
-  if(typeof renderHome === 'function') setTimeout(renderHome, 600);
-};
-
-/* Catégories valides de l'application AMBI241 */
-var AMBI_APP_CATEGORIES = ['Bar','Discotheque','Restaurant','Bar Terrasse','Snack','Hotel'];
-
-/* Vérifie si un établissement appartient aux catégories AMBI241
-   STRICT : reproduit le filtre de _processEtabData (loadData)
-   → seuls les docs avec id numérique valide + catégorie AMBI241
-   = les mêmes ~1028 établissements affichés dans l'application */
-function _ambiIsAppCategory(etab){
-  // Critère 1 : id numérique valide > 0 (même condition que _processEtabData)
-  var numId = parseInt(etab.id, 10);
-  if(!numId || numId <= 0 || isNaN(numId)) return false;
-  // Critère 2 : type non vide
-  var type=(etab.type||'').trim();
-  if(!type) return false;
-  // Critère 3 : catégorie AMBI241 reconnue
-  if(typeof getCategory==='function'){
-    return AMBI_APP_CATEGORIES.indexOf(getCategory(type))!==-1;
-  }
-  var t=type.toLowerCase();
-  var frags=['bar','lounge','pub','taverne','disco','nightclub','night club','club','restaurant','resto','pâtisserie','patisserie','brasserie','pizzeria','bistro','café','cafe','maquis','terrasse','rooftop','snack','hôtel','hotel','motel','résidence','residence','resort','lodge'];
-  for(var i=0;i<frags.length;i++){if(t.indexOf(frags[i])!==-1)return true;}
-  return false;
-}
-
-/* Analyse Firebase et affiche un résumé par catégorie */
-window.igm2CountAppEtab = async function(){
-  var statusEl=document.getElementById('igm2AutoPhotoAllStatus');
-  if(!statusEl)return;
-  if(!window.db||!window.fbGetDocs||!window.fbCollection){statusEl.innerHTML='<span style="color:var(--red);">❌ Firebase non disponible</span>';return;}
-  statusEl.innerHTML='<span style="color:var(--cyan);">⏳ Comptage en cours…</span>';
-  try{
-    var snap=await window.fbGetDocs(window.fbCollection(window.db,'etablissements'));
-    var total=0,appCat=0,enriched=0,toProcess=0;
-    var byCategory={};
-    AMBI_APP_CATEGORIES.forEach(function(c){byCategory[c]=0;});
-    snap.forEach(function(d){
-      var v=d.data();total++;
-      if(_ambiIsAppCategory(v)){
-        appCat++;
-        var cat=(typeof getCategory==='function')?getCategory(v.type||''):'Bar';
-        if(byCategory[cat]!==undefined)byCategory[cat]++;
-        if(v._gphoto_enriched&&v.gallery&&v.gallery.length){enriched++;}else{toProcess++;}
-      }
-    });
-    var icons={Bar:'🍺',Discotheque:'🪩',Restaurant:'🍽️','Bar Terrasse':'🌴',Snack:'🥤',Hotel:'🏨'};
-    var catList=AMBI_APP_CATEGORIES.filter(function(c){return byCategory[c]>0;}).map(function(c){
-      return '<span style="background:rgba(255,255,255,0.06);border-radius:6px;padding:2px 6px;font-size:0.65rem;">'+(icons[c]||'')+' '+c+' <strong>'+byCategory[c]+'</strong></span>';
-    }).join(' ');
-    statusEl.innerHTML='<div style="background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.2);border-radius:10px;padding:0.7rem 0.9rem;margin-top:0.5rem;">'
-      +'<div style="font-size:0.72rem;font-weight:700;color:var(--cyan);margin-bottom:0.4rem;">📊 Résumé Firebase</div>'
-      +'<div style="font-size:0.68rem;color:var(--muted);line-height:1.8;">'
-      +'• Total docs Firebase : <strong style="color:var(--text);">'+total+'</strong><br>'
-      +'• Catégories AMBI241 : <strong style="color:var(--green);">'+appCat+'</strong> <span style="color:var(--muted);font-size:0.62rem;">(hors scope ignorés : '+(total-appCat)+')</span><br>'
-      +'• Déjà enrichis : <strong style="color:var(--amber);">'+enriched+'</strong><br>'
-      +'• À traiter : <strong style="color:var(--pink);">'+toProcess+'</strong>'
-      +'</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:0.5rem;">'+catList+'</div>'
-      +'</div>';
-  }catch(e){statusEl.innerHTML='<span style="color:var(--red);">❌ Erreur : '+e.message+'</span>';}
-};
-
-/* Enrichir TOUS les établissements Firebase — v3 TURBO
-   ──────────────────────────────────────────────────────
-   2 voies de traitement :
-   Voie A (rapide)  : place_id déjà connu → fetch photos direct, lot=10, délai=0ms
-   Voie B (lente)   : sans place_id → Text Search + fetch, lot=5, délai=80ms
-   Timeout XHR = 5s | Guard item = 7s | Log : résumé /10 lots (pas de spam DOM)
-   Résultat : ~8× plus rapide | Limité aux ~1028 établissements de l'app (id numérique valide)
-*/
-window.igm2AutoPhotoAll = async function(forceAll){
-  var BATCH_A=10, DELAY_A=0;
-  var BATCH_B=5,  DELAY_B=80;
-  if(!window.db||!window.fbGetDocs||!window.fbCollection){_apStatus('❌ Firebase non disponible','err');return;}
-  var panel=document.getElementById('igm2AutoPhotoPanel');
-  if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});
-  var w=document.getElementById('igm2AutoPhotoLog');
-  if(w)w.innerHTML='';
-
-  // ── Vider tous les caches vides ([] = échecs passés) pour forcer de vrais appels API
-  var cachePurged=0;
-  try{
-    for(var ki=localStorage.length-1;ki>=0;ki--){
-      var kk=localStorage.key(ki);
-      if(kk && kk.indexOf(GPHOTO_CACHE_PREFIX)===0){
-        var cv=JSON.parse(localStorage.getItem(kk)||'{}');
-        if(!cv.urls || cv.urls.length===0){ localStorage.removeItem(kk); cachePurged++; }
-      }
-    }
-  }catch(e){}
-  if(cachePurged>0) _apLog('🧹 '+cachePurged+' caches vides purgés — les appels API vont réessayer');
-  _apStatus('<span style="color:var(--cyan);">⏳ Chargement des établissements AMBI241…</span>');
-  _apProg(2,'Chargement Firebase…');
-  var snap;
-  try{snap=await window.fbGetDocs(window.fbCollection(window.db,'etablissements'));}
-  catch(e){_apStatus('❌ Erreur Firebase : '+e.message,'err');return;}
-
-  var docsA=[],docsB=[],skipped=0;
+  try{ snap = await window.fbGetDocs(window.fbCollection(window.db,'etablissements')); }
+  catch(e){ _apStatus('❌ ' + e.message,'err'); if(btn) btn.disabled=false; return; }
+  var docs=[], skipped=0;
   snap.forEach(function(d){
     var v=d.data();
-    if(!_ambiIsAppCategory(v)){skipped++;return;}
-    if(!forceAll && v._gphoto_enriched && v.gallery && v.gallery.length) return;
-    var item={firestoreId:d.id,etab:Object.assign({},v,{id:v.id||d.id})};
-    // Normaliser le place_id : supprimer préfixe 'places/' si présent
-    var pid=(v.place_id||'').trim();
-    if(pid.indexOf('places/')===0) pid=pid.slice(7);
-    // Stocker le place_id normalisé dans l'item pour que _apEnrichOne l'utilise directement
-    item.etab.place_id = pid;
-    // Voie A : place_id Google valide (commence par ChIJ, longueur ~27 chars)
-    if(/^ChIJ/i.test(pid) && pid.length >= 10){ docsA.push(item); } else { docsB.push(item); }
-  });
-
-  var total=docsA.length+docsB.length;
-  if(!total){
-    _apLog('✅ Tous les établissements AMBI241 ont déjà leurs photos.','ok');
-    _apStatus('✅ Photos déjà à jour.','ok');
-    return;
-  }
-  _apLog('🎯 AMBI241 · <strong>'+docsA.length+'</strong> avec place_id (voie rapide) · <strong>'+docsB.length+'</strong> sans (Text Search) · <span style="color:var(--muted);">'+skipped+' hors-scope</span>');
-  _apLog('⚡ Lot A='+BATCH_A+' (0ms) · Lot B='+BATCH_B+' ('+DELAY_B+'ms) · timeout XHR=5s');
-
-  var ok=0,noPhoto=0,err=0,processed=0;
-
-  async function runBatch(docs,bSize,delay){
-    for(var i=0;i<docs.length;i+=bSize){
-      var batch=docs.slice(i,Math.min(i+bSize,docs.length));
-      var batchNum=Math.floor(i/bSize)+1;
-      var totalBatches=Math.ceil(docs.length/bSize);
-      _apProg(Math.round((processed/total)*100),'Lot '+batchNum+'/'+totalBatches+' · '+processed+'/'+total);
-      await Promise.all(batch.map(function(item){
-        return new Promise(function(resolve){
-          var _done=false;
-          var _g=setTimeout(function(){
-            if(_done)return; _done=true; err++; processed++;
-            _apLog('  ⏱️ timeout — '+(item.etab.nom||'?'),'err'); resolve();
-          },7000);
-          // Pas de log individuel → pour éviter 2690 lignes DOM qui ralentissent le rendu
-          _apEnrichOne(item.etab,item.firestoreId,function(result){
-            if(_done)return; _done=true; clearTimeout(_g); processed++;
-            if(result==='ok'){ok++; _apLog('  ✅ '+(item.etab.nom||'?'),'ok');}
-            else if(result==='no_photos'){noPhoto++;} // silencieux — photo admin par défaut normale
-            else{err++; _apLog('  ❌ '+(item.etab.nom||'?'),'err');}
-            resolve();
-          });
-        });
-      }));
-      // Résumé de progression toutes les 10 batches (pas un log par item)
-      if(batchNum % 10 === 0 || batchNum === totalBatches){
-        _apLog('  📊 '+processed+'/'+total+' · ✅ '+ok+' enrichis · ⬜ '+noPhoto+' défaut · ❌ '+err+' err');
-      }
-      if(delay>0 && i+bSize<docs.length) await new Promise(function(r){setTimeout(r,delay);});
+    if(!_apIsAppEtab(v)){ skipped++; return; }
+    if(!v._gphoto_enriched || !v.gallery || !v.gallery.length){
+      docs.push({firestoreId:d.id, etab:Object.assign({},v,{id:v.id||d.id})});
     }
+  });
+  if(!docs.length){
+    _apLog('✅ Tous déjà enrichis.','ok');
+    _apStatus('✅ Déjà à jour.','ok');
+    if(btn) btn.disabled=false; return;
   }
-
-  if(docsA.length){
-    _apLog('🚀 Voie A (place_id connu) — '+docsA.length+' établissements…');
-    await runBatch(docsA,BATCH_A,DELAY_A);
-    _apLog('✅ Voie A : '+ok+' enrichis · '+noPhoto+' sans photo Google','ok');
+  _apLog('📸 '+docs.length+' établissements à enrichir…');
+  var ok=0, noPhoto=0, err=0;
+  for(var i=0; i<docs.length; i++){
+    var item=docs[i];
+    _apProg(Math.round((i/docs.length)*100), (i+1)+'/'+docs.length+' — '+(item.etab.nom||'?'));
+    await new Promise(function(resolve){
+      _apEnrichOne(item.etab, item.firestoreId, function(result){
+        if(result==='ok'){ ok++; _apLog('✅ '+item.etab.nom,'ok'); }
+        else if(result==='no_photos'){ noPhoto++; }
+        else { err++; _apLog('❌ '+item.etab.nom,'err'); }
+        resolve();
+      });
+    });
+    await new Promise(function(r){ setTimeout(r, 120); });
   }
-  if(docsB.length){
-    var okBefore=ok;
-    _apLog('🔍 Voie B (Text Search) — '+docsB.length+' établissements…');
-    await runBatch(docsB,BATCH_B,DELAY_B);
-    _apLog('✅ Voie B : '+(ok-okBefore)+' enrichis','ok');
-  }
-
   _apProg(100,'Terminé !');
-  _apLog('🎉 Terminé : <strong>'+ok+'</strong> enrichis · '+noPhoto+' sans photos Google · '+err+' erreur(s)','ok');
-  _apStatus('✅ '+ok+' établissement(s) enrichis · <span style="color:var(--muted);">'+skipped+' hors-scope ignorés</span>','ok');
-  if(typeof renderAll==='function')setTimeout(renderAll,500);
-  if(typeof renderHome==='function')setTimeout(renderHome,600);
-  if(typeof igm2CountAppEtab==='function')setTimeout(igm2CountAppEtab,800);
+  _apLog('🎉 '+ok+' enrichis · '+noPhoto+' sans photo · '+err+' erreur(s)','ok');
+  _apStatus('✅ '+ok+' enrichis.','ok');
+  if(btn) btn.disabled=false;
+  if(typeof renderAll==='function') setTimeout(renderAll,500);
+  if(typeof renderHome==='function') setTimeout(renderHome,600);
 };
-console.log('[AMBI241] ✅ Module Auto-Photos Google Maps — chargé');
+
+console.log('[AMBI241] ✅ Module Auto-Photos v4 — chargé');
 })();
 </script>
+
 
 <!-- ═══════════════════════════════════════════════════════
      AMBI241 — MODULE PUBLICATION & LIVE AMÉLIORÉ
