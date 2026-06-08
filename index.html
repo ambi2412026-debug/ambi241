@@ -393,7 +393,7 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 /* ══════════════════════════════════════════════════════════════ */
 
 /* ══ NOTIFICATIONS SYSTEM — AMBI241 PRO ══ */
-.notif-bell-wrap{position:relative;display:inline-flex;}
+.notif-bell-wrap{position:relative;display:inline-flex;overflow:visible;}
 .notif-bell-btn{background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.25);color:var(--pink);font-size:0.9rem;width:28px;height:28px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;position:relative;}
 .notif-bell-btn:active{transform:scale(0.92);}
 /* ══ ICÔNE 💬 CENTRÉE — SYSTÈME ENRICHI ══ */
@@ -407,6 +407,7 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
   cursor:pointer;transition:all 0.25s;
   box-shadow:0 0 12px rgba(255,45,155,0.25),0 2px 8px rgba(0,0,0,0.4);
   flex-shrink:0;
+  overflow:visible;/* badge rouge non tronqué */
 }
 .notif-chat-btn:hover{
   background:linear-gradient(135deg,rgba(255,45,155,0.28),rgba(204,68,255,0.22));
@@ -1931,7 +1932,7 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 
 /* HEADER */
 header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0.96);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,45,155,0.2);padding:0;width:100%;max-width:100vw;box-sizing:border-box;overflow:visible;display:flex;flex-direction:column;}
-.header-top{display:flex;align-items:center;padding:0 0.75rem;height:56px;width:100%;}
+.header-top{display:flex;align-items:center;padding:0 0.75rem;height:56px;width:100%;gap:0.3rem;}
 .header-guide-bar{display:flex;align-items:center;justify-content:stretch;gap:0.3rem;padding:0.28rem 0.4rem;border-top:1px solid rgba(0,229,255,0.12);background:rgba(0,229,255,0.04);overflow:hidden;box-sizing:border-box;width:100%;}
 .header-guide-bar .guide-btn{flex:1 1 0;min-width:0;justify-content:center;font-size:0.68rem;padding:0.3rem 0.3rem;border-radius:10px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box;}
 .header-guide-bar .guide-label{display:inline;}
@@ -1940,7 +1941,7 @@ header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0
 .logo-img{height:34px;width:34px;min-width:34px;border-radius:50%;object-fit:cover;box-shadow:0 0 10px rgba(255,45,155,0.6),0 0 18px rgba(0,229,255,0.3);flex-shrink:0;}
 .logo-text{font-family:'Syne',sans-serif;font-weight:800;font-size:0.92rem;letter-spacing:-0.02em;color:var(--text);white-space:nowrap;}
 .logo-text span{color:var(--pink);}
-.header-right{display:flex;align-items:center;justify-content:center;gap:0.22rem;flex-shrink:0;overflow:hidden;flex-wrap:nowrap;margin-left:auto;margin-right:0;}
+.header-right{display:flex;align-items:center;justify-content:flex-end;gap:0.18rem;flex-shrink:1;min-width:0;overflow:hidden;margin-left:auto;}
 /* ═══════════════════════════════════════════════════════════
    ══ MENU HAMBURGER — PLAN DU SITE & PARAMÈTRES           ══
    ═══════════════════════════════════════════════════════════ */
@@ -1985,8 +1986,11 @@ header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,0,20,0
 .admin-btn:active{transform:scale(0.92);}
 .user-greeting{display:none;align-items:center;gap:0.2rem;background:rgba(255,45,155,0.1);border:1px solid rgba(255,45,155,0.3);padding:0.2rem 0.35rem;border-radius:20px;font-size:0.6rem;font-weight:700;color:var(--pink);white-space:nowrap;max-width:70px;overflow:hidden;text-overflow:ellipsis;flex-shrink:1;}
 .user-greeting.show{display:flex;}
-.logout-btn{background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);color:var(--red);font-size:0.58rem;font-weight:700;padding:0.2rem 0.35rem;border-radius:20px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;display:none;flex-shrink:0;white-space:nowrap;}
+.logout-btn{background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);color:var(--red);font-size:0.58rem;font-weight:700;padding:0.2rem 0.45rem;border-radius:20px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;display:none;flex-shrink:0;white-space:nowrap;}
 .logout-btn.show{display:block;}
+/* Sur très petits écrans : icône seule */
+@media(max-width:360px){.logout-btn.show{font-size:0;padding:0;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+.logout-btn.show::before{content:"🚪";font-size:0.9rem;}}
 /* ══ PWA NAV BUTTON ══ */
 /* bouton install supprimé — version web uniquement */
 
@@ -7956,7 +7960,8 @@ if (document.readyState === 'loading') {
       </button>
     </div>
     <button class="user-btn" id="userLoginBtn" onclick="document.getElementById('userOverlay').classList.add('show')">&#128100;</button>
-    <button class="admin-btn" id="adminBtn" onclick="toggleAdmin()" style="display:none;">&#128513;</button><button id="adminUnlockBtn" onclick="pinBuf='';updateDots();document.getElementById('pinOverlay').classList.add('show');" title="Acces Admin" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.3);color:rgba(255,255,255,1);font-size:0.72rem;width:26px;height:26px;min-width:26px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">&#128274;</button>
+    <button class="admin-btn" id="adminBtn" onclick="toggleAdmin()" style="display:none;">&#128513;</button>
+    <button id="adminUnlockBtn" onclick="pinBuf='';updateDots();document.getElementById('pinOverlay').classList.add('show');" title="Acces Admin" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.3);color:rgba(255,255,255,1);font-size:0.72rem;width:26px;height:26px;min-width:26px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;order:999;margin-left:auto;">&#128274;</button>
   </div>
   </div>
   <div class="header-guide-bar">
@@ -56571,6 +56576,23 @@ function _uid(){ return Math.random().toString(36).slice(2,8); }
 ──────────────────────────────────────────────────────────────── */
 function _addNotif(type, title, msg, opts){
   opts = opts||{};
+  /* ── Fix 3: Targeted notifications — filter by role/UID ── */
+  var _tRole = opts.targetRole || null; // "all" | "admin" | "establishment" | "user" | null
+  var _tUid  = opts.targetUid  || null; // specific UID string | null
+  if(_tRole || _tUid){
+    var _myUid  = window.currentUserUID  || null;
+    var _myRole = window.currentUserRole || "user";
+    var _isAdmin = (typeof window.isAdminUser === "function") ? window.isAdminUser() : (_myRole === "admin" || _myRole === "super_admin");
+    // If targeted to a specific UID, only deliver to that user
+    if(_tUid && _myUid !== _tUid) return null;
+    // If targeted to a role, only deliver if current user matches
+    if(_tRole && _tRole !== "all"){
+      if(_tRole === "admin" && !_isAdmin) return null;
+      if(_tRole === "establishment" && _myRole !== "establishment" && !_isAdmin) return null;
+      if(_tRole === "user" && (_myRole !== "user")) return null;
+    }
+  }
+  /* ── End Fix 3 ── */
   var n = {
     id: _uid(),
     type: type,
