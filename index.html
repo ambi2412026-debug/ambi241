@@ -35,7 +35,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.json">
 <!-- PERF: preload police principale -->
-<link rel="preload" as="font" crossorigin
+<link rel="preload" as="font" crossorigin="" defer></script>
   href="https://fonts.gstatic.com/s/dmsans/v15/rP2Hp2ywxg089UriCZa4ET-DNl0.woff2"
   type="font/woff2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -669,8 +669,13 @@ main, section, .pane, .tab-pane, [role="tabpanel"] {
 .notif-toggle input:checked+.notif-toggle-slider:before{transform:translateX(16px);}
 
 /* ── Toast riche style AMBI241 ── */
-.notif-toast{position:fixed;top:68px;left:50%;transform:translateX(-50%) translateY(-24px);width:calc(100% - 32px);max-width:400px;background:linear-gradient(135deg,var(--surface2),var(--surface));border:1px solid rgba(255,45,155,0.3);border-radius:16px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 32px rgba(0,0,0,0.6),0 0 0 1px rgba(255,45,155,0.12);opacity:0;transition:all 0.35s cubic-bezier(.175,.885,.32,1.275);z-index:9999;pointer-events:none;backdrop-filter:blur(20px);}
-.notif-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.notif-toast{position:fixed;top:68px;left:50%;transform:translateX(-50%) translateY(-24px);width:calc(100% - 32px);max-width:400px;background:linear-gradient(135deg,var(--surface2),var(--surface));border:1px solid rgba(255,45,155,0.3);border-radius:16px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 32px rgba(0,0,0,0.6),0 0 0 1px rgba(255,45,155,0.12);opacity:0;transition:opacity 0.35s cubic-bezier(.175,.885,.32,1.275),transform 0.35s cubic-bezier(.175,.885,.32,1.275);z-index:9999;pointer-events:none;backdrop-filter:blur(20px);cursor:pointer;user-select:none;touch-action:pan-y;}
+.notif-toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:all;}
+.notif-toast.swipe-left{transform:translateX(calc(-50% - 120%)) translateY(0) rotate(-6deg);opacity:0;transition:transform 0.28s ease-in,opacity 0.28s ease-in;}
+.notif-toast.swipe-right{transform:translateX(calc(-50% + 120%)) translateY(0) rotate(6deg);opacity:0;transition:transform 0.28s ease-in,opacity 0.28s ease-in;}
+/* Bouton fermer dans la bannière */
+.notif-toast-close{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:var(--muted);font-size:0.7rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;transition:all 0.15s;}
+.notif-toast-close:active{background:rgba(255,68,102,0.25);color:var(--red);border-color:rgba(255,68,102,0.4);}
 .notif-toast-icon{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--purple),var(--pink));display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;box-shadow:0 0 12px rgba(255,45,155,0.44);}
 .notif-toast-body{flex:1;min-width:0;}
 .notif-toast-label{font-size:0.62rem;font-weight:800;color:var(--pink);font-family:'Syne',sans-serif;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:1px;}
@@ -8575,6 +8580,7 @@ if (document.readyState === 'loading') {
     <div class="notif-toast-title" id="notifToastTitle"></div>
     <div class="notif-toast-msg" id="notifToastMsg"></div>
   </div>
+  <div class="notif-toast-close" id="notifToastClose" title="Fermer">✕</div>
 </div>
 
 <!-- ══ OVERLAY APPEL ENTRANT AMBI241 ══ -->
@@ -11935,7 +11941,7 @@ window._subscribeAllEtabs = _subscribeAllEtabs;
 // Abonnement immédiat (les établissements locaux sont déjà chargés)
 setTimeout(function() {
   _subscribeAllEtabs();
-}, 800);
+}, 3000);
 
 </script>
 
@@ -14707,7 +14713,7 @@ function loadData(){
     if (typeof window._subscribeAllEtabs === "function") { window._subscribeAllEtabs(); }
 
     /* ── Photos en arrière-plan — délais échelonnés pour ne pas saturer le réseau ── */
-    setTimeout(loadAllPhotoProfiles, 1000);
+    setTimeout(loadAllPhotoProfiles, 4000);
     setTimeout(function() {
       if (typeof loadSlotPhotosAsync === 'function' && etablissements && etablissements.length) {
         var actifs = etablissements.filter(function(e) { return estPaiementConfirme(e); });
@@ -24677,6 +24683,114 @@ window.admClearAllNotifs = admClearAllNotifs;
 
 // ── Toast riche AMBI241 ───────────────────────────────────────
 var _notifToastTimer;
+var _notifToastCurrent = null; // notif actuelle dans le toast
+
+/* ══ SWIPE + CLICK sur la bannière de notification ══ */
+(function _initToastSwipe(){
+  function _setup(){
+    var t = document.getElementById('notifToast');
+    var closeBtn = document.getElementById('notifToastClose');
+    if(!t) return;
+
+    /* ── Fermeture immédiate ── */
+    function _dismiss(dir){
+      clearTimeout(_notifToastTimer);
+      t.classList.remove('show');
+      if(dir === 'left')       t.classList.add('swipe-left');
+      else if(dir === 'right') t.classList.add('swipe-right');
+      setTimeout(function(){
+        t.classList.remove('swipe-left','swipe-right');
+        _notifToastCurrent = null;
+      }, 320);
+    }
+
+    /* ── Bouton ✕ ── */
+    if(closeBtn){
+      closeBtn.addEventListener('click', function(e){
+        e.stopPropagation();
+        _dismiss('right');
+      });
+    }
+
+    /* ── Clic sur le corps → ouvrir le panel de notifs ── */
+    t.addEventListener('click', function(e){
+      if(e.target === closeBtn) return;
+      _dismiss('right');
+      // Ouvrir le panel notifications si disponible
+      if(typeof window.openAmbiNotifPanel === 'function'){
+        setTimeout(window.openAmbiNotifPanel, 80);
+      }
+      // Ou naviguer vers l'étab si c'est une notif de lieu
+      if(_notifToastCurrent && _notifToastCurrent.etabId && typeof window.goToEtab === 'function'){
+        setTimeout(function(){ window.goToEtab(_notifToastCurrent.etabId); }, 80);
+      }
+    });
+
+    /* ── Swipe tactile ── */
+    var _tx0 = 0, _ty0 = 0, _dragging = false, _dx = 0;
+    t.addEventListener('touchstart', function(e){
+      var touch = e.touches[0];
+      _tx0 = touch.clientX; _ty0 = touch.clientY;
+      _dragging = true; _dx = 0;
+      t.style.transition = 'none';
+    }, {passive:true});
+
+    t.addEventListener('touchmove', function(e){
+      if(!_dragging) return;
+      var touch = e.touches[0];
+      _dx = touch.clientX - _tx0;
+      var dy = Math.abs(touch.clientY - _ty0);
+      if(dy > Math.abs(_dx)) return; // scroll vertical prioritaire
+      var rot = _dx * 0.04;
+      t.style.transform = 'translateX(calc(-50% + '+_dx+'px)) translateY(0) rotate('+rot+'deg)';
+      t.style.opacity   = String(Math.max(0.2, 1 - Math.abs(_dx) / 200));
+    }, {passive:true});
+
+    t.addEventListener('touchend', function(){
+      if(!_dragging) return;
+      _dragging = false;
+      t.style.transition = '';
+      if(Math.abs(_dx) > 80){
+        _dismiss(_dx < 0 ? 'left' : 'right');
+      } else {
+        // Revenir en place
+        t.style.transform = '';
+        t.style.opacity   = '';
+      }
+    });
+
+    /* ── Swipe souris (desktop) ── */
+    var _mx0 = 0, _mdown = false;
+    t.addEventListener('mousedown', function(e){
+      _mx0 = e.clientX; _mdown = true; _dx = 0;
+      t.style.transition = 'none';
+    });
+    window.addEventListener('mousemove', function(e){
+      if(!_mdown) return;
+      _dx = e.clientX - _mx0;
+      var rot = _dx * 0.04;
+      t.style.transform = 'translateX(calc(-50% + '+_dx+'px)) translateY(0) rotate('+rot+'deg)';
+      t.style.opacity   = String(Math.max(0.2, 1 - Math.abs(_dx) / 200));
+    });
+    window.addEventListener('mouseup', function(){
+      if(!_mdown) return;
+      _mdown = false;
+      t.style.transition = '';
+      if(Math.abs(_dx) > 80){
+        _dismiss(_dx < 0 ? 'left' : 'right');
+      } else {
+        t.style.transform = ''; t.style.opacity = '';
+      }
+    });
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', _setup);
+  } else {
+    setTimeout(_setup, 0);
+  }
+})();
+
 // notifMeta : mapping type → {icon,color,label}
 var _ambiNotifMeta = {
   message:        { icon:"💬", color:"var(--cyan)",   label:"Message",      pillBg:"rgba(0,229,255,0.18)"   },
@@ -24706,6 +24820,8 @@ function _ambiGetMeta(notif){
 function showNotifToast(msg, notif){
   var t=document.getElementById("notifToast");
   if(!t)return;
+  // Stocker la notif courante pour le clic
+  _notifToastCurrent = notif || null;
   // Mode riche si un objet notif est passé
   if(notif && document.getElementById("notifToastTitle")){
     var meta = _ambiGetMeta(notif);
@@ -24727,9 +24843,15 @@ function showNotifToast(msg, notif){
     if(msgEl2)   msgEl2.textContent   = "";
     if(labelEl2) labelEl2.textContent = "AMBI241";
   }
+  // Réinitialiser position avant animation
+  t.classList.remove('swipe-left','swipe-right');
+  t.style.transform = ''; t.style.opacity = '';
   t.classList.add("show");
   clearTimeout(_notifToastTimer);
-  _notifToastTimer=setTimeout(function(){t.classList.remove("show");},4500);
+  _notifToastTimer=setTimeout(function(){
+    t.classList.add('swipe-left');
+    setTimeout(function(){ t.classList.remove("show","swipe-left"); _notifToastCurrent=null; }, 300);
+  },4500);
 }
 
 // ── Badge enrichi ────────────────────────────────────────────
@@ -57033,3 +57155,4 @@ if(document.readyState==='loading'){
 
 })();
 </script>
+<script src="AMBI241_perf_patch.js"></script>
