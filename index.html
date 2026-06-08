@@ -7218,6 +7218,19 @@ if (document.readyState === 'loading') {
 /* ── Preview média dans modal ── */
 #forumPubMediaPreview > div { border-radius:12px !important; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.3); }
 </style>
+<!-- ══════════════════════════════════════════════════════════════
+     PERF-PATCH v2 — Chargement conditionnel tableau de bord Admin
+     Appliqué le 2026-06-08
+     Modifications :
+     1. loadAdminConfig()          → uniquement si isAdmin === true
+     2. _subscribeTaxiContactsFirestore() → uniquement admins/chauffeurs
+     3. _subscribeTaxiChats()      → uniquement admins/chauffeurs
+     4. _subscribeTaxiTrans()      → uniquement admins/chauffeurs
+     5. window.isAdmin exposé      → synchronisé à chaque mutation
+     6. Listeners démarrés on-demand à la confirmation du rôle admin
+     Résultat : −4 listeners onSnapshot + −2 getDocs Firestore au boot
+     pour les visiteurs et membres non-admin.
+══════════════════════════════════════════════════════════════ -->
 </head>
 <body>
 
@@ -11778,7 +11791,8 @@ window.__firebaseReady = true;
 if (window.__appReady) { loadData(); initMeteo(); }
 // Charger la config admin (superadmin + admins secondaires) dès que Firebase est prêt
 setTimeout(function(){
-  if(typeof loadAdminConfig === "function") loadAdminConfig();
+  /* PERF-PATCH: loadAdminConfig uniquement si admin — évite 2 lectures Firestore pour tous les users */
+  if(isAdmin && typeof loadAdminConfig === "function") loadAdminConfig();
 }, 400);
 
 // ══════════════════════════════════════════════════════════════
@@ -13397,7 +13411,14 @@ function checkSecondaryAdminAccess(){
   var found = _adminsList.some(function(a){ return (a.email||"").toLowerCase().trim() === em; });
   if(found){
     isAdmin = true;
+    window.isAdmin = true; /* PERF-PATCH: exposer pour les guards de listeners */
     isSuperAdmin = false;
+    // PERF-PATCH: démarrer les listeners admin maintenant que l'accès est confirmé
+    setTimeout(function(){
+      if(typeof _subscribeTaxiContactsFirestore==='function' && window.db) _subscribeTaxiContactsFirestore();
+      if(typeof _subscribeTaxiChats==='function' && window.db) _subscribeTaxiChats();
+      if(typeof _subscribeTaxiTrans==='function' && window.db) _subscribeTaxiTrans();
+    }, 500);
     // Mettre à jour l'UI
     var abtn = document.getElementById("adminBtn");
     if(abtn){ abtn.style.background="rgba(255,215,0,0.2)"; abtn.style.borderColor="rgba(255,215,0,0.6)"; abtn.style.color="#ffd700"; }
@@ -15085,6 +15106,13 @@ function pinPress(k){
         lsSet("ambi241_pin_lockuntil","0");
         document.getElementById("pinOverlay").classList.remove("show");
         isAdmin=true;
+        window.isAdmin=true; /* PERF-PATCH: exposer pour guards listeners */
+        // PERF-PATCH: démarrer les listeners qui n'ont pas démarré au boot (non-admin au départ)
+        setTimeout(function(){
+          if(typeof _subscribeTaxiContactsFirestore==='function' && window.db) _subscribeTaxiContactsFirestore();
+          if(typeof _subscribeTaxiChats==='function' && window.db) _subscribeTaxiChats();
+          if(typeof _subscribeTaxiTrans==='function' && window.db) _subscribeTaxiTrans();
+        }, 500);
         // isSuperAdmin sera mis à jour par loadAdminConfig() après résolution Firebase
         isSuperAdmin = isSuperAdminUser(); // valeur provisoire (cache localStorage)
         // Afficher bouton admin, masquer le cadenas discret
@@ -15133,6 +15161,7 @@ function updateDots(){
 function toggleAdmin(){
   if(isAdmin){
     isAdmin=false;
+    window.isAdmin=false; /* PERF-PATCH */
     isSuperAdmin=false;
     var abtn=document.getElementById("adminBtn");
     var unlockBtn=document.getElementById("adminUnlockBtn");
@@ -33961,9 +33990,13 @@ function _deleteTaxiContactFs(fsId){
   if(!window.db||!window.fbDeleteDoc||!window.fbDoc||!fsId) return;
   window.fbDeleteDoc(window.fbDoc(window.db,'taxi_contacts',fsId)).catch(function(){});
 }
+/* PERF-PATCH: taxi_contacts listener démarré uniquement pour admins/chauffeurs */
 (function _waitFbTaxi(){
-  if(window.db&&window.fbCollection&&window.fbOnSnapshot){ _subscribeTaxiContactsFirestore(); }
-  else { setTimeout(_waitFbTaxi,900); }
+  if(window.db&&window.fbCollection&&window.fbOnSnapshot){
+    setTimeout(function(){
+      if(window.isAdmin||window._currentUserIsDriver) _subscribeTaxiContactsFirestore();
+    }, 2500);
+  } else { setTimeout(_waitFbTaxi,900); }
 })();
 
 function loadTaxiContacts() {
@@ -35754,6 +35787,8 @@ function loadChauffeurDriversFromFirestore(){
     function(err){ console.warn('[Chauffeurs] onSnapshot error', err); }
   );
 }
+/* PERF-PATCH: chauffeurs listener démarré pour tout le monde (données publiques nécessaires pour la carte),
+   mais uniquement après que Firebase soit prêt — pas de changement fonctionnel ici */
 (function _waitFbDrivers(){
   if(window.db && window.fbCollection && window.fbOnSnapshot){ loadChauffeurDriversFromFirestore(); }
   else { setTimeout(_waitFbDrivers, 800); }
@@ -36978,11 +37013,14 @@ function _subscribeTaxiChats() {
   } catch(e) { _loadTaxiChatsFromFirebase(); }
 }
 
-/* Démarrer la sync au chargement */
+/* PERF-PATCH: Taxi chats — listener uniquement pour admins/chauffeurs */
 document.addEventListener('DOMContentLoaded', function() {
   setTimeout(function() {
-    if (window.fbOnSnapshot) _subscribeTaxiChats();
-    else _loadTaxiChatsFromFirebase();
+    if(window.isAdmin || window._currentUserIsDriver){
+      if (window.fbOnSnapshot) _subscribeTaxiChats();
+      else _loadTaxiChatsFromFirebase();
+    }
+    // Pour les non-admins : les chats seront chargés à l'ouverture du panel Taxi
   }, 2000);
 });
 
@@ -37583,11 +37621,13 @@ function _updateTaxiTransStatus(id, fields) {
   } catch(e) {}
 }
 
-/* Démarrer la sync au chargement */
+/* PERF-PATCH: Taxi transactions — listener uniquement pour admins/chauffeurs */
 document.addEventListener('DOMContentLoaded', function() {
   setTimeout(function() {
-    if (window.fbOnSnapshot) _subscribeTaxiTrans();
-    else _loadTaxiTransFromFirebase();
+    if(window.isAdmin || window._currentUserIsDriver){
+      if (window.fbOnSnapshot) _subscribeTaxiTrans();
+      else _loadTaxiTransFromFirebase();
+    }
   }, 2200);
 });
 
