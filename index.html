@@ -35,7 +35,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.json">
 <!-- PERF: preload police principale -->
-<link rel="preload" as="font" crossorigin="" defer></script>
+<link rel="preload" as="font" crossorigin
   href="https://fonts.gstatic.com/s/dmsans/v15/rP2Hp2ywxg089UriCZa4ET-DNl0.woff2"
   type="font/woff2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -65,7 +65,7 @@
       rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV/XN/WPaI=" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV/XN/WPaI=" crossorigin="" defer></script>
 <style>
 :root{
   --player-h: 0px;   /* mis à jour dynamiquement par JS quand le lecteur est visible */
@@ -7949,7 +7949,7 @@ if (document.readyState === 'loading') {
     <!-- Bouton déconnexion -->
     <button class="logout-btn" id="logoutBtn" onclick="logoutUser()" title="Se déconnecter">&#128682; Quitter</button>
     <!-- Cloche notifications -->
-    <div class="notif-bell-wrap" id="notifBellWrap" style="display:none;">
+    <div class="notif-bell-wrap" id="notifBellWrap">
       <button class="notif-bell-btn notif-chat-btn" id="notifBellBtn" onclick="openAmbiNotifPanel()" title="Notifications & Messages" aria-label="Centre de notifications">
         <span class="notif-chat-icon">💬</span>
         <div class="notif-badge" id="notifBadge" style="display:none;">0</div>
@@ -16479,9 +16479,9 @@ function updateHeaderUser(pseudo){
     greeting.onclick = function(){ document.getElementById("userOverlay").classList.add("show"); };
     logoutBtn.classList.remove("show");
     if(loginBtn) loginBtn.style.display = "";
-    // Masquer la cloche pour les visiteurs non connectés
+    // Icône 💬 maintenue visible même après déconnexion
     var bellWrapLogout = document.getElementById("notifBellWrap");
-    if(bellWrapLogout) bellWrapLogout.style.display = "none";
+    if(bellWrapLogout) bellWrapLogout.style.display = "inline-flex";
     if(tabMonProfil){ tabMonProfil.style.display="none"; }
     if(tabInscription){ tabInscription.style.display=""; }
     if(tabConnexion){ tabConnexion.style.display=""; }
@@ -24861,14 +24861,8 @@ function renderNotifBadge(){
   // Cloche : visible uniquement pour membre/admin connecté ET s'il y a des notifs non lues
   var bellWrap=document.getElementById("notifBellWrap");
   if(bellWrap){
-    if(isConnected && unread>0){
-      bellWrap.style.display="inline-flex";
-    } else if(isConnected && isAdmin){
-      // Admin connecté : toujours visible (même sans non-lues)
-      bellWrap.style.display="inline-flex";
-    } else {
-      bellWrap.style.display="none";
-    }
+    // Icône 💬 toujours visible pour tous les visiteurs
+    bellWrap.style.display="inline-flex";
   }
   // Badge header
   var badge=document.getElementById("notifBadge");
@@ -56556,33 +56550,7 @@ var NOTIF_TYPES = {
   system:  { icon:'⚙️', color:'var(--muted)', label:'Système', pill:'ni-ch-push' }
 };
 
-/* Faux utilisateurs pour simulations */
-var FAKE_USERS = [
-  {name:'Kenzo Mba', avatar:'🎩', role:'member'},
-  {name:'Priya Ndong', avatar:'🌺', role:'member'},
-  {name:'Marco Ossoukou', avatar:'🦅', role:'establishment'},
-  {name:'Aya Boulingui', avatar:'💃', role:'admin'},
-  {name:'Jean-Luc Oyane', avatar:'🎸', role:'member'},
-  {name:'Fatou Bivigou', avatar:'👑', role:'member'},
-  {name:'Club Miami', avatar:'🍸', role:'establishment'},
-  {name:'Basha Lounge', avatar:'🎶', role:'establishment'},
-];
-
-var FAKE_COMMENTS = [
-  'Incroyable ambiance ce soir ! 🔥',
-  'L\'ambiance est au top, je recommande !',
-  'Quelqu\'un connaît les horaires ?',
-  'On est arrivés, c\'est bondé mais génial 🎉',
-  'La musique est parfaite ce soir 🎵',
-  'Table disponible ? DM moi',
-  'Meilleur spot de Libreville 🇬🇦',
-  'Soirée mémorable, merci AMBI241 !',
-];
-
-var FAKE_PLACES = [
-  'Miami Club', 'Basha Lounge', 'La Terrasse', 'BarSo', 'Sky Rooftop',
-  'Le Palace', 'Jazz Corner', 'Okoumé Bar', 'Nkembo Lounge', 'Galaxy Club'
-];
+/* Données fictives supprimées — notifications uniquement réelles */
 
 /* ────────────────────────────────────────────────────────────────
    HELPERS
@@ -56923,54 +56891,7 @@ function _updateAdminStats(){
 /* ────────────────────────────────────────────────────────────────
    ADMIN — ACTIONS
 ──────────────────────────────────────────────────────────────── */
-window._ambiAdmSimulateComment = function(){
-  var user = _rand(FAKE_USERS);
-  var place = _rand(FAKE_PLACES);
-  _addNotif('comment',
-    user.name + ' a commenté',
-    'à ' + place,
-    {
-      avatar: user.avatar,
-      preview: _rand(FAKE_COMMENTS),
-      actions: [
-        {type:'reply', label:'↩ Répondre', cls:'nia-reply'},
-        {type:'like', label:'❤️', cls:'nia-like'}
-      ]
-    }
-  );
-  if(typeof window.showToast==='function') window.showToast('🗨️ Commentaire simulé');
-};
-
-window._ambiAdmSimulatePresence = function(){
-  var user = _rand(FAKE_USERS);
-  var place = _rand(FAKE_PLACES);
-  _state.onlineCount++;
-  _updatePresenceCount();
-  _addNotif('presence',
-    user.name + ' est arrivé',
-    'Vient de rejoindre ' + place,
-    { avatar: user.avatar }
-  );
-  if(typeof window.showToast==='function') window.showToast('👥 Présence simulée');
-};
-
-window._ambiAdmSimulatePost = function(){
-  var user = _rand(FAKE_USERS);
-  var place = _rand(FAKE_PLACES);
-  _addNotif('post',
-    user.name + ' a publié',
-    'Nouvelle publication : ' + place,
-    {
-      avatar: user.avatar,
-      preview: 'Ambiance de folie ce soir ! On est ' + (Math.floor(Math.random()*20)+5) + ' 🔥',
-      actions: [
-        {type:'like', label:'❤️ Liker', cls:'nia-like'},
-        {type:'reply', label:'💬 Commenter', cls:'nia-reply'}
-      ]
-    }
-  );
-  if(typeof window.showToast==='function') window.showToast('📝 Publication simulée');
-};
+/* Fonctions de simulation admin supprimées — plus de données fictives */
 
 window._ambiAdmClearAll = function(){
   if(!confirm('Vider toutes les notifications ?')) return;
@@ -57066,78 +56987,21 @@ function _startRealtime(){
     _updatePresenceCount();
   }, 12000);
 
-  // Notifications automatiques — toutes les 20-40s
-  function _scheduleNext(){
-    var delay = 20000 + Math.random()*20000;
-    setTimeout(function(){
-      _triggerAutoNotif();
-      _scheduleNext();
-    }, delay);
-  }
-  _scheduleNext();
+  // Notifications automatiques supprimées — plus de faux contenus
 }
 
-function _triggerAutoNotif(){
-  var r = Math.random();
-  if(r < 0.35 && _state.perms.comments){
-    // Commentaire
-    var user = _rand(FAKE_USERS);
-    var place = _rand(FAKE_PLACES);
-    _addNotif('comment', user.name+' a commenté', 'à '+place, {
-      avatar: user.avatar,
-      preview: _rand(FAKE_COMMENTS)
-    });
-  } else if(r < 0.55 && _state.perms.presence){
-    // Présence
-    var user2 = _rand(FAKE_USERS);
-    var place2 = _rand(FAKE_PLACES);
-    _state.onlineCount += Math.floor(Math.random()*3)+1;
-    _updatePresenceCount();
-    _addNotif('presence', user2.name+' est arrivé', 'Vient de rejoindre '+place2, { avatar: user2.avatar });
-  } else if(r < 0.72 && _state.perms.posts){
-    // Publication
-    var user3 = _rand(FAKE_USERS);
-    _addNotif('post', user3.name+' a publié', 'Nouvelle publication dans le forum', {
-      avatar: user3.avatar,
-      preview: _rand(FAKE_COMMENTS)
-    });
-  } else if(r < 0.85 && _state.perms.events){
-    // Événement
-    var place3 = _rand(FAKE_PLACES);
-    _addNotif('event', '🎉 Événement ce soir', 'Soirée spéciale à '+place3+' — Entrée libre jusqu\'à 22h', {
-      avatar: '🎉',
-      actions: [{type:'open', label:'Voir', cls:'nia-reply'}]
-    });
-  } else {
-    // Info système
-    _addNotif('info', 'Ambiance mise à jour', _rand(FAKE_PLACES)+' : '+_rand(['🔥 Bondé','👌 Idéal','💤 Calme','⚡ Ambiance ++']), { avatar:'📊' });
-  }
-}
+/* _triggerAutoNotif supprimé — plus de notifications fictives automatiques */
 
 /* ────────────────────────────────────────────────────────────────
    INITIALISATION
 ──────────────────────────────────────────────────────────────── */
 function _init(){
-  // Notifs de bienvenue initiales
+  // Notif de bienvenue initiale
   setTimeout(function(){
     _addNotif('info', 'Bienvenue sur AMBI241 ! 🇬🇦',
       'Le centre de notifications est actif. Temps réel activé.',
       { avatar:'🎉' });
   }, 1200);
-
-  setTimeout(function(){
-    var place = _rand(FAKE_PLACES);
-    _addNotif('event', 'Soirée ce soir à '+place,
-      'Ambiance garantie — Entrée libre jusqu\'à 22h30',
-      { avatar:'🎉', actions:[{type:'open', label:'Voir le lieu', cls:'nia-reply'}] });
-  }, 3000);
-
-  setTimeout(function(){
-    var user = _rand(FAKE_USERS);
-    _addNotif('presence', user.name+' est en ligne',
-      'Vient de rejoindre '+_rand(FAKE_PLACES),
-      { avatar: user.avatar });
-  }, 5500);
 
   // Démarrer le temps réel
   _startRealtime();
