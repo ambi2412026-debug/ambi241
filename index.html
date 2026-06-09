@@ -13377,14 +13377,16 @@ function computeRankScore(e){
   var wSum = w.affluence + w.note + w.avis + w.presences + w.votes;
   if(wSum > 0) total = total / (wSum/100);
 
-  // ── Bonus étoiles Hôtel : chaque étoile = +8 pts (priorité absolue pour les hôtels) ──
-  // Formule : score_hotel = étoiles×8 (base 40 pour 5★) + total×0.6
-  // Ainsi un hôtel 5★ démarre toujours devant un hôtel 3★ même si celui-ci a plus d'affluence
+  // ── Bonus étoiles Hôtel : tiebreaker UNIQUEMENT, pas critère dominant ──
+  // Les étoiles ne dépassent PAS le poids des critères interactifs (affluence, votes, avis)
   var etoilesBonus = 0;
   if(getCategory(e.type||'') === 'Hotel'){
     var nbEtoiles = parseEtoiles(e.etoiles);
-    etoilesBonus = nbEtoiles * 8; // 5★ = +40 pts, 4★ = +32, 3★ = +24...
-    total = total * 0.6 + etoilesBonus; // les étoiles pèsent 40% du score final max
+    // ✅ Les étoiles ajoutent max +5pts (pour trier à égalité, pas pour dominer)
+    // Un hôtel 5★ avec zéro activité score ~5 pts
+    // Un bar avec affluence 100 score beaucoup plus (50-80 pts)
+    etoilesBonus = nbEtoiles * 0.5; // 5★ = +2.5 pts max (tiebreaker minimal)
+    total = total + etoilesBonus; // additionner, pas multiplier
   }
 
   return {
@@ -14325,11 +14327,11 @@ function renderHomeImmediate(){
       // Inclure la note comme tiebreaker (×10 pour peser dans le score)
       var noteBonus = (e.note || 0) * 10;
       var score     = Math.max(0, Math.min(200, base + presBonus + voteBonus + noteBonus));
-      // ── Hôtels : les étoiles sont prioritaires (chaque étoile vaut +50 pts) ──
-      // Garantit qu'un hôtel 5★ est toujours classé avant un hôtel 3★
+      // ── Hôtels : les étoiles sont un tiebreaker (pas dominant) ──
+      // Un hôtel sans activité reste faible. Les étoiles apportent juste un petit boost.
       if(getCategory(e.type || '') === 'Hotel'){
         var nbEt = parseEtoiles(e.etoiles);
-        score = score * 0.4 + nbEt * 50; // 5★ = 250 pts de base (dominant)
+        score = score + (nbEt * 3); // 5★ = +15 pts bonus (additionner, pas multiplier)
       }
       return Object.assign({}, e, { _score: score });
     });
@@ -14457,13 +14459,22 @@ function goToTypeFilter(type){
       de cette catégorie (trié par score décroissant)
 ══════════════════════════════════════════════════════════════ */
 function goToTop6Etab(id, cat){
-  // Appliquer le filtre de type AVANT le changement de section
+  // ✅ NOUVEAU : Afficher en liste compacte (compact) au lieu de groupe
+  // avec l'établissement cliqué en spotlight (fiche intégrale en tête)
+  
+  // 1. Appliquer le filtre de type AVANT le changement de section
   window._filterOnSwitch = { type: cat || 'all', status: 'all' };
-  // Basculer en vue groupe (troisième mode) : N°1 fiche complète, reste compact
-  currentView = 'groupe';
+  
+  // 2. Basculer en vue compact (liste compacte)
+  currentView = 'compact';
   document.querySelectorAll('[data-view]').forEach(function(b){ b.classList.remove('active'); });
-  var groupeBtn = document.querySelector('[data-view="groupe"]');
-  if(groupeBtn) groupeBtn.classList.add('active');
+  var compactBtn = document.querySelector('[data-view="compact"]');
+  if(compactBtn) compactBtn.classList.add('active');
+  
+  // 3. Mémoriser l'établissement spotlight (affiché en fiche intégrale en tête)
+  window._spotlightEtabTopMoment = id; // flag spécial pour le rendu compact
+  
+  // 4. Basculer vers Lieux
   switchSection('etablissements', document.querySelectorAll('.nav-item')[1]);
   window.scrollTo(0, 0);
 }
@@ -18971,12 +18982,28 @@ function renderAllImmediate(){
     // GPS actif → trier par distance d'abord + classe proche
     if(gpsActive) data = sortGpsData(data);
     var PROX_KM_C = (gpsActive && typeof _gpsState !== "undefined") ? (_gpsState.radius >= 999 ? 3 : _gpsState.radius) : 0;
+    
+    // ✅ NOUVEAU : Si spotlight depuis Top du moment, afficher en fiche complète EN TÊTE
+    var spotlightFound = false;
+    if(window._spotlightEtabTopMoment){
+      var spEtab = data.find(function(e){ return String(e.id) === String(window._spotlightEtabTopMoment); });
+      if(spEtab){
+        spotlightFound = true;
+        html += "<div class=\"compact-list\" style=\"border-bottom:1px solid rgba(255,45,155,0.15);padding-bottom:0.8rem;margin-bottom:0.8rem;\">";
+        html += buildCard(spEtab, 0, false, 1); // Fiche complète en tête
+        html += "</div>";
+        // Retirer du spotlight pour ne pas l'afficher 2 fois
+        data = data.filter(function(e){ return String(e.id) !== String(window._spotlightEtabTopMoment); });
+        window._spotlightEtabTopMoment = null; // reset pour prochain rendu
+      }
+    }
+    
     // PERF PATCH : afficher _VIRT_INIT items, sentinel charge la suite (sauf si GPS actif)
     var _compactSlice = gpsActive ? data : data.slice(0, _VIRT_INIT);
     html+="<div class=\"compact-list\">";
     _compactSlice.forEach(function(e,i){
       var _ec = (gpsActive && typeof e._distKm === "number" && e._distKm <= PROX_KM_C) ? "card-prox-near" : "";
-      html+=buildCompactRow(e,i+1,_ec);
+      html+=buildCompactRow(e,spotlightFound?i+2:i+1,_ec); // Décaler le rank si spotlight
     });
     html+="</div>";
     if(!gpsActive && data.length > _VIRT_INIT){
