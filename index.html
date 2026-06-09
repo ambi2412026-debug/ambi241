@@ -24,8 +24,16 @@
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Playfair+Display:wght@600;700;800&display=swap"
       rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV/XN/WPaI=" crossorigin=""></script>
+<!-- PERF: Leaflet CSS non-bloquant -->
+<link rel="dns-prefetch" href="https://unpkg.com">
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""
+      media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""></noscript>
+<!-- PERF: defer — ne bloque plus le parser HTML (~200-400ms gagnés au démarrage) -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV/XN/WPaI=" crossorigin="" defer></script>
 <style>
 :root{
   --player-h: 0px;   /* mis à jour dynamiquement par JS quand le lecteur est visible */
@@ -11179,9 +11187,9 @@ function _writeSessionLog(data){
 // Signal que Firebase est prêt — loadData() sera appelé par le script principal
 window.__firebaseReady = true;
 if (window.__appReady) { loadData(); initMeteo(); }
-// Charger la config admin (superadmin + admins secondaires) dès que Firebase est prêt
+// PERF: loadAdminConfig() uniquement si compte admin actif — aucune requête Firestore pour les visiteurs/membres
 setTimeout(function(){
-  if(typeof loadAdminConfig === "function") loadAdminConfig();
+  if(isAdmin && typeof loadAdminConfig === "function") loadAdminConfig();
 }, 400);
 
 // ══════════════════════════════════════════════════════════════
@@ -14114,7 +14122,8 @@ function loadData(){
     if (typeof window._subscribeAllEtabs === "function") { window._subscribeAllEtabs(); }
 
     /* ── Photos en arrière-plan — délais échelonnés pour ne pas saturer le réseau ── */
-    setTimeout(loadAllPhotoProfiles, 1000);
+    // PERF: délai augmenté 1000→2000ms — laisse le rendu DOM se stabiliser avant les requêtes Firestore
+    setTimeout(loadAllPhotoProfiles, 2000);
     setTimeout(function() {
       if (typeof loadSlotPhotosAsync === 'function' && etablissements && etablissements.length) {
         var actifs = etablissements.filter(function(e) { return estPaiementConfirme(e); });
@@ -20325,7 +20334,6 @@ window._syncProfilSection = _syncProfilSection;
   }, 800);
 
   window._patchProfilCoherence = _patchAll;
-  console.log('[AMBI241] ✅ Patch Profil v2 — toutes vues synchronisées (membre/chauffeur/étab)');
 })();
 
 function navHandleProfil(btn){
@@ -22266,11 +22274,20 @@ function checkSubscriptionRenewals(){
   });
 }
 
-// Lancer la vérification périodique
-setTimeout(function(){
+// PERF: vérifications abonnements — aucun timer créé pour les non-admins
+// Démarrage différé uniquement si admin actif ; relancé aussi à l'activation admin via ambi:authStateChanged
+var _subRenewalInterval = null;
+function _startSubRenewalTimer(){
+  if(_subRenewalInterval) return; // déjà actif
   checkSubscriptionRenewals();
-  setInterval(checkSubscriptionRenewals, 3600000); // toutes les heures
+  _subRenewalInterval = setInterval(checkSubscriptionRenewals, 3600000);
+}
+setTimeout(function(){
+  if(isAdmin) _startSubRenewalTimer();
 }, 8000);
+document.addEventListener('ambi:authStateChanged', function(){
+  if(isAdmin) _startSubRenewalTimer();
+});
 
 // ── Notification établissement : rappel renouvellement ────────
 function notifyEtablissementRenewal(etab){
@@ -22947,7 +22964,7 @@ loadSuperAdmin();
     +'</div>';
 })();
 renderStats(); renderHome(); renderPayments();
-setTimeout(initMeteo, 500);
+// PERF: initMeteo() supprimé ici — déjà appelé par le module Firebase via window.__appReady
 
 _startApp();
 updatePayVis();
@@ -24236,40 +24253,36 @@ window.setPref=setPref;
 window.requestPushPermission=requestPushPermission;
 
 var _prevRole="";
-setInterval(function(){
+// PERF: setInterval 2000ms supprimé — remplacé par event-driven
+function _onRoleChange(){
   var newRole=getUserRole();
   if(newRole!==_prevRole){
     _prevRole=newRole;
     if(!_notifInitDone)return;
-    // triggerWelcomeNotif() supprimé — bannière désactivée
     if(notifPanelOpen)renderNotifPrefs();
-    // Afficher/masquer le bouton Admin dans la nav
     var adminNavBtn=document.getElementById("adminNavBtn");
-    if(adminNavBtn) adminNavBtn.style.display="flex"; // toujours visible
+    if(adminNavBtn) adminNavBtn.style.display="flex";
   }
-},2000);
+}
+document.addEventListener('ambi:authStateChanged', _onRoleChange);
+// Vérification initiale unique après boot
+setTimeout(_onRoleChange, 1000);
 
 // ══════════════════════════════════════════════════════════════
 // ══ TABLEAU DE BORD ADMIN — LOGIQUE COMPLÈTE               ══
 // ══════════════════════════════════════════════════════════════
 
 var _currentAdmTab = "overview";
+var _adminDashInitialized = false; // PERF: flag initialisation paresseuse
 
 function openAdminDashboard(btn){
   // Toujours marquer actif dans la nav
   document.querySelectorAll(".nav-item").forEach(function(b){b.classList.remove("active");});
   if(btn)btn.classList.add("active");
   if(!isAdmin){
-    showToast("🔒 Accès Admin réservé aux administrateurs");
+    showToast("\uD83D\uDD12 Acc\u00e8s Admin r\u00e9serv\u00e9 aux administrateurs");
     // Afficher info modale
-    var infoHtml='<div style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:1rem;" id="_adminInfoOverlay" onclick="document.getElementById(\'_adminInfoOverlay\').remove();document.querySelectorAll(\'.nav-item\').forEach(function(b){b.classList.remove(\'active\')});document.querySelectorAll(\'.nav-item\')[0].classList.add(\'active\');">'
-      +'<div style="background:var(--surface);border:1.5px solid rgba(255,215,0,0.4);border-radius:22px;padding:2rem 1.5rem;width:min(360px,95%);text-align:center;animation:popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);">'
-      +'<div style="font-size:2.5rem;margin-bottom:0.6rem;">⚙️</div>'
-      +'<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;color:var(--amber);margin-bottom:0.4rem;">Tableau de Bord Admin</div>'
-      +'<div style="font-size:0.82rem;color:var(--muted);line-height:1.6;margin-bottom:1rem;">Cet espace est réservé aux <strong style="color:var(--text)">administrateurs AMBI241</strong>.<br>Connectez-vous avec un compte admin pour y accéder.</div>'
-      +'<button onclick="document.getElementById(\'_adminInfoOverlay\').remove();document.querySelectorAll(\'.nav-item\').forEach(function(b){b.classList.remove(\'active\')});document.querySelectorAll(\'.nav-item\')[0].classList.add(\'active\');document.getElementById(\'authOverlay\').classList.add(\'show\');" style="width:100%;padding:0.75rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--amber),var(--pink));color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;margin-bottom:0.5rem;">🔑 Se connecter</button>'
-      +'<button onclick="document.getElementById(\'_adminInfoOverlay\').remove();document.querySelectorAll(\'.nav-item\').forEach(function(b){b.classList.remove(\'active\')});document.querySelectorAll(\'.nav-item\')[0].classList.add(\'active\');" style="width:100%;padding:0.6rem;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.85rem;cursor:pointer;">Fermer</button>'
-      +'</div></div>';
+    var infoHtml='<div style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:1rem;" id="_adminInfoOverlay" onclick="document.getElementById(\'_adminInfoOverlay\').remove();document.querySelectorAll(\'.nav-item\').forEach(function(b){b.classList.remove(\'active\')});document.querySelectorAll(\'.nav-item\')[0].classList.add(\'active\');"><div style="background:var(--surface);border:1.5px solid rgba(255,215,0,0.4);border-radius:22px;padding:2rem 1.5rem;width:min(360px,95%);text-align:center;animation:popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);"><div style="font-size:2.5rem;margin-bottom:0.6rem;">⚙️</div><div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;color:var(--amber);margin-bottom:0.4rem;">Tableau de Bord Admin</div><div style="font-size:0.82rem;color:var(--muted);line-height:1.6;margin-bottom:1rem;">Cet espace est réservé aux <strong style="color:var(--text)">administrateurs AMBI241</strong>.<br>Connectez-vous avec un compte admin pour y accéder.</div><button onclick="document.getElementById(\'_adminInfoOverlay\').remove();document.querySelectorAll(\'.nav-item\').forEach(function(b){b.classList.remove(\'active\')});document.querySelectorAll(\'.nav-item\')[0].classList.add(\'active\');document.getElementById(\'authOverlay\').classList.add(\'show\');" style="width:100%;padding:0.75rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--amber),var(--pink));color:#000;font-family:Syne,sans-serif;font-weight:800;font-size:0.9rem;cursor:pointer;margin-bottom:0.5rem;">🔑 Se connecter</button><button onclick="document.getElementById(\'_adminInfoOverlay\').remove();document.querySelectorAll(\'.nav-item\').forEach(function(b){b.classList.remove(\'active\')});document.querySelectorAll(\'.nav-item\')[0].classList.add(\'active\');" style="width:100%;padding:0.6rem;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.85rem;cursor:pointer;">Fermer</button></div></div>';
     var div=document.createElement('div');
     div.innerHTML=infoHtml;
     document.body.appendChild(div.firstChild);
@@ -24279,32 +24292,44 @@ function openAdminDashboard(btn){
   document.body.style.overflow="hidden";
   // Afficher loading immédiatement
   var ov=document.getElementById("adminOverviewContent");
-  if(ov) ov.innerHTML="<div style='text-align:center;padding:3rem 1rem;'><div style='font-size:2rem;margin-bottom:0.7rem;'>⏳</div><div style='color:var(--muted);font-size:0.85rem;'>Chargement du tableau de bord…</div></div>";
-  // Forcer le chargement des données Firebase si pas encore chargées
-  if((!etablissements||etablissements.length===0) && typeof loadData==="function") loadData();
-  /* PERF : Charger la collection paiements à la première ouverture admin.
-     Elle n'est pas récupérée au démarrage pour les visiteurs non-admin. */
-  if(!window._paiementsFirebase || window._paiementsFirebase.length===0) {
-    if(window.fbGetDocs && window.fbQuery && window.fbCollection && window.fbOrderBy && window.db) {
-      window.fbGetDocs(window.fbQuery(window.fbCollection(window.db,"paiements"),window.fbOrderBy("id")))
-        .then(function(snap){
-          window._paiementsFirebase=window._paiementsFirebase||[];
-          window._paiementsFirebase.length=0;
-          snap.forEach(function(d){ window._paiementsFirebase.push(Object.assign({_docId:d.id},d.data())); });
-          if(typeof rebuildPaiements==="function") rebuildPaiements();
-          if(typeof renderPayments==="function") renderPayments();
-          console.log("[AMBI241] ✅ Paiements admin chargés à la connexion :", window._paiementsFirebase.length);
-        }).catch(function(err){ console.warn("[AMBI241] Paiements admin load error:", err); });
+  if(ov) ov.innerHTML="<div style='text-align:center;padding:3rem 1rem;'><div style='font-size:2rem;margin-bottom:0.7rem;'>⏳</div><div style='color:var(--muted);font-size:0.85rem;'>Chargement du tableau de bord\u2026</div></div>";
+
+  // PERF: initialisation paresseuse — toutes les données admin chargées
+  // uniquement à la PREMIÈRE ouverture du dashboard, jamais au démarrage global
+  if(!_adminDashInitialized){
+    _adminDashInitialized = true;
+
+    // 1. Config superadmin + liste admins secondaires
+    if(typeof loadAdminConfig === "function") loadAdminConfig();
+
+    // 2. Données établissements si absentes
+    if((!etablissements||etablissements.length===0) && typeof loadData==="function") loadData();
+
+    // 3. Collection paiements (lecture lourde — évitée au démarrage pour tous les non-admins)
+    if(!window._paiementsFirebase || window._paiementsFirebase.length===0) {
+      if(window.fbGetDocs && window.fbQuery && window.fbCollection && window.fbOrderBy && window.db) {
+        window.fbGetDocs(window.fbQuery(window.fbCollection(window.db,"paiements"),window.fbOrderBy("id")))
+          .then(function(snap){
+            window._paiementsFirebase=window._paiementsFirebase||[];
+            window._paiementsFirebase.length=0;
+            snap.forEach(function(d){ window._paiementsFirebase.push(Object.assign({_docId:d.id},d.data())); });
+            if(typeof rebuildPaiements==="function") rebuildPaiements();
+            if(typeof renderPayments==="function") renderPayments();
+          }).catch(function(err){ console.warn("[AMBI241] Paiements admin load error:", err); });
+      }
     }
+
+    // 4. Démarrer le timer abonnements si pas encore actif
+    if(typeof _startSubRenewalTimer==="function") _startSubRenewalTimer();
+
+    // 5. Pre-init panneau contenu
+    setTimeout(function(){
+      if(typeof window.renderAdmContent === 'function') window.renderAdmContent(0);
+    }, 800);
   }
-  // Délai pour laisser Firebase répondre
+
+  // Délai pour laisser Firebase répondre avant le rendu
   setTimeout(function(){ switchAdmTab("overview"); }, 600);
-  // Pre-init content panel so it's ready when user clicks
-  setTimeout(function(){
-    if(typeof window.renderAdmContent === 'function'){
-      window.renderAdmContent(0);
-    }
-  }, 800);
   // Afficher le bouton admin nav
   var nb=document.getElementById("adminNavBtn");
   if(nb)nb.style.display="flex";
@@ -26962,17 +26987,24 @@ function initAdminDefaultPhotosPreviews(){
 })();
 
 // ── Afficher le bouton Admin dans la nav quand mode admin actif ─
+// PERF: setInterval 1000ms remplacé par event-driven (zero CPU en idle)
 var _admNavShown=false;
-var _admNavCheck=setInterval(function(){
+function _admNavUpdate(){
   var nb=document.getElementById("adminNavBtn");
   if(!nb)return;
   if(isAdmin&&!_admNavShown){
     nb.style.display="flex"; _admNavShown=true;
   } else if(!isAdmin&&_admNavShown){
     nb.style.display="none"; _admNavShown=false;
-    closeAdminDashboard();
+    if(typeof closeAdminDashboard==='function') closeAdminDashboard();
   }
-},1000);
+}
+// Appel initial après DOM prêt
+document.addEventListener('DOMContentLoaded', function(){ setTimeout(_admNavUpdate, 500); });
+// Ré-évaluation à chaque changement d'état auth Firebase
+document.addEventListener('ambi:authStateChanged', _admNavUpdate);
+// Sécurité : vérification unique 3s après chargement puis on arrête
+setTimeout(_admNavUpdate, 3000);
 
 // ─────────────────────────────────────────────────────────────
 
@@ -36483,8 +36515,6 @@ function getCurrentUser() {
 // Note: isAdmin() function removed — use the global variable `isAdmin` (boolean) instead
 // The function was conflicting with the global var isAdmin=false; defined earlier
 
-console.log('✅ Profil & Taxi Pro charges');
-
 
 // ════════════════════════════════════════════════════════════════
 // RÉINITIALISATION MOT DE PASSE — nettoyé (v2)
@@ -36493,7 +36523,6 @@ console.log('✅ Profil & Taxi Pro charges');
 // Fonctions openPasswordResetModal / sendPasswordReset supprimées
 // (modal #resetPasswordModal inexistant — dead code retiré)
 // ════════════════════════════════════════════════════════════════
-console.log('[AMBI241] ✅ Mot de passe oublié — Firebase Email + Ticket Téléphone actifs');
 
 
 
@@ -36742,8 +36771,6 @@ function redirectToTaxiProDashboard(token, action) {
   if (driver) {
     // Ouvrir le profil/dashboard du chauffeur
     openTaxiProDashboardForDriver(driver.id, action, token);
-    
-    console.log(`✅ Redirection Taxi Pro Dashboard: ${action}`);
   }
 }
 
@@ -36794,8 +36821,6 @@ function checkOrderValidationLink() {
 
 // Appeler au chargement de la page
 window.addEventListener('load', checkOrderValidationLink);
-
-console.log('✅ Système de commandes WhatsApp complet chargé');
 
 
 
@@ -37079,8 +37104,6 @@ function loadTransactionHistoryFromStorage() {
     if (adminLogsStr) {
       window.adminLogs = JSON.parse(adminLogsStr);
     }
-    
-    console.log('✅ Historique des transactions chargé depuis localStorage');
   } catch (e) {
     console.warn('⚠️ Erreur chargement historique:', e);
   }
@@ -37088,8 +37111,6 @@ function loadTransactionHistoryFromStorage() {
 
 // Charger au démarrage
 window.addEventListener('load', loadTransactionHistoryFromStorage);
-
-console.log("✅ Système d'historique des transactions chargé");
 
 
 </script>
@@ -37454,8 +37475,6 @@ window.openEtabQorder   = openEtabQorder;
 window.closeEtabQorder  = closeEtabQorder;
 window.selectEtabQorderType = selectEtabQorderType;
 window.sendEtabQorderWhatsApp = sendEtabQorderWhatsApp;
-
-console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) chargé");
 </script>
 
 <!-- ════════════════════════════════════════════════════════
@@ -38076,8 +38095,6 @@ console.log("✅ Système Réservation Directe Établissements (WhatsApp Pro) ch
   } else {
     init();
   }
-
-  console.log('✅ Module Chanson de la Semaine chargé — v2.1 (CORS-fallback + audio-rebuild)');
 })();
 </script>
 
@@ -38689,8 +38706,6 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 
 /* ─── Tuto audio : inséré statiquement dans le HTML du modal — voir wsam-wrap ─── */
-
-console.log('✅ Module Monétisation AMBI241 v1.0 — Boosts · Revenus · Pubs · EventFlash · Android Back');
 })();
 </script>
 
@@ -38750,8 +38765,6 @@ if('IntersectionObserver' in window){
   }
   setTimeout(observeOnce, 500);
 }
-
-console.log('✨ AMBI241 Animations v2.1 stable — OK');
 })();
 </script>
 
@@ -39375,8 +39388,6 @@ function _checkGlobalBanner(){
 // Vérifier la bannière au chargement et toutes les 2 minutes
 setTimeout(_checkGlobalBanner, 3000);
 setInterval(_checkGlobalBanner, 120000);
-
-console.log('✅ AMBI241 Admin Control v2.0 chargé');
 })();
 </script>
 
@@ -41569,8 +41580,6 @@ setTimeout(function() {
   _loadProfilesFromFirebase();
 }, 3000);
 
-console.log('[AMBI241] ✅ Système Profils Publics chargé — openPublicProfile(type,id,data) disponible');
-
 /* ══════════════════════════════════════════════════════════════════
    🛠️ PATCH UNIVERSEL — IMPORT FICHIERS (photos / vidéos / docs)
    Accepte TOUS les formats image et vidéo reconnus par le navigateur.
@@ -41642,8 +41651,6 @@ console.log('[AMBI241] ✅ Système Profils Publics chargé — openPublicProfil
 
   /* ── uploadProfilePhoto — délègue désormais à triggerProfilePhotoUpload (non-bloquant) ── */
   /* Le patch format universel reste actif via _processAvatarFile et onAvatarFileSelected */
-
-  console.log('[AMBI241] ✅ Patch universel import fichiers actif — tous formats image/vidéo acceptés');
 })();
 
 })(); // fin IIFE
@@ -43306,8 +43313,6 @@ function socToast(msg){
 window.socToast = socToast;
 
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-console.log('[AMBI241] ✅ Module Social chargé — Amis, Communautés, Projets');
 })();
 
 </script>
@@ -43820,7 +43825,6 @@ function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 function smToast(msg){ if(typeof window.showToast==='function'){ window.showToast(msg); return; } if(typeof window.socToast==='function'){ window.socToast(msg); return; } var t=document.getElementById('socToast')||document.getElementById('toastMsg'); if(t){ t.textContent=msg; t.classList.add('show'); setTimeout(function(){t.classList.remove('show');},3000); } }
 
 window.renderSocialMediaAdmin = window.renderSocialMediaAdmin;
-console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 })();
 
 /* ══════════════════════════════════════════════════════════════
@@ -43948,8 +43952,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     }
     if(typeof _origToggleSocFab === 'function') _origToggleSocFab();
   };
-
-  console.log('[AMBI241] ✅ Patch v3.1 appliqué — Bugs #1 (photos) #2 (nav speed) #3 (guest redirect)');
 })();
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -44779,8 +44781,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       }, 80);
     }
   };
-
-  console.log('[AMBI241] ✅ Social Publications Panel — chargé');
 })();
 
 </script>
@@ -45279,8 +45279,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     }
   }
   window.igmStartImport = igmStartImport;
-
-  console.log('[AMBI241] ✅ Import Google Maps Panel — chargé');
 })();
 </script>
 <!-- ══ IMPORT GOOGLE MAPS — Dashboard admin réel (admtab-importgmaps) ══ -->
@@ -45633,8 +45631,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     if(typeof window.admRefreshEtabl==='function') setTimeout(function(){window.admRefreshEtabl();},1200);
   }
   window.igm2StartImport=igm2StartImport;
-
-  console.log('[AMBI241] ✅ Import Maps (dashboard réel) — chargé');
 })();
 </script>
 
@@ -45922,8 +45918,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       igm2GalleryRender();
     } catch(e){}
   }
-
-  console.log('[AMBI241] ✅ Module Galerie Photos (Import Maps) — chargé');
 })();
 </script>
 
@@ -46163,8 +46157,6 @@ window.socSubmitNewPub = function() {
     } catch(e) {}
   }
 };
-
-console.log('[AMBI241] ✅ Module publication & live chargé v2');
 })();
 
 /* ═══════════════════════════════════════════════════════════════
@@ -46371,7 +46363,6 @@ console.log('[AMBI241] ✅ Module publication & live chargé v2');
         console.warn('[AMBI241] socPubFeed snapshot error:', err);
         _renderSocFeed();
       });
-      console.log('[AMBI241] ✅ socPubFeed — listener Firebase actif');
     } catch(e) {
       console.warn('[AMBI241] socPubFeed init error:', e);
     }
@@ -46438,8 +46429,6 @@ console.log('[AMBI241] ✅ Module publication & live chargé v2');
       }
     };
   });
-
-  console.log('[AMBI241] ✅ Correctif socPubFeed Firebase chargé');
   // Vérification périodique des vidéos expirées toutes les heures
   setInterval(function(){
     _purgeSocExpired();
@@ -46556,6 +46545,7 @@ function _applyLikeStates(){
 })();
 
 // Patcher le feed render pour re-appliquer les états après chaque refresh
+// PERF: timeout max 15s ajouté — évite un poll infini si l'onglet Social n'est jamais visité
 var _patchApplyOnRender = setInterval(function(){
   if(typeof window._socFeedRender === 'function'){
     clearInterval(_patchApplyOnRender);
@@ -46571,6 +46561,8 @@ var _patchApplyOnRender = setInterval(function(){
     _obs.observe(document.getElementById('socPubFeed'),{childList:true,subtree:false});
   }
 }, 800);
+// Sécurité : arrêt forcé après 15s si l'onglet Social n'a pas été chargé
+setTimeout(function(){ clearInterval(_patchApplyOnRender); }, 15000);
 
 /* ═══════════════════════════════════════════════════════════
    ❤️  LIKES — NIVEAU PROFESSIONNEL
@@ -46975,8 +46967,6 @@ function _escPro(s){
   /* Charger immédiatement si déjà connecté */
   if(window.currentUserUID) _loadUserLikes(window.currentUserUID);
 })();
-
-console.log('[AMBI241] ✅ Module PRO — Likes·Commentaires·Partage Firebase chargé');
 })();
 </script>
 
@@ -47060,8 +47050,6 @@ document.addEventListener('DOMContentLoaded', function() {
     el.style.willChange = 'auto';
   });
 });
-
-console.log('[AMBI241] ✅ Patch v4 — Firebase admin retry + performance mobile OK');
 })();
 </script>
 
@@ -49284,14 +49272,15 @@ function aqaCheckAdminBtn() {
   btn.style.display = isAdm ? 'flex' : 'none';
 }
 
-// Écouter les changements d'état admin
+// PERF: _aqaInterval corrigé — s'arrête dès Firebase prêt, max 30s au lieu de 60s
 var _aqaInterval = setInterval(function() {
   aqaCheckAdminBtn();
-  // S'arrêter seulement après 60s (au lieu de 5s) une fois Firebase chargé
   if (typeof window.currentUserUID !== 'undefined' && window.currentUserUID) {
-    setTimeout(function() { clearInterval(_aqaInterval); }, 60000);
+    clearInterval(_aqaInterval); // arrêt immédiat dès que Firebase est prêt
   }
 }, 1200);
+// Sécurité : arrêt forcé après 30s quoi qu'il arrive
+setTimeout(function() { clearInterval(_aqaInterval); }, 30000);
 
 // Exposer globalement pour appel depuis les handlers PIN/toggleAdmin
 window.aqaCheckAdminBtn = aqaCheckAdminBtn;
@@ -49303,8 +49292,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Permettre au bouton existant dans adminTabs de pointer vers le nouveau modal
 window.openAdminAddModal = window.openAqaModal;
-
-console.log('[AMBI241] ✅ Patch Ajout Rapide Admin chargé');
 })();
 </script>
 
@@ -50610,8 +50597,6 @@ new MutationObserver(function(mutations) {
   }
 }).observe(document.body, { childList: true, subtree: true });
 
-console.log('[AMBI241] ✅ QR Code Vote System v2 chargé — rôles: guest/member/owner/admin');
-
 })();
 </script>
 
@@ -50709,7 +50694,6 @@ function _hookWhenReady(){
     _origInline  = window.ambiQrCastVoteInline;
     _origLanding = window.ambiQrCastVoteLanding;
     _patchFunctions();
-    console.log('[AMBI241] ✅ Geo hook actif');
   } else if(!window._geoHookDone){
     setTimeout(_hookWhenReady, 300);
   }
@@ -51282,8 +51266,6 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
   /* ── Démarrage ── */
   _boot();
 
-  console.log('[AMBI241] ✅ Système de présence temps réel v3.0 initialisé');
-
 })();
 </script>
 
@@ -51423,8 +51405,6 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
           setTimeout(function() { window.openModal(modal); }, 500);
         }
     }
-
-    console.log('[AMBI241] ✅ Routeur notifications → sections initialisé');
   })();
   </script>
   <!-- ══ MOTEUR BADGES NAV + SONS RÉELS AMBI241 v4.0 ══
@@ -51764,8 +51744,6 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
       set: _setNavBadge,
       counts: _COUNTS
     };
-
-    console.log('[AMBI241] ✅ Moteur badges nav + sons réels v4.0 initialisé');
   })();
   </script>
 
@@ -51837,8 +51815,6 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
       }
     });
   });
-
-  console.log('[AMBI241] ✅ PWA Service Worker + IndexedDB v2.0 initialisé');
   </script>
 
 
@@ -52902,8 +52878,6 @@ function doInject() {
   buildFullFiche('salle',    'salle');
   buildFullFiche('snack',    'snack');
   buildFullFiche('terrasse', 'terrasse');
-
-  console.log('[AMBI241] ✅ Module Enrichissement v3.0 injecté');
 }
 
 if (document.readyState === 'loading') {
@@ -53073,7 +53047,6 @@ window._lazyInitSection = function(name) {
     _startPolling();
     /* Demander permission sur premier geste */
     document.addEventListener('click', function _p(){ _askPerm(); document.removeEventListener('click', _p); }, { once: true });
-    console.log('[AMBI241] ✅ Patch Badges v5.0 — Forum/Profil/Paiements + icône app actifs');
   }
 
   if(document.readyState === 'loading'){
@@ -54085,8 +54058,6 @@ window._lazyInitSection = function(name) {
   } else {
     setTimeout(_waitFirebaseThenInit, 800);
   }
-
-  console.log('[AMBI241] ✅ Module Forum Publications chargé');
 })();
 </script>
 
@@ -54611,7 +54582,5 @@ if(document.readyState === "loading"){
 }
 setTimeout(_ambiBootClocks, 1500);
 setTimeout(_ambiBootClocks, 3000);
-
-console.log("[AMBI241] ✅ Système abonnement premium — compte à rebours chargé");
 })();
 </script>
