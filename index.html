@@ -14,6 +14,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://maps.googleapis.com" crossorigin>
+<!-- PERF: preconnect Firestore (TCP+TLS établis dès le parse du <head>) -->
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
 <link rel="dns-prefetch" href="https://firestore.googleapis.com">
 <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com">
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
@@ -13918,7 +13921,7 @@ function triggerPhotoPermUpload(){
    Sur réseau 3G Libreville (~300ms RTT), gain de ~600-900ms.
    ══════════════════════════════════════════════════════════════ */
 var _ETAB_CACHE_KEY = 'ambi241_etab_cache_v4'; // v4 : invalide tous les anciens caches (65 lieux)
-var _ETAB_CACHE_TTL = 30 * 1000; // 30 secondes — Firestore remplace rapidement
+var _ETAB_CACHE_TTL = 5 * 60 * 1000; // PERF: 5 minutes (était 30s) — Firebase rafraîchit en arrière-plan
 
 /* ── Purge automatique des anciennes clés cache (v1/v2/v3) au démarrage ── */
 (function _purgeOldEtabCaches(){
@@ -18789,7 +18792,7 @@ function restorePhotosPersistence(){
 
 function renderAll(){
   if(_renderAllTimer) clearTimeout(_renderAllTimer);
-  _renderAllTimer = setTimeout(renderAllImmediate, 150); // debounce 150ms — PERF PATCH : évite les appels en cascade (filtres/tris/scroll)
+  _renderAllTimer = setTimeout(renderAllImmediate, 16); // PERF: 16ms (1 frame) au lieu de 150ms
 }
 
 function renderAllImmediate(){
@@ -22938,32 +22941,49 @@ function _startApp(){
   _startAppAttempts++;
   if(typeof window.fbGetDocs==="function" && typeof window.fbCollection==="function" && window.db){
     loadData();
-  } else if(_startAppAttempts < 40){
-    setTimeout(_startApp, 250);
+  } else if(_startAppAttempts < 80){ // 80 * 100ms = 8s max
+    setTimeout(_startApp, 100); // PERF: 100ms au lieu de 250ms — détecte Firebase 2.5x plus vite
   } else {
     // Firebase jamais prêt → afficher les données locales immédiatement
-    // Les données locales sont déjà chargées (pré-population au démarrage)
-    // On s'assure juste que l'affichage est à jour
     var eb = document.getElementById("errorBanner");
     if(eb) eb.innerHTML = "";
     renderStats(); renderAll(); renderHome(); updateSyncTime();
   }
 }
-// ── Démarrage : afficher un skeleton léger au lieu des 65 hardcodés ──
-// Firebase chargera les vraies données en <2s — pas besoin de pré-remplir
-etablissements = [];
-rebuildPaiements();
-loadSuperAdmin();
-// Afficher un indicateur de chargement plutôt que les faux 65 lieux
+// ── Démarrage : afficher le cache immédiatement si disponible, sinon skeleton ──
 (function(){
-  var ml = document.getElementById("mainList");
-  if(ml) ml.innerHTML = '<div style="text-align:center;padding:3rem 1rem;color:var(--muted);">'
-    +'<div style="font-size:2rem;margin-bottom:0.8rem;">⏳</div>'
-    +'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;color:var(--cyan);">Chargement des lieux...</div>'
-    +'<div style="font-size:0.72rem;margin-top:0.4rem;">Connexion à Firebase en cours</div>'
-    +'</div>';
+  // PERF: tenter de charger le cache localStorage AVANT _startApp
+  // Un utilisateur qui revient voit les données en <50ms au lieu d'attendre Firebase
+  var _bootCache = null;
+  try {
+    var _raw = localStorage.getItem('ambi241_etab_cache_v4');
+    if(_raw){
+      var _obj = JSON.parse(_raw);
+      // On accepte le cache même expiré au boot (Firebase le rafraîchira en arrière-plan)
+      if(_obj && _obj.data && _obj.data.length > 0) _bootCache = _obj.data;
+    }
+  } catch(e){}
+
+  if(_bootCache && _bootCache.length > 0){
+    // Cache disponible → afficher immédiatement, sans attendre Firebase
+    etablissements = _bootCache;
+    rebuildPaiements();
+    loadSuperAdmin();
+    renderStats(); renderAll(); renderHome(); renderPayments();
+  } else {
+    // Première visite ou cache vide → spinner minimal
+    etablissements = [];
+    rebuildPaiements();
+    loadSuperAdmin();
+    var ml = document.getElementById("mainList");
+    if(ml) ml.innerHTML = '<div style="text-align:center;padding:3rem 1rem;color:var(--muted);">'
+      +'<div style="font-size:2rem;margin-bottom:0.8rem;">⏳</div>'
+      +'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;color:var(--cyan);">Chargement des lieux...</div>'
+      +'<div style="font-size:0.72rem;margin-top:0.4rem;">Connexion à Firebase en cours</div>'
+      +'</div>';
+    renderStats(); renderHome(); renderPayments();
+  }
 })();
-renderStats(); renderHome(); renderPayments();
 // PERF: initMeteo() supprimé ici — déjà appelé par le module Firebase via window.__appReady
 
 _startApp();
