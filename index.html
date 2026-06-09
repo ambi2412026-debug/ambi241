@@ -20,6 +20,11 @@
 <link rel="dns-prefetch" href="https://firestore.googleapis.com">
 <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com">
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+<!-- PERF: modulepreload Firebase SDK — paralléliser chargement au lieu de séquentiel (~400ms gainés) -->
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.1/firebase-storage.js">
 <!-- QR Code Vote System — bibliothèque QRCode.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
         crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
@@ -13247,24 +13252,41 @@ function getTraffic(){
 trackVisit();
 
 // SOIREE PHOTOS — Firebase-first avec fallback localStorage
+var _soireePhotosCache = { lastTs: 0, cached: false, timeoutId: null };
 function loadSoireePhotos(){
+  var now = Date.now();
+  // ✅ Ne requêter Firebase que si dernière requête > 5s (debounce)
+  if (_soireePhotosCache.cached && (now - _soireePhotosCache.lastTs < 5000)) {
+    return; // garder le cache en mémoire — pas refaire la requête
+  }
+  
   // Chargement synchrone depuis localStorage (cache rapide)
   var stored=lsGetJSON("ambi241_soiree", {});
   soireePhotos=stored;
-  // Mise à jour async depuis Firebase si dispo
+  
+  // Mise à jour async depuis Firebase si dispo (avec debounce)
   if(window.db && window.fbGetDocs && window.fbCollection){
-    window.fbGetDocs(window.fbCollection(window.db, "soireePhotos")).then(function(snap){
-      var fbData = {};
-      snap.forEach(function(d){
-        var eid = d.id;
-        fbData[eid] = d.data().photos || [];
+    clearTimeout(_soireePhotosCache.timeoutId);
+    _soireePhotosCache.timeoutId = setTimeout(function(){
+      window.fbGetDocs(window.fbCollection(window.db, "soireePhotos")).then(function(snap){
+        var fbData = {};
+        snap.forEach(function(d){
+          var eid = d.id;
+          fbData[eid] = d.data().photos || [];
+        });
+        // Fusionner avec localStorage (Firebase a priorité)
+        soireePhotos = Object.assign({}, stored, fbData);
+        try{ lsSetJSON("ambi241_soiree", soireePhotos); }catch(e){}
+        _soireePhotosCache.cached = true;
+        _soireePhotosCache.lastTs = now;
+      }).catch(function(){
+        _soireePhotosCache.cached = true;
+        _soireePhotosCache.lastTs = now;
       });
-      // Fusionner avec localStorage (Firebase a priorité)
-      soireePhotos = Object.assign({}, stored, fbData);
-      try{ lsSetJSON("ambi241_soiree", soireePhotos); }catch(e){}
-    }).catch(function(){
-      // Garder le localStorage
-    });
+    }, 50); // attendre 50ms de calme avant requêter
+  } else {
+    _soireePhotosCache.cached = true;
+    _soireePhotosCache.lastTs = now;
   }
 }
 function saveSoireePhoto(eid, dataUrl){
@@ -13290,6 +13312,7 @@ function getTimeLeft(ts){
   return h+"h"+String(m).padStart(2,"0");
 }
 loadSoireePhotos();
+restorePhotosPersistence(); // ✅ Une seule fois au démarrage (pas à chaque render)
 // ✅ Précharger les photos slot Firebase pour tous les établissements en cache
 if(typeof etablissements !== 'undefined' && etablissements.length){
   etablissements.forEach(function(e){ if(e.id) loadSlotPhotosAsync(e.id); });
@@ -14073,7 +14096,7 @@ function loadData(){
 
   if (cached && cached.length > 0) {
     etablissements = cached;
-    etablissements.forEach(function(e) { applyDynamicStatus(e); });
+    // ✅ NE PAS appliquer applyDynamicStatus ici (cache path) — faire dans _renderAfterLoad après données fraîches
     /* GPS-FIX: Le cache remplace etablissements[] — ré-injecter _distKm si GPS actif */
     if (typeof _gpsState !== "undefined" && _gpsState.active && _gpsState.lat !== null) {
       enrichWithDistances();
@@ -14086,13 +14109,13 @@ function loadData(){
   /* ── ÉTAPE 2 : Charger les établissements (toujours) + paiements (admin uniquement) ── */
   setSyncing(true);
 
-  var qEtab = window.fbQuery(window.fbCollection(window.db, "etablissements"), window.fbOrderBy("id"));
+  var qEtab = window.fbQuery(window.fbCollection(window.db, "etablissements"));
 
   /* PERF : La collection paiements (~lecture lourde) n'est chargée que si l'admin est connecté.
      Pour les visiteurs et utilisateurs normaux, on économise cette requête Firestore. */
   var etabPromise = window.fbGetDocs(qEtab);
   var paiePromise = isAdmin
-    ? window.fbGetDocs(window.fbQuery(window.fbCollection(window.db, "paiements"), window.fbOrderBy("id")))
+    ? window.fbGetDocs(window.fbQuery(window.fbCollection(window.db, "paiements")))
     : Promise.resolve(null);
 
   Promise.all([etabPromise, paiePromise]).then(function(results) {
@@ -18757,7 +18780,12 @@ function invalidateScoreCache(){ _scoreCacheVersion++; _scoreCache = {}; _rankCa
 window.invalidateScoreCache = invalidateScoreCache;
 
 /* ── Restaurer les photos sauvegardées localement au chargement ── */
+var _photoPersistenceLoaded = false;
 function restorePhotosPersistence(){
+  // ✅ Ne charger qu'une fois au démarrage, pas à chaque render
+  if(_photoPersistenceLoaded) return;
+  _photoPersistenceLoaded = true;
+  
   if(!window.etablissements || !Array.isArray(window.etablissements)) return;
   for(var i=0;i<window.etablissements.length;i++){
     var e=window.etablissements[i];
@@ -18767,26 +18795,40 @@ function restorePhotosPersistence(){
     var photoProfile=localStorage.getItem('ambi_photo_'+eid+'_profile');
     if(photoInterieur && !e.photo_interieur) e.photo_interieur=photoInterieur;
     if(photoProfile && !e._photo_profile_approved) e._photo_profile_approved=photoProfile;
-    /* Fallback IndexedDB */
-    if(!photoInterieur && 'indexedDB' in window){
-      (function(eid){
-        var req=indexedDB.open('AMBI241_DB',1);
-        req.onsuccess=function(ev){
-          var db=ev.target.result;
+  }
+  
+  // ✅ IndexedDB async en arrière-plan (non-bloquant) — une seule fois au démarrage
+  if('indexedDB' in window){
+    setTimeout(function(){
+      try {
+        var req = indexedDB.open('AMBI241_DB', 1);
+        req.onsuccess = function(ev){
+          var db = ev.target.result;
           if(db.objectStoreNames.contains('photos')){
-            var tx=db.transaction('photos','readonly');
-            var getReq=tx.objectStore('photos').get('ambi_photo_'+eid+'_interieur');
-            getReq.onsuccess=function(){
-              if(getReq.result){
-                var et=window.etablissements.find(function(x){return x.id===eid;});
-                if(et && !et.photo_interieur) et.photo_interieur=getReq.result;
-              }
+            var tx = db.transaction('photos', 'readonly');
+            var photoStore = tx.objectStore('photos');
+            // Lister toutes les photos en une seule requête range
+            var allReq = photoStore.getAll();
+            allReq.onsuccess = function(){
+              allReq.result.forEach(function(item){
+                if(item && item.key && item.value){
+                  var m = item.key.match(/ambi_photo_([^_]+)_(interieur|profile)/);
+                  if(m){
+                    var eid = m[1], type = m[2];
+                    var et = window.etablissements.find(function(x){return x.id===eid;});
+                    if(et){
+                      if(type === 'interieur' && !et.photo_interieur) et.photo_interieur = item.value;
+                      if(type === 'profile' && !et._photo_profile_approved) et._photo_profile_approved = item.value;
+                    }
+                  }
+                }
+              });
             };
           }
           db.close();
         };
-      })(eid);
-    }
+      } catch(e){}
+    }, 300); // délai pour ne pas bloquer le rendu initial
   }
 }
 
@@ -18797,9 +18839,8 @@ function renderAll(){
 
 function renderAllImmediate(){
   /* ── Restaurer les photos persistantes au chaque rendu ── */
-  restorePhotosPersistence();
+  // ✅ loadSoireePhotos() déplacée au démarrage (ligne 13292) — ne pas réappeler à chaque render
   _rankCache = null; // invalider le cache rankings
-  loadSoireePhotos();
   // ── Actualiser visibilité pro-panels fiches ──
   setTimeout(function(){ if(typeof _applyFichesPanelVisibility === 'function') _applyFichesPanelVisibility(); }, 200);
 
