@@ -1,9 +1,9 @@
 /* ═══════════════════════════════════════════════════════════════════
-   AMBI241 — performance-optimize.js  (VERSION CORRIGÉE)
-   • Cache localStorage 5 min (inchangé, fonctionnait déjà)
-   • NOUVEAU : _countByType() — requête compteur ultra-rapide
-   • NOUVEAU : préchargement compteurs dès que Firebase est prêt
-   • Lazy loading images, débounce, throttle (inchangés)
+   AMBI241 — performance-optimize.js  (v3.0 — OPTIMISÉ)
+   ✅ Cache localStorage 5 min (partagé entre tous les modules)
+   ✅ _countByType() — seule requête compteur, résultat en cache
+   ✅ Préchargement AGRESSIF : compteurs + top du moment dès Firebase prêt
+   ✅ Lazy loading images, débounce, throttle
 ═══════════════════════════════════════════════════════════════════ */
 
 (function () {
@@ -12,12 +12,12 @@
   const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   // ─────────────────────────────────────────────────────────────
-  // CACHE LOCAL
+  // CACHE LOCAL (partagé entre tous les modules)
   // ─────────────────────────────────────────────────────────────
   window._getCachedData = function (key) {
-    const raw = localStorage.getItem(`ambi_cache_${key}`);
-    if (!raw) return null;
     try {
+      const raw = localStorage.getItem(`ambi_cache_${key}`);
+      if (!raw) return null;
       const { data, timestamp } = JSON.parse(raw);
       if (Date.now() - timestamp > CACHE_TTL) {
         localStorage.removeItem(`ambi_cache_${key}`);
@@ -39,7 +39,13 @@
       }));
       console.log(`💾 Cache SET: ${key}`);
     } catch (e) {
-      console.warn(`⚠️ Cache write error: ${e.message}`);
+      // localStorage plein : vider les plus vieux et réessayer
+      try {
+        Object.keys(localStorage)
+          .filter(k => k.startsWith('ambi_cache_'))
+          .forEach(k => localStorage.removeItem(k));
+        localStorage.setItem(`ambi_cache_${key}`, JSON.stringify({ data, timestamp: Date.now() }));
+      } catch { /* silencieux */ }
     }
   };
 
@@ -51,18 +57,18 @@
   };
 
   // ─────────────────────────────────────────────────────────────
-  // NOUVEAU : COMPTEUR RAPIDE PAR TYPE
-  // Utilise une seule requête pour tout compter d'un coup
+  // COMPTEUR RAPIDE PAR TYPE (UNE SEULE requête pour tout)
+  // Résultat mis en cache — accueil.js le lit sans refaire la requête
   // ─────────────────────────────────────────────────────────────
   window._countByType = async function () {
+    // ✅ Vérifier le cache d'abord → retour immédiat
+    const cached = window._getCachedData('count_by_type');
+    if (cached) return cached;
+
     if (!window.db || !window.fbGetDocs || !window.fbCollection) {
       console.warn('[Perf] Firebase non dispo pour _countByType');
       return {};
     }
-
-    const CACHE_KEY = 'count_by_type';
-    const cached = window._getCachedData(CACHE_KEY);
-    if (cached) return cached;
 
     try {
       const snap = await window.fbGetDocs(
@@ -73,7 +79,7 @@
         const t = (doc.data().type || 'autre').toLowerCase().trim();
         counts[t] = (counts[t] || 0) + 1;
       });
-      window._setCachedData(CACHE_KEY, counts);
+      window._setCachedData('count_by_type', counts);
       console.log('[Perf] ✅ _countByType :', counts);
       return counts;
     } catch (e) {
@@ -83,32 +89,79 @@
   };
 
   // ─────────────────────────────────────────────────────────────
-  // PRÉCHARGEMENT : lancer _countByType dès Firebase prêt
-  // Les données seront déjà en cache quand accueil.js en a besoin
+  // PRÉCHARGEMENT TOP DU MOMENT (fire & forget)
+  // Pré-cache les 6 premiers établissements pour accueil.js
   // ─────────────────────────────────────────────────────────────
-  function prefetchCounts() {
-    if (window.db && window.fbGetDocs) {
-      window._countByType(); // fire & forget — met en cache
-    } else {
-      window.addEventListener('firebaseInitialized', () => {
-        window._countByType();
-      }, { once: true });
+  window._prefetchTop = async function () {
+    // Déjà en cache ? Rien à faire
+    if (window._getCachedData('top_du_moment')) return;
+    if (!window.db || !window.fbGetDocs || !window.fbCollection) return;
+
+    try {
+      let snap;
+      if (window.fbQuery && window.fbOrderBy && window.fbLimit) {
+        snap = await window.fbGetDocs(
+          window.fbQuery(
+            window.fbCollection(window.db, 'etablissements'),
+            window.fbOrderBy('createdAt', 'desc'),
+            window.fbLimit(6)
+          )
+        );
+      } else {
+        snap = await window.fbGetDocs(
+          window.fbCollection(window.db, 'etablissements')
+        );
+      }
+
+      const items = [];
+      snap.forEach(doc => items.push({ id: doc.id, ...doc.data() }));
+      items.sort((a, b) => {
+        const ta = a.createdAt?.seconds || a.createdAt || 0;
+        const tb = b.createdAt?.seconds || b.createdAt || 0;
+        return tb - ta;
+      });
+
+      window._setCachedData('top_du_moment', items.slice(0, 6));
+      console.log('[Perf] ✅ Top du moment pré-caché');
+    } catch (e) {
+      console.warn('[Perf] ⚠️ _prefetchTop :', e.message);
     }
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // PRÉCHARGEMENT AGRESSIF : lance tout dès Firebase prêt
+  // Les données sont en cache AVANT que accueil.js les demande
+  // ─────────────────────────────────────────────────────────────
+  function startPrefetch() {
+    // Lancer en parallèle, sans bloquer l'UI
+    Promise.all([
+      window._countByType(),
+      window._prefetchTop()
+    ]).then(() => {
+      console.log('[Perf] ✅ Préchargement terminé — données en cache');
+      window.dispatchEvent(new CustomEvent('perfCacheReady'));
+    }).catch(e => console.warn('[Perf] Préchargement partiel :', e.message));
   }
-  prefetchCounts();
+
+  // Déclencher dès que Firebase est disponible
+  if (window.db && window.fbGetDocs) {
+    startPrefetch();
+  } else {
+    window.addEventListener('firebaseInitialized', startPrefetch, { once: true });
+  }
 
   // ─────────────────────────────────────────────────────────────
   // PAGINATION & LAZY LOADING établissements
   // ─────────────────────────────────────────────────────────────
   window._loadEtablissementsPaginated = async function (type = null, pageSize = 50) {
+    const cacheKey = `etabs_${type || 'all'}`;
+    const cached = window._getCachedData(cacheKey);
+    if (cached) return cached;
+
     if (!window.db || !window.fbGetDocs || !window.fbCollection) {
       console.warn('[Perf] Firebase not ready');
       return [];
     }
-
-    const cacheKey = `etabs_${type || 'all'}`;
-    const cached = window._getCachedData(cacheKey);
-    if (cached) return cached;
 
     try {
       let q = window.fbCollection(window.db, 'etablissements');
@@ -124,7 +177,7 @@
       snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
 
       window._setCachedData(cacheKey, data);
-      console.log(`[Perf] ✅ ${data.length} établissements chargés`);
+      console.log(`[Perf] ✅ ${data.length} établissements chargés (${type || 'tous'})`);
       return data;
     } catch (error) {
       console.error('[Perf] ❌ Chargement établissements :', error.message);
@@ -152,7 +205,7 @@
   };
 
   // ─────────────────────────────────────────────────────────────
-  // IMAGES : optimisation URL + lazy loading
+  // IMAGES : lazy loading
   // ─────────────────────────────────────────────────────────────
   window._getOptimizedImageURL = function (url, maxWidth = 400) {
     if (!url) return '';
@@ -222,7 +275,7 @@
     return stats;
   };
 
-  console.log('%c⚡ AMBI241 Performance Module Loaded', 'color: #00ffaa; font-weight: bold; font-size: 14px');
+  console.log('%c⚡ AMBI241 Performance v3.0 chargé', 'color: #00ffaa; font-weight: bold; font-size: 14px');
   window.PERF_LOADED = true;
 
 })();
