@@ -50,7 +50,18 @@
   }
 
   // ─────────────────────────────────────────────────────────────
-  // 2. CHARGER LES MODULES MÉTIER (en série, dans l'ordre)
+  // 2. CHARGER LE MODULE D'OPTIMISATION PERFORMANCE
+  // ─────────────────────────────────────────────────────────────
+  console.log('%c⚡ Optimisations...', 'color: #00ffaa');
+  try {
+    await import('./performance-optimize.js');
+    console.log('%c✅ Performance optimisé', 'color: #00ffaa');
+  } catch (err) {
+    console.warn('⚠️ Performance module optional');
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 3. CHARGER LES MODULES MÉTIER (en série, dans l'ordre)
   // ─────────────────────────────────────────────────────────────
   console.log('%c📦 Chargement des modules métier...', 'color: #ffd700');
 
