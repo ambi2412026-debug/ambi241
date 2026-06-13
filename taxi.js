@@ -549,7 +549,9 @@ function showTaxiNotification(msg) {
 }
 
 // Fermer modal au clic overlay
-document.addEventListener('DOMContentLoaded', () => {
+// PERF: en defer, DOMContentLoaded peut déjà être passé au moment de l'exécution
+// → on initialise immédiatement si le DOM est prêt, sinon on attend l'événement
+function _initTaxiFloatingModule() {
   const overlay = document.getElementById('taxiModalOverlay');
   overlay.addEventListener('click', e => {
     if(e.target === overlay) closeTaxiModal();
@@ -693,7 +695,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if(dragMoved) { e.stopPropagation(); e.preventDefault(); }
     }, true);
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _initTaxiFloatingModule);
+} else {
+  _initTaxiFloatingModule();
+}
 
 // ═══════════════════════════════════════════════════════════
 // GÉOLOCALISATION POINT DE DÉPART — BOUTON INTELLIGENT
@@ -2841,7 +2849,7 @@ function _showChauffeurAdminPanel() {
           +"<div style='font-weight:700;font-size:0.82rem;color:var(--text);display:flex;align-items:center;flex-wrap:wrap;gap:0.2rem;'>🚗 "+escHtml(d.pseudo)+idBadge+"</div>"
           +"<div style='font-size:0.65rem;color:var(--muted);'>"+escHtml(d.email)+"</div>"
           +"<div style='font-size:0.6rem;color:"+badgeColor+";margin-top:0.1rem;'>"+badgeLabel+"</div>"
-          +(dIdDoc&&dIdDoc.data ? "<div style='margin-top:0.4rem;'><img src='"+dIdDoc.data+"' style='width:100%;max-height:60px;object-fit:cover;border-radius:6px;filter:blur(2px);cursor:pointer;' onclick='this.style.filter=\"none\"' title='Cliquer pour voir' loading="lazy"></div>" : "")
+          +(dIdDoc&&dIdDoc.data ? "<div style='margin-top:0.4rem;'><img src='"+dIdDoc.data+"' style='width:100%;max-height:60px;object-fit:cover;border-radius:6px;filter:blur(2px);cursor:pointer;' onclick='this.style.filter=\"none\"' title='Cliquer pour voir' loading='lazy'></div>" : "")
           +"</div>"
           +"<div style='display:flex;flex-direction:column;gap:0.25rem;flex-shrink:0;'>"
           +(d.status!=='approved' ? "<button onclick=\"adminDesignDriver('"+escHtml(d.uid)+"','"+escHtml(d.email)+"','"+escHtml(d.pseudo)+"','','"+escHtml(d.phone||d.tel||'')+"')\" style='background:rgba(0,255,170,0.12);border:1px solid rgba(0,255,170,0.3);color:var(--green);font-size:0.62rem;font-weight:700;padding:0.22rem 0.5rem;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;'>✅ Approuver</button>" : "")
