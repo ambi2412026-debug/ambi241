@@ -213,9 +213,9 @@ function loadTaxiContacts() {
       : '';
     var ratingHtml = c.rating ? `⭐ ${Number(c.rating).toFixed(1)}` : '';
     var avatarHtml = c.photo
-      ? `<img src="${c.photo}" style="width:46px;height:46px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid rgba(0,255,170,0.35);" onerror="this.outerHTML='<div style=\\'width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#ff2d9b,#ff8800);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1rem;color:#000;flex-shrink:0;\\'>${initials}</div>'">`
+      ? `<img src="${c.photo}" style="width:46px;height:46px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid rgba(0,255,170,0.35);" loading="lazy" onerror="this.outerHTML='<div style=\\'width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#ff2d9b,#ff8800);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1rem;color:#000;flex-shrink:0;\\'>${initials}</div>'">`
       : (getAdminDefaultPhotoForDriver()
-          ? `<img src="${getAdminDefaultPhotoForDriver()}" style="width:46px;height:46px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid rgba(0,255,170,0.35);" onerror="this.outerHTML='<div style=\\'width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#9D84FF,#ff8800);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1rem;color:#000;flex-shrink:0;\\'>${initials}</div>'">`
+          ? `<img src="${getAdminDefaultPhotoForDriver()}" style="width:46px;height:46px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid rgba(0,255,170,0.35);" loading="lazy" onerror="this.outerHTML='<div style=\\'width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#9D84FF,#ff8800);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1rem;color:#000;flex-shrink:0;\\'>${initials}</div>'">`
           : `<div style="width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#9D84FF,#ff8800);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1rem;color:#000;flex-shrink:0;position:relative;">${initials}<span class="taxi-online-dot" style="position:absolute;bottom:0;right:0;width:12px;height:12px;border:2px solid var(--surface);"></span></div>`);
 
     var safePhone = (c.phone||'').replace(/['"]/g,'');
@@ -448,7 +448,7 @@ function loadAdminContacts() {
     const photoBlock = isIndividual ? `
       <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
         ${contact.photo
-          ? `<img src="${contact.photo}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;border:1.5px solid var(--taxi-gold);" alt="photo">`
+          ? `<img src="${contact.photo}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;border:1.5px solid var(--taxi-gold);" alt="photo" loading="lazy">`
           : `<div style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#9D84FF,#7C5FE8);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#1a0018;">${initials}</div>`}
         <label style="font-size:11px;color:var(--cyan);cursor:pointer;">📷 Photo
           <input type="file" accept="image/*" style="display:none;" onchange="uploadDriverPhoto(${idx},this)">
@@ -800,9 +800,9 @@ function showDriverProfile(encodedPhone) {
   }
 
   var avatarBlock = c.photo
-    ? `<img src="${escHtml(c.photo)}" class="taxi-profile-avatar" onerror="this.outerHTML='<div class=\\'taxi-profile-avatar\\'>${initials}</div>'">`
+    ? `<img src="${escHtml(c.photo)}" class="taxi-profile-avatar" loading="lazy" onerror="this.outerHTML='<div class=\\'taxi-profile-avatar\\'>${initials}</div>'">`
     : (getAdminDefaultPhotoForDriver()
-        ? `<img src="${getAdminDefaultPhotoForDriver()}" class="taxi-profile-avatar" onerror="this.outerHTML='<div class=\\'taxi-profile-avatar\\'>${initials}</div>'">`
+        ? `<img src="${getAdminDefaultPhotoForDriver()}" class="taxi-profile-avatar" loading="lazy" onerror="this.outerHTML='<div class=\\'taxi-profile-avatar\\'>${initials}</div>'">`
         : `<div class="taxi-profile-avatar">${initials}</div>`);
 
   var overlay = document.createElement('div');
@@ -2202,7 +2202,7 @@ function _showChauffeurBoard(driver) {
     }).catch(function(){});
   }
   var avatarHtml = myPhotoB64
-    ? '<img id="_chauffAvatar_'+myUid+'" src="'+myPhotoB64+'" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2.5px solid var(--amber);">'
+    ? '<img id="_chauffAvatar_'+myUid+'" src="'+myPhotoB64+'" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2.5px solid var(--amber);" loading="lazy">'
     : '<div style="width:56px;height:56px;border-radius:50%;background:rgba(157,132,255,0.15);border:2px solid rgba(157,132,255,0.4);display:flex;align-items:center;justify-content:center;font-size:1.6rem;">🚗</div>';
 
   // ── Commandes en attente ──
@@ -2829,7 +2829,7 @@ function _showChauffeurAdminPanel() {
         var dPhoto = d.photoURL || d.photo || ''; if(!dPhoto){ try { dPhoto = localStorage.getItem('ambi241_photo_'+d.uid)||''; } catch(e){} }
         var dIdDoc = null; try { var raw2=localStorage.getItem('ambi241_idDoc_'+d.uid); if(raw2) dIdDoc=JSON.parse(raw2); } catch(e){}
         var avatarAdm = dPhoto
-          ? '<img src="'+dPhoto+'" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid '+badgeColor+';flex-shrink:0;">'
+          ? '<img src="'+dPhoto+'" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid '+badgeColor+';flex-shrink:0;" loading="lazy">'
           : '<div style="width:36px;height:36px;border-radius:50%;background:rgba(157,132,255,0.15);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">🚗</div>';
         var idBadge = dIdDoc
           ? '<span style="font-size:0.55rem;background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.25);color:var(--cyan);border-radius:4px;padding:0.07rem 0.3rem;margin-left:0.25rem;">'+(dIdDoc.type==='passeport'?'🛂':'🪪')+(dIdDoc.verified?' ✅':' ⏳')+'</span>'
@@ -2841,7 +2841,7 @@ function _showChauffeurAdminPanel() {
           +"<div style='font-weight:700;font-size:0.82rem;color:var(--text);display:flex;align-items:center;flex-wrap:wrap;gap:0.2rem;'>🚗 "+escHtml(d.pseudo)+idBadge+"</div>"
           +"<div style='font-size:0.65rem;color:var(--muted);'>"+escHtml(d.email)+"</div>"
           +"<div style='font-size:0.6rem;color:"+badgeColor+";margin-top:0.1rem;'>"+badgeLabel+"</div>"
-          +(dIdDoc&&dIdDoc.data ? "<div style='margin-top:0.4rem;'><img src='"+dIdDoc.data+"' style='width:100%;max-height:60px;object-fit:cover;border-radius:6px;filter:blur(2px);cursor:pointer;' onclick='this.style.filter=\"none\"' title='Cliquer pour voir'></div>" : "")
+          +(dIdDoc&&dIdDoc.data ? "<div style='margin-top:0.4rem;'><img src='"+dIdDoc.data+"' style='width:100%;max-height:60px;object-fit:cover;border-radius:6px;filter:blur(2px);cursor:pointer;' onclick='this.style.filter=\"none\"' title='Cliquer pour voir' loading="lazy"></div>" : "")
           +"</div>"
           +"<div style='display:flex;flex-direction:column;gap:0.25rem;flex-shrink:0;'>"
           +(d.status!=='approved' ? "<button onclick=\"adminDesignDriver('"+escHtml(d.uid)+"','"+escHtml(d.email)+"','"+escHtml(d.pseudo)+"','','"+escHtml(d.phone||d.tel||'')+"')\" style='background:rgba(0,255,170,0.12);border:1px solid rgba(0,255,170,0.3);color:var(--green);font-size:0.62rem;font-weight:700;padding:0.22rem 0.5rem;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;'>✅ Approuver</button>" : "")
@@ -3348,9 +3348,9 @@ function taxiProRenderDriversList() {
     const initials = d.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
     const driverDefaultPhoto = getAdminDefaultPhotoForDriver();
     const avatarHtml = d.photo
-      ? `<img src="${d.photo}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid var(--taxi-gold,#9D84FF);flex-shrink:0;" onerror="this.outerHTML='<div class=\\'taxi-driver-avatar\\'>${initials}</div>'">`
+      ? `<img src="${d.photo}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid var(--taxi-gold,#9D84FF);flex-shrink:0;" loading="lazy" onerror="this.outerHTML='<div class=\\'taxi-driver-avatar\\'>${initials}</div>'">`
       : (driverDefaultPhoto
-          ? `<img src="${driverDefaultPhoto}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid var(--taxi-gold,#9D84FF);flex-shrink:0;" onerror="this.outerHTML='<div class=\\'taxi-driver-avatar\\'>${initials}</div>'">`
+          ? `<img src="${driverDefaultPhoto}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid var(--taxi-gold,#9D84FF);flex-shrink:0;" loading="lazy" onerror="this.outerHTML='<div class=\\'taxi-driver-avatar\\'>${initials}</div>'">`
           : `<div class="taxi-driver-avatar">${initials}</div>`);
     const ratingHtml = d.rating ? ` • ⭐ ${d.rating}` : '';
     const safeId = encodeURIComponent(d.id);
@@ -4146,7 +4146,7 @@ function openMyProfileModal(userId) {
     const gallery = document.getElementById('profileGalleryGrid');
     gallery.innerHTML = user.idPhotos.map((photo, idx) => `
       <div class="profile-gallery-item ${photo.verified ? 'verified' : ''}" onclick="removeGalleryPhoto(${idx})">
-        <img src="${photo.data}" alt="Photo identite">
+        <img src="${photo.data}" alt="Photo identite" loading="lazy">
       </div>
     `).join('');
   } else {
@@ -4501,8 +4501,6 @@ function getCurrentUser() {
 // Note: isAdmin() function removed — use the global variable `isAdmin` (boolean) instead
 // The function was conflicting with the global var isAdmin=false; defined earlier
 
-console.log('✅ Profil & Taxi Pro charges');
-
 
 // ════════════════════════════════════════════════════════════════
 // RÉINITIALISATION MOT DE PASSE — nettoyé (v2)
@@ -4511,7 +4509,6 @@ console.log('✅ Profil & Taxi Pro charges');
 // Fonctions openPasswordResetModal / sendPasswordReset supprimées
 // (modal #resetPasswordModal inexistant — dead code retiré)
 // ════════════════════════════════════════════════════════════════
-console.log('[AMBI241] ✅ Mot de passe oublié — Firebase Email + Ticket Téléphone actifs');
 
 
 
@@ -4760,8 +4757,6 @@ function redirectToTaxiProDashboard(token, action) {
   if (driver) {
     // Ouvrir le profil/dashboard du chauffeur
     openTaxiProDashboardForDriver(driver.id, action, token);
-    
-    console.log(`✅ Redirection Taxi Pro Dashboard: ${action}`);
   }
 }
 
@@ -4812,8 +4807,6 @@ function checkOrderValidationLink() {
 
 // Appeler au chargement de la page
 window.addEventListener('load', checkOrderValidationLink);
-
-console.log('✅ Système de commandes WhatsApp complet chargé');
 
 
 
@@ -5097,8 +5090,6 @@ function loadTransactionHistoryFromStorage() {
     if (adminLogsStr) {
       window.adminLogs = JSON.parse(adminLogsStr);
     }
-    
-    console.log('✅ Historique des transactions chargé depuis localStorage');
   } catch (e) {
     console.warn('⚠️ Erreur chargement historique:', e);
   }
@@ -5107,4 +5098,4 @@ function loadTransactionHistoryFromStorage() {
 // Charger au démarrage
 window.addEventListener('load', loadTransactionHistoryFromStorage);
 
-console.log("✅ Système d'historique des transactions chargé");
+
