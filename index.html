@@ -40671,12 +40671,21 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
     var ts = Date.now();
     var pubId = 'sp_new_'+ts;
 
+    // ── Extraire les URLs photos AVANT de construire pubData ──
+    var photoEls = document.querySelectorAll('#socPubMediaPreview > div:not(#socPubVideoPreviewDiv):not(#socPubGifPreviewItem)');
+    var photoURLsToSave = [];
+    photoEls.forEach(function(el){
+      var img = el.querySelector('img');
+      if(img && img.src && img.src.length > 10) photoURLsToSave.push(img.src);
+    });
+
     // Construire objet publication
     var pubData = {
       id: pubId,
       type: _spState.type,
       mood: _spState.mood,
       visibility: _spState.visibility,
+      texte: text,
       text: text,
       mentions: _spState.mentions,
       etab: etabVal,
@@ -40684,7 +40693,13 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       location: _spState.location,
       gifUrl: _spState.gifUrl || null,
       hasVideo: !!_spState.videoPreviewUrl,
+      videoURL: _spState.videoPreviewUrl || null,
+      photos: photoURLsToSave,
+      photoURLs: photoURLsToSave,
       author: pseudo,
+      pseudo: pseudo,
+      auteur: pseudo,
+      uid: uid,
       authorUid: uid,
       authorLetter: letter,
       timestamp: ts,
@@ -40702,7 +40717,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
 
     // Construire le HTML feed
     var mediaHtml = '';
-    var imgs = document.querySelectorAll('#socPubMediaPreview img:not([style*="height:100"])'); // hack: photos uniquement
     // Preview vidéo
     if(_spState.videoPreviewUrl) {
       mediaHtml += '<div style="border-radius:12px;overflow:hidden;margin:0.6rem 0;border:1.5px solid rgba(0,229,255,0.25);">'
@@ -40713,7 +40727,6 @@ console.log('[AMBI241] ✅ Admin Social Media Manager chargé');
       mediaHtml += '<div style="border-radius:12px;overflow:hidden;margin:0.6rem 0;"><img src="'+_spState.gifUrl+'" style="width:100%;max-height:200px;object-fit:cover;display:block;"></div>';
     }
     // Photos
-    var photoEls = document.querySelectorAll('#socPubMediaPreview > div:not(#socPubVideoPreviewDiv):not(#socPubGifPreviewItem)');
     if(photoEls.length) {
       var cols = photoEls.length===1?'1fr':(photoEls.length===2?'1fr 1fr':'1fr 1fr 1fr');
       mediaHtml += '<div style="display:grid;grid-template-columns:'+cols+';gap:4px;margin:0.6rem 0;border-radius:12px;overflow:hidden;">';
@@ -42036,8 +42049,14 @@ console.log('[AMBI241] ✅ Module publication & live chargé v2');
         +'<video src="'+_esc(p.video||p.videoURL)+'" controls style="width:100%;max-height:240px;display:block;background:#000;" playsinline></video></div>';
     }
 
+    // GIF
+    if(p.gifUrl && !photoHtml && !videoHtml){
+      photoHtml = '<div style="border-radius:12px;overflow:hidden;margin:0.6rem 0;"><img src="'+_esc(p.gifUrl)+'" style="width:100%;max-height:200px;object-fit:cover;display:block;" loading="lazy"></div>';
+    }
+
     // Établissement
-    var etabHtml = p.etab ? '<div style="display:inline-flex;align-items:center;gap:0.3rem;background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.18);border-radius:8px;padding:0.2rem 0.5rem;font-size:0.65rem;color:var(--cyan);margin:0.3rem 0 0.5rem;">📍 '+_esc(p.etab)+'</div>' : '';
+    var etabLabel = p.etabName || p.etab || '';
+    var etabHtml = etabLabel ? '<div style="display:inline-flex;align-items:center;gap:0.3rem;background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.18);border-radius:8px;padding:0.2rem 0.5rem;font-size:0.65rem;color:var(--cyan);margin:0.3rem 0 0.5rem;">📍 '+_esc(etabLabel)+'</div>' : '';
 
     // Mood
     var moodHtml = mood ? '<span style="background:rgba(255,45,155,0.12);border:1px solid rgba(255,45,155,0.22);border-radius:6px;font-size:0.62rem;padding:1px 6px;margin-left:0.3rem;">'+_esc(mood)+'</span>' : '';
