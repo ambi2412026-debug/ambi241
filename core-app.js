@@ -12541,12 +12541,9 @@ function switchAdmTab(tab){
         panel.style.overflow="";
       } else {
         panel.style.display="none";
-        // Fix bouton "Lancer la recherche Google Maps" fantôme sur Android
-        if(t==="importgmaps"){
-          panel.style.visibility="hidden";
-          panel.style.height="0";
-          panel.style.overflow="hidden";
-        }
+        panel.style.visibility="";
+        panel.style.height="";
+        panel.style.overflow="";
       }
     }
   });
