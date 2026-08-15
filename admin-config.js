@@ -9,7 +9,6 @@
 // La Firebase API Key est PUBLIQUE par design (sécurité = Firestore Rules)
 // Voir : https://firebase.google.com/docs/projects/api-keys
 const FIREBASE_CONFIG = {
-const FIREBASE_CONFIG = {
   apiKey: "AIzaSyCx3hD28Lb9EtUrawHbTnM-6vmXdgO1ABw",
   authDomain: "ambi241.firebaseapp.com",
   projectId: "ambi241",
