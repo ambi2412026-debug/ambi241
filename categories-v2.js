@@ -16,7 +16,6 @@ var CATEGORIES = [
   { key:"Restaurant",    label:"Restaurant, Café et Maquis",   icon:"🍽️", badge:"cb-resto"    },
   { key:"Bar Terrasse",  label:"Bar Terrasse et Rooftop",      icon:"🏖️", badge:"cb-roof"     },
   { key:"Snack",         label:"Snack & Fast-Food",            icon:"🍟",  badge:"cb-snack"    },
-  { key:"Hotel",         label:"Hôtel / Motel",                icon:"🏨",  badge:"cb-hotel"    },
   { key:"Stade",         label:"Stade de Football",            icon:"⚽",  badge:"cb-stade"    },
   /* ── nouvelles / séparées V2 ── */
   { key:"Patisserie",      label:"Pâtisseries & Boulangeries",   icon:"🎂", badge:"cb-patiss"    },
@@ -35,8 +34,6 @@ function getCategory(type) {
 
   /* Correspondances exactes (priorité absolue) */
   var exact = {
-    /* Hôtels */
-    "hotel":"Hotel","hôtel":"Hotel","motel":"Hotel",
     /* Discos */
     "discotheque":"Discotheque","discothèque":"Discotheque",
     "nightclub":"Discotheque","night club":"Discotheque",
@@ -82,8 +79,6 @@ function getCategory(type) {
   if (exact[t]) return exact[t];
 
   /* Règles par mots-clés (ordre décroissant de spécificité) */
-  if (/h[oô]tel\s*\d|\d\s*[eé]toile|palace hotel|h[oô]tel\s*(suites|resort|lodge|inn|plaza)/.test(t)) return "Hotel";
-  if (/h[oô]tel|motel|r[eé]sidence|resort|lodge/.test(t)) return "Hotel";
   if (/disco|nightclub|night club/.test(t)) return "Discotheque";
   if (/club/.test(t) && !/bar|snack/.test(t)) return "Discotheque";
   if (/terrasse|rooftop/.test(t)) return "Bar Terrasse";
@@ -120,7 +115,6 @@ window.getCatInfo = getCatInfo;
 if (typeof window !== "undefined") {
   /* Sera disponible dès que bppRender() s'exécute */
   window._CAT_META_V2 = {
-    'Hotel':           { icon:'🏨', color:'#00d9ff', label:'Hôtels & Motels'               },
     'Bar':             { icon:'🍺', color:'#ff1493', label:'Bars & Lounges'                 },
     'Bar Terrasse':    { icon:'🏖️',color:'#4fc3f7', label:'Bar Terrasses & Rooftops'       },
     'Snack':           { icon:'🍟', color:'#ffca28', label:'Snacks & Fast-food'              },
@@ -135,7 +129,7 @@ if (typeof window !== "undefined") {
     'Monument':        { icon:'🏛️',color:'#d4a853', label:'Monuments Historiques'          }
   };
   window._CAT_ORDER_V2 = [
-    'Hotel','Bar','Bar Terrasse','Snack','Restaurant','Discotheque',
+    'Bar','Bar Terrasse','Snack','Restaurant','Discotheque',
     'Patisserie','Salle Ceremonie','Salle Spectacle','Stade','Site Naturel','Monument'
   ];
 }
@@ -148,7 +142,7 @@ if (typeof window !== "undefined") {
    ──────────────────────────────────────────────────────────────── */
 window.CATEGORY_CLASSES_V2 = {
   "Bar":"bar","Discotheque":"club","Restaurant":"restaurant",
-  "Bar Terrasse":"terrasse","Snack":"snack","Hotel":"hotel",
+  "Bar Terrasse":"terrasse","Snack":"snack",
   "Stade":"stade",
   /* V2 */
   "Patisserie":"patisserie","Salle Ceremonie":"salle-cer",
@@ -156,7 +150,7 @@ window.CATEGORY_CLASSES_V2 = {
 };
 window.CATEGORY_LABELS_V2 = {
   "Bar":"BAR","Discotheque":"CLUBS","Restaurant":"RESTOS & CAFÉS",
-  "Bar Terrasse":"TERRASSE","Snack":"SNACKS","Hotel":"HÔTELS",
+  "Bar Terrasse":"TERRASSE","Snack":"SNACKS",
   "Stade":"STADES FOOT",
   /* V2 */
   "Patisserie":"PÂTISSERIES","Salle Ceremonie":"SALLES CÉRÉM.",
@@ -164,7 +158,7 @@ window.CATEGORY_LABELS_V2 = {
 };
 window.CATEGORY_ICONS_V2 = {
   "Bar":"🍺","Discotheque":"🎵","Restaurant":"🍽️",
-  "Bar Terrasse":"🏖️","Snack":"🍟","Hotel":"🏨",
+  "Bar Terrasse":"🏖️","Snack":"🍟",
   "Stade":"⚽",
   /* V2 */
   "Patisserie":"🎂","Salle Ceremonie":"💍",

@@ -95,27 +95,6 @@
       }
     },
 
-    /* ── HÔTEL ──────────────────────────────────────────────── */
-    Hotel: {
-      key:      'Hotel',
-      aliases:  ['hotel', 'hôtel', 'motel', 'guesthouse', 'résidence', 'residence', 'auberge', 'lodge'],
-      label:    'Hôtel',
-      icon:     '🏨',
-      color:    '#00d9ff',
-      colorRgb: '0,217,255',
-      badge:    'cb-hotel',
-      sections: ['description','affluence','chambres_dispo','etoiles','services','tarif','contacts','galerie','presences','votes','commentaires'],
-      fields: {
-        etoiles:       { label: 'Classement',        emoji: '⭐', type: 'select', options: ['Non classé', '1★', '2★', '3★', '4★', '5★'] },
-        chambres_dispo:{ label: 'Chambres dispo',    emoji: '🛏️', type: 'number', placeholder: 'Nombre de chambres libres' },
-        tarif_nuit:    { label: 'Tarif/nuit (XAF)',  emoji: '💰', type: 'number', placeholder: 'Prix minimum par nuit' },
-        piscine:       { label: 'Piscine',            emoji: '🏊', type: 'bool'   },
-        parking:       { label: 'Parking',            emoji: '🅿️', type: 'bool'   },
-        wifi:          { label: 'Wi-Fi',              emoji: '📶', type: 'bool'   },
-        restaurant_hotel:{ label: 'Restaurant intégré', emoji: '🍽️', type: 'bool' }
-      }
-    },
-
     /* ── SALLE DE FÊTE / CÉRÉMONIE ──────────────────────────── */
     Salle: {
       key:      'Salle',
@@ -305,7 +284,6 @@
    *   - Bar       → happy hour, genre musical, terrasse
    *   - Restaurant→ type cuisine, menu du jour, livraison
    *   - Disco     → DJ, thème, dress code
-   *   - Hôtel     → étoiles, chambres, services
    *   - Salle     → événement, capacité, équipements
    *   - Stade     → match, score, prochain match
    *   - Tourisme  → horaires, tarif, guide
@@ -391,30 +369,6 @@
         }
         if (pd.vip_table || e.vip_table) {
           html += _boolBadge('⭐', 'Tables VIP disponibles', rgb);
-        }
-        break;
-
-      /* ── HOTEL ── */
-      case 'Hotel':
-        if (e.etoiles || pd.etoiles) {
-          html += _starRating(e.etoiles || pd.etoiles, rgb);
-        }
-        if (pd.chambres_dispo != null || e.places_dispo != null) {
-          var ch = pd.chambres_dispo != null ? pd.chambres_dispo : e.places_dispo;
-          html += _availBadge(ch, 'chambre', rgb);
-        }
-        if (pd.tarif_nuit || e.tarif_nuit) {
-          html += _infoRow('💰', 'À partir de', _fmt_xaf(pd.tarif_nuit || e.tarif_nuit) + '/nuit', rgb);
-        }
-        html += _servicePills([
-          pd.piscine      && { icon: '🏊', label: 'Piscine' },
-          pd.parking      && { icon: '🅿️', label: 'Parking' },
-          pd.wifi         && { icon: '📶', label: 'Wi-Fi' },
-          pd.restaurant_hotel && { icon: '🍽️', label: 'Restaurant' }
-        ], rgb);
-        if (e.description) {
-          html += '<p style="font-size:0.68rem;color:rgba(255,240,248,0.6);line-height:1.55;margin-top:0.4rem;">'
-            + _esc(e.description) + '</p>';
         }
         break;
 
@@ -861,7 +815,6 @@
 .cb-bar           { background: rgba(255,20,147,0.12)  !important; color: #ff1493  !important; border-color: rgba(255,20,147,0.3)  !important; }
 .cb-resto         { background: rgba(255,149,0,0.12)   !important; color: #ff9500  !important; border-color: rgba(255,149,0,0.3)   !important; }
 .cb-club          { background: rgba(204,68,255,0.12)  !important; color: #cc44ff  !important; border-color: rgba(204,68,255,0.3)  !important; }
-.cb-hotel         { background: rgba(0,217,255,0.12)   !important; color: #00d9ff  !important; border-color: rgba(0,217,255,0.3)   !important; }
 .cb-salle         { background: rgba(255,0,110,0.12)   !important; color: #ff006e  !important; border-color: rgba(255,0,110,0.3)   !important; }
 .cb-stade         { background: rgba(0,255,170,0.12)   !important; color: #00ffaa  !important; border-color: rgba(0,255,170,0.3)   !important; }
 .cb-tourisme      { background: rgba(255,215,0,0.12)   !important; color: #ffd700  !important; border-color: rgba(255,215,0,0.3)   !important; }

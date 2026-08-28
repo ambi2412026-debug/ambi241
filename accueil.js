@@ -13,7 +13,6 @@
   // ─────────────────────────────────────────────────────────────
   const CATEGORIES = [
     { type: 'bar',        labels: ['bar','bars'] },
-    { type: 'hotel',      labels: ['hotel','hôtel','hotels','hôtels','motel','motels'] },
     { type: 'snack',      labels: ['snack','snacks','fast-food','fastfood'] },
     { type: 'restaurant', labels: ['restaurant','restaurants','resto','restos','pâtisserie','patisserie'] },
     { type: 'boite',      labels: ['boite','boîte','nightclub','club','discothèque','discotheque'] },
@@ -65,7 +64,7 @@
 
   // ─────────────────────────────────────────────────────────────
   // APPLIQUER les chiffres dans le DOM
-  // rawCounts = { bar: 3, hotel: 2, ... } (clés brutes Firestore)
+  // rawCounts = { bar: 3, snack: 2, ... } (clés brutes Firestore)
   // ─────────────────────────────────────────────────────────────
   function applyCompteurs(rawCounts) {
     CATEGORIES.forEach(({ type, labels }) => {
