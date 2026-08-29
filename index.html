@@ -10900,19 +10900,33 @@ window._livePresences = {};  // { eid: { count: N, users: [...] } }
 window._liveVotes     = {};  // { eid: { pos: N, neg: N, myVote: null|'pos'|'neg' } }
 window._liveRatings   = {};  // { eid: { note: X.X, avis: N } }
 
-var _presUnsubs  = {}; // unsubscribe map pour présences
-var _voteUnsubs  = {}; // unsubscribe map pour votes
-var _rateUnsubs  = {}; // unsubscribe map pour ratings
+var _presUnsubs  = {}; // interval id map pour présences (ex-unsubscribe map onSnapshot)
+var _voteUnsubs  = {}; // interval id map pour votes
+var _rateUnsubs  = {}; // interval id map pour ratings
 
-// ── Abonner un établissement à ses flux Firestore ────────────
+/* ══ QUOTA-FIX ═══════════════════════════════════════════════════
+   Avant : onSnapshot() sur chaque sous-collection (presences/votes/
+   ratings) relisait TOUTE la sous-collection à chaque écriture faite
+   par N'IMPORTE QUEL visiteur, pour CHAQUE carte ouverte par CHAQUE
+   visiteur → effet boule de neige qui épuise le quota de lectures
+   Firestore en quelques heures.
+   Après : un simple getDocs() relancé toutes les POLL_MS millisecondes
+   par carte. Même traitement, mêmes variables de sortie
+   (window._livePresences / _liveVotes / _liveRatings), donc aucune
+   fonction d'affichage en aval n'a besoin de changer. Le nombre de
+   lectures devient prévisible et borné (cartes affichées × 3 ×
+   fréquence), au lieu de dépendre du trafic de tous les visiteurs. */
+var _QUOTA_FIX_POLL_MS = 45000; // 45s — à ajuster si besoin (60000 = encore plus économe)
+
+// ── Abonner un établissement à ses flux Firestore (polling) ──
 function _subscribeEtab(eid) {
   var eidStr = String(eid);
 
   // ── Présences (sous-collection) ──────────────────────────────
   if (!_presUnsubs[eidStr]) {
-    try {
+    var fetchPresences = function() {
       var presCol = collection(db, "etablissements", eidStr, "presences");
-      _presUnsubs[eidStr] = onSnapshot(presCol, function(snap) {
+      getDocs(presCol).then(function(snap) {
         var now = Date.now();
         var TTL = 3 * 3600 * 1000;
         var users = [];
@@ -10925,15 +10939,17 @@ function _subscribeEtab(eid) {
         window._livePresences[eidStr] = { count: users.length, users: users };
         _patchCardPresence(eid);
         _updateRankScoreLive();
-      }, function() {});
-    } catch(e) {}
+      }).catch(function() {});
+    };
+    fetchPresences(); // premier chargement immédiat (pas d'attente de 45s)
+    _presUnsubs[eidStr] = setInterval(fetchPresences, _QUOTA_FIX_POLL_MS);
   }
 
   // ── Votes (sous-collection) ──────────────────────────────────
   if (!_voteUnsubs[eidStr]) {
-    try {
+    var fetchVotes = function() {
       var voteCol = collection(db, "etablissements", eidStr, "votes");
-      _voteUnsubs[eidStr] = onSnapshot(voteCol, function(snap) {
+      getDocs(voteCol).then(function(snap) {
         var pos = 0, neg = 0, myVote = null;
         var myUid = window.currentUserUID || null;
         snap.forEach(function(d) {
@@ -10945,15 +10961,17 @@ function _subscribeEtab(eid) {
         window._liveVotes[eidStr] = { pos: pos, neg: neg, myVote: myVote };
         _patchCardVotes(eid);
         _updateRankScoreLive();
-      }, function() {});
-    } catch(e) {}
+      }).catch(function() {});
+    };
+    fetchVotes();
+    _voteUnsubs[eidStr] = setInterval(fetchVotes, _QUOTA_FIX_POLL_MS);
   }
 
   // ── Ratings / Notes (sous-collection "ratings") ──────────────
   if (!_rateUnsubs[eidStr]) {
-    try {
+    var fetchRatings = function() {
       var rateCol = collection(db, "etablissements", eidStr, "ratings");
-      _rateUnsubs[eidStr] = onSnapshot(rateCol, function(snap) {
+      getDocs(rateCol).then(function(snap) {
         var total = 0, count = 0;
         snap.forEach(function(d) {
           var r = d.data().rating;
@@ -10969,8 +10987,10 @@ function _subscribeEtab(eid) {
         }
         _patchCardRating(eid);
         _updateRankScoreLive();
-      }, function() {});
-    } catch(e) {}
+      }).catch(function() {});
+    };
+    fetchRatings();
+    _rateUnsubs[eidStr] = setInterval(fetchRatings, _QUOTA_FIX_POLL_MS);
   }
 }
 
@@ -49929,7 +49949,7 @@ import { getDatabase, ref as rtdbRef, set as rtdbSet, remove as rtdbRemove,
          onValue, onDisconnect, serverTimestamp as rtdbServerTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.1/firebase-database.js';
 
-import { collection, doc, setDoc, deleteDoc, onSnapshot,
+import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocs,
          serverTimestamp as fsServerTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js';
 
@@ -50056,28 +50076,42 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot,
       setDoc(sesRef, _sessionMeta()).catch(function(){});
     }, HEARTBEAT_MS);
 
-    /* Listener onSnapshot temps réel */
+    /* ══ QUOTA-FIX ═══════════════════════════════════════════════
+       Avant : onSnapshot() sur TOUTE la collection "sessions" —
+       comme Realtime Database n'est pas activé sur ce projet, ce
+       mode de secours Firestore est celui qui tourne EN PERMANENCE
+       pour chaque visiteur. Chaque heartbeat (toutes les 45s) de
+       CHAQUE onglet ouvert déclenchait une relecture de la collection
+       entière pour TOUS les autres onglets ouverts → même effet
+       boule de neige que pour les établissements.
+       Après : un getDocs() relancé toutes les POLL_MS, avec le même
+       traitement et le même appel à _updateCounter(). */
+    var SESSIONS_POLL_MS = 45000; // 45s — aligné sur le heartbeat
     try {
       var colRef = collection(fsDb, FS_COLLECTION);
-      _unsub = onSnapshot(colRef, function (snap) {
-        var now   = Date.now();
-        var count = 0;
-        var sessions = [];
-        snap.forEach(function (d) {
-          var data = d.data();
-          /* Filtre TTL côté client : session considérée morte si ts > 90s */
-          if (data && data.online && (now - (data.ts || 0)) < SESSION_TTL_MS) {
-            count++;
-            sessions.push({ sid: d.id, pseudo: data.pseudo, role: data.role,
-                            device: data.device, ts: data.ts, uid: data.uid });
-          }
+      var fetchSessions = function() {
+        getDocs(colRef).then(function (snap) {
+          var now   = Date.now();
+          var count = 0;
+          var sessions = [];
+          snap.forEach(function (d) {
+            var data = d.data();
+            /* Filtre TTL côté client : session considérée morte si ts > 90s */
+            if (data && data.online && (now - (data.ts || 0)) < SESSION_TTL_MS) {
+              count++;
+              sessions.push({ sid: d.id, pseudo: data.pseudo, role: data.role,
+                              device: data.device, ts: data.ts, uid: data.uid });
+            }
+          });
+          _updateCounter(count, sessions, 'firestore');
+        }).catch(function(e) {
+          console.warn('[AMBI241] getDocs sessions error:', e.code);
+          /* Permissions manquantes : fallback sur comptage _livePresences */
+          _fallbackCount();
         });
-        _updateCounter(count, sessions, 'firestore');
-      }, function(e) {
-        console.warn('[AMBI241] onSnapshot sessions error:', e.code);
-        /* Permissions manquantes : fallback sur comptage _livePresences */
-        _fallbackCount();
-      });
+      };
+      fetchSessions(); // premier chargement immédiat
+      _unsub = setInterval(fetchSessions, SESSIONS_POLL_MS);
     } catch(e) {
       _fallbackCount();
     }
