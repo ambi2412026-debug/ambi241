@@ -2805,7 +2805,6 @@ function renderHomeImmediate(){
   var typesEl = document.getElementById("typesGrid");
   if(typesEl){
     var typesDef = [
-      {key:"Hotel",      icon:"&#127968;", name:"Hôtels & Motels",     cls:"hotel",       countCls:"tt-count-hotel"},
       {key:"Bar",        icon:"&#127867;", name:"Bars",                 cls:"bar",         countCls:"tt-count-bar"},
       {key:"Bar Terrasse",icon:"🌴",name:"Bar Terrasses",        cls:"bar-terrasse",countCls:"tt-count-bar-terrasse"},
       {key:"Snack",      icon:"&#127870;", name:"Snacks",               cls:"snack",       countCls:"tt-count-snack"},
@@ -14473,7 +14472,6 @@ function renderAdmSettings(){
     {k:"feat_votes",      l:"👍 Votes utilisateurs",           def:true,  c:"var(--green)"},
     {k:"feat_presences",  l:"📍 Présences signalées",          def:true,  c:"var(--cyan)"},
     {k:"feat_reserv",     l:"⭐ Réservations VIP",             def:true,  c:"var(--amber)"},
-    {k:"feat_taxi",       l:"🚕 Module Taxi Pro",              def:true,  c:"var(--taxi-gold)"},
     {k:"feat_notifs",     l:"🔔 Notifications push",           def:true,  c:"var(--pink)"},
     {k:"feat_evenements", l:"🎉 Événements flash",             def:true,  c:"var(--purple)"},
     {k:"feat_weeksong",   l:"🎵 Chanson de la semaine",        def:true,  c:"var(--pink)"},

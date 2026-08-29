@@ -16009,7 +16009,6 @@ function renderAdmSettings(){
     {k:"feat_votes",      l:"👍 Votes utilisateurs",           def:true,  c:"var(--green)"},
     {k:"feat_presences",  l:"📍 Présences signalées",          def:true,  c:"var(--cyan)"},
     {k:"feat_reserv",     l:"⭐ Réservations VIP",             def:true,  c:"var(--amber)"},
-    {k:"feat_taxi",       l:"🚕 Module Taxi Pro",              def:true,  c:"var(--taxi-gold)"},
     {k:"feat_notifs",     l:"🔔 Notifications push",           def:true,  c:"var(--pink)"},
     {k:"feat_evenements", l:"🎉 Événements flash",             def:true,  c:"var(--purple)"},
     {k:"feat_weeksong",   l:"🎵 Chanson de la semaine",        def:true,  c:"var(--pink)"},
