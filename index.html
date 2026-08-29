@@ -11054,23 +11054,75 @@ function _updateRankScoreLive() {
   });
 }
 
-// ── S'abonner UNIQUEMENT aux étabs actifs (payés) pour limiter les listeners ────────────────────
+// ── Ne poller que les cartes VISIBLES à l'écran (IntersectionObserver) ────
+// PERF PATCH : avant, jusqu'à 15 cartes pollaient en continu (45 req/45s)
+// même si l'utilisateur ne les voyait pas en scrollant. Maintenant, seules
+// les cartes réellement dans le viewport (+ marge 200px) sont pollées ;
+// un délai de grâce de 8s évite de couper/relancer le poll au moindre
+// scroll rapide (thrashing).
+var _cardPollTimeouts = {};       // eidStr -> timeout de désabonnement différé
+var _CARD_UNSUB_GRACE_MS = 8000;  // grâce avant d'arrêter le poll d'une carte sortie de l'écran
+var _cardVisObserver = null;
+
+function _unsubscribeEtab(eid) {
+  var eidStr = String(eid);
+  if (_presUnsubs[eidStr]) { clearInterval(_presUnsubs[eidStr]); delete _presUnsubs[eidStr]; }
+  if (_voteUnsubs[eidStr]) { clearInterval(_voteUnsubs[eidStr]); delete _voteUnsubs[eidStr]; }
+  if (_rateUnsubs[eidStr]) { clearInterval(_rateUnsubs[eidStr]); delete _rateUnsubs[eidStr]; }
+}
+
+function _ensureCardObserver() {
+  if (_cardVisObserver) return;
+  _cardVisObserver = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      var eid = entry.target.id.replace('card-etab-', '');
+      if (!eid) return;
+      if (entry.isIntersecting) {
+        if (_cardPollTimeouts[eid]) { clearTimeout(_cardPollTimeouts[eid]); delete _cardPollTimeouts[eid]; }
+        _subscribeEtab(eid);
+      } else {
+        if (_cardPollTimeouts[eid]) clearTimeout(_cardPollTimeouts[eid]);
+        _cardPollTimeouts[eid] = setTimeout(function() {
+          _unsubscribeEtab(eid);
+          delete _cardPollTimeouts[eid];
+        }, _CARD_UNSUB_GRACE_MS);
+      }
+    });
+  }, { rootMargin: '200px 0px', threshold: 0.01 });
+}
+
+function _observeCard(el) {
+  if (!el || el.dataset._pollObserved) return;
+  el.dataset._pollObserved = '1';
+  _cardVisObserver.observe(el);
+}
+
+function _scanAndObserveCards() {
+  document.querySelectorAll('.card[id^="card-etab-"]').forEach(_observeCard);
+}
+
+// ── Remplace l'ancien abonnement massif : prépare juste l'observer ──
 function _subscribeAllEtabs() {
-  if (typeof etablissements === "undefined") return;
-  var actifs = etablissements.filter(function(e){
-    return e.paiement === "Confirme" || e.paiement === "Actif" || estPaiementConfirme(e);
-  });
-  /* Bug2-FIX: Cap à 15 max — chaque _subscribeEtab ouvre 3 onSnapshot Firestore
-   * (presences + votes + ratings). 30+ etabs = 90+ WebSocket listeners simultanés
-   * sur mobile → saturation mémoire → crash navigateur ("Aïe aïe aïe"). */
-  var MAX_SUBS = 15;
-  if(actifs.length === 0) actifs = etablissements.slice(0, Math.min(MAX_SUBS, etablissements.length));
-  actifs = actifs.slice(0, MAX_SUBS);
-  actifs.forEach(function(e) { _subscribeEtab(e.id); });
+  _ensureCardObserver();
+  _scanAndObserveCards();
+  // Filet de sécurité : capte aussi les cartes ajoutées après coup
+  // (virtualisation au scroll, filtres, changement de vue compacte/complète, etc.)
+  if (!window._cardMutationObserver) {
+    window._cardMutationObserver = new MutationObserver(function(mutations) {
+      for (var i = 0; i < mutations.length; i++) {
+        if (mutations[i].addedNodes && mutations[i].addedNodes.length) {
+          _scanAndObserveCards();
+          break;
+        }
+      }
+    });
+    window._cardMutationObserver.observe(document.body, { childList: true, subtree: true });
+  }
 }
 
 // Appeler dès que Firebase est prêt + après chaque loadData
 window._subscribeAllEtabs = _subscribeAllEtabs;
+window._unsubscribeEtab = _unsubscribeEtab;
 
 // Abonnement immédiat (les établissements locaux sont déjà chargés)
 setTimeout(function() {
