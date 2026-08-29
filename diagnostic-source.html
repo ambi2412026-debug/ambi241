@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMBI241 — Diagnostic de source</title>
+<style>
+  :root{--bg:#0e0f13;--panel:#181a21;--border:#2a2d38;--text:#f0f0f5;--muted:#8a8d9a;
+        --accent:#ff2d9b;--ok:#00ffaa;--warn:#ffaa00;--danger:#ff4466;}
+  *{box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,sans-serif;
+       margin:0;padding:20px;max-width:900px;margin:0 auto;}
+  h1{font-size:1.3rem;margin-bottom:4px;}
+  .sub{color:var(--muted);font-size:0.85rem;margin-bottom:20px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px;}
+  .card h2{font-size:1rem;margin:0 0 10px 0;display:flex;align-items:center;gap:8px;justify-content:space-between;}
+  .verdict{font-size:0.72rem;font-weight:700;padding:3px 10px;border-radius:20px;}
+  .verdict.suspect{background:rgba(255,68,102,0.15);color:var(--danger);border:1px solid rgba(255,68,102,0.4);}
+  .verdict.clean{background:rgba(0,255,170,0.12);color:var(--ok);border:1px solid rgba(0,255,170,0.35);}
+  .verdict.na{background:rgba(138,141,154,0.15);color:var(--muted);border:1px solid var(--border);}
+  pre{background:#0e0f13;border:1px solid var(--border);border-radius:8px;padding:10px;
+      font-family:monospace;font-size:0.75rem;overflow-x:auto;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto;}
+  button{background:var(--accent);color:#fff;border:none;padding:10px 16px;border-radius:8px;
+         font-weight:600;cursor:pointer;font-size:0.9rem;margin-bottom:12px;}
+  button:disabled{opacity:0.4;}
+  .summary{font-size:0.9rem;line-height:1.6;}
+  input[type=email],input[type=password]{width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);
+    background:#0e0f13;color:var(--text);margin-bottom:8px;font-size:0.9rem;}
+</style>
+</head>
+<body>
+
+<h1>🕵️ AMBI241 — Diagnostic de source</h1>
+<div class="sub">Vérifie en un coup toutes les sources possibles des chiffres affichés à l'accueil.</div>
+
+<div class="card">
+  <h2>Connexion Firebase (nécessaire pour lire Firestore)</h2>
+  <input type="email" id="email" placeholder="Email admin">
+  <input type="password" id="password" placeholder="Mot de passe">
+  <button onclick="doLogin()">Se connecter</button>
+  <div id="loginStatus" style="font-size:0.8rem;color:var(--muted);"></div>
+</div>
+
+<button onclick="runDiagnostic()" id="runBtn">🔍 Lancer le diagnostic complet</button>
+
+<div id="results"></div>
+
+<div class="card">
+  <h2>📋 Verdict</h2>
+  <div id="verdictBox" class="summary">Lance le diagnostic pour voir le verdict.</div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
+import { getFirestore, collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
+
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCx3hD28Lb9EtUrawHbTnM-6vmXdgO1ABw",
+  authDomain: "ambi241.firebaseapp.com",
+  projectId: "ambi241",
+  storageBucket: "ambi241.firebasestorage.app",
+  messagingSenderId: "422590051382",
+  appId: "1:422590051382:web:fe05eaf701a6f704c2d497"
+};
+const app = initializeApp(FIREBASE_CONFIG);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+window.doLogin = async function(){
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  try{
+    await signInWithEmailAndPassword(auth, email, password);
+  }catch(e){
+    document.getElementById('loginStatus').textContent = 'Erreur : ' + e.message;
+  }
+};
+onAuthStateChanged(auth, (user) => {
+  document.getElementById('loginStatus').textContent = user ? ('Connecté : ' + user.email) : 'Non connecté';
+});
+
+function card(title, contentHtml, verdict){
+  const vClass = verdict === 'suspect' ? 'suspect' : verdict === 'clean' ? 'clean' : 'na';
+  const vLabel = verdict === 'suspect' ? '⚠️ SUSPECT' : verdict === 'clean' ? '✅ Propre' : 'ℹ️ Info';
+  return `<div class="card"><h2>${title}<span class="verdict ${vClass}">${vLabel}</span></h2>${contentHtml}</div>`;
+}
+
+window.runDiagnostic = async function(){
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('results').innerHTML = '<p style="color:var(--muted);">Analyse en cours…</p>';
+  const findings = [];
+  let html = '';
+
+  // 1) localStorage : cache établissements
+  try{
+    const raw1 = localStorage.getItem('ambi241_etab_cache_v4');
+    const obj1 = raw1 ? JSON.parse(raw1) : null;
+    const n1 = obj1 && obj1.data ? obj1.data.length : 0;
+    const v1 = n1 > 0 ? 'suspect' : 'clean';
+    if(n1>0) findings.push(`localStorage "ambi241_etab_cache_v4" contient encore ${n1} établissements en cache.`);
+    html += card('1️⃣ localStorage — cache établissements (ambi241_etab_cache_v4)',
+      `<pre>${n1} établissement(s) en cache local${obj1?', horodaté '+new Date(obj1.ts).toLocaleString('fr-FR'):''}</pre>`, v1);
+  }catch(e){ html += card('1️⃣ localStorage — cache établissements', `<pre>Erreur lecture : ${e.message}</pre>`, 'na'); }
+
+  // 2) localStorage : cache typeCounts
+  try{
+    const raw2 = localStorage.getItem('ambi241_type_counts_v1');
+    const obj2 = raw2 ? JSON.parse(raw2) : null;
+    const has2 = obj2 && obj2.counts && Object.keys(obj2.counts).length>0;
+    const v2 = has2 ? 'suspect' : 'clean';
+    if(has2) findings.push(`localStorage "ambi241_type_counts_v1" contient encore des compteurs en cache : ${JSON.stringify(obj2.counts)}.`);
+    html += card('2️⃣ localStorage — cache compteurs par type (ambi241_type_counts_v1)',
+      `<pre>${raw2 ? JSON.stringify(obj2) : 'vide / absent'}</pre>`, v2);
+  }catch(e){ html += card('2️⃣ localStorage — cache compteurs par type', `<pre>Erreur lecture : ${e.message}</pre>`, 'na'); }
+
+  // 3) Fichier snapshot statique
+  try{
+    const res = await fetch('./data/etablissements-snapshot.json', {cache:'no-store'});
+    const j = await res.json();
+    const n3 = (j.etablissements||[]).length;
+    const v3 = n3 > 0 ? 'suspect' : 'clean';
+    if(n3>0) findings.push(`Le fichier data/etablissements-snapshot.json contient encore ${n3} établissements (total déclaré : ${j.total}).`);
+    html += card('3️⃣ Fichier statique data/etablissements-snapshot.json',
+      `<pre>generatedAt: ${j.generatedAt}\ntotal: ${j.total}\netablissements[]: ${n3} élément(s)</pre>`, v3);
+  }catch(e){ html += card('3️⃣ Fichier statique data/etablissements-snapshot.json', `<pre>Injoignable ou erreur : ${e.message}</pre>`, 'na'); }
+
+  // 4) Firestore live — collection etablissements
+  try{
+    const snap = await getDocs(collection(db, 'etablissements'));
+    const n4 = snap.size;
+    const v4 = n4 > 0 ? 'suspect' : 'clean';
+    if(n4>0) findings.push(`La collection Firestore "etablissements" contient encore ${n4} documents.`);
+    html += card('4️⃣ Firestore live — collection etablissements',
+      `<pre>${n4} document(s) actuellement dans Firestore</pre>`, v4);
+  }catch(e){ html += card('4️⃣ Firestore live — collection etablissements', `<pre>Erreur (connecte-toi d'abord) : ${e.message}</pre>`, 'na'); }
+
+  // 5) Firestore — meta/typeCounts
+  try{
+    const snap = await getDoc(doc(db, 'meta', 'typeCounts'));
+    if(snap.exists()){
+      const data = snap.data();
+      const counts = data.counts || {};
+      const hasVals = Object.values(counts).some(v => v > 0);
+      const v5 = hasVals ? 'suspect' : 'clean';
+      if(hasVals) findings.push(`Le document Firestore meta/typeCounts contient encore des valeurs non nulles : ${JSON.stringify(counts)}.`);
+      html += card('5️⃣ Firestore — document meta/typeCounts', `<pre>${JSON.stringify(data, null, 2)}</pre>`, v5);
+    } else {
+      html += card('5️⃣ Firestore — document meta/typeCounts', `<pre>Document inexistant (propre).</pre>`, 'clean');
+    }
+  }catch(e){ html += card('5️⃣ Firestore — document meta/typeCounts', `<pre>Erreur (connecte-toi d'abord) : ${e.message}</pre>`, 'na'); }
+
+  // 6) Service Workers actifs
+  try{
+    if('serviceWorker' in navigator){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      const v6 = regs.length > 0 ? 'suspect' : 'clean';
+      if(regs.length>0) findings.push(`${regs.length} Service Worker(s) actif(s) — il(s) peut(vent) servir une version en cache du site indépendamment de tout le reste.`);
+      html += card('6️⃣ Service Workers enregistrés',
+        `<pre>${regs.length} enregistré(s)\n${regs.map(r=>r.scope).join('\n')||'aucun'}</pre>`, v6);
+    } else {
+      html += card('6️⃣ Service Workers enregistrés', `<pre>Non supporté par ce navigateur</pre>`, 'na');
+    }
+  }catch(e){ html += card('6️⃣ Service Workers enregistrés', `<pre>Erreur : ${e.message}</pre>`, 'na'); }
+
+  // 7) Caches API (Cache Storage) — souvent utilisé par les Service Workers PWA
+  try{
+    if('caches' in window){
+      const keys = await caches.keys();
+      let detail = [];
+      for(const k of keys){
+        const c = await caches.open(k);
+        const reqs = await c.keys();
+        detail.push(`${k} : ${reqs.length} entrée(s)`);
+      }
+      const v7 = keys.length > 0 ? 'suspect' : 'clean';
+      if(keys.length>0) findings.push(`${keys.length} Cache Storage(s) présent(s) (via Service Worker) — peuvent contenir une version figée du HTML/JS/JSON.`);
+      html += card('7️⃣ Cache Storage (Cache API)', `<pre>${detail.join('\n') || 'aucun cache'}</pre>`, v7);
+    } else {
+      html += card('7️⃣ Cache Storage (Cache API)', `<pre>Non supporté</pre>`, 'na');
+    }
+  }catch(e){ html += card('7️⃣ Cache Storage (Cache API)', `<pre>Erreur : ${e.message}</pre>`, 'na'); }
+
+  document.getElementById('results').innerHTML = html;
+
+  const vBox = document.getElementById('verdictBox');
+  if(findings.length === 0){
+    vBox.innerHTML = '✅ <b>Tout est propre.</b> Aucune source testée ne contient de données résiduelles. Si le site affiche encore 65, le problème vient d\'ailleurs (code, autre projet Firebase, ou CDN GitHub Pages qui met encore en cache une ancienne version du JS — attends quelques minutes et réessaie).';
+  } else {
+    vBox.innerHTML = '<b>Sources suspectes trouvées :</b><ul>' + findings.map(f=>'<li>'+f+'</li>').join('') + '</ul>';
+  }
+  document.getElementById('runBtn').disabled = false;
+};
+</script>
+</body>
+</html>
