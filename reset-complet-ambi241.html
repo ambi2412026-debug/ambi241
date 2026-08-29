@@ -60,7 +60,12 @@
 <!-- ÉTAPE 2 : SCAN -->
 <div class="card hidden" id="stepScan">
   <h2>2️⃣ Inventaire avant suppression</h2>
-  <button onclick="scanAll()" id="scanBtn">🔍 Scanner Firestore + Storage</button>
+  <button onclick="scanFirestore()" id="scanFirestoreBtn">🔍 Scanner Firestore</button>
+  <button class="secondary" onclick="scanStorage()" id="scanStorageBtn">🔍 Scanner Storage</button>
+  <p style="color:var(--muted);font-size:0.78rem;margin:4px 0 0 0;">
+    Deux boutons séparés : si Storage échoue (réseau instable), le comptage Firestore reste acquis.
+    Pas besoin d'attendre le scan Storage pour lancer la suppression — elle liste et supprime au fil de l'eau si tu n'as pas scanné.
+  </p>
   <div id="scanStatus" class="status"></div>
   <div id="scanResults"></div>
 </div>
@@ -160,48 +165,88 @@ onAuthStateChanged(auth, (user) => {
   }
 });
 
-// ── Liste récursive de tous les fichiers Storage ──
-async function listAllRecursive(folderRef){
-  const result = await listAll(folderRef);
+// ── Retry avec backoff pour les appels réseau instables ──
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+async function withRetry(fn, label, maxAttempts){
+  maxAttempts = maxAttempts || 4;
+  let lastErr;
+  for(let attempt = 1; attempt <= maxAttempts; attempt++){
+    try{
+      return await fn();
+    }catch(e){
+      lastErr = e;
+      log(`${label} : échec tentative ${attempt}/${maxAttempts} (${e.message})`, 'err');
+      if(attempt < maxAttempts) await sleep(1500 * attempt);
+    }
+  }
+  throw lastErr;
+}
+
+// ── Liste récursive de tous les fichiers Storage (avec retry par dossier) ──
+async function listAllRecursive(folderRef, depth){
+  depth = depth || 0;
+  const result = await withRetry(() => listAll(folderRef), 'Listage ' + (folderRef.fullPath || '/'));
   let files = result.items.slice();
+  log(`  ${'  '.repeat(depth)}📁 ${folderRef.fullPath || '/'} : ${result.items.length} fichiers, ${result.prefixes.length} sous-dossiers`);
   for(const sub of result.prefixes){
-    const nested = await listAllRecursive(sub);
+    const nested = await listAllRecursive(sub, depth + 1);
     files = files.concat(nested);
   }
   return files;
 }
 
-window.scanAll = async function(){
-  const btn = document.getElementById('scanBtn');
+window.scanFirestore = async function(){
+  const btn = document.getElementById('scanFirestoreBtn');
   btn.disabled = true;
-  setStatus('scanStatus', 'Scan en cours…', 'info');
-  log('Scan de "' + COLLECTION_NAME + '" et de Storage…');
-
+  setStatus('scanStatus', 'Scan Firestore en cours…', 'info');
+  log('Scan de "' + COLLECTION_NAME + '"…');
   try{
-    // Firestore
-    const snap = await getDocs(collection(db, COLLECTION_NAME));
+    const snap = await withRetry(() => getDocs(collection(db, COLLECTION_NAME)), 'Firestore');
     allDocIds = snap.docs.map(d => d.id);
     log(`Firestore : ${allDocIds.length} documents dans "${COLLECTION_NAME}".`, 'ok');
-
-    // Storage
-    const rootRef = ref(storage, '/');
-    const files = await listAllRecursive(rootRef);
-    allStoragePaths = files.map(f => f.fullPath);
-    log(`Storage : ${allStoragePaths.length} fichiers trouvés.`, 'ok');
-
-    document.getElementById('scanResults').innerHTML = `
-      <div class="row"><span>📄 Documents Firestore (${COLLECTION_NAME})</span><span class="badge">${allDocIds.length}</span></div>
-      <div class="row"><span>🖼️ Fichiers Storage</span><span class="badge">${allStoragePaths.length}</span></div>
-    `;
-    setStatus('scanStatus', 'Scan terminé.', 'ok');
-    document.getElementById('stepDelete').classList.remove('hidden');
+    updateScanResults();
+    setStatus('scanStatus', 'Scan Firestore terminé.', 'ok');
+    maybeEnableDelete();
   }catch(e){
-    setStatus('scanStatus', 'Erreur pendant le scan : ' + e.message, 'err');
-    log('Erreur scan : ' + e.message, 'err');
+    setStatus('scanStatus', 'Erreur scan Firestore : ' + e.message, 'err');
+    log('Erreur scan Firestore : ' + e.message, 'err');
   } finally {
     btn.disabled = false;
   }
 };
+
+window.scanStorage = async function(){
+  const btn = document.getElementById('scanStorageBtn');
+  btn.disabled = true;
+  setStatus('scanStatus', 'Scan Storage en cours (peut prendre plusieurs minutes)…', 'info');
+  log('Scan de Storage…');
+  try{
+    const rootRef = ref(storage, '/');
+    const files = await listAllRecursive(rootRef);
+    allStoragePaths = files.map(f => f.fullPath);
+    log(`Storage : ${allStoragePaths.length} fichiers trouvés au total.`, 'ok');
+    updateScanResults();
+    setStatus('scanStatus', 'Scan Storage terminé.', 'ok');
+    maybeEnableDelete();
+  }catch(e){
+    setStatus('scanStatus', 'Erreur scan Storage : ' + e.message + ' — réessaie (Wi-Fi conseillé), ou passe directement à la suppression : elle liste et supprime au fur et à mesure, sans scan complet préalable.', 'err');
+    log('Erreur scan Storage : ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+function updateScanResults(){
+  document.getElementById('scanResults').innerHTML = `
+    <div class="row"><span>📄 Documents Firestore (${COLLECTION_NAME})</span><span class="badge">${allDocIds.length}</span></div>
+    <div class="row"><span>🖼️ Fichiers Storage listés</span><span class="badge">${allStoragePaths.length}</span></div>
+  `;
+}
+
+function maybeEnableDelete(){
+  document.getElementById('stepDelete').classList.remove('hidden');
+}
 
 document.addEventListener('input', (e) => {
   if(e.target.id === 'confirmText'){
@@ -209,47 +254,90 @@ document.addEventListener('input', (e) => {
   }
 });
 
+// Supprime un fichier avec retry, sans jamais bloquer le lot entier
+async function deleteFileSafe(path){
+  try{
+    await withRetry(() => deleteObject(ref(storage, path)), 'Suppression ' + path, 3);
+    return true;
+  }catch(e){
+    log('Échec définitif suppression ' + path + ' : ' + e.message, 'err');
+    return false;
+  }
+}
+
+// Supprime un lot connu de chemins Storage, en parallèle par paquets de 20
+async function deleteKnownStoragePaths(paths, onProgress){
+  const PAR = 20;
+  let okCount = 0;
+  for(let i=0; i<paths.length; i+=PAR){
+    const chunk = paths.slice(i, i+PAR);
+    const results = await Promise.all(chunk.map(deleteFileSafe));
+    okCount += results.filter(Boolean).length;
+    if(onProgress) onProgress(chunk.length);
+    log(`Storage : ${Math.min(i+PAR, paths.length)}/${paths.length} traités.`);
+  }
+  return okCount;
+}
+
+// Supprime Storage en flux (liste + supprime dossier par dossier) — utile si le scan complet n'a pas pu finir
+async function streamDeleteRecursive(folderRef, onProgress, depth){
+  depth = depth || 0;
+  const result = await withRetry(() => listAll(folderRef), 'Listage ' + (folderRef.fullPath || '/'));
+  if(result.items.length){
+    log(`  ${'  '.repeat(depth)}📁 ${folderRef.fullPath || '/'} : suppression de ${result.items.length} fichiers…`);
+    await deleteKnownStoragePaths(result.items.map(i => i.fullPath), onProgress);
+  }
+  for(const sub of result.prefixes){
+    await streamDeleteRecursive(sub, onProgress, depth + 1);
+  }
+}
+
 window.doFullReset = async function(){
   const btn = document.getElementById('deleteBtn');
   btn.disabled = true;
   document.getElementById('progressBar').classList.remove('hidden');
-  const total = allDocIds.length + allStoragePaths.length;
   let done = 0;
-
   function bump(n){
     done += n;
-    const pct = total ? Math.round((done/total)*100) : 100;
-    document.getElementById('progressFill').style.width = pct + '%';
+    document.getElementById('progressFill').style.width = Math.min(100, done % 100 || 100) + '%';
   }
 
   try{
-    // 1) Firestore — suppression par lots de 400
+    // 1) Firestore — scan si pas déjà fait, puis suppression par lots de 400
+    if(allDocIds.length === 0){
+      log('Aucun scan Firestore préalable — scan rapide avant suppression…');
+      const snap = await withRetry(() => getDocs(collection(db, COLLECTION_NAME)), 'Firestore');
+      allDocIds = snap.docs.map(d => d.id);
+    }
     setStatus('deleteStatus', `Suppression de ${allDocIds.length} documents Firestore…`, 'info');
     log(`Suppression Firestore : ${allDocIds.length} documents…`);
     const CHUNK = 400;
     for(let i=0; i<allDocIds.length; i+=CHUNK){
       const chunk = allDocIds.slice(i, i+CHUNK);
-      const batch = writeBatch(db);
-      chunk.forEach(id => batch.delete(doc(db, COLLECTION_NAME, id)));
-      await batch.commit();
+      await withRetry(async () => {
+        const batch = writeBatch(db);
+        chunk.forEach(id => batch.delete(doc(db, COLLECTION_NAME, id)));
+        await batch.commit();
+      }, 'Lot Firestore ' + i);
       bump(chunk.length);
       log(`Firestore : ${Math.min(i+CHUNK, allDocIds.length)}/${allDocIds.length} supprimés.`);
     }
     log(`Firestore vidé (${allDocIds.length} documents).`, 'ok');
 
-    // 2) Storage — suppression fichier par fichier, en parallèle par lots de 20
-    setStatus('deleteStatus', `Suppression de ${allStoragePaths.length} fichiers Storage…`, 'info');
-    log(`Suppression Storage : ${allStoragePaths.length} fichiers…`);
-    const PAR = 20;
-    for(let i=0; i<allStoragePaths.length; i+=PAR){
-      const chunk = allStoragePaths.slice(i, i+PAR);
-      await Promise.all(chunk.map(p => deleteObject(ref(storage, p)).catch(e => log('Échec suppression ' + p + ' : ' + e.message, 'err'))));
-      bump(chunk.length);
-      log(`Storage : ${Math.min(i+PAR, allStoragePaths.length)}/${allStoragePaths.length} traités.`);
+    // 2) Storage — utilise la liste déjà scannée si dispo, sinon liste+supprime en flux
+    setStatus('deleteStatus', 'Suppression de Storage en cours…', 'info');
+    if(allStoragePaths.length > 0){
+      log(`Suppression Storage (liste déjà connue) : ${allStoragePaths.length} fichiers…`);
+      const ok = await deleteKnownStoragePaths(allStoragePaths, bump);
+      log(`Storage vidé (${ok}/${allStoragePaths.length} fichiers supprimés).`, 'ok');
+    } else {
+      log('Aucune liste Storage préalable — suppression en flux (liste + supprime dossier par dossier)…');
+      const rootRef = ref(storage, '/');
+      await streamDeleteRecursive(rootRef, bump);
+      log('Storage vidé (suppression en flux terminée).', 'ok');
     }
-    log(`Storage vidé (${allStoragePaths.length} fichiers).`, 'ok');
 
-    setStatus('deleteStatus', `✅ Reset complet terminé : ${allDocIds.length} documents + ${allStoragePaths.length} fichiers supprimés.`, 'ok');
+    setStatus('deleteStatus', `✅ Reset complet terminé.`, 'ok');
     log('Reset complet terminé avec succès.', 'ok');
 
     allDocIds = [];
