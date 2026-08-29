@@ -10448,12 +10448,94 @@ window.db           = db;
 window.auth         = auth;
 window.__firebaseApp = app; /* exposé pour le module de présence RTDB */
 window.storage      = storage;
-window.fbStorage    = storage;
-window.fbRef        = ref;
-window.fbUploadBytes              = uploadBytes;
-window.fbUploadBytesResumable     = uploadBytesResumable;
-window.fbGetDownloadURL           = getDownloadURL;
-window.fbDeleteObject    = deleteObject;
+window.fbStorage    = storage; /* conservé uniquement comme "truthy" pour les gardes existantes — non utilisé pour l'upload */
+
+/* ══════════════════════════════════════════════════════════════
+   CLOUDINARY — remplace Firebase Storage pour tous les nouveaux
+   uploads (images + vidéos). Même API que le SDK Storage
+   (fbRef / fbUploadBytes / fbUploadBytesResumable / fbGetDownloadURL /
+   fbDeleteObject) pour ne toucher à aucun appelant existant.
+   ══════════════════════════════════════════════════════════════ */
+const CLOUDINARY_CLOUD_NAME    = "w6hbptui";
+const CLOUDINARY_UPLOAD_PRESET = "mtjiiokk";
+const CLOUDINARY_UPLOAD_URL    = "https://api.cloudinary.com/v1_1/" + CLOUDINARY_CLOUD_NAME + "/auto/upload";
+
+function _cldSanitizePublicId(path){
+  return String(path || "")
+    .replace(/\.[a-zA-Z0-9]+$/, "")        // retire l'extension
+    .replace(/[^a-zA-Z0-9/_-]/g, "_");     // caractères sûrs uniquement
+}
+
+function _cldUpload(fileOrBlob, path, signal){
+  var form = new FormData();
+  form.append("file", fileOrBlob);
+  form.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+  if(path) form.append("public_id", _cldSanitizePublicId(path));
+  return fetch(CLOUDINARY_UPLOAD_URL, { method: "POST", body: form, signal: signal })
+    .then(function(r){
+      if(!r.ok){
+        return r.json().catch(function(){ return null; }).then(function(j){
+          throw new Error((j && j.error && j.error.message) || ("Cloudinary HTTP " + r.status));
+        });
+      }
+      return r.json();
+    })
+    .then(function(data){ return data.secure_url; });
+}
+
+/* fbRef(storageIgnored, path) → référence factice */
+function _cldRef(_storageIgnored, path){
+  return { path: path, _cloudinaryUrl: null };
+}
+
+/* fbUploadBytes(ref, file) → Promise<{ref}> (comme uploadBytes) */
+function _cldUploadBytes(ref, file){
+  return _cldUpload(file, ref && ref.path).then(function(url){
+    if(ref) ref._cloudinaryUrl = url;
+    return { ref: ref };
+  });
+}
+
+/* fbGetDownloadURL(ref) → Promise<string> */
+function _cldGetDownloadURL(ref){
+  if(ref && ref._cloudinaryUrl) return Promise.resolve(ref._cloudinaryUrl);
+  return Promise.reject(new Error("Aucune URL Cloudinary disponible pour cette référence"));
+}
+
+/* fbUploadBytesResumable(ref, blob) → task-like { on(), cancel(), snapshot } */
+function _cldUploadBytesResumable(ref, blob){
+  var controller = new AbortController();
+  var onError = null, onComplete = null;
+  var task = {
+    snapshot: { ref: ref, bytesTransferred: 0, totalBytes: (blob && blob.size) || 0 },
+    cancel: function(){ try{ controller.abort(); }catch(e){} },
+    on: function(_event, _onProgress, errorCb, completeCb){
+      onError = errorCb; onComplete = completeCb;
+    }
+  };
+  _cldUpload(blob, ref && ref.path, controller.signal).then(function(url){
+    if(ref) ref._cloudinaryUrl = url;
+    task.snapshot.bytesTransferred = task.snapshot.totalBytes;
+    if(onComplete) onComplete();
+  }).catch(function(err){
+    if(onError) onError(err);
+  });
+  return task;
+}
+
+/* fbDeleteObject(ref) → suppression désactivée (nécessite une clé secrète
+   côté serveur, jamais exposée au navigateur). Ne bloque rien : les
+   appelants existants sont déjà en try/catch ou .catch(()=>{}). */
+function _cldDeleteObject(ref){
+  console.warn("[Cloudinary] Suppression de fichier ignorée (nécessite une signature serveur) :", ref && ref.path);
+  return Promise.resolve();
+}
+
+window.fbRef                      = _cldRef;
+window.fbUploadBytes              = _cldUploadBytes;
+window.fbUploadBytesResumable     = _cldUploadBytesResumable;
+window.fbGetDownloadURL           = _cldGetDownloadURL;
+window.fbDeleteObject             = _cldDeleteObject;
 window.fbCollection = collection;
 window.fbGetDocs    = getDocs;
 window.fbDoc        = doc;
