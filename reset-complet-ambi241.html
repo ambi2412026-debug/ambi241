@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMBI241 — Reset complet</title>
+<style>
+  :root{--bg:#0e0f13;--panel:#181a21;--border:#2a2d38;--text:#f0f0f5;--muted:#8a8d9a;
+        --accent:#ff2d9b;--ok:#00ffaa;--warn:#ffaa00;--danger:#ff4466;}
+  *{box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,sans-serif;
+       margin:0;padding:20px;max-width:900px;margin:0 auto;}
+  h1{font-size:1.3rem;margin-bottom:4px;}
+  .sub{color:var(--muted);font-size:0.85rem;margin-bottom:20px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px;}
+  .card h2{font-size:1rem;margin:0 0 12px 0;display:flex;align-items:center;gap:8px;}
+  input[type=text],input[type=email],input[type=password]{
+    width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);
+    background:#0e0f13;color:var(--text);font-size:0.9rem;margin-bottom:8px;}
+  button{background:var(--accent);color:#fff;border:none;padding:10px 16px;border-radius:8px;
+         font-weight:600;cursor:pointer;font-size:0.9rem;margin-right:8px;margin-bottom:8px;}
+  button:hover{opacity:0.9;}
+  button:disabled{opacity:0.4;cursor:not-allowed;}
+  button.secondary{background:#2a2d38;}
+  button.danger{background:var(--danger);}
+  .status{font-size:0.85rem;padding:8px 12px;border-radius:8px;margin-bottom:8px;display:none;}
+  .status.show{display:block;}
+  .status.ok{background:rgba(0,255,170,0.1);color:var(--ok);border:1px solid rgba(0,255,170,0.3);}
+  .status.err{background:rgba(255,68,102,0.1);color:var(--danger);border:1px solid rgba(255,68,102,0.3);}
+  .status.info{background:rgba(255,170,0,0.1);color:var(--warn);border:1px solid rgba(255,170,0,0.3);}
+  .hidden{display:none;}
+  .progress-bar{height:8px;background:#2a2d38;border-radius:4px;overflow:hidden;margin:8px 0;}
+  .progress-fill{height:100%;background:var(--accent);width:0%;transition:width 0.2s;}
+  #log{background:#0e0f13;border:1px solid var(--border);border-radius:8px;padding:10px;
+       font-family:monospace;font-size:0.78rem;max-height:260px;overflow-y:auto;white-space:pre-wrap;}
+  .badge{background:var(--accent);color:#fff;border-radius:20px;padding:2px 10px;font-size:0.75rem;font-weight:700;}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);}
+  .row:last-child{border-bottom:none;}
+</style>
+</head>
+<body>
+
+<h1>🔥 AMBI241 — Reset complet</h1>
+<div class="sub">Vide <code>etablissements</code> (Firestore) + tous les fichiers Firebase Storage · Projet : <code>ambi241</code></div>
+
+<!-- ÉTAPE 1 : CONNEXION -->
+<div class="card" id="stepAuth">
+  <h2>1️⃣ Connexion Firebase</h2>
+  <div id="authStatus" class="status"></div>
+  <div id="loginForm">
+    <input type="email" id="email" placeholder="Email (ex: pcinformatique28@gmail.com)">
+    <input type="password" id="password" placeholder="Mot de passe">
+    <button onclick="doLogin()">Se connecter</button>
+  </div>
+  <div id="loggedInfo" class="hidden">
+    <div class="status ok show">✅ Connecté en tant que <b id="userEmail"></b></div>
+  </div>
+</div>
+
+<!-- ÉTAPE 2 : SCAN -->
+<div class="card hidden" id="stepScan">
+  <h2>2️⃣ Inventaire avant suppression</h2>
+  <button onclick="scanAll()" id="scanBtn">🔍 Scanner Firestore + Storage</button>
+  <div id="scanStatus" class="status"></div>
+  <div id="scanResults"></div>
+</div>
+
+<!-- ÉTAPE 3 : SUPPRESSION -->
+<div class="card hidden" id="stepDelete">
+  <h2>3️⃣ Confirmer le reset complet</h2>
+  <p style="color:var(--danger);font-size:0.85rem;">
+    ⚠️ Action irréversible : supprime <b>tous</b> les documents de <code>etablissements</code>
+    et <b>tous</b> les fichiers de Storage. Tape <b>RESET</b> pour confirmer.
+  </p>
+  <input type="text" id="confirmText" placeholder='Tape "RESET" pour confirmer'>
+  <button class="danger" id="deleteBtn" disabled onclick="doFullReset()">🔥 Tout supprimer</button>
+  <div class="progress-bar hidden" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+  <div id="deleteStatus" class="status"></div>
+</div>
+
+<div class="card">
+  <h2>📋 Journal</h2>
+  <div id="log">En attente de connexion…</div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
+import {
+  getFirestore, collection, getDocs, doc, writeBatch
+} from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
+import {
+  getAuth, signInWithEmailAndPassword, onAuthStateChanged,
+  setPersistence, browserLocalPersistence
+} from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
+import {
+  getStorage, ref, listAll, deleteObject
+} from "https://www.gstatic.com/firebasejs/10.12.1/firebase-storage.js";
+
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCx3hD28Lb9EtUrawHbTnM-6vmXdgO1ABw",
+  authDomain: "ambi241.firebaseapp.com",
+  projectId: "ambi241",
+  storageBucket: "ambi241.firebasestorage.app",
+  messagingSenderId: "422590051382",
+  appId: "1:422590051382:web:fe05eaf701a6f704c2d497"
+};
+
+const app = initializeApp(FIREBASE_CONFIG);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const storage = getStorage(app);
+
+const COLLECTION_NAME = "etablissements";
+
+let allDocIds = [];
+let allStoragePaths = [];
+
+function log(msg, type){
+  const el = document.getElementById('log');
+  const time = new Date().toLocaleTimeString('fr-FR');
+  const prefix = type === 'err' ? '❌' : type === 'ok' ? '✅' : 'ℹ️';
+  el.textContent += `\n[${time}] ${prefix} ${msg}`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function setStatus(elId, msg, type){
+  const el = document.getElementById(elId);
+  el.textContent = msg;
+  el.className = 'status show ' + type;
+}
+
+await setPersistence(auth, browserLocalPersistence);
+
+window.doLogin = async function(){
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  if(!email || !password){
+    setStatus('authStatus', 'Renseigne email et mot de passe.', 'err');
+    return;
+  }
+  try{
+    await signInWithEmailAndPassword(auth, email, password);
+    log(`Connexion réussie : ${email}`, 'ok');
+  }catch(e){
+    setStatus('authStatus', 'Échec connexion : ' + e.message, 'err');
+    log('Échec connexion : ' + e.message, 'err');
+  }
+};
+
+onAuthStateChanged(auth, (user) => {
+  if(user){
+    document.getElementById('loginForm').classList.add('hidden');
+    document.getElementById('loggedInfo').classList.remove('hidden');
+    document.getElementById('userEmail').textContent = user.email || user.uid;
+    document.getElementById('authStatus').classList.remove('show');
+    document.getElementById('stepScan').classList.remove('hidden');
+  } else {
+    document.getElementById('stepScan').classList.add('hidden');
+    document.getElementById('stepDelete').classList.add('hidden');
+  }
+});
+
+// ── Liste récursive de tous les fichiers Storage ──
+async function listAllRecursive(folderRef){
+  const result = await listAll(folderRef);
+  let files = result.items.slice();
+  for(const sub of result.prefixes){
+    const nested = await listAllRecursive(sub);
+    files = files.concat(nested);
+  }
+  return files;
+}
+
+window.scanAll = async function(){
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true;
+  setStatus('scanStatus', 'Scan en cours…', 'info');
+  log('Scan de "' + COLLECTION_NAME + '" et de Storage…');
+
+  try{
+    // Firestore
+    const snap = await getDocs(collection(db, COLLECTION_NAME));
+    allDocIds = snap.docs.map(d => d.id);
+    log(`Firestore : ${allDocIds.length} documents dans "${COLLECTION_NAME}".`, 'ok');
+
+    // Storage
+    const rootRef = ref(storage, '/');
+    const files = await listAllRecursive(rootRef);
+    allStoragePaths = files.map(f => f.fullPath);
+    log(`Storage : ${allStoragePaths.length} fichiers trouvés.`, 'ok');
+
+    document.getElementById('scanResults').innerHTML = `
+      <div class="row"><span>📄 Documents Firestore (${COLLECTION_NAME})</span><span class="badge">${allDocIds.length}</span></div>
+      <div class="row"><span>🖼️ Fichiers Storage</span><span class="badge">${allStoragePaths.length}</span></div>
+    `;
+    setStatus('scanStatus', 'Scan terminé.', 'ok');
+    document.getElementById('stepDelete').classList.remove('hidden');
+  }catch(e){
+    setStatus('scanStatus', 'Erreur pendant le scan : ' + e.message, 'err');
+    log('Erreur scan : ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+document.addEventListener('input', (e) => {
+  if(e.target.id === 'confirmText'){
+    document.getElementById('deleteBtn').disabled = e.target.value.trim() !== 'RESET';
+  }
+});
+
+window.doFullReset = async function(){
+  const btn = document.getElementById('deleteBtn');
+  btn.disabled = true;
+  document.getElementById('progressBar').classList.remove('hidden');
+  const total = allDocIds.length + allStoragePaths.length;
+  let done = 0;
+
+  function bump(n){
+    done += n;
+    const pct = total ? Math.round((done/total)*100) : 100;
+    document.getElementById('progressFill').style.width = pct + '%';
+  }
+
+  try{
+    // 1) Firestore — suppression par lots de 400
+    setStatus('deleteStatus', `Suppression de ${allDocIds.length} documents Firestore…`, 'info');
+    log(`Suppression Firestore : ${allDocIds.length} documents…`);
+    const CHUNK = 400;
+    for(let i=0; i<allDocIds.length; i+=CHUNK){
+      const chunk = allDocIds.slice(i, i+CHUNK);
+      const batch = writeBatch(db);
+      chunk.forEach(id => batch.delete(doc(db, COLLECTION_NAME, id)));
+      await batch.commit();
+      bump(chunk.length);
+      log(`Firestore : ${Math.min(i+CHUNK, allDocIds.length)}/${allDocIds.length} supprimés.`);
+    }
+    log(`Firestore vidé (${allDocIds.length} documents).`, 'ok');
+
+    // 2) Storage — suppression fichier par fichier, en parallèle par lots de 20
+    setStatus('deleteStatus', `Suppression de ${allStoragePaths.length} fichiers Storage…`, 'info');
+    log(`Suppression Storage : ${allStoragePaths.length} fichiers…`);
+    const PAR = 20;
+    for(let i=0; i<allStoragePaths.length; i+=PAR){
+      const chunk = allStoragePaths.slice(i, i+PAR);
+      await Promise.all(chunk.map(p => deleteObject(ref(storage, p)).catch(e => log('Échec suppression ' + p + ' : ' + e.message, 'err'))));
+      bump(chunk.length);
+      log(`Storage : ${Math.min(i+PAR, allStoragePaths.length)}/${allStoragePaths.length} traités.`);
+    }
+    log(`Storage vidé (${allStoragePaths.length} fichiers).`, 'ok');
+
+    setStatus('deleteStatus', `✅ Reset complet terminé : ${allDocIds.length} documents + ${allStoragePaths.length} fichiers supprimés.`, 'ok');
+    log('Reset complet terminé avec succès.', 'ok');
+
+    allDocIds = [];
+    allStoragePaths = [];
+    document.getElementById('confirmText').value = '';
+
+  }catch(e){
+    setStatus('deleteStatus', 'Erreur pendant la suppression : ' + e.message, 'err');
+    log('Erreur suppression : ' + e.message, 'err');
+    btn.disabled = false;
+  }
+};
+</script>
+</body>
+</html>
