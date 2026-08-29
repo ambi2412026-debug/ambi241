@@ -83,6 +83,33 @@
   <div id="deleteStatus" class="status"></div>
 </div>
 
+<!-- ÉTAPE 3B : VIDER LE COMPTEUR META (source des chiffres qui persistent à l'accueil) -->
+<div class="card" id="stepMeta">
+  <h2>🔢 Compteurs "meta/typeCounts" (accueil : Lieux, Hôtels, Bars…)</h2>
+  <p style="color:var(--muted);font-size:0.78rem;margin:0 0 8px 0;">
+    Ce document Firestore séparé stocke les chiffres affichés à l'accueil (65 lieux, 20 hôtels…).
+    Il n'est PAS vidé par le reset de <code>etablissements</code> — c'est souvent lui qui fait
+    réapparaître les anciens chiffres après un reset. Remets-le à zéro ici.
+  </p>
+  <button onclick="checkMetaCounts()">🔍 Voir le contenu actuel</button>
+  <button class="danger" onclick="resetMetaCounts()">🔥 Remettre à zéro</button>
+  <div id="metaStatus" class="status"></div>
+</div>
+
+<!-- ÉTAPE 4 : SUPPRESSION MANUELLE PAR DOSSIER -->
+<div class="card hidden" id="stepManual">
+  <h2>4️⃣ Vider Storage dossier par dossier</h2>
+  <p style="color:var(--muted);font-size:0.78rem;margin:0 0 8px 0;">
+    Utile si le scan/suppression global de la racine échoue (timeout réseau). Regarde dans
+    <b>Firebase Console → Storage</b> les noms des dossiers à la racine (ex: <code>publications</code>,
+    <code>users</code>, <code>taxi</code>…), puis traite-les un par un ici. Laisse vide pour viser la racine <code>/</code>.
+  </p>
+  <input type="text" id="manualFolder" placeholder='Nom du dossier (ex: publications, users/abc123…)'>
+  <button class="secondary" onclick="manualList()">🔍 Lister ce dossier</button>
+  <button class="danger" onclick="manualDelete()">🔥 Vider ce dossier</button>
+  <div id="manualStatus" class="status"></div>
+</div>
+
 <div class="card">
   <h2>📋 Journal</h2>
   <div id="log">En attente de connexion…</div>
@@ -91,7 +118,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
 import {
-  getFirestore, collection, getDocs, doc, writeBatch
+  getFirestore, collection, getDocs, doc, writeBatch, deleteDoc, getDoc, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
 import {
   getAuth, signInWithEmailAndPassword, onAuthStateChanged,
@@ -159,9 +186,11 @@ onAuthStateChanged(auth, (user) => {
     document.getElementById('userEmail').textContent = user.email || user.uid;
     document.getElementById('authStatus').classList.remove('show');
     document.getElementById('stepScan').classList.remove('hidden');
+    document.getElementById('stepManual').classList.remove('hidden');
   } else {
     document.getElementById('stepScan').classList.add('hidden');
     document.getElementById('stepDelete').classList.add('hidden');
+    document.getElementById('stepManual').classList.add('hidden');
   }
 });
 
@@ -291,6 +320,75 @@ async function streamDeleteRecursive(folderRef, onProgress, depth){
     await streamDeleteRecursive(sub, onProgress, depth + 1);
   }
 }
+
+// ── Gestion du document meta/typeCounts (compteurs accueil) ──
+window.checkMetaCounts = async function(){
+  setStatus('metaStatus', 'Lecture de meta/typeCounts…', 'info');
+  log('Lecture de meta/typeCounts…');
+  try{
+    const snap = await withRetry(() => getDoc(doc(db, "meta", "typeCounts")), 'Lecture meta/typeCounts');
+    if(snap.exists()){
+      const data = snap.data();
+      setStatus('metaStatus', 'Contenu actuel : ' + JSON.stringify(data), 'info');
+      log('meta/typeCounts existe : ' + JSON.stringify(data), 'ok');
+    } else {
+      setStatus('metaStatus', 'Le document meta/typeCounts n\'existe pas (déjà propre).', 'ok');
+      log('meta/typeCounts n\'existe pas.', 'ok');
+    }
+  }catch(e){
+    setStatus('metaStatus', 'Erreur lecture : ' + e.message, 'err');
+    log('Erreur lecture meta/typeCounts : ' + e.message, 'err');
+  }
+};
+
+window.resetMetaCounts = async function(){
+  if(!confirm('Remettre à zéro le document meta/typeCounts ? (ou le supprimer si vide)')) return;
+  setStatus('metaStatus', 'Remise à zéro en cours…', 'info');
+  log('Remise à zéro de meta/typeCounts…');
+  try{
+    // On écrit des compteurs à zéro plutôt que de juste supprimer,
+    // pour éviter tout affichage de valeurs obsolètes en cas de cache intermédiaire.
+    await withRetry(() => setDoc(doc(db, "meta", "typeCounts"), { counts: {}, updatedAt: Date.now() }), 'Écriture meta/typeCounts');
+    setStatus('metaStatus', '✅ meta/typeCounts remis à zéro.', 'ok');
+    log('meta/typeCounts remis à zéro.', 'ok');
+  }catch(e){
+    setStatus('metaStatus', 'Erreur remise à zéro : ' + e.message, 'err');
+    log('Erreur remise à zéro meta/typeCounts : ' + e.message, 'err');
+  }
+};
+
+// ── Suppression manuelle ciblée sur un seul dossier (évite de scanner toute la racine d'un coup) ──
+window.manualList = async function(){
+  const folder = document.getElementById('manualFolder').value.trim();
+  setStatus('manualStatus', `Listage de "${folder || '/'}" en cours…`, 'info');
+  log(`Listage manuel de "${folder || '/'}"…`);
+  try{
+    const folderRef = ref(storage, folder || '/');
+    const files = await listAllRecursive(folderRef);
+    setStatus('manualStatus', `${files.length} fichiers trouvés dans "${folder || '/'}".`, 'ok');
+    log(`Listage manuel : ${files.length} fichiers dans "${folder || '/'}".`, 'ok');
+  }catch(e){
+    setStatus('manualStatus', 'Erreur listage : ' + e.message, 'err');
+    log('Erreur listage manuel : ' + e.message, 'err');
+  }
+};
+
+window.manualDelete = async function(){
+  const folder = document.getElementById('manualFolder').value.trim();
+  if(!confirm(`Vider définitivement "${folder || '/ (toute la racine)'}" ? Action irréversible.`)) return;
+  setStatus('manualStatus', `Suppression de "${folder || '/'}" en cours…`, 'info');
+  log(`Suppression manuelle de "${folder || '/'}"…`);
+  try{
+    const folderRef = ref(storage, folder || '/');
+    let count = 0;
+    await streamDeleteRecursive(folderRef, (n) => { count += n; });
+    setStatus('manualStatus', `✅ "${folder || '/'}" vidé (${count} fichiers supprimés).`, 'ok');
+    log(`Dossier "${folder || '/'}" vidé (${count} fichiers).`, 'ok');
+  }catch(e){
+    setStatus('manualStatus', 'Erreur suppression : ' + e.message, 'err');
+    log('Erreur suppression manuelle : ' + e.message, 'err');
+  }
+};
 
 window.doFullReset = async function(){
   const btn = document.getElementById('deleteBtn');
