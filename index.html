@@ -6768,6 +6768,71 @@ if (document.readyState === 'loading') {
 </head>
 <body>
 
+<!-- ══════════════════════════════════════════════════════════════
+     ÉCRAN DE DÉMARRAGE AMBI241 — logo + pluie d'étoiles
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+#ambiSplash{position:fixed;inset:0;z-index:999999;background:#1a0a28;display:flex;align-items:center;justify-content:center;overflow:hidden;transition:opacity .6s ease;}
+#ambiSplash.ambi-splash-hide{opacity:0;pointer-events:none;}
+#ambiSplash .ambi-splash-stars{position:absolute;inset:0;overflow:hidden;pointer-events:none;}
+#ambiSplash .ambi-star{position:absolute;top:-4%;border-radius:50%;background:#ffd700;box-shadow:0 0 4px 1px rgba(255,215,0,.85);animation:ambiStarFall linear infinite;}
+@keyframes ambiStarFall{
+  0%{transform:translateY(0) translateX(0);opacity:0;}
+  8%{opacity:1;}
+  92%{opacity:1;}
+  100%{transform:translateY(112vh) translateX(var(--ambi-drift,0px));opacity:0;}
+}
+#ambiSplash .ambi-splash-logo-wrap{position:relative;z-index:3;display:flex;flex-direction:column;align-items:center;}
+#ambiSplash .ambi-splash-logo{width:42vw;max-width:230px;min-width:140px;filter:drop-shadow(0 0 22px rgba(255,45,155,.5)) drop-shadow(0 0 40px rgba(0,229,255,.25));animation:ambiSplashPulse 2.2s ease-in-out infinite;}
+@keyframes ambiSplashPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.045);}}
+#ambiSplash .ambi-splash-loading{margin-top:1.4rem;font-family:'Syne',sans-serif;font-weight:700;font-size:.72rem;letter-spacing:.14em;color:rgba(255,255,255,.55);text-transform:uppercase;}
+</style>
+<div id="ambiSplash">
+  <div class="ambi-splash-stars" id="ambiSplashStars"></div>
+  <div class="ambi-splash-logo-wrap">
+    <img src="./icon-512.png" alt="AMBI241" class="ambi-splash-logo">
+    <div class="ambi-splash-loading">Chargement…</div>
+  </div>
+</div>
+<script>
+(function(){
+  var wrap = document.getElementById('ambiSplashStars');
+  var splash = document.getElementById('ambiSplash');
+  if(!wrap || !splash) return;
+  var COUNT = 220;
+  var frag = document.createDocumentFragment();
+  for(var i=0;i<COUNT;i++){
+    var s = document.createElement('span');
+    s.className = 'ambi-star';
+    var size = (Math.random()*1.1+0.4).toFixed(2);
+    s.style.width = size+'px';
+    s.style.height = size+'px';
+    s.style.left = (Math.random()*100).toFixed(2)+'%';
+    s.style.setProperty('--ambi-drift', (Math.random()*30-15).toFixed(1)+'px');
+    s.style.animationDuration = (Math.random()*0.9+0.7).toFixed(2)+'s';
+    s.style.animationDelay = (Math.random()*1.8).toFixed(2)+'s';
+    s.style.opacity = (Math.random()*0.5+0.5).toFixed(2);
+    frag.appendChild(s);
+  }
+  wrap.appendChild(frag);
+
+  var MIN_MS = 1600, start = Date.now();
+  function hideAmbiSplash(){
+    var wait = Math.max(0, MIN_MS-(Date.now()-start));
+    setTimeout(function(){
+      splash.classList.add('ambi-splash-hide');
+      setTimeout(function(){ if(splash.parentNode) splash.parentNode.removeChild(splash); }, 650);
+    }, wait);
+  }
+  if(document.readyState==='complete'){ hideAmbiSplash(); }
+  else { window.addEventListener('load', hideAmbiSplash); }
+  setTimeout(hideAmbiSplash, 5000); // filet de sécurité
+})();
+</script>
+<!-- ══════════════════════════════════════════════════════════════
+     FIN ÉCRAN DE DÉMARRAGE
+     ══════════════════════════════════════════════════════════════ -->
+
 <div id="user-profile-modal" class="user-profile-modal">
   <div class="profile-card-wrap">
     <div class="profile-header">
