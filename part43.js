@@ -270,7 +270,6 @@
      OUVRIR MODAL PUBLICATION
   ══════════════════════════════════════════ */
   window.forumOpenPublish = function(type){
-    alert("forumOpenPublish appelée, type=" + type);
     // Vérification connexion AVANT d'ouvrir le modal
     if(!_isLoggedIn()){
       // Afficher invitation d'inscription
@@ -304,7 +303,7 @@
     if(chip) chip.classList.add('active');
     // Update counters
     _updateModalCounters();
-    modal.style.display='flex'; modal.classList.add('open');
+    modal.style.display='flex'; modal.classList.add('open'); alert('modal affiche, display=' + modal.style.display + ' classes=' + modal.className);
     document.body.style.overflow='hidden';
   };
 
