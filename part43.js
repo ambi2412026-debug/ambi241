@@ -226,7 +226,7 @@
     }
 
     var typeColors={ambiance:'var(--pink)',photo:'var(--cyan)',video:'var(--green)',soiree:'var(--amber)',annonce:'var(--purple)',texte:'var(--muted)'};
-    var typeIcons ={ambiance:'\U0001f525',photo:'\U0001f4f7',video:'\U0001f3ac',soiree:'\U0001f389',annonce:'\U0001f4e3',texte:'\u270d\ufe0f'};
+    var typeIcons ={ambiance:'\u{1F525}',photo:'\u{1F4F7}',video:'\u{1F3AC}',soiree:'\u{1F389}',annonce:'\u{1F4E3}',texte:'\u270d\ufe0f'};
     var typeColor = typeColors[data.type]||'var(--muted)';
     var typeIcon  = typeIcons[data.type]||'\u270d\ufe0f';
     var likes    = data.likes||0;
