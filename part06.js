@@ -36,7 +36,7 @@ window.fbStorage    = storage; /* conservé uniquement comme "truthy" pour les g
    fbDeleteObject) pour ne toucher à aucun appelant existant.
    ══════════════════════════════════════════════════════════════ */
 const CLOUDINARY_CLOUD_NAME    = "w6hbptui";
-const CLOUDINARY_UPLOAD_PRESET = "mtjiiokk";
+const CLOUDINARY_UPLOAD_PRESET = "mtjjiokk";
 const CLOUDINARY_UPLOAD_URL    = "https://api.cloudinary.com/v1_1/" + CLOUDINARY_CLOUD_NAME + "/auto/upload";
 
 function _cldSanitizePublicId(path){
