@@ -1,0 +1,556 @@
+ avec les variables CSS de couleur par type.
+   * Chaque fiche reçoit --etm-color et --etm-rgb calculés à la volée.
+   */
+  function injectTypeStyles() {
+    var id = 'etm-dynamic-styles';
+    if (document.getElementById(id)) return; /* éviter les doublons */
+
+    var css = '';
+
+    Object.values(TYPE_REGISTRY).forEach(function (cfg) {
+      css += '.card[data-etm-type="' + cfg.key + '"] { --etm-color: ' + cfg.color + '; --etm-rgb: ' + cfg.colorRgb + '; }\n';
+    });
+
+    /* Badge catégorie améliorés */
+    css += `
+/* ── ETM Badge overrides ── */
+.cb-bar           { background: rgba(255,20,147,0.12)  !important; color: #ff1493  !important; border-color: rgba(255,20,147,0.3)  !important; }
+.cb-resto         { background: rgba(255,149,0,0.12)   !important; color: #ff9500  !important; border-color: rgba(255,149,0,0.3)   !important; }
+.cb-club          { background: rgba(204,68,255,0.12)  !important; color: #cc44ff  !important; border-color: rgba(204,68,255,0.3)  !important; }
+.cb-salle         { background: rgba(255,0,110,0.12)   !important; color: #ff006e  !important; border-color: rgba(255,0,110,0.3)   !important; }
+.cb-stade         { background: rgba(0,255,170,0.12)   !important; color: #00ffaa  !important; border-color: rgba(0,255,170,0.3)   !important; }
+.cb-tourisme      { background: rgba(255,215,0,0.12)   !important; color: #ffd700  !important; border-color: rgba(255,215,0,0.3)   !important; }
+.cb-roof          { background: rgba(255,69,184,0.12)  !important; color: #ff45b8  !important; border-color: rgba(255,69,184,0.3)  !important; }
+
+
+/* ── Section spécifique de type ── */
+.etm-specific-section {
+  transition: opacity 0.3s ease;
+  animation: fadeIn 0.35s ease both;
+}
+
+/* ── Champs formulaire type ── */
+.etm-field-row input:focus,
+.etm-field-row textarea:focus,
+.etm-field-row select:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(255,45,155,0.3) !important;
+  border-color: rgba(255,45,155,0.5) !important;
+}
+`;
+
+    var style = document.createElement('style');
+    style.id = id;
+    style.textContent = css;
+    document.head.appendChild(style);
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     §8  HOOK AUTOMATIQUE SUR renderAll / renderCard
+  ══════════════════════════════════════════════════════════════════ */
+
+  /**
+   * Patche window.renderAll pour appeler injectAllTypesSections après le rendu.
+   * Attendre que renderAll soit défini (peut l'être après ce script).
+   */
+  function _hookRenderAll() {
+    if (typeof window.renderAll !== 'function') {
+      /* Reporter jusqu'à ce que renderAll existe */
+      setTimeout(_hookRenderAll, 150);
+      return;
+    }
+    var _originalRenderAll = window.renderAll;
+    window.renderAll = function () {
+      _originalRenderAll.apply(this, arguments);
+      setTimeout(function () {
+        if (window.etablissements) {
+          injectAllTypesSections(window.etablissements);
+        }
+      }, 50);
+    };
+    console.log('[ETM] ✅ Hook renderAll installé');
+  }
+
+  /**
+   * Patche buildEtabProfilePanel pour injecter les champs pro du type.
+   */
+  function _hookBuildProfilePanel() {
+    if (typeof window.buildEtabProfilePanel !== 'function') {
+      setTimeout(_hookBuildProfilePanel, 150);
+      return;
+    }
+    var _originalBuild = window.buildEtabProfilePanel;
+    window.buildEtabProfilePanel = function (e) {
+      var result = _originalBuild.apply(this, arguments);
+      /* Après rendu on injecte le form dans le DOM directement */
+      setTimeout(function () { injectTypeForm(e.id, e); }, 80);
+      return result;
+    };
+    console.log('[ETM] ✅ Hook buildEtabProfilePanel installé');
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     §9  EXPOSITION PUBLIQUE
+  ══════════════════════════════════════════════════════════════════ */
+
+  window.AMBI241_ETM = {
+    /* Registre */
+    TYPE_REGISTRY,
+
+    /* Helpers */
+    resolveType,
+    getTypeColor,
+    getTypeLabel,
+    getTypeIcon,
+    getTypeSections,
+    getTypeFields,
+
+    /* Rendu HTML */
+    buildTypeSpecificSection,
+    buildTypeSpecificForm,
+
+    /* Injection DOM */
+    injectTypeSection,
+    injectTypeForm,
+    injectAllTypesSections,
+    injectTypeStyles,
+
+    /* Sauvegarde */
+    etmSaveField,
+    etmToggleBool
+  };
+
+  /* Exposer aussi au niveau global pour les onclick="" inline */
+  window.etmSaveField   = etmSaveField;
+  window.etmToggleBool  = etmToggleBool;
+
+  /* ══════════════════════════════════════════════════════════════
+     §10  INITIALISATION AUTOMATIQUE
+  ══════════════════════════════════════════════════════════════════ */
+  function _init() {
+    injectTypeStyles();
+    _hookRenderAll();
+    _hookBuildProfilePanel();
+    console.log('%c[AMBI241] 🏷️ Module Types Établissements v2.0 chargé', 'color:#cc44ff;font-size:13px;font-weight:bold;');
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _init);
+  } else {
+    _init();
+  }
+
+})(window);
+
+  </script>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+<!-- ── STYLES ── -->
+<style>
+/* ═══ BOUTON RAPIDE ADMIN (page d'accueil admin uniquement) ═══ */
+#adminQuickAddBtn {
+  display: none; /* affiché via JS quand isAdmin=true */
+  position: fixed;
+  bottom: calc(var(--nav-h) + var(--player-h) + var(--safe-bottom) + 14px);
+  right: 16px;
+  z-index: 180;
+  background: linear-gradient(135deg, #00ffaa, #00e5ff);
+  color: #001a0e;
+  border: none;
+  border-radius: 50px;
+  padding: 0.7rem 1.1rem;
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 0.82rem;
+  cursor: pointer;
+  box-shadow: 0 6px 28px rgba(0,255,170,0.38), 0 2px 8px rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  transition: transform 0.18s, box-shadow 0.18s;
+  letter-spacing: 0.02em;
+}
+#adminQuickAddBtn:active { transform: scale(0.95); }
+#adminQuickAddBtn .aqab-icon { font-size: 1.1rem; }
+
+/* ═══ OVERLAY / MODAL ═══ */
+#aqaOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  background: rgba(0,0,0,0.82);
+  backdrop-filter: blur(6px);
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0;
+  overflow-y: auto;
+}
+#aqaOverlay.show { display: flex; }
+
+#aqaModal {
+  background: var(--surface, #230d35);
+  border: 1px solid rgba(0,255,170,0.18);
+  border-radius: 22px;
+  width: 100%;
+  max-width: 520px;
+  margin: 12px auto;
+  padding: 0 0 1.5rem;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,255,170,0.08);
+  overflow: hidden;
+}
+
+/* Header dégradé */
+.aqa-header {
+  background: linear-gradient(135deg, rgba(0,255,170,0.12), rgba(0,229,255,0.08));
+  border-bottom: 1px solid rgba(0,255,170,0.15);
+  padding: 1.2rem 1.3rem 1rem;
+  position: relative;
+}
+.aqa-header-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--green, #00ffaa);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.aqa-header-sub {
+  font-size: 0.7rem;
+  color: var(--muted, #b088c0);
+  margin-top: 0.2rem;
+}
+.aqa-close {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--muted);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.aqa-close:hover { background: rgba(255,68,102,0.15); border-color: rgba(255,68,102,0.4); color: var(--red); }
+
+/* Stepper */
+.aqa-stepper {
+  display: flex;
+  align-items: center;
+  padding: 0.85rem 1.3rem;
+  gap: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.aqa-stepper::-webkit-scrollbar { display: none; }
+.aqa-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.18rem;
+  min-width: 52px;
+  flex: 1;
+  position: relative;
+  cursor: pointer;
+}
+.aqa-step::after {
+  content: '';
+  position: absolute;
+  top: 11px;
+  left: calc(50% + 13px);
+  right: calc(-50% + 13px);
+  height: 1px;
+  background: rgba(255,255,255,0.1);
+  transition: background 0.3s;
+}
+.aqa-step:last-child::after { display: none; }
+.aqa-step.done::after { background: rgba(0,255,170,0.4); }
+.aqa-step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.04);
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s;
+  position: relative;
+  z-index: 1;
+}
+.aqa-step.active .aqa-step-num { border-color: var(--green); background: rgba(0,255,170,0.15); color: var(--green); }
+.aqa-step.done .aqa-step-num { background: var(--green); border-color: var(--green); color: #001a0e; }
+.aqa-step-lbl { font-size: 0.52rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; transition: color 0.25s; }
+.aqa-step.active .aqa-step-lbl { color: var(--green); }
+.aqa-step.done .aqa-step-lbl { color: rgba(0,255,170,0.6); }
+
+/* Contenu des étapes */
+.aqa-body { padding: 1.1rem 1.3rem 0; }
+.aqa-section { display: none; }
+.aqa-section.active { display: block; }
+
+/* Champs */
+.aqa-field { margin-bottom: 0.8rem; }
+.aqa-field label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.3rem;
+}
+.aqa-field label .req { color: var(--green); margin-left: 2px; }
+.aqa-input {
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+.aqa-input:focus { border-color: rgba(0,255,170,0.45); background: rgba(0,255,170,0.04); }
+.aqa-input::placeholder { color: rgba(255,255,255,0.2); }
+select.aqa-input { cursor: pointer; }
+textarea.aqa-input { resize: vertical; min-height: 64px; }
+
+.aqa-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+
+/* GPS */
+.aqa-gps-card {
+  background: rgba(0,229,255,0.06);
+  border: 1.5px solid rgba(0,229,255,0.25);
+  border-radius: 14px;
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.aqa-gps-icon { font-size: 1.7rem; flex-shrink: 0; }
+.aqa-gps-info { flex: 1; }
+.aqa-gps-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 0.82rem; color: var(--cyan); }
+.aqa-gps-coords { font-size: 0.7rem; color: var(--muted); margin-top: 0.15rem; font-family: monospace; }
+.aqa-gps-btn {
+  background: linear-gradient(135deg, var(--cyan), rgba(0,229,255,0.7));
+  color: #001a1a;
+  border: none;
+  border-radius: 9px;
+  padding: 0.5rem 0.9rem;
+  font-weight: 800;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-family: 'Syne', sans-serif;
+  white-space: nowrap;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.aqa-gps-btn:active { transform: scale(0.96); }
+.aqa-gps-badge { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.65rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 6px; margin-top: 0.3rem; }
+.aqa-gps-badge.ok { background: rgba(0,255,170,0.12); color: var(--green); border: 1px solid rgba(0,255,170,0.3); }
+.aqa-gps-badge.err { background: rgba(255,68,102,0.1); color: var(--red); border: 1px solid rgba(255,68,102,0.3); }
+
+/* Catégories (checkboxes visuelles) */
+.aqa-cat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+.aqa-cat-item { display: none; }
+.aqa-cat-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.55rem 0.3rem;
+  border-radius: 11px;
+  border: 1.5px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.02);
+  cursor: pointer;
+  transition: all 0.18s;
+  text-align: center;
+  user-select: none;
+}
+.aqa-cat-label:active { transform: scale(0.95); }
+.aqa-cat-item:checked + .aqa-cat-label { border-color: var(--green); background: rgba(0,255,170,0.09); }
+.aqa-cat-emoji { font-size: 1.25rem; }
+.aqa-cat-name { font-size: 0.56rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.aqa-cat-item:checked + .aqa-cat-label .aqa-cat-name { color: var(--green); }
+
+/* Photos */
+.aqa-photo-zone {
+  background: rgba(255,45,155,0.04);
+  border: 1.5px dashed rgba(255,45,155,0.3);
+  border-radius: 13px;
+  padding: 0.8rem;
+  margin-bottom: 0.75rem;
+  transition: border-color 0.2s;
+}
+.aqa-photo-zone:has(img[src]) { border-color: rgba(0,255,170,0.35); background: rgba(0,255,170,0.04); }
+.aqa-photo-label-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.55rem;
+  border-radius: 9px;
+  border: none;
+  background: rgba(255,45,155,0.1);
+  color: var(--pink);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 700;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.aqa-photo-label-btn:hover { background: rgba(255,45,155,0.18); }
+.aqa-photo-preview { width: 100%; max-height: 120px; object-fit: cover; border-radius: 9px; margin-top: 0.55rem; display: none; border: 1px solid rgba(255,45,155,0.25); }
+.aqa-photo-name { font-size: 0.62rem; color: var(--muted); margin-top: 0.35rem; text-align: center; display: block; }
+
+/* Sliders originalité */
+.aqa-slider-group { margin-bottom: 0.9rem; }
+.aqa-slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; }
+.aqa-slider-lbl { font-size: 0.7rem; font-weight: 700; color: var(--muted); }
+.aqa-slider-val { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 0.85rem; color: var(--cyan); min-width: 28px; text-align: right; }
+.aqa-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 5px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.1);
+  outline: none;
+  cursor: pointer;
+  position: relative;
+}
+.aqa-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--cyan); cursor: pointer; box-shadow: 0 0 8px rgba(0,229,255,0.5); }
+.aqa-slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--cyan); cursor: pointer; border: none; }
+
+/* Ambiance sonore checkboxes */
+.aqa-ambiance-grid { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.aqa-amb-item { display: none; }
+.aqa-amb-label {
+  padding: 0.32rem 0.65rem;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.03);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+  white-space: nowrap;
+}
+.aqa-amb-item:checked + .aqa-amb-label { border-color: rgba(255,215,0,0.5); background: rgba(255,215,0,0.1); color: var(--amber); }
+
+/* Situation géo */
+.aqa-geo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-bottom: 0.6rem; }
+.aqa-geo-item { display: none; }
+.aqa-geo-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.02);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+.aqa-geo-item:checked + .aqa-geo-label { border-color: rgba(204,68,255,0.45); background: rgba(204,68,255,0.1); color: var(--purple); }
+
+/* Capacité chips */
+.aqa-cap-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.5rem; }
+.aqa-cap-chip {
+  padding: 0.32rem 0.7rem;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.03);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+.aqa-cap-chip.sel { border-color: rgba(255,215,0,0.5); background: rgba(255,215,0,0.1); color: var(--amber); }
+
+/* Navigation bas */
+.aqa-nav {
+  display: flex;
+  gap: 0.6rem;
+  padding: 1rem 1.3rem 0;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  margin-top: 1rem;
+}
+.aqa-btn {
+  flex: 1;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: none;
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.aqa-btn:active { transform: scale(0.97); }
+.aqa-btn-prev { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: var(--muted); }
+.aqa-btn-next { background: linear-gradient(135deg, var(--green), var(--cyan)); color: #001a0e; flex: 2; }
+.aqa-btn-next:disabled { opacity: 0.35; cursor: not-allowed; }
+.aqa-btn-submit { background: linear-gradient(135deg, #00ffaa, #00e5ff); color: #001a0e; flex: 2; box-shadow: 0 4px 18px rgba(0,255,170,0.3); }
+.aqa-btn-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Statut final */
+.aqa-status-msg {
+  display: none;
+  padding: 0.65rem 0.9rem;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-top: 0.7rem;
+  line-height: 1.5;
+}
+.aqa-status-msg.ok { background: rgba(0,255,170,0.1); border: 1px solid rgba(0,255,170,0.3); color: var(--green); display: block; }
+.aqa-status-msg.err { background: rgba(255,68,102,0.1); border: 1px solid rgba(255,68,102,0.3); color: var(--red); display: block; }
+.aqa-status-msg.loading { background: rgba(0,229,255,0.07); border: 1px solid rgba(0,229,255,0.25); color: var(--cyan); display: block; }
+
+/* Séparateur de section interne */
+.aqa-section-sep {
+  font-family: 'Syne', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+.aqa-section-sep::before, .aqa-section-sep::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.07); }
