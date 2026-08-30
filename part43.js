@@ -530,7 +530,7 @@
         _fm.submitting=false;
       }
     }).catch(function(e){
-      _toast('❌ Erreur lors de l\'envoi : '+(e && e.message ? e.message : 'inconnue'));
+      console.error('FORUM SUBMIT ERROR', e); alert('ERREUR: '+(e && e.message ? e.message : JSON.stringify(e))+' | stack: '+(e && e.stack ? e.stack.slice(0,300) : 'aucune')); _toast('❌ Erreur lors de l\'envoi : '+(e && e.message ? e.message : 'inconnue'));
       if(sb){ sb.disabled=false; sb.textContent='🚀 Publier'; }
       _fm.submitting=false;
     });
