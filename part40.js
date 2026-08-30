@@ -1,130 +1,90 @@
 
-  (function() {
-    'use strict';
+/* ═══════════════════════════════════════
+   FICHES SECTORIELLES — Module AMBI241
+   ═══════════════════════════════════════ */
+(function(){
+function fShowSector(sector) {
+  document.querySelectorAll('#sec-fiches .fiche-wrap').forEach(function(f){ f.classList.remove('visible'); });
+  document.querySelectorAll('#sec-fiches .stab').forEach(function(t){ t.classList.remove('active'); });
+  var fiche = document.getElementById('fiche-fs-' + sector);
+  if (fiche) fiche.classList.add('visible');
+  var tab = document.querySelector('#sec-fiches .stab-' + sector);
+  if (tab) tab.classList.add('active');
+}
+window.fShowSector = fShowSector;
 
-    /* Correspondance tab SW → section interne + sous-onglet social */
-    var TAB_MAP = {
-      'home':    { section: 'accueil',        social: null   },
-      'map':     { section: 'etablissements', social: null   },
-      'social':  { section: 'accueil',         social: null   },  /* forum supprimé */
-      'taxi':    { section: 'accueil',        social: null   }, /* taxi = widget accueil */
-      'profil':  { section: 'profil',         social: null   },
-      'paiements':{ section: 'paiements',     social: null   },
-    };
+function fProTab(prefix, pane, btn) {
+  document.querySelectorAll('[id^="fs-' + prefix + '-pane-"]').forEach(function(p){ p.classList.remove('active'); });
+  if (btn) {
+    btn.closest('.pro-tabs').querySelectorAll('.pro-tab').forEach(function(t){ t.classList.remove('active'); });
+    btn.classList.add('active');
+  }
+  var target = document.getElementById('fs-' + prefix + '-pane-' + pane);
+  if (target) target.classList.add('active');
+}
+window.fProTab = fProTab;
 
-    var SUB_MAP = {
-      'messages':  'publications',
-      'demandes':  'demandes',
-      'amis':      'amis',
-      'appel':     'publications',
-      'communautes':'communautes',
-    };
+// Init listeners fiches (appelé au lazy-load de la section)
+function initFichesModule() {
+  var section = document.getElementById('sec-fiches');
+  if (!section || section._fichesInit) return;
+  section._fichesInit = true;
 
-    function _routeFromUrl() {
-      var params = new URLSearchParams(window.location.search);
-      var tab    = params.get('tab');
-      var sub    = params.get('sub');
-      var modal  = params.get('modal');
-      var action = params.get('action');
-      var autoAccept = params.get('autoAccept');
-      var dm     = params.get('dm');
-
-      if (!tab) return; /* Lancement normal, pas depuis une notif */
-
-      /* Attendre que switchSection et socSwitchTab soient disponibles */
-      var attempts = 0;
-      var interval = setInterval(function() {
-        attempts++;
-        if (attempts > 40) { clearInterval(interval); return; } /* timeout 8s */
-
-        if (typeof switchSection !== 'function') return;
-
-        clearInterval(interval);
-
-        var route = TAB_MAP[tab] || { section: 'accueil', social: null };
-        var navBtns = document.querySelectorAll('.nav-item');
-
-        /* Naviguer vers la bonne section */
-        var navBtn = null;
-        navBtns.forEach(function(b) {
-          if (b.getAttribute('onclick') && b.getAttribute('onclick').indexOf("'" + route.section + "'") !== -1) {
-            navBtn = b;
-          }
-        });
-        switchSection(route.section, navBtn);
-
-        /* Sous-onglet social si applicable */
-        if (tab === 'social' && sub && typeof window.socSwitchTab === 'function') {
-          setTimeout(function() {
-            window.socSwitchTab(SUB_MAP[sub] || sub);
-          }, 350);
-        }
-
-        /* Acceptation automatique ami depuis la notif */
-        if (autoAccept && typeof window.autoAcceptFriendRequest === 'function') {
-          setTimeout(function() { window.autoAcceptFriendRequest(autoAccept); }, 600);
-        }
-
-        /* Ouvrir DM direct */
-        if (dm && typeof window.openDMWith === 'function') {
-          setTimeout(function() { window.openDMWith(dm); }, 600);
-        }
-
-        /* Ouvrir modal VIP ou promo */
-        if (modal && typeof window.openModal === 'function') {
-          setTimeout(function() { window.openModal(modal); }, 500);
-        }
-
-        /* Nettoyer l'URL sans recharger la page */
-        var cleanUrl = window.location.pathname;
-        window.history.replaceState({}, '', cleanUrl);
-
-        console.log('[AMBI241] 🔔 Routage notif → section:', route.section, sub ? '/ sous-onglet: ' + sub : '');
-      }, 200);
-    }
-
-    /* Lancer au chargement de la page */
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', function() {
-        setTimeout(_routeFromUrl, 1200); /* Laisser l'app s'initialiser d'abord */
+  // Sliders
+  section.querySelectorAll('.pro-slider').forEach(function(slider) {
+    slider.addEventListener('input', function() {
+      this.nextElementSibling.textContent = this.value + '%';
+    });
+  });
+  // Chips toggle
+  section.querySelectorAll('.pro-chip').forEach(function(chip) {
+    chip.addEventListener('click', function() { this.classList.toggle('sel'); });
+  });
+  // Stat btns
+  section.querySelectorAll('.pro-stat-row').forEach(function(row) {
+    row.querySelectorAll('.pro-stat-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        row.querySelectorAll('.pro-stat-btn').forEach(function(b){ b.classList.remove('open','closed','busy','calm'); });
+        var txt = this.textContent;
+        if (txt.includes('Ouvert')) this.classList.add('open');
+        else if (txt.includes('Fermé')) this.classList.add('closed');
+        else if (txt.includes('Bondé') || txt.includes('Complet')) this.classList.add('busy');
+        else if (txt.includes('Calme') || txt.includes('Peu')) this.classList.add('calm');
       });
-    } else {
-      setTimeout(_routeFromUrl, 1200);
-    }
+    });
+  });
+  // Dispo counters
+  section.querySelectorAll('.pro-dispo-ctrl').forEach(function(ctrl) {
+    var minus = ctrl.children[0], span = ctrl.children[1], plus = ctrl.children[2];
+    if (!minus || !span || !plus) return;
+    minus.addEventListener('click', function() {
+      var v = Math.max(0, (parseInt(span.textContent) || 0) - 1);
+      span.textContent = v;
+      span.className = 'pro-dispo-num' + (v===0?' zero':v<=3?' low':'');
+    });
+    plus.addEventListener('click', function() {
+      var v = (parseInt(span.textContent) || 0) + 1;
+      span.textContent = v;
+      span.className = 'pro-dispo-num' + (v===0?' zero':v<=3?' low':'');
+    });
+  });
+  // Save btns
+  section.querySelectorAll('.pro-save-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var orig = this.textContent;
+      this.textContent = '✅ Sauvegardé !';
+      this.style.background = 'linear-gradient(135deg,var(--green),#009966)';
+      var self = this;
+      setTimeout(function() { self.textContent = orig; self.style.background = ''; }, 2000);
+    });
+  });
+}
+window.initFichesModule = initFichesModule;
 
-    /* SW_NOTIF_CLICK désactivé — version web uniquement */
-    if (false) {
-        var msg = event.data || {};
-        if (msg.type !== 'SW_NOTIF_CLICK') return;
-
-        var url = new URL(msg.targetUrl || window.location.href, window.location.origin);
-        var tab    = url.searchParams.get('tab');
-        var sub    = url.searchParams.get('sub');
-        var modal  = url.searchParams.get('modal');
-        var autoAccept = url.searchParams.get('autoAccept');
-        var dm     = url.searchParams.get('dm');
-
-        if (!tab || typeof switchSection !== 'function') return;
-
-        var route = TAB_MAP[tab] || { section: 'accueil', social: null };
-        var navBtn = null;
-        document.querySelectorAll('.nav-item').forEach(function(b) {
-          if (b.getAttribute('onclick') && b.getAttribute('onclick').indexOf("'" + route.section + "'") !== -1) navBtn = b;
-        });
-        switchSection(route.section, navBtn);
-
-        if (tab === 'social' && sub && typeof window.socSwitchTab === 'function') {
-          setTimeout(function() { window.socSwitchTab(SUB_MAP[sub] || sub); }, 350);
-        }
-        if (autoAccept && typeof window.autoAcceptFriendRequest === 'function') {
-          setTimeout(function() { window.autoAcceptFriendRequest(autoAccept); }, 600);
-        }
-        if (dm && typeof window.openDMWith === 'function') {
-          setTimeout(function() { window.openDMWith(dm); }, 600);
-        }
-        if (modal && typeof window.openModal === 'function') {
-          setTimeout(function() { window.openModal(modal); }, 500);
-        }
-    }
-  })();
-  
+// Hook dans le lazy-load système existant
+var _origLazy = window._lazyInitSection;
+window._lazyInitSection = function(name) {
+  if (typeof _origLazy === 'function') _origLazy(name);
+  if (name === 'fiches') initFichesModule();
+};
+})();

@@ -1,0 +1,43 @@
+cd ~/ambi241
+sed -i 's|cron: "\*/10 \* \* \* \*"|cron: "0 */6 * * *"|' .github/workflows/sync-snapshot.yml
+grep -n "cron:" .github/workflows/sync-snapshot.yml
+ls ~/storage/downloads/
+name: Sync AMBI241 snapshot
+
+# Se déclenche automatiquement toutes les 10 minutes, et peut aussi être
+# lancé manuellement depuis l'onglet "Actions" du repo GitHub.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # nécessaire pour que le job puisse commit/push le snapshot
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout du repo
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Installer firebase-admin
+        run: npm install firebase-admin
+
+      - name: Générer le snapshot depuis Firestore
+        run: node scripts/sync-snapshot.js
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Commit et push si le snapshot a changé
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/etablissements-snapshot.json
+          git diff --quiet --cached || git commit -m "sync: mise à jour automatique du snapshot"
+          git push

@@ -1,452 +1,334 @@
 
-/* ═══════════════════════════════════════════════════════════════════
-   AMBI241 — Système de Présence Temps Réel — v3.0 PROFESSIONAL
-   ───────────────────────────────────────────────────────────────────
-   Architecture : Firebase Realtime Database (onDisconnect natif)
-                  + Firestore /sessions fallback si RTDB indisponible
-   ───────────────────────────────────────────────────────────────────
-   Fonctionnement RTDB :
-     1. À l'ouverture : écriture dans /presence/{sessionId} = { online: true, ... }
-     2. onDisconnect().remove() : suppression GARANTIE par les serveurs Firebase
-        même si l'onglet crash, réseau coupé, batterie morte
-     3. onValue('/presence') : push WebSocket natif → compteur instantané
-   ───────────────────────────────────────────────────────────────────
-   Fonctionnement Firestore fallback :
-     1. Écriture dans sessions/{sessionId} avec ts = Date.now()
-     2. Heartbeat toutes les 45s pour maintenir la session vivante
-     3. onSnapshot temps réel — filtre TTL 90s côté client
-     4. beforeunload + visibilitychange : suppression proactive à la fermeture
-   ═══════════════════════════════════════════════════════════════════ */
+  (function(){
+    'use strict';
 
-import { getDatabase, ref as rtdbRef, set as rtdbSet, remove as rtdbRemove,
-         onValue, onDisconnect, serverTimestamp as rtdbServerTimestamp }
-  from 'https://www.gstatic.com/firebasejs/10.12.1/firebase-database.js';
-
-import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocs,
-         serverTimestamp as fsServerTimestamp }
-  from 'https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js';
-
-(function () {
-  'use strict';
-
-  /* ── Constantes ── */
-  var SESSION_TTL_MS   = 90 * 1000;   // Firestore fallback : session expirée après 90s
-  var HEARTBEAT_MS     = 45 * 1000;   // Firestore fallback : heartbeat toutes les 45s
-  var RTDB_PATH        = 'presence';  // Nœud RTDB : /presence/{sessionId}
-  var FS_COLLECTION    = 'sessions';  // Collection Firestore fallback
-
-  /* ── État du module ── */
-  var _sessionId       = null;   // ID unique de cette session navigateur
-  var _mode            = null;   // 'rtdb' | 'firestore'
-  var _rtdbRef         = null;   // Référence RTDB de cette session
-  var _heartbeatTimer  = null;   // Timer heartbeat Firestore
-  var _unsub           = null;   // Unsubscribe du listener temps réel
-  var _rtdbApp         = null;   // Instance RTDB
-  var _destroyed       = false;  // Flag : session terminée
-
-  /* ── Génération d'un sessionId stable (survit au refresh, unique par onglet) ── */
-  function _makeSessionId() {
-    /* Clé par onglet via sessionStorage — jamais partagée entre onglets */
-    var key = 'ambi241_sid';
-    var sid = sessionStorage.getItem(key);
-    if (!sid) {
-      var uid  = (window.currentUserUID || '');
-      var rand = Math.random().toString(36).slice(2, 10);
-      var time = Date.now().toString(36);
-      sid = (uid ? uid.slice(0, 8) : 'anon') + '_' + time + '_' + rand;
-      sessionStorage.setItem(key, sid);
+    /* ─────────────────────────────────────────────────────────────
+       1. SONS WEB AUDIO — sonneries 100% natives, zéro fichier
+    ───────────────────────────────────────────────────────────── */
+    var _audioCtx = null;
+    function _getAudioCtx(){
+      if(!_audioCtx){
+        try{ _audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return null; }
+      }
+      if(_audioCtx.state === 'suspended'){ _audioCtx.resume(); }
+      return _audioCtx;
     }
-    return sid;
-  }
 
-  /* ── Métadonnées de la session (pour Status Live admin) ── */
-  function _sessionMeta() {
-    return {
-      uid:       window.currentUserUID   || null,
-      pseudo:    window.currentUserPseudo || window.currentUserEmail || 'Visiteur',
-      role:      window.currentUserRole  || 'user',
-      device:    /Mobi|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop',
-      ts:        Date.now(),
-      online:    true
+    /* Joue un son selon le type (message, ami, paiement, notif, alerte) */
+    function playNotifSound(type){
+      var ctx = _getAudioCtx();
+      if(!ctx) return;
+      /* Patterns de notes : [fréquence, durée_s, délai_s] */
+      var patterns = {
+        message:        [[880,0.08,0],[1100,0.1,0.1],[880,0.08,0.22]],
+        friend_request: [[523,0.1,0],[659,0.1,0.12],[784,0.15,0.25]],
+        paiement:       [[440,0.05,0],[880,0.05,0.07],[1320,0.12,0.15],[880,0.08,0.3]],
+        alert:          [[330,0.15,0],[330,0.15,0.18],[330,0.15,0.36],[523,0.25,0.55]],
+        default:        [[660,0.07,0],[880,0.12,0.1]]
+      };
+      var notes = patterns[type] || patterns.default;
+      notes.forEach(function(n){
+        var osc  = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = (type === 'alert') ? 'sawtooth' : 'sine';
+        osc.frequency.setValueAtTime(n[0], ctx.currentTime + n[2]);
+        gain.gain.setValueAtTime(0, ctx.currentTime + n[2]);
+        gain.gain.linearRampToValueAtTime(0.22, ctx.currentTime + n[2] + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + n[2] + n[1]);
+        osc.start(ctx.currentTime + n[2]);
+        osc.stop(ctx.currentTime + n[2] + n[1] + 0.02);
+      });
+    }
+
+    /* Déverrouiller l'AudioContext sur le premier geste utilisateur */
+    function _unlockAudio(){
+      _getAudioCtx();
+      document.removeEventListener('touchstart', _unlockAudio, {passive:true});
+      document.removeEventListener('click', _unlockAudio);
+    }
+    document.addEventListener('touchstart', _unlockAudio, {passive:true});
+    document.addEventListener('click', _unlockAudio);
+
+    /* ─────────────────────────────────────────────────────────────
+       2. MISE À JOUR DES BADGES NAV
+    ───────────────────────────────────────────────────────────── */
+    function _setNavBadge(id, count){
+      var el = document.getElementById(id);
+      if(!el) return;
+      if(count > 0){
+        el.textContent = count > 99 ? '99+' : count > 9 ? '9+' : String(count);
+        el.classList.add('show');
+      } else {
+        el.textContent = '';
+        el.classList.remove('show');
+      }
+    }
+
+    /* Efface le badge quand l'utilisateur ouvre la section */
+    function _clearNavBadgeOnOpen(section, badgeId){
+      var orig = window.switchSection;
+      if(typeof orig !== 'function') return;
+      window.switchSection = function(sec, btn){
+        if(sec === section){ _setNavBadge(badgeId, 0); _COUNTS[badgeId] = 0; }
+        return orig.apply(this, arguments);
+      };
+    }
+
+    /* Compteurs courants par badge */
+    var _COUNTS = {
+      navBadgeForum:     0,
+      navBadgeProfil:    0,
+      navBadgePaiements: 0,
+      navBadgeAdmin:     0
     };
-  }
+    var _PREV_TOTAL = 0; /* pour détecter les nouvelles arrivées */
 
-  /* ══════════════════════════════════════════════════════════
-     MODE A — Firebase Realtime Database (solution principale)
-     ══════════════════════════════════════════════════════════ */
+    /* ─────────────────────────────────────────────────────────────
+       3. SOURCE A — notifications générales (LocalStorage + Firestore)
+    ───────────────────────────────────────────────────────────── */
+    function _syncFromNotifStore(){
+      if(typeof loadNotifs !== 'function') return;
+      var all = loadNotifs();
+      var unread = all.filter(function(n){ return n.unread; });
 
-  function _initRTDB(app) {
-    try {
-      var db = getDatabase(app);
-      _rtdbApp = db;
-
-      var presRef  = rtdbRef(db, RTDB_PATH + '/' + _sessionId);
-      _rtdbRef = presRef;
-
-      /* Écriture de la session */
-      rtdbSet(presRef, _sessionMeta()).catch(function (e) {
-        console.warn('[AMBI241] RTDB write failed, switching to Firestore:', e.code);
-        _initFirestore();
-      });
-
-      /* ⭐ onDisconnect : suppression garantie par les serveurs Firebase
-         même si l'onglet est tué violemment (crash, killswitch OS, perte réseau) */
-      onDisconnect(presRef).remove();
-
-      /* Listener temps réel sur tout /presence — push WebSocket natif */
-      var rootRef = rtdbRef(db, RTDB_PATH);
-      _unsub = onValue(rootRef, function (snap) {
-        var count = 0;
-        var sessions = [];
-        snap.forEach(function (child) {
-          var data = child.val();
-          if (data && data.online) {
-            count++;
-            sessions.push({ sid: child.key, pseudo: data.pseudo, role: data.role,
-                            device: data.device, ts: data.ts, uid: data.uid });
-          }
-        });
-        _updateCounter(count, sessions, 'rtdb');
-      });
-
-      /* Rafraîchir les métadonnées si l'utilisateur se connecte en cours de session */
-      window.addEventListener('ambi241:userChanged', function () {
-        if (!_destroyed && _rtdbRef) {
-          rtdbSet(_rtdbRef, _sessionMeta()).catch(function(){});
+      /* Classer par type de notification */
+      var forum = 0, profil = 0, paiements = 0, admin = 0;
+      unread.forEach(function(n){
+        var k = (n.key||'').toLowerCase();
+        var t = (n.type||'').toLowerCase();
+        if(k.indexOf('message')!==-1 || k.indexOf('friend')!==-1 || k.indexOf('ami')!==-1
+           || k.indexOf('community')!==-1 || k.indexOf('communaute')!==-1 || k.indexOf('forum')!==-1
+           || k.indexOf('dm_')!==-1 || k.indexOf('call')!==-1 || k.indexOf('appel')!==-1){
+          forum++;
+        } else if(k.indexOf('paiement')!==-1 || k.indexOf('payment')!==-1 || k.indexOf('sub_')!==-1
+                  || k.indexOf('abonnement')!==-1){
+          paiements++;
+        } else if(k.indexOf('admin')!==-1 || k.indexOf('super')!==-1){
+          admin++;
+        } else {
+          profil++;
         }
       });
 
-      _mode = 'rtdb';
-      console.log('[AMBI241] ✅ Présence RTDB initialisée (session:', _sessionId, ')');
-    } catch (e) {
-      console.warn('[AMBI241] RTDB non disponible, fallback Firestore:', e.message);
-      _initFirestore();
+      var newTotal = unread.length;
+      if(newTotal > _PREV_TOTAL){
+        /* Déterminer le type du son à jouer selon la dernière notif */
+        var last = unread[unread.length - 1] || {};
+        var lk = (last.key||'').toLowerCase();
+        var soundType = 'default';
+        if(lk.indexOf('message')!==-1 || lk.indexOf('dm_')!==-1) soundType = 'message';
+        else if(lk.indexOf('friend')!==-1 || lk.indexOf('ami')!==-1) soundType = 'friend_request';
+        else if(lk.indexOf('paiement')!==-1 || lk.indexOf('payment')!==-1) soundType = 'paiement';
+        else if(lk.indexOf('alert')!==-1 || lk.indexOf('urgent')!==-1) soundType = 'alert';
+        playNotifSound(soundType);
+      }
+      _PREV_TOTAL = newTotal;
+
+      _COUNTS.navBadgeForum     = forum;
+      _COUNTS.navBadgeProfil    = profil;
+      _COUNTS.navBadgePaiements = paiements;
+      _COUNTS.navBadgeAdmin     = admin;
+      _flushBadges();
     }
-  }
 
-  /* ══════════════════════════════════════════════════════════
-     MODE B — Firestore /sessions (fallback robuste)
-     ══════════════════════════════════════════════════════════ */
+    /* ─────────────────────────────────────────────────────────────
+       4. SOURCE B — demandes d'amis & DMs (section Forum)
+    ───────────────────────────────────────────────────────────── */
+    function _syncFromSocial(){
+      var reqIn  = (window._requestsIn  || []).length;
+      var dmEl   = document.getElementById('dmInboxBadge');
+      var dmUnread = dmEl ? (parseInt(dmEl.textContent, 10) || 0) : 0;
 
-  function _initFirestore() {
-    if (_mode === 'firestore' || _mode === 'rtdb') return; // déjà initialisé
-    var fsDb = window.db;
-    if (!fsDb) {
-      /* Firestore pas encore prêt — attendre */
-      setTimeout(_initFirestore, 800);
-      return;
+      /* Injecter dans le badge Forum (cumulatif) */
+      _COUNTS.navBadgeForum = reqIn + dmUnread; // valeur reelle, pas cumulative
+      _flushBadges();
     }
 
-    _mode = 'firestore';
-    var sesRef = doc(fsDb, FS_COLLECTION, _sessionId);
+    /* ─────────────────────────────────────────────────────────────
+       5. SOURCE C — Firestore temps réel (user_notifications)
+    ───────────────────────────────────────────────────────────── */
+    var _fsUnsubNavBadge = null;
+    function _startFirestoreListener(uid){
+      if(_fsUnsubNavBadge) return; /* déjà actif */
+      if(!window.db || !window.fbCollection || !window.fbQuery || !window.fbWhere || !window.fbOnSnapshot) return;
 
-    /* Écriture initiale */
-    setDoc(sesRef, _sessionMeta()).catch(function(){});
+      try{
+        var q = window.fbQuery(
+          window.fbCollection(window.db, 'user_notifications'),
+          window.fbWhere('toUID',  '==', uid),
+          window.fbWhere('unread', '==', true)
+        );
+        _fsUnsubNavBadge = window.fbOnSnapshot(q, function(snap){
+          var docs = snap ? snap.docs || [] : [];
+          var forum = 0, profil = 0, paiements = 0, admin = 0;
 
-    /* Heartbeat : maintient la session vivante */
-    _heartbeatTimer = setInterval(function () {
-      if (_destroyed) return;
-      setDoc(sesRef, _sessionMeta()).catch(function(){});
-    }, HEARTBEAT_MS);
-
-    /* ══ QUOTA-FIX ═══════════════════════════════════════════════
-       Avant : onSnapshot() sur TOUTE la collection "sessions" —
-       comme Realtime Database n'est pas activé sur ce projet, ce
-       mode de secours Firestore est celui qui tourne EN PERMANENCE
-       pour chaque visiteur. Chaque heartbeat (toutes les 45s) de
-       CHAQUE onglet ouvert déclenchait une relecture de la collection
-       entière pour TOUS les autres onglets ouverts → même effet
-       boule de neige que pour les établissements.
-       Après : un getDocs() relancé toutes les POLL_MS, avec le même
-       traitement et le même appel à _updateCounter(). */
-    var SESSIONS_POLL_MS = 45000; // 45s — aligné sur le heartbeat
-    try {
-      var colRef = collection(fsDb, FS_COLLECTION);
-      var fetchSessions = function() {
-        getDocs(colRef).then(function (snap) {
-          var now   = Date.now();
-          var count = 0;
-          var sessions = [];
-          snap.forEach(function (d) {
-            var data = d.data();
-            /* Filtre TTL côté client : session considérée morte si ts > 90s */
-            if (data && data.online && (now - (data.ts || 0)) < SESSION_TTL_MS) {
-              count++;
-              sessions.push({ sid: d.id, pseudo: data.pseudo, role: data.role,
-                              device: data.device, ts: data.ts, uid: data.uid });
+          docs.forEach(function(d){
+            var data = d.data ? d.data() : d;
+            var k = ((data.key||data.type||'') + '').toLowerCase();
+            if(k.indexOf('message')!==-1 || k.indexOf('friend')!==-1 || k.indexOf('ami')!==-1
+               || k.indexOf('dm')!==-1 || k.indexOf('call')!==-1 || k.indexOf('communaute')!==-1){
+              forum++;
+            } else if(k.indexOf('paiement')!==-1 || k.indexOf('payment')!==-1 || k.indexOf('sub_')!==-1){
+              paiements++;
+            } else if(k.indexOf('admin')!==-1){
+              admin++;
+            } else {
+              profil++;
             }
           });
-          _updateCounter(count, sessions, 'firestore');
-        }).catch(function(e) {
-          console.warn('[AMBI241] getDocs sessions error:', e.code);
-          /* Permissions manquantes : fallback sur comptage _livePresences */
-          _fallbackCount();
+
+          var total = docs.length;
+          if(total > _PREV_TOTAL){
+            playNotifSound('default');
+          }
+          _PREV_TOTAL = total;
+
+          _COUNTS.navBadgeForum     = forum; // valeur reelle Firestore
+          _COUNTS.navBadgeProfil    = profil;
+          _COUNTS.navBadgePaiements = paiements;
+          _COUNTS.navBadgeAdmin     = admin;
+          _flushBadges(); /* badges mis à jour centralement dans _flushBadges */
+        }, function(err){
+          console.warn('[NavBadge] Firestore listener error:', err && err.code);
         });
-      };
-      fetchSessions(); // premier chargement immédiat
-      _unsub = setInterval(fetchSessions, SESSIONS_POLL_MS);
-    } catch(e) {
-      _fallbackCount();
+      }catch(e){
+        console.warn('[NavBadge] fbOnSnapshot unavailable:', e.message);
+      }
     }
 
-    /* Nettoyage proactif à la fermeture de l'onglet */
-    window.addEventListener('beforeunload', function () {
-      _destroyed = true;
-      /* deleteDoc synchrone best-effort — sendBeacon plus fiable que fetch */
-      try {
-        deleteDoc(sesRef).catch(function(){});
-      } catch(e) {}
-    });
-
-    /* Nettoyage quand l'onglet passe en arrière-plan prolongé */
-    document.addEventListener('visibilitychange', function () {
-      if (document.hidden && _heartbeatTimer) {
-        /* Onglet caché : on garde le heartbeat mais on ralentit à 2x TTL */
-        clearInterval(_heartbeatTimer);
-        _heartbeatTimer = setInterval(function() {
-          if (!_destroyed) setDoc(sesRef, _sessionMeta()).catch(function(){});
-        }, HEARTBEAT_MS * 2);
-      } else if (!document.hidden && !_destroyed) {
-        /* Retour au premier plan : heartbeat normal + mise à jour immédiate */
-        clearInterval(_heartbeatTimer);
-        setDoc(sesRef, _sessionMeta()).catch(function(){});
-        _heartbeatTimer = setInterval(function() {
-          if (!_destroyed) setDoc(sesRef, _sessionMeta()).catch(function(){});
-        }, HEARTBEAT_MS);
-      }
-    });
-
-    console.log('[AMBI241] ✅ Présence Firestore fallback initialisée (session:', _sessionId, ')');
-  }
-
-  /* ══════════════════════════════════════════════════════════
-     FALLBACK ULTIME — Lecture _livePresences (déduplication)
-     ══════════════════════════════════════════════════════════ */
-
-  function _fallbackCount() {
-    /* Déduplique tous les users présents dans n'importe quel établissement */
-    var seen  = {};
-    var total = 0;
-    if (window._livePresences) {
-      Object.values(window._livePresences).forEach(function (entry) {
-        (entry.users || []).forEach(function (u) {
-          var k = u.uid || u.email || u;
-          if (k && !seen[k]) { seen[k] = true; total++; }
-        });
-        if (!(entry.users || []).length && entry.count > 0) total += entry.count;
+    /* ─────────────────────────────────────────────────────────────
+       6. FLUSH — met à jour l'affichage de tous les badges
+          + synchronise le badge sur l'icône de l'app (PWA)
+    ───────────────────────────────────────────────────────────── */
+    function _flushBadges(){
+      Object.keys(_COUNTS).forEach(function(id){
+        _setNavBadge(id, _COUNTS[id]);
       });
-    }
-    _updateCounter(total, [], 'fallback');
-  }
 
-  /* ══════════════════════════════════════════════════════════
-     MISE À JOUR DU COMPTEUR DANS L'UI
-     ══════════════════════════════════════════════════════════ */
+      /* ── Badge icône app Android/iOS (comme WhatsApp) ── */
+      var totalBadge = (_COUNTS.navBadgeForum || 0)
+                     + (_COUNTS.navBadgeProfil || 0)
+                     + (_COUNTS.navBadgePaiements || 0)
+                     + (_COUNTS.navBadgeAdmin || 0);
 
-  function _updateCounter(total, sessions, source) {
-    /* Exposer pour le Status Live */
-    window._onlineSessions = sessions;
-    window._onlineCount    = total;
-    window._onlineSource   = source;
-
-    /* Dispatch pour autres composants (ex. Status Live tab) */
-    window.dispatchEvent(new CustomEvent('ambi241:onlineCount', {
-      detail: { count: total, sessions: sessions, source: source }
-    }));
-
-    /* ── Mettre à jour le bouton header admin ── */
-    var el  = document.getElementById('admOnlineCount');
-    var btn = document.getElementById('admOnlineBtn');
-    if (!el) return;
-
-    var prev = parseInt(el.getAttribute('data-prev') || '-1', 10);
-    el.textContent = total;
-    el.setAttribute('data-prev', String(total));
-
-    /* ── Couleur sémantique selon affluence ── */
-    var color, borderColor, shadow;
-    if (total === 0) {
-      color = 'rgba(0,255,170,0.35)'; borderColor = 'rgba(0,255,170,0.18)';
-      shadow = 'none';
-    } else if (total < 5) {
-      color = '#00ffaa';  borderColor = 'rgba(0,255,170,0.45)';
-      shadow = '0 0 8px rgba(0,255,170,0.3)';
-    } else if (total < 20) {
-      color = '#ffd700';  borderColor = 'rgba(255,215,0,0.5)';
-      shadow = '0 0 10px rgba(255,215,0,0.35)';
-    } else if (total < 50) {
-      color = '#ff9500';  borderColor = 'rgba(255,149,0,0.5)';
-      shadow = '0 0 12px rgba(255,149,0,0.4)';
-    } else {
-      color = '#ff2d9b';  borderColor = 'rgba(255,45,155,0.6)';
-      shadow = '0 0 14px rgba(255,45,155,0.45)';
+      /* ── Titre de l'onglet ── */
+      var baseTitle = document.title.replace(/^\(\d+\)\s*/, '');
+      document.title = totalBadge > 0 ? '(' + totalBadge + ') ' + baseTitle : baseTitle;
     }
 
-    el.style.color       = color;
-    el.style.borderColor = borderColor;
-    el.style.boxShadow   = shadow;
-    if (btn) {
-      btn.style.borderColor = borderColor;
-      btn.style.boxShadow   = '0 0 12px rgba(0,255,170,0.15), ' + shadow;
-    }
+    /* ─────────────────────────────────────────────────────────────
+       6b. PERMISSION NOTIFICATION — demander au bon moment
+    ─────────────────────────────────────────────────────────────── */
 
-    /* ── Flash d'animation si le nombre change ── */
-    if (prev >= 0 && prev !== total) {
-      var isUp = total > prev;
-      el.style.transform  = 'scale(1.35)';
-      el.style.background = isUp
-        ? 'rgba(0,255,170,0.38)'
-        : 'rgba(255,45,155,0.22)';
-      el.style.transition = 'all 0.15s ease-out';
-      setTimeout(function () {
-        el.style.transform  = 'scale(1)';
-        el.style.background = 'rgba(0,255,170,0.18)';
-        el.style.transition = 'all 0.4s ease';
-      }, 280);
+    /* ─────────────────────────────────────────────────────────────
+       7. PATCH pushNotif — son immédiat à chaque push in-app
+    ───────────────────────────────────────────────────────────── */
+    var _origPushNotif = window.pushNotif;
+    window.pushNotif = function(opts){
+      var result = _origPushNotif ? _origPushNotif.apply(this, arguments) : undefined;
+      /* Son selon le type */
+      var k = (opts && (opts.key||opts.type) || '').toLowerCase();
+      var s = 'default';
+      if(k.indexOf('message')!==-1 || k.indexOf('dm_')!==-1) s = 'message';
+      else if(k.indexOf('friend')!==-1 || k.indexOf('ami')!==-1) s = 'friend_request';
+      else if(k.indexOf('paiement')!==-1 || k.indexOf('payment')!==-1) s = 'paiement';
+      else if(k.indexOf('alert')!==-1 || k.indexOf('urgent')!==-1) s = 'alert';
+      playNotifSound(s);
+      /* Rafraîchir les badges */
+      setTimeout(_syncFromNotifStore, 100);
+      return result;
+    };
 
-      /* Badge tooltip si changement significatif */
-      if (Math.abs(total - prev) >= 1 && prev >= 0) {
-        _showCounterPulse(el, isUp, total - prev);
+    /* ─────────────────────────────────────────────────────────────
+       8. PATCH updateBadges (social) — propager vers nav
+    ───────────────────────────────────────────────────────────── */
+    var _origUpdateBadges = window.updateBadges;
+    window.updateBadges = function(){
+      if(typeof _origUpdateBadges === 'function') _origUpdateBadges.apply(this, arguments);
+      setTimeout(_syncFromSocial, 50);
+    };
+
+    /* ─────────────────────────────────────────────────────────────
+       9. RÉINITIALISER badge quand l'utilisateur ouvre la section
+    ───────────────────────────────────────────────────────────── */
+    function _patchSwitchSection(){
+      if(typeof window.switchSection !== 'function'){
+        setTimeout(_patchSwitchSection, 400);
+        return;
       }
-    }
-
-    /* ── Indicateur de source (RTDB/Firestore/fallback) ── */
-    if (btn) {
-      var srcDot = btn.querySelector('.adm-src-dot');
-      if (!srcDot) {
-        srcDot = document.createElement('span');
-        srcDot.className = 'adm-src-dot';
-        srcDot.style.cssText = 'width:4px;height:4px;border-radius:50%;flex-shrink:0;margin-left:2px;opacity:0.6;';
-        var liveLabel = btn.querySelector('[style*="LIVE"]') || btn.firstChild;
-        if (liveLabel && liveLabel.parentNode) {
-          btn.appendChild(srcDot);
+      var _orig = window.switchSection;
+      window.switchSection = function(sec, btn){
+        var mapping = {
+          social: 'navBadgeForum',
+          profil: 'navBadgeProfil',
+          paiements: 'navBadgePaiements'
+        };
+        if(mapping[sec]){
+          _COUNTS[mapping[sec]] = 0;
+          _setNavBadge(mapping[sec], 0);
         }
-      }
-      /* Vert = RTDB (temps réel parfait) | Cyan = Firestore | Jaune = fallback */
-      srcDot.style.background = source === 'rtdb' ? '#00ffaa'
-                               : source === 'firestore' ? '#00e5ff'
-                               : '#ffd700';
-      srcDot.title = source === 'rtdb'       ? 'Realtime Database — temps réel natif'
-                   : source === 'firestore'  ? 'Firestore — temps réel (heartbeat 45s)'
-                   : 'Mode dégradé — estimé';
+        return _orig.apply(this, arguments);
+      };
     }
-  }
 
-  /* ── Micro-animation : badge delta (+N / -N) ── */
-  function _showCounterPulse(el, isUp, delta) {
-    var badge = document.createElement('span');
-    badge.textContent = (isUp ? '+' : '') + delta;
-    badge.style.cssText = [
-      'position:absolute',
-      'top:-14px',
-      'left:50%',
-      'transform:translateX(-50%) translateY(0)',
-      'font-family:Syne,sans-serif',
-      'font-size:0.55rem',
-      'font-weight:900',
-      'color:' + (isUp ? '#00ffaa' : '#ff4466'),
-      'pointer-events:none',
-      'white-space:nowrap',
-      'opacity:1',
-      'transition:all 0.7s ease-out',
-      'z-index:9999'
-    ].join(';');
+    /* ─────────────────────────────────────────────────────────────
+       10. DÉMARRAGE — attendre Firebase + user connecté
+    ───────────────────────────────────────────────────────────── */
+    function _boot(){
+      /* Lancer le polling LocalStorage immédiatement */
+      _syncFromNotifStore();
+      setInterval(_syncFromNotifStore, 5000);
 
-    var wrap = el.parentNode || el;
-    var wStyle = window.getComputedStyle(wrap);
-    if (wStyle.position === 'static') wrap.style.position = 'relative';
-    wrap.appendChild(badge);
+      /* Patcher la navigation */
+      _patchSwitchSection();
 
-    requestAnimationFrame(function () {
-      badge.style.transform  = 'translateX(-50%) translateY(-12px)';
-      badge.style.opacity    = '0';
-    });
-    setTimeout(function () { if (badge.parentNode) badge.parentNode.removeChild(badge); }, 800);
-  }
+      /* Attendre la connexion utilisateur pour Firestore temps réel */
+      var _watchUser = setInterval(function(){
+        var uid = window.currentUserUID;
+        if(uid){
+          clearInterval(_watchUser);
+          _startFirestoreListener(uid);
+          _syncFromNotifStore();
+          _syncFromSocial();
+        }
+      }, 800);
 
-  /* ══════════════════════════════════════════════════════════
-     INITIALISATION — séquence de boot
-     ══════════════════════════════════════════════════════════ */
-
-  function _boot() {
-    _sessionId = _makeSessionId();
-
-    /* Attendre que Firebase app soit initialisée */
-    var _waitFirebase = function () {
-      if (window.__firebaseReady && window.db && window.__firebaseApp) {
-        _startRTDB(window.__firebaseApp);
-      } else if (window.__firebaseReady && window.db) {
-        import('https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js')
-          .then(function(m) {
-            var fbApp = m.getApp();
-            window.__firebaseApp = fbApp;
-            _startRTDB(fbApp);
-          })
-          .catch(function() { _initFirestore(); });
-      } else {
-        setTimeout(_waitFirebase, 300);
-      }
-    };
-
-    var _startRTDB = function(fbApp) {
-      try {
-        var rtdb = getDatabase(fbApp);
-        window._rtdb = rtdb; /* exposé pour debug console */
-
-        /* .info/connected : nœud spécial Firebase indiquant la connexion WebSocket */
-        var connRef = rtdbRef(rtdb, '.info/connected');
-        var _connUnsub = onValue(connRef, function(snap) {
-          _connUnsub(); /* écouter une seule fois pour le boot */
-          if (snap.val() === true) {
-            console.info('[AMBI241] RTDB connecté ✅');
-            _initRTDB(fbApp);
-          } else {
-            console.info('[AMBI241] RTDB hors ligne, fallback Firestore');
-            _initFirestore();
-          }
-        }, function(err) {
-          console.warn('[AMBI241] RTDB erreur (' + (err.code || err.message) + '), fallback Firestore');
-          _initFirestore();
-        });
-
-        /* Timeout sécurité 4s : si pas de réponse RTDB → Firestore */
-        setTimeout(function() {
-          if (_mode === null) {
-            console.info('[AMBI241] RTDB timeout 4s, fallback Firestore');
-            _connUnsub();
-            _initFirestore();
-          }
-        }, 4000);
-
-      } catch(e) {
-        console.warn('[AMBI241] getDatabase() échoué:', e.message);
-        _initFirestore();
-      }
-    };
-
-    _waitFirebase();
-  }
-
-  /* ══════════════════════════════════════════════════════════
-     HOOKS : ouverture / fermeture du dashboard admin
-     ══════════════════════════════════════════════════════════ */
-
-  /* Patch openAdminDashboard — forcer un refresh du compteur à l'ouverture */
-  var _origOpen = window.openAdminDashboard;
-  window.openAdminDashboard = function (btn) {
-    if (typeof _origOpen === 'function') _origOpen(btn);
-    /* Afficher immédiatement la valeur en cache */
-    if (typeof window._onlineCount === 'number') {
-      _updateCounter(window._onlineCount, window._onlineSessions || [], window._onlineSource || 'cache');
+      /* MutationObserver sur dmInboxBadge pour détecter nouveaux DMs */
+      var _dmObserverStarted = false;
+      var _tryObserveDm = function(){
+        var dmEl = document.getElementById('dmInboxBadge');
+        if(dmEl && !_dmObserverStarted){
+          _dmObserverStarted = true;
+          var obs = new MutationObserver(function(){
+            var n = parseInt(dmEl.textContent, 10) || 0;
+            if(n > 0){
+              playNotifSound('message');
+              _COUNTS.navBadgeForum = n; // valeur directe DM
+              _flushBadges();
+            }
+          });
+          obs.observe(dmEl, {childList:true, characterData:true, subtree:true});
+        } else if(!_dmObserverStarted){
+          setTimeout(_tryObserveDm, 1500);
+        }
+      };
+      setTimeout(_tryObserveDm, 2000);
     }
-  };
 
-  /* Exposer pour usage externe (Status Live tab) */
-  window.admGetOnlineSessions = function () { return window._onlineSessions || []; };
-  window.admGetOnlineCount    = function () { return window._onlineCount    || 0; };
-  window.admGetOnlineSource   = function () { return window._onlineSource   || 'unknown'; };
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', function(){ setTimeout(_boot, 1500); });
+    } else {
+      setTimeout(_boot, 1500);
+    }
 
-  /* ── Démarrage ── */
-  _boot();
-
-})();
+    /* Exposer pour debug console */
+    window._ambiNavBadge = {
+      play: playNotifSound,
+      sync: _syncFromNotifStore,
+      set: _setNavBadge,
+      counts: _COUNTS
+    };
+  })();
+  
