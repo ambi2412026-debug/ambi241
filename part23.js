@@ -767,24 +767,6 @@ window.searchEtabFromPub = function(etabNom) {
   if(typeof _prevSearchEtabFromPub === 'function') _prevSearchEtabFromPub(etabNom);
 };
 
-// ── C) Chauffeurs (déjà hookés via showDriverProfile) ──
-// On remplace showDriverProfile
-var _prevShowDriverProfile = window.showDriverProfile;
-window.showDriverProfile = function(encodedPhone) {
-  var phone = '';
-  try { phone = decodeURIComponent(encodedPhone); } catch(e) { phone = encodedPhone; }
-  var contacts = [];
-  try { contacts = JSON.parse(localStorage.getItem('taxiContacts') || '[]'); } catch(e) {}
-  var driver = contacts.find(function(c) { return (c.phone||'').replace(/\s/g,'') === phone.replace(/\s/g,''); });
-  if(driver) {
-    window.openPublicProfile('chauffeur', 'driver_' + phone.replace(/[^0-9]/g,''), driver);
-  } else if(typeof _prevShowDriverProfile === 'function') {
-    _prevShowDriverProfile(encodedPhone);
-  } else {
-    // Profil minimal
-    window.openPublicProfile('chauffeur', 'driver_' + phone.replace(/[^0-9]/g,''), { phone: phone, name: 'Chauffeur', type: '🚗 Taxi' });
-  }
-};
 
 // ── D) Noms cliquables dans les établissements (header nom) ──
 // On ajoute un listener délégué pour les .card-nom et .card-title cliquables

@@ -13670,13 +13670,6 @@ function renderAdmUsers(){
           }
           // ── Bouton Réinitialiser MDP (SuperAdmin uniquement) ──
           h += "<button onclick=\"resetMemberPassword('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"',null)\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,215,0,0.09);border:1px solid rgba(255,215,0,0.35);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;'>🔑 Réinitialiser MDP</button>";
-          // ── Bouton Désigner Chauffeur ──
-          var isDriver = window._chauffeurDrivers && Object.values(window._chauffeurDrivers).some(function(d){ return d.email.toLowerCase()===em && d.status==='approved'; });
-          if(!isDriver){
-            h += "<button onclick=\"adminDesignDriver('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"',null)\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(157,132,255,0.12);border:1px solid rgba(157,132,255,0.4);color:var(--amber);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;'>🚗 Désigner Chauffeur...</button>";
-          } else {
-            h += "<button onclick=\"adminRevokeDriver('"+escHtml(u.uid)+"');renderAdmUsers()\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.25);color:var(--red);cursor:pointer;font-family:DM Sans,sans-serif;'>🚗 Révoquer Chauffeur</button>";
-          }
           // ── Bouton Supprimer Membre ──
           h += "<button onclick=\"deleteMember('"+escHtml(u.uid)+"','"+escHtml(u.email||"")+"','"+escHtml(u.pseudo||"")+"')\" style='font-size:0.63rem;padding:0.25rem 0.55rem;border-radius:6px;background:rgba(255,68,102,0.15);border:1px solid rgba(255,68,102,0.45);color:var(--red);cursor:pointer;font-family:DM Sans,sans-serif;font-weight:700;'>🗑️ Supprimer membre</button>";
           h += "</div>";
