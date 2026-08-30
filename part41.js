@@ -82,14 +82,6 @@ var RESA_CONFIG = {
     types: ['Sur place', 'À emporter', 'Livraison (rayon 3km)'],
     paiements: ['Espèces', 'Airtel Money', 'Moov Money']
   },
-  terrasse: {
-    statusMsg: '🌅 Terrasse ouverte · Vue dégagée ce soir',
-    whatsappTpl: 'Bonjour ! Je souhaite réserver une table en terrasse via AMBI241.',
-    email: 'resa@terrasse.ga',
-    tel: '+24107223344',
-    types: ['Table standard', 'Table vue mer/ville', 'Espace lounge', 'Privatisation terrasse'],
-    paiements: ['Espèces', 'Airtel Money', 'Moov Money', 'Carte bancaire']
-  }
 };
 
 /* ════════════════════════════════════════════════════════════
@@ -186,18 +178,6 @@ var EQUIP_CONFIG = {
     { icon: '🅿️', label: 'Parking', key: 'parking', default: false },
     { icon: '💳', label: 'Paiement mobile', key: 'mobile_pay', default: true }
   ],
-  terrasse: [
-    { icon: '☀️', label: 'Parasols', key: 'parasols', default: true },
-    { icon: '🌊', label: 'Vue mer / fleuve', key: 'vue_mer', default: false },
-    { icon: '🏙️', label: 'Vue sur la ville', key: 'vue_ville', default: true },
-    { icon: '❄️', label: 'Brumisateurs', key: 'brumisateur', default: false },
-    { icon: '📺', label: 'Écran extérieur', key: 'tv', default: false },
-    { icon: '🎵', label: 'Musique ambiance', key: 'music', default: true },
-    { icon: '🍹', label: 'Bar / Cocktails', key: 'bar', default: true },
-    { icon: '🅿️', label: 'Parking', key: 'parking', default: false },
-    { icon: '🕯️', label: 'Bougies / Éclairage', key: 'eclairage', default: true },
-    { icon: '🚬', label: 'Zone fumeur', key: 'fumeur', default: true }
-  ]
 };
 
 /* ════════════════════════════════════════════════════════════
@@ -272,16 +252,6 @@ var CONTRIB_CONFIG = {
       { label: '🥤 Boissons fraîches', type: 'select', id: 'snack_drinks', options: ['Oui ✅', 'Stock limité ⚠️', 'Épuisées ❌'] }
     ]
   },
-  terrasse: {
-    title: '📡 Contribuer en direct',
-    sub: 'En terrasse ce soir ? Donnez des infos météo et ambiance.',
-    fields: [
-      { label: '🪑 Places disponibles', type: 'number', id: 'terrasse_places', placeholder: 'Ex: 12', min: 0, max: 200 },
-      { label: '☁️ Météo / Confort extérieur', type: 'select', id: 'terrasse_meteo', options: ['☀️ Parfait', '🌬️ Un peu de vent', '☁️ Couvert', '🌧️ Légère pluie', '⛈️ À déconseiller'] },
-      { label: '🎵 Ambiance musicale', type: 'select', id: 'terrasse_music', options: ['Silence / Nature', 'Musique douce', 'Animé', 'DJ Set'] },
-      { label: '🌅 Vue dégagée', type: 'select', id: 'terrasse_vue', options: ['Magnifique ✅', 'Correcte', 'Brume / Nuageux', 'Obscurité totale'] }
-    ]
-  }
 };
 
 /* ════════════════════════════════════════════════════════════
@@ -487,7 +457,6 @@ var AMBI_COORDS = {
   club:     { lat: 0.3910, lng: 9.4555, name: 'Club' },
   salle:    { lat: 0.3870, lng: 9.4490, name: 'Salle' },
   snack:    { lat: 0.3950, lng: 9.4510, name: 'Snack' },
-  terrasse: { lat: 0.3880, lng: 9.4530, name: 'Terrasse' }
 };
 var AMBI_GPS_RADIUS_M = 300; /* rayon max autorisé en mètres */
 
@@ -646,14 +615,14 @@ function buildFullFiche(ficheId, type, config) {
 function buildPlaceholderFicheHTML(ficheId, type, cfg) {
   var heroColors = {
     resto: '#3a1200,#1a0a28', club: '#1a003a,#0a0014', salle: '#001a3a,#0a0a1a',
-    snack: '#2a1800,#1a0a28', terrasse: '#001a2a,#0a1a14'
+    snack: '#2a1800,#1a0a28'
   };
   var hc = (heroColors[type] || '#1a0a28,#0a0014').split(',');
-  var icons = { resto:'🍽️', club:'🎵', salle:'🎭', snack:'🍾', terrasse:'🌅' };
-  var names = { resto:'Restaurant & Pâtisserie', club:'Club / Discothèque', salle:'Salle de Cérémonies', snack:'Snack Bar', terrasse:'Terrasse Vue' };
-  var typeLabels = { resto:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 40" width="1.1em" height="0.8em" style="display:inline-block;vertical-align:middle;flex-shrink:0;"><line x1="10" y1="4" x2="10" y2="36" stroke="white" stroke-width="2.2" stroke-linecap="round"/><line x1="7" y1="4" x2="7" y2="16" stroke="white" stroke-width="1.6" stroke-linecap="round"/><line x1="13" y1="4" x2="13" y2="16" stroke="white" stroke-width="1.6" stroke-linecap="round"/><path d="M7 16 Q10 20 13 16" fill="none" stroke="white" stroke-width="1.6"/><circle cx="28" cy="22" r="14" fill="none" stroke="white" stroke-width="2.2"/><circle cx="28" cy="22" r="9" fill="rgba(255,255,255,0.12)" stroke="white" stroke-width="1.2"/><circle cx="28" cy="22" r="3.5" fill="white" opacity="0.7"/><ellipse cx="46" cy="10" rx="3.5" ry="5" fill="none" stroke="white" stroke-width="2"/><line x1="46" y1="15" x2="46" y2="36" stroke="white" stroke-width="2.2" stroke-linecap="round"/></svg> Restaurant', club:'🎵 Club & Disco', salle:'🎭 Salle & Cérémonies', snack:'🍾 Snack Bar', terrasse:'🌅 Terrasse' };
-  var statusLabels = { resto:'Ouvert · Service en cours', club:'Ouvert · DJ à 22h', salle:'Disponible à la location', snack:'Ouvert · Commandes en cours', terrasse:'Ouvert · Places disponibles' };
-  var statusClass = { resto:'pill-ouvert-anime', club:'pill-ouvert-anime', salle:'pill-ouvert-calme', snack:'pill-ouvert-anime', terrasse:'pill-ouvert-calme' };
+  var icons = { resto:'🍽️', club:'🎵', salle:'🎭', snack:'🍾' };
+  var names = { resto:'Restaurant & Pâtisserie', club:'Club / Discothèque', salle:'Salle de Cérémonies', snack:'Snack Bar' };
+  var typeLabels = { resto:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 40" width="1.1em" height="0.8em" style="display:inline-block;vertical-align:middle;flex-shrink:0;"><line x1="10" y1="4" x2="10" y2="36" stroke="white" stroke-width="2.2" stroke-linecap="round"/><line x1="7" y1="4" x2="7" y2="16" stroke="white" stroke-width="1.6" stroke-linecap="round"/><line x1="13" y1="4" x2="13" y2="16" stroke="white" stroke-width="1.6" stroke-linecap="round"/><path d="M7 16 Q10 20 13 16" fill="none" stroke="white" stroke-width="1.6"/><circle cx="28" cy="22" r="14" fill="none" stroke="white" stroke-width="2.2"/><circle cx="28" cy="22" r="9" fill="rgba(255,255,255,0.12)" stroke="white" stroke-width="1.2"/><circle cx="28" cy="22" r="3.5" fill="white" opacity="0.7"/><ellipse cx="46" cy="10" rx="3.5" ry="5" fill="none" stroke="white" stroke-width="2"/><line x1="46" y1="15" x2="46" y2="36" stroke="white" stroke-width="2.2" stroke-linecap="round"/></svg> Restaurant', club:'🎵 Club & Disco', salle:'🎭 Salle & Cérémonies', snack:'🍾 Snack Bar' };
+  var statusLabels = { resto:'Ouvert · Service en cours', club:'Ouvert · DJ à 22h', salle:'Disponible à la location', snack:'Ouvert · Commandes en cours' };
+  var statusClass = { resto:'pill-ouvert-anime', club:'pill-ouvert-anime', salle:'pill-ouvert-calme', snack:'pill-ouvert-anime' };
   var icon = icons[type] || '🏠';
   var name = names[type] || type;
   var typeLabel = typeLabels[type] || type;
@@ -708,7 +677,6 @@ function doInject() {
   buildFullFiche('club',     'club');
   buildFullFiche('salle',    'salle');
   buildFullFiche('snack',    'snack');
-  buildFullFiche('terrasse', 'terrasse');
 }
 
 if (document.readyState === 'loading') {

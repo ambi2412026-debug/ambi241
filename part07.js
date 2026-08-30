@@ -1739,7 +1739,6 @@ var CATEGORIES=[
   {key:"Bar",label:"Bar et Lounge",icon:"&#127867;",badge:"cb-bar"},
   {key:"Discotheque",label:"Discotheque et Club",icon:"&#127925;",badge:"cb-club"},
   {key:"Restaurant",label:"Restaurant, Café et Maquis",icon:"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 56 40\" width=\"2.2em\" height=\"1.6em\" style=\"display:inline-block;vertical-align:middle;\"><line x1=\"10\" y1=\"4\" x2=\"10\" y2=\"36\" stroke=\"white\" stroke-width=\"2.2\" stroke-linecap=\"round\"/><line x1=\"7\" y1=\"4\" x2=\"7\" y2=\"16\" stroke=\"white\" stroke-width=\"1.6\" stroke-linecap=\"round\"/><line x1=\"13\" y1=\"4\" x2=\"13\" y2=\"16\" stroke=\"white\" stroke-width=\"1.6\" stroke-linecap=\"round\"/><path d=\"M7 16 Q10 20 13 16\" fill=\"none\" stroke=\"white\" stroke-width=\"1.6\"/><circle cx=\"28\" cy=\"22\" r=\"14\" fill=\"none\" stroke=\"white\" stroke-width=\"2.2\"/><circle cx=\"28\" cy=\"22\" r=\"9\" fill=\"rgba(255,255,255,0.12)\" stroke=\"white\" stroke-width=\"1.2\"/><circle cx=\"28\" cy=\"22\" r=\"3.5\" fill=\"white\" opacity=\"0.7\"/><ellipse cx=\"46\" cy=\"10\" rx=\"3.5\" ry=\"5\" fill=\"none\" stroke=\"white\" stroke-width=\"2\"/><line x1=\"46\" y1=\"15\" x2=\"46\" y2=\"36\" stroke=\"white\" stroke-width=\"2.2\" stroke-linecap=\"round\"/></svg>",badge:"cb-resto"},
-  {key:"Bar Terrasse",label:"Bar Terrasse et Rooftop",icon:"🌴",badge:"cb-roof"},
   {key:"Snack",label:"Snack-Bar",icon:"🍾",badge:"cb-snack"},
 ];
 
@@ -1751,7 +1750,6 @@ function getCategory(type){
   var exact={
     "discotheque":"Discotheque","discothèque":"Discotheque","nightclub":"Discotheque","night club":"Discotheque",
     "snack":"Snack","snack-bar":"Snack",
-    "bar terrasse":"Bar Terrasse","bar-terrasse":"Bar Terrasse","rooftop":"Bar Terrasse","rooftop bar":"Bar Terrasse",
     "restaurant":"Restaurant","café":"Restaurant","cafe":"Restaurant","brasserie":"Restaurant","pizzeria":"Restaurant",
     "bar":"Bar","lounge":"Bar","bar lounge":"Bar","pub":"Bar","taverne":"Bar",
     "salle":"Salle","salle de spectacle":"Salle","salle de cérémonie":"Salle","salle de ceremonie":"Salle","salle polyvalente":"Salle","centre culturel":"Salle","théâtre":"Salle","cinema":"Salle","cinéma":"Salle","auditorium":"Salle",
@@ -1766,8 +1764,6 @@ function getCategory(type){
   // "club" seul, seulement si pas accompagné de "bar" ou "snack"
   if(t.indexOf("club")!==-1&&t.indexOf("bar")===-1&&t.indexOf("snack")===-1)return "Discotheque";
 
-  // ── 4. Bar Terrasse / Rooftop (avant Bar et Snack) ──
-  if(t.indexOf("terrasse")!==-1||t.indexOf("rooftop")!==-1||t.indexOf("bar terrasse")!==-1||t.indexOf("bar-terrasse")!==-1)return "Bar Terrasse";
 
   // ── 5. Snack (avant Bar pour éviter "snack-bar" → Bar) ──
   if(t.indexOf("snack")!==-1)return "Snack";
@@ -2363,9 +2359,6 @@ function _getDefaultsLegacy_DISABLED(){
     {id:40,nom:"CEYO NIGHTCLUB",type:"Discotheque",quartier:"Nzeng-Ayong",ambiance:"Anime",statut:"",note:0,avis:0,contact:"",paiement:"En attente",affluence:0,lat:0.4333249,lng:9.4841343,place_id:"ChIJ5-vIs9I9fxAR4A79RMNnJoQ",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJ5-vIs9I9fxAR4A79RMNnJoQ",photo_interieur:"",photo_exterieur:""},
     {id:41,nom:"Le Phoenix Night Club",type:"Discotheque",quartier:"Nzeng-Ayong",ambiance:"Festif",statut:"",note:0,avis:0,contact:"",paiement:"En attente",affluence:0,lat:0.4274256,lng:9.4774206,place_id:"ChIJe75Tmr88fxARevbrLUcTvzc",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJe75Tmr88fxARevbrLUcTvzc",photo_interieur:"",photo_exterieur:""},
     {id:42,nom:"LOxy Snack Bar Et Nightclub",type:"Discotheque",quartier:"Louis",ambiance:"Festif",statut:"",note:0,avis:0,contact:"",paiement:"En attente",affluence:0,lat:0.3976322,lng:9.4410695,place_id:"ChIJL2WJsrg7fxARA9LHKr8EPNs",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJL2WJsrg7fxARA9LHKr8EPNs",photo_interieur:"",photo_exterieur:""},
-    {id:43,nom:"Sunset Bar Terrasse",type:"Bar Terrasse",quartier:"Louis",ambiance:"Festif",statut:"",note:0,avis:0,contact:"+241 74 25 19 80",paiement:"En attente",affluence:0,lat:0.4072794,lng:9.4345055,place_id:"ChIJnYM_TwA7fxARl3xJ9aYT-vs",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJnYM_TwA7fxARl3xJ9aYT-vs",photo_interieur:"",photo_exterieur:""},
-    {id:44,nom:"RoofTop LBV",type:"Bar Terrasse",quartier:"Akanda",ambiance:"Tres Festif",statut:"",note:0,avis:0,contact:"+241 66 05 06 07",paiement:"En attente",affluence:0,lat:0.4980418,lng:9.392425,place_id:"ChIJvyxcu_wlfxARvNyqCRU2g9A",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJvyxcu_wlfxARvNyqCRU2g9A",photo_interieur:"",photo_exterieur:""},
-    {id:45,nom:"Bar Terrasse Libreville",type:"Bar Terrasse",quartier:"Centre-ville",ambiance:"Tres Festif",statut:"",note:0,avis:0,contact:"+241 77 61 68 59",paiement:"En attente",affluence:0,lat:0.4362396,lng:9.4280635,place_id:"ChIJLQ9rzIk7fxARfED3YnR-n0M",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJLQ9rzIk7fxARfED3YnR-n0M",photo_interieur:"",photo_exterieur:""},
     {id:46,nom:"Paul Gabon Glass",type:"Patisserie Cafe",quartier:"Glass",ambiance:"Chill",statut:"",note:0,avis:0,contact:"+241 11 44 99 99",paiement:"En attente",affluence:0,lat:0.3763756,lng:9.4547395,place_id:"ChIJpVoZYVM7fxAR-0J1lKYqENs",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJpVoZYVM7fxAR-0J1lKYqENs",photo_interieur:"",photo_exterieur:""},
     {id:47,nom:"Paul Libreville Centre",type:"Patisserie Cafe",quartier:"Louis",ambiance:"Chill",statut:"",note:0,avis:0,contact:"+241 11 44 29 02",paiement:"En attente",affluence:0,lat:0.4231599,lng:9.4283105,place_id:"ChIJFzkUgBY7fxARgITPQoroGxs",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJFzkUgBY7fxARgITPQoroGxs",photo_interieur:"",photo_exterieur:""},
     {id:48,nom:"La Citronnelle",type:"Patisserie Cafe",quartier:"Akanda",ambiance:"Chill",statut:"",note:0,avis:0,contact:"+241 66 10 32 30",paiement:"En attente",affluence:0,lat:0.4586431,lng:9.4081189,place_id:"ChIJn1nkZ7QlfxARPvqOlxCu5z4",maps_url:"https://www.google.com/maps/place/?q=place_id:ChIJn1nkZ7QlfxARPvqOlxCu5z4",photo_interieur:"",photo_exterieur:""},
@@ -2798,7 +2791,6 @@ function updateSyncTime(){
 // qui permet un affichage quasi instantané dès le tout premier chargement.
 var AMBI_TYPES_DEF = [
   {key:"Bar",        icon:"&#127867;", name:"Bars",                 cls:"bar",         countCls:"tt-count-bar"},
-  {key:"Bar Terrasse",icon:"🌴",name:"Bar Terrasses",        cls:"bar-terrasse",countCls:"tt-count-bar-terrasse"},
   {key:"Snack",      icon:"&#127870;", name:"Snacks",               cls:"snack",       countCls:"tt-count-snack"},
   {key:"Restaurant", icon:"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 56 40\" width=\"2.2em\" height=\"1.6em\" style=\"display:inline-block;vertical-align:middle;\"><line x1=\"10\" y1=\"4\" x2=\"10\" y2=\"36\" stroke=\"white\" stroke-width=\"2.2\" stroke-linecap=\"round\"/><line x1=\"7\" y1=\"4\" x2=\"7\" y2=\"16\" stroke=\"white\" stroke-width=\"1.6\" stroke-linecap=\"round\"/><line x1=\"13\" y1=\"4\" x2=\"13\" y2=\"16\" stroke=\"white\" stroke-width=\"1.6\" stroke-linecap=\"round\"/><path d=\"M7 16 Q10 20 13 16\" fill=\"none\" stroke=\"white\" stroke-width=\"1.6\"/><circle cx=\"28\" cy=\"22\" r=\"14\" fill=\"none\" stroke=\"white\" stroke-width=\"2.2\"/><circle cx=\"28\" cy=\"22\" r=\"9\" fill=\"rgba(255,255,255,0.12)\" stroke=\"white\" stroke-width=\"1.2\"/><circle cx=\"28\" cy=\"22\" r=\"3.5\" fill=\"white\" opacity=\"0.7\"/><ellipse cx=\"46\" cy=\"10\" rx=\"3.5\" ry=\"5\" fill=\"none\" stroke=\"white\" stroke-width=\"2\"/><line x1=\"46\" y1=\"15\" x2=\"46\" y2=\"36\" stroke=\"white\" stroke-width=\"2.2\" stroke-linecap=\"round\"/></svg>", name:"Restos &amp;<br>Pâtisseries", cls:"resto",       countCls:"tt-count-resto"},
   {key:"Discotheque",icon:"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 30\" width=\"2em\" height=\"1.3em\" style=\"display:inline-block;vertical-align:middle;\"><circle cx=\"11\" cy=\"4\" r=\"3\" fill=\"#ff2d9b\"/><path d=\"M11 7 Q7 13 5 20 Q8 18 11 19 Q14 18 17 20 Q15 13 11 7Z\" fill=\"#ff2d9b\"/><line x1=\"11\" y1=\"10\" x2=\"5\" y2=\"6\" stroke=\"#ff2d9b\" stroke-width=\"2\" stroke-linecap=\"round\"/><line x1=\"11\" y1=\"10\" x2=\"17\" y2=\"13\" stroke=\"#ff2d9b\" stroke-width=\"2\" stroke-linecap=\"round\"/><line x1=\"9\" y1=\"19\" x2=\"6\" y2=\"27\" stroke=\"#ff2d9b\" stroke-width=\"2\" stroke-linecap=\"round\"/><line x1=\"13\" y1=\"19\" x2=\"16\" y2=\"26\" stroke=\"#ff2d9b\" stroke-width=\"2\" stroke-linecap=\"round\"/><circle cx=\"37\" cy=\"4\" r=\"3\" fill=\"#cc44ff\"/><line x1=\"37\" y1=\"7\" x2=\"37\" y2=\"19\" stroke=\"#cc44ff\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><line x1=\"37\" y1=\"11\" x2=\"31\" y2=\"13\" stroke=\"#cc44ff\" stroke-width=\"2\" stroke-linecap=\"round\"/><line x1=\"37\" y1=\"11\" x2=\"43\" y2=\"7\" stroke=\"#cc44ff\" stroke-width=\"2\" stroke-linecap=\"round\"/><line x1=\"37\" y1=\"19\" x2=\"33\" y2=\"27\" stroke=\"#cc44ff\" stroke-width=\"2\" stroke-linecap=\"round\"/><line x1=\"37\" y1=\"19\" x2=\"41\" y2=\"26\" stroke=\"#cc44ff\" stroke-width=\"2\" stroke-linecap=\"round\"/><text x=\"21\" y=\"13\" font-size=\"8\" fill=\"#ffd700\">♪</text></svg>", name:"Boîtes de Nuit",       cls:"disco",       countCls:"tt-count-disco"},
@@ -2980,7 +2972,7 @@ function renderHomeImmediate(){
     });
 
     // Top 6 : meilleur par catégorie d'abord, puis combler avec les meilleurs restants
-    var allCats = ["Bar", "Bar Terrasse", "Snack", "Restaurant", "Discotheque"];
+    var allCats = ["Bar", "Snack", "Restaurant", "Discotheque"];
     var categoryMap = {};
     allCats.forEach(function(cat){ categoryMap[cat] = []; });
 
@@ -3018,17 +3010,17 @@ function renderHomeImmediate(){
 
     var categoryClasses = {
       "Bar":"bar","Discotheque":"club","Restaurant":"restaurant",
-      "Bar Terrasse":"terrasse","Snack":"snack",
+      "Snack":"snack",
       
     };
     var categoryLabels = {
       "Bar":"BAR","Discotheque":"BOÎTES DE NUIT","Restaurant":"RESTOS & PÂTISS.",
-      "Bar Terrasse":"BAR TERRASSES","Snack":"SNACKS",
+      "Snack":"SNACKS",
       
     };
     var categoryIcons = {
       "Bar":"🍺","Discotheque":"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 30' width='1.4em' height='0.9em'><circle cx='11' cy='4' r='3' fill='#ff2d9b'/><path d='M11 7 Q7 13 5 20 Q8 18 11 19 Q14 18 17 20 Q15 13 11 7Z' fill='#ff2d9b'/><line x1='11' y1='10' x2='5' y2='6' stroke='#ff2d9b' stroke-width='2' stroke-linecap='round'/><line x1='11' y1='10' x2='17' y2='13' stroke='#ff2d9b' stroke-width='2' stroke-linecap='round'/><line x1='9' y1='19' x2='6' y2='27' stroke='#ff2d9b' stroke-width='2' stroke-linecap='round'/><line x1='13' y1='19' x2='16' y2='26' stroke='#ff2d9b' stroke-width='2' stroke-linecap='round'/><circle cx='37' cy='4' r='3' fill='#cc44ff'/><line x1='37' y1='7' x2='37' y2='19' stroke='#cc44ff' stroke-width='2.5' stroke-linecap='round'/><line x1='37' y1='11' x2='31' y2='13' stroke='#cc44ff' stroke-width='2' stroke-linecap='round'/><line x1='37' y1='11' x2='43' y2='7' stroke='#cc44ff' stroke-width='2' stroke-linecap='round'/><line x1='37' y1='19' x2='33' y2='27' stroke='#cc44ff' stroke-width='2' stroke-linecap='round'/><line x1='37' y1='19' x2='41' y2='26' stroke='#cc44ff' stroke-width='2' stroke-linecap='round'/><text x='21' y='13' font-size='8' fill='#ffd700'>♪</text></svg>","Restaurant":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 56 40\" width=\"2.2em\" height=\"1.6em\" style=\"display:inline-block;vertical-align:middle;\"><line x1=\"10\" y1=\"4\" x2=\"10\" y2=\"36\" stroke=\"white\" stroke-width=\"2.2\" stroke-linecap=\"round\"/><line x1=\"7\" y1=\"4\" x2=\"7\" y2=\"16\" stroke=\"white\" stroke-width=\"1.6\" stroke-linecap=\"round\"/><line x1=\"13\" y1=\"4\" x2=\"13\" y2=\"16\" stroke=\"white\" stroke-width=\"1.6\" stroke-linecap=\"round\"/><path d=\"M7 16 Q10 20 13 16\" fill=\"none\" stroke=\"white\" stroke-width=\"1.6\"/><circle cx=\"28\" cy=\"22\" r=\"14\" fill=\"none\" stroke=\"white\" stroke-width=\"2.2\"/><circle cx=\"28\" cy=\"22\" r=\"9\" fill=\"rgba(255,255,255,0.12)\" stroke=\"white\" stroke-width=\"1.2\"/><circle cx=\"28\" cy=\"22\" r=\"3.5\" fill=\"white\" opacity=\"0.7\"/><ellipse cx=\"46\" cy=\"10\" rx=\"3.5\" ry=\"5\" fill=\"none\" stroke=\"white\" stroke-width=\"2\"/><line x1=\"46\" y1=\"15\" x2=\"46\" y2=\"36\" stroke=\"white\" stroke-width=\"2.2\" stroke-linecap=\"round\"/></svg>",
-      "Bar Terrasse":"🌴","Snack":"🍾",
+      "Snack":"🍾",
       
     };
 
@@ -4989,7 +4981,6 @@ var DISPO_PRESETS = {
   Bar:          [{icon:"🍺",name:"Bières pression",val:20,type:"nombre"},{icon:"🍾",name:"Bouteilles VIP",val:10,type:"nombre"},{icon:"🛋️",name:"Tables libres",val:5,type:"nombre"},{icon:"🎵",name:"Musique live",val:1,type:"oui_non"}],
   Discotheque:  [{icon:"💃",name:"Places danse",val:30,type:"nombre"},{icon:"🛋️",name:"Tables VIP",val:8,type:"nombre"},{icon:"🍾",name:"Bouteilles",val:15,type:"nombre"},{icon:"🎤",name:"Soirée DJ",val:1,type:"oui_non"}],
   Restaurant:   [{icon:"🍽️",name:"Tables libres",val:10,type:"nombre"},{icon:"🥩",name:"Plat du jour",val:1,type:"oui_non"},{icon:"🐟",name:"Poisson frais",val:8,type:"nombre"},{icon:"🍰",name:"Desserts",val:12,type:"nombre"},{icon:"🍷",name:"Vin en cave",val:20,type:"nombre"}],
-  "Bar Terrasse":[{icon:"☂️",name:"Places terrasse",val:15,type:"nombre"},{icon:"🍹",name:"Cocktails spéciaux",val:1,type:"oui_non"},{icon:"🌅",name:"Vue disponible",val:1,type:"oui_non"},{icon:"🍺",name:"Bières",val:30,type:"nombre"}],
   Snack:        [{icon:"🍔",name:"Burgers",val:20,type:"nombre"},{icon:"🍟",name:"Frites",val:1,type:"oui_non"},{icon:"🥤",name:"Boissons fraîches",val:50,type:"nombre"},{icon:"🌮",name:"Plats chauds",val:15,type:"nombre"}],
   Salle:        [{icon:"🎭",name:"Places disponibles",val:100,type:"nombre"},{icon:"🎤",name:"Sonorisation",val:1,type:"oui_non"},{icon:"💡",name:"Éclairage scène",val:1,type:"oui_non"},{icon:"🅿️",name:"Places parking",val:20,type:"nombre"},{icon:"🍽️",name:"Service traiteur",val:1,type:"oui_non"},{icon:"📷",name:"Photographe dispo",val:1,type:"oui_non"}],
   Stade:        [{icon:"⚽",name:"Terrain disponible",val:1,type:"oui_non"},{icon:"🪑",name:"Places tribune",val:200,type:"nombre"},{icon:"🚿",name:"Vestiaires",val:1,type:"oui_non"},{icon:"🅿️",name:"Places parking",val:50,type:"nombre"},{icon:"🏆",name:"Match programmé",val:1,type:"oui_non"},{icon:"🍟",name:"Buvette",val:1,type:"oui_non"}],
@@ -6063,7 +6054,7 @@ function buildCard(e,delay,compact,rank,extraClass){
     // ══════════════════════════════════════════════════
     var cat = getCategory(e.type);
     var isResto = cat === "Restaurant" || cat === "Snack";
-    var isBar   = cat === "Bar" || cat === "Bar Terrasse" || cat === "Discotheque";
+    var isBar   = cat === "Bar" || cat === "Discotheque";
     var pd = (e.pro_data) || {};
     var pdDispo = pd.dispo || {};
     var isOpen = (e.statut||"").indexOf("Ouvert") !== -1;
@@ -6396,7 +6387,6 @@ function buildCard(e,delay,compact,rank,extraClass){
   if(_catKey==="Restaurant")_typeClass="type-restaurant";
   else if(_catKey==="Discotheque")_typeClass="type-discotheque";
   else if(_catKey==="Snack")_typeClass="type-snack";
-  else if(_catKey==="Bar Terrasse")_typeClass="type-terrasse";
   else if(_catKey==="Salle")_typeClass="type-salle";
   else if(_catKey==="Stade")_typeClass="type-stade";
   else if(_catKey==="Tourisme")_typeClass="type-tourisme";
@@ -8507,8 +8497,6 @@ function _lazyInitSection(name){
       if(typeof window.initTaxiSection === 'function') setTimeout(window.initTaxiSection, 100);
       break;
     case 'social':
-      // Forum supprimé — rediriger vers accueil
-      setTimeout(function(){ switchSection('accueil', null); }, 50);
       break;
     case 'profil':
       // Synchroniser le profil utilisateur au premier accès
@@ -15488,7 +15476,6 @@ var ADMIN_DEFAULT_PHOTOS_DOC = "config/default_photos";
 // Descripteurs des slots — alignés sur les 6 catégories principales de l'app
 var ADMIN_PHOTO_SLOTS = [
   { key:"bar",         label:"Bars",                 icon:"🍺", hint:"Photo profil par défaut des bars" },
-  { key:"bar_terrasse",label:"Bar Terrasses",        icon:"🌴", hint:"Photo profil par défaut des bars terrasses" },
   { key:"snack",       label:"Snacks",               icon:"🍾", hint:"Photo profil par défaut des snacks" },
   { key:"restaurant",  label:"Restos & Pâtisseries", icon:"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 56 40\" width=\"1.1em\" height=\"0.8em\" style=\"display:inline-block;vertical-align:middle;flex-shrink:0;\"><line x1=\"10\" y1=\"4\" x2=\"10\" y2=\"36\" stroke=\"white\" stroke-width=\"2.2\" stroke-linecap=\"round\"/><line x1=\"7\" y1=\"4\" x2=\"7\" y2=\"16\" stroke=\"white\" stroke-width=\"1.6\" stroke-linecap=\"round\"/><line x1=\"13\" y1=\"4\" x2=\"13\" y2=\"16\" stroke=\"white\" stroke-width=\"1.6\" stroke-linecap=\"round\"/><path d=\"M7 16 Q10 20 13 16\" fill=\"none\" stroke=\"white\" stroke-width=\"1.6\"/><circle cx=\"28\" cy=\"22\" r=\"14\" fill=\"none\" stroke=\"white\" stroke-width=\"2.2\"/><circle cx=\"28\" cy=\"22\" r=\"9\" fill=\"rgba(255,255,255,0.12)\" stroke=\"white\" stroke-width=\"1.2\"/><circle cx=\"28\" cy=\"22\" r=\"3.5\" fill=\"white\" opacity=\"0.7\"/><ellipse cx=\"46\" cy=\"10\" rx=\"3.5\" ry=\"5\" fill=\"none\" stroke=\"white\" stroke-width=\"2\"/><line x1=\"46\" y1=\"15\" x2=\"46\" y2=\"36\" stroke=\"white\" stroke-width=\"2.2\" stroke-linecap=\"round\"/></svg>", hint:"Photo profil par défaut des restos & pâtisseries" },
   { key:"patisserie",   label:"Pâtisseries",           icon:"🍰", hint:"Photo profil par défaut des pâtisseries" },
@@ -15526,8 +15513,7 @@ function getAdminDefaultPhotoForEtab(etab){
   var type = (etab.type||"").toLowerCase();
   var key = "generic";
   // Mapper selon les 6 catégories principales — même ordre que getCategory()
-  if(/bar.*terrasse|terrasse|rooftop/i.test(type)) key = "bar_terrasse";
-  else if(/club|discothèque|discotheque|boîte|boite|night/i.test(type)) key = "boite_nuit";
+  if(/club|discothèque|discotheque|boîte|boite|night/i.test(type)) key = "boite_nuit";
   else if(/snack/i.test(type)) key = "snack";
   else if(/pâtisserie|patisserie/i.test(type)) key = "patisserie";
   else if(/restaurant|resto|brasserie|pizzeria|bistro|café|cafe|maquis/i.test(type)) key = "restaurant";

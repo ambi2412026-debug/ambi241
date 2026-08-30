@@ -3,16 +3,13 @@
   // ══ MOTEUR OSM — Nominatim + Overpass (100% gratuit, sans clé API) ══
   var _igmResults = [];
   var _igmSelectedIds = new Set();
-  var _igmSelectedCats = new Set(['Bar','Bar Terrasse','Snack','Restaurant','Discotheque',]);
+  var _igmSelectedCats = new Set(['Bar','Snack','Restaurant','Discotheque',]);
 
   // Mapping catégorie → tags Overpass OSM + mots-clés Nominatim
   var IGM_CAT_CONFIG = {
     "Bar":          {label:"Bars",             icon:"🍺",
       overpassTags: [["amenity","bar"],["amenity","pub"],["amenity","lounge"]],
       queries:["bar Libreville","pub Libreville","lounge Libreville"]},
-    "Bar Terrasse": {label:"Bar Terrasses",    icon:"🌴",
-      overpassTags: [["amenity","bar"],["amenity","pub"]],
-      queries:["bar terrasse Libreville","rooftop bar Libreville"]},
     "Snack":        {label:"Snacks",           icon:"🍾",
       overpassTags: [["amenity","fast_food"],["amenity","snack_bar"],["amenity","food_court"]],
       queries:["snack Libreville","fast food Libreville","maquis Libreville"]},

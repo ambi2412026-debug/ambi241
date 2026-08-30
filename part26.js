@@ -2,15 +2,12 @@
 (function(){
   // ══ MOTEUR OSM igm2 ══
   var _r2 = [], _sel2 = new Set();
-  var _cats2 = new Set(['Bar','Bar Terrasse','Snack','Restaurant','Discotheque',]);
+  var _cats2 = new Set(['Bar','Snack','Restaurant','Discotheque',]);
 
   var CFG2 = {
     "Bar":          {label:"Bars",             icon:"🍺",
       overpassTags:[["amenity","bar"],["amenity","pub"]],
       queries:["bar Libreville","pub Libreville","lounge Libreville"]},
-    "Bar Terrasse": {label:"Bar Terrasses",    icon:"🌴",
-      overpassTags:[["amenity","bar"],["amenity","pub"]],
-      queries:["bar terrasse Libreville","rooftop Libreville"]},
     "Snack":        {label:"Snacks",           icon:"🍾",
       overpassTags:[["amenity","fast_food"],["amenity","snack_bar"]],
       queries:["snack Libreville","fast food Libreville","maquis Libreville"]},

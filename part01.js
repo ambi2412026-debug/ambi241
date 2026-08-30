@@ -47,7 +47,6 @@ const i18n = {
       filter_bar:        "🍺 Bars",
       filter_disco:      "🎵 Boîtes de Nuit",
       filter_resto:      "🍽 Restos & Pâtisseries",
-      "filter_bar-terrasse":    "🌴 Bar Terrasses",
       filter_snack:      "🍾 Snacks",
       status_all:        "Tous",
       status_packed:     "🔴 Bondé",
@@ -129,7 +128,6 @@ const i18n = {
       filter_bar:        "🍺 Bars",
       filter_disco:      "🎵 Boîtes de Nuit",
       filter_resto:      "🍽 Restos & Pâtisseries",
-      "filter_bar-terrasse":    "🌴 Bar Terrasses",
       filter_snack:      "🍾 Snacks",
       status_all:        "All",
       status_packed:     "🔴 Packed",
@@ -205,7 +203,6 @@ const i18n = {
       filter_bar:        "🍺 Bars",
       filter_disco:      "🎵 Boîtes de Nuit",
       filter_resto:      "🍽 Restos & Pâtisseries",
-      "filter_bar-terrasse":    "🌴 Bar Terrasses",
       filter_snack:      "🍾 Snacks",
       status_all:        "Todos",
       status_packed:     "🔴 Lleno",
@@ -346,7 +343,6 @@ const i18n = {
 
     /* --- Filtres type --- */
     const typeChips = document.querySelectorAll('#typeChips .fchip');
-    const typeKeys  = ['filter_all','filter_bar','filter_bar-terrasse','filter_snack','filter_resto','filter_disco'];
     typeChips.forEach((c, i) => { if (typeKeys[i] && d[typeKeys[i]]) c.textContent = d[typeKeys[i]]; });
 
     /* --- Filtres statut --- */
