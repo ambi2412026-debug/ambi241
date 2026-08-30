@@ -270,6 +270,7 @@
      OUVRIR MODAL PUBLICATION
   ══════════════════════════════════════════ */
   window.forumOpenPublish = function(type){
+    alert("forumOpenPublish appelée, type=" + type);
     // Vérification connexion AVANT d'ouvrir le modal
     if(!_isLoggedIn()){
       // Afficher invitation d'inscription
