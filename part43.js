@@ -303,7 +303,7 @@
     if(chip) chip.classList.add('active');
     // Update counters
     _updateModalCounters();
-    modal.style.display='flex'; modal.classList.add('open'); alert('modal affiche, display=' + modal.style.display + ' classes=' + modal.className);
+    modal.style.display='flex'; modal.classList.add('open'); setTimeout(function(){var r=modal.getBoundingClientRect();alert('rect: w='+r.width+' h='+r.height+' top='+r.top+' left='+r.left+' visibility='+getComputedStyle(modal).visibility+' opacity='+getComputedStyle(modal).opacity+' zindex='+getComputedStyle(modal).zIndex);},50);
     document.body.style.overflow='hidden';
   };
 
