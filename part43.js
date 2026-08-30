@@ -182,6 +182,7 @@
     el.setAttribute('data-pub-id', id);
     el.setAttribute('data-type', data.type||'ambiance');
     el.setAttribute('data-author-uid', data.uid||data.authorId||'');
+    el.setAttribute('data-visibility', data.visibility||'public');
 
     /* Médias mixtes : video + photos[], max 5 affichés */
     var allMedia = [];
@@ -688,6 +689,8 @@
       { icon:'🔗', label:'Copier le lien', action: function(){ forumShare(id,''); menu.remove(); } },
       { icon:'🚩', label:'Signaler', action: function(){ _toast('🚩 Publication signalée'); menu.remove(); } },
     ];
+    if(isAuthor) items.push({ icon:'✏️', label:'Modifier', action: function(){ forumEdit(id); menu.remove(); } });
+    if(isAuthor) items.push({ icon:'🌐', label:'Visibilite', action: function(){ forumToggleVisibility(id); menu.remove(); } });
     if(canDelete) items.push({ icon:'🗑️', label:'Supprimer', danger:true, action: function(){
       menu.remove();
       _forumConfirmDelete(id);
@@ -732,6 +735,30 @@
     }, 50);
   };
 
+  function forumEdit(id){
+    var pub = document.querySelector('[data-pub-id="'+id+'"]');
+    if(!pub) return;     var textEl = pub.querySelector('.forum-card-text');
+    var current = textEl ? textEl.textContent : '';
+    var newText = prompt('Modifier la publication :', current);
+    if(newText===null || newText.trim()===current.trim()) return;
+    if(!window.db || !window.fbDoc || !window.fbUpdateDoc) return;
+    window.fbUpdateDoc(window.fbDoc(window.db,'forum_publications',id),{ text: newText }).then(function(){
+      if(textEl) textEl.innerHTML = _esc(newText).replace(/\n/g,"<br>");
+      _toast('Publication modifiee');
+    });
+  }
+
+  function forumToggleVisibility(id){
+    var pub = document.querySelector('[data-pub-id="'+id+'"]');
+    if(!pub) return;
+    var current = pub.getAttribute('data-visibility')||'public';
+    var next = current==='public' ? 'amis' : 'public';
+    if(!window.db || !window.fbDoc || !window.fbUpdateDoc) return;
+    window.fbUpdateDoc(window.fbDoc(window.db,'forum_publications',id),{ visibility: next }).then(function(){
+    pub.setAttribute('data-visibility', next);
+    _toast(next==='public' ? 'Publication rendue publique' : 'Visible par les amis uniquement');
+    });
+  }
   function _forumConfirmDelete(id){
     // Mini modal de confirmation propre
     var overlay = document.createElement('div');
