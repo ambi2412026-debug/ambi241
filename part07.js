@@ -2945,7 +2945,7 @@ function renderHomeImmediate(){
       typeCounts[t.key] = d.filter(function(e){ return getCategory(e.type) === t.key; }).length;
     });
     _paintTypesGrid(typeCounts);
-        if(!window._didInitialScroll){ window._didInitialScroll=true; var _t=document.getElementById('typesEtab'); if(_t) _t.scrollIntoView({behavior:'auto',block:'start'}); } 
+        if(!window._didInitialScroll){ window._didInitialScroll=true; var _t=document.getElementById('typesEtab'); if(_t) { var _y=_t.getBoundingClientRect().top+window.pageYOffset-116; window.scrollTo({top:_y,behavior:'auto'}); } } 
     /* Dès qu'on dispose de vraies données (cache local ou Firestore), on
        met à jour le cache local pour que le prochain démarrage sur cet
        appareil affiche ces chiffres instantanément. Le document Firestore
