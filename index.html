@@ -720,6 +720,39 @@
   </div>
 </div>
 
+<!-- Bouton "Installer l'application" : item du menu ☰ + FAB flottant sous le header -->
+<style>
+  .sitenav-item-install{
+    background:linear-gradient(135deg,var(--pink,#FF2D9B),#9333EA);
+    color:#fff;border-radius:10px;
+  }
+  .sitenav-item-install .sni-label,
+  .sitenav-item-install .sni-icon{color:#fff;}
+  .sitenav-item-install.installed{opacity:.6;pointer-events:none;background:linear-gradient(135deg,#6b7280,#4b5563);}
+
+  .install-fab-ambi{
+    position:fixed;right:12px;top:74px;z-index:120;display:none;align-items:center;
+    background:#fff;border-radius:30px;box-shadow:0 6px 20px rgba(0,0,0,.35);
+    animation:installFabAmbiIn .45s cubic-bezier(.34,1.56,.64,1) both;
+  }
+  .install-fab-ambi.show{display:flex;}
+  .install-fab-ambi-main{
+    display:flex;align-items:center;gap:8px;border:none;cursor:pointer;
+    padding:10px 16px 10px 14px;border-radius:30px;
+    background:linear-gradient(135deg,var(--pink,#FF2D9B),#9333EA);color:#fff;
+    font-size:13px;font-weight:700;white-space:nowrap;
+    box-shadow:0 2px 10px rgba(255,45,155,.35);
+  }
+  .install-fab-ambi-main:active{transform:scale(.96);}
+  .install-fab-ambi-close{
+    position:absolute;top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;
+    border:2px solid #fff;background:#111827;color:#fff;font-size:10px;line-height:1;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.3);
+  }
+  @keyframes installFabAmbiIn{from{opacity:0;transform:translateY(-10px) scale(.85);}to{opacity:1;transform:translateY(0) scale(1);}}
+  @media (min-width:760px){.install-fab-ambi{right:24px;}}
+</style>
+
 <!-- HEADER -->
 <header>
   <div class="header-top">
@@ -753,6 +786,14 @@
   </div>
 </header>
 
+<!-- FAB flottant "Installer l'application" (fermable), calé sous le header sans le modifier -->
+<div id="install-fab-ambi" class="install-fab-ambi" role="button" tabindex="0" aria-label="Installer l'application">
+  <button class="install-fab-ambi-close" onclick="event.stopPropagation();dismissInstallFabAmbi();" aria-label="Fermer">✕</button>
+  <button class="install-fab-ambi-main" onclick="installAMBI()">
+    <span>📲</span><span>Installer l'app</span>
+  </button>
+</div>
+
 <!-- ═══════════════════════════════════════════════════════════
      ☰ PANNEAU NAVIGATION — PLAN DU SITE & PARAMÈTRES
 ═══════════════════════════════════════════════════════════ -->
@@ -763,6 +804,12 @@
     <div class="sitenav-title">☰ Menu AMBI241</div>
     <button class="sitenav-close" onclick="closeSiteNav()">✕</button>
   </div>
+
+  <!-- ── INSTALLER L'APPLICATION ── -->
+  <div class="sitenav-item sitenav-item-install" id="sitenav-install" onclick="installAMBI();closeSiteNav()">
+    <span class="sni-icon">📲</span><span class="sni-label" id="sitenav-install-label">Installer l'application</span>
+  </div>
+  <div class="sitenav-divider"></div>
 
   <!-- ── PLAN DU SITE ── -->
   <div class="sitenav-section">🗺 Plan du site</div>
@@ -5893,3 +5940,93 @@
 </div>
 
 <script src="part46.js"></script>
+
+<!-- Bouton "Installer l'application" — menu ☰ + FAB flottant sous le header -->
+<script>
+(function(){
+  let deferredPromptAmbi = null;
+  const DISMISS_KEY = 'ambi241_install_fab_dismissed_at';
+  const SNOOZE_DAYS = 7;
+
+  function isStandalone(){
+    return window.matchMedia('(display-mode: standalone)').matches ||
+           window.navigator.standalone === true;
+  }
+
+  function positionFab(){
+    const header = document.querySelector('header');
+    const fab = document.getElementById('install-fab-ambi');
+    if(!header || !fab) return;
+    const bottom = header.getBoundingClientRect().bottom;
+    fab.style.top = Math.round(bottom + 10) + 'px';
+  }
+
+  function wasRecentlyDismissed(){
+    const ts = localStorage.getItem(DISMISS_KEY);
+    if(!ts) return false;
+    return (Date.now() - parseInt(ts,10)) / 86400000 < SNOOZE_DAYS;
+  }
+
+  function setInstalledState(){
+    const item = document.getElementById('sitenav-install');
+    if(item){
+      item.classList.add('installed');
+      const label = document.getElementById('sitenav-install-label');
+      if(label){ label.textContent = 'Application installée ✅'; }
+    }
+    const fab = document.getElementById('install-fab-ambi');
+    if(fab){ fab.classList.remove('show'); fab.style.display = 'none'; }
+  }
+
+  function maybeShowFab(){
+    if(isStandalone() || wasRecentlyDismissed()) return;
+    positionFab();
+    const fab = document.getElementById('install-fab-ambi');
+    if(fab){ fab.classList.add('show'); }
+  }
+
+  window.dismissInstallFabAmbi = function(){
+    const fab = document.getElementById('install-fab-ambi');
+    if(fab){ fab.classList.remove('show'); }
+    try{ localStorage.setItem(DISMISS_KEY, String(Date.now())); }catch(e){}
+  };
+
+  window.installAMBI = function(){
+    if(deferredPromptAmbi){
+      deferredPromptAmbi.prompt();
+      deferredPromptAmbi.userChoice.then(function(result){
+        if(result.outcome === 'accepted'){ setInstalledState(); }
+        deferredPromptAmbi = null;
+      });
+    } else {
+      alert('📲 Pour installer AMBI241 :\n\nSur Android Chrome :\nMenu ⋮ → "Ajouter à l\'écran d\'accueil" / "Installer l\'application"\n\nSur iPhone Safari :\nBouton Partager ⬆️ → "Sur l\'écran d\'accueil"');
+    }
+  };
+
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault();
+    deferredPromptAmbi = e;
+    setTimeout(maybeShowFab, 1800);
+  });
+
+  window.addEventListener('appinstalled', setInstalledState);
+  window.addEventListener('resize', positionFab);
+
+  document.addEventListener('DOMContentLoaded', function(){
+    if(isStandalone()){
+      setInstalledState();
+    } else {
+      positionFab();
+      setTimeout(maybeShowFab, 2500);
+    }
+    const fab = document.getElementById('install-fab-ambi');
+    if(fab){ fab.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ installAMBI(); } }); }
+  });
+
+  // Si le script s'exécute après DOMContentLoaded (chargé en fin de page), initialiser tout de suite
+  if(document.readyState !== 'loading'){
+    if(isStandalone()){ setInstalledState(); }
+    else { positionFab(); setTimeout(maybeShowFab, 2500); }
+  }
+})();
+</script>
