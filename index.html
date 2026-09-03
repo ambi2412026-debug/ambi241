@@ -3113,19 +3113,13 @@
      ══════════════════════════════════════════════════════════════ -->
 <style>
   .ambiInfo-section{max-width:720px;margin:0 auto;padding:1.6rem 1rem 0.8rem;}
-  .ambiInfo-title{font-family:'Syne',sans-serif;font-weight:800;font-size:1.15rem;color:var(--text);margin-bottom:0.9rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer;gap:0.6rem;user-select:none;}
-  .ambiInfo-title-txt{display:flex;align-items:center;gap:0.5rem;}
-  .ambiInfo-chevron{font-size:0.8rem;color:var(--muted);transition:transform 0.25s ease;flex-shrink:0;}
-  .ambiInfo-section.expanded .ambiInfo-chevron{transform:rotate(180deg);}
-  .ambiInfo-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows 0.32s ease;}
-  .ambiInfo-section.expanded .ambiInfo-body{grid-template-rows:1fr;}
-  .ambiInfo-body-inner{overflow:hidden;}
+  .ambiInfo-title{font-family:'Syne',sans-serif;font-weight:800;font-size:1.15rem;color:var(--text);margin-bottom:0.9rem;}
   .ambiInfo-tabs{display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:1rem;}
   .ambiInfo-tab{border-radius:999px;padding:0.7rem 0.9rem;font-family:'DM Sans',sans-serif;font-weight:700;font-size:0.85rem;text-align:center;cursor:pointer;border:1.5px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.03);color:var(--text);transition:all 0.2s;}
   .ambiInfo-tab.active{background:linear-gradient(90deg,var(--pink),#ff2d9b);color:#000;border-color:transparent;}
   .ambiInfo-panel{display:none;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:1rem 1.1rem;font-size:0.82rem;line-height:1.6;color:var(--text);}
   .ambiInfo-panel.active{display:block;}
-  .ambiInfo-panel h4{font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;margin:0 0 0.6rem;color:var(--text);}
+  .ambiInfo-panel h4{font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;margin:0 0 0.6rem;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:0.5rem;user-select:none;}
   .ambiInfo-panel ul{margin:0 0 0.6rem 1.1rem;padding:0;}
   .ambiInfo-panel li{margin-bottom:0.4rem;}
   .ambiInfo-panel a{color:var(--cyan);text-decoration:underline;}
@@ -3135,15 +3129,15 @@
   .ambiInfo-team-photo{width:56px;height:56px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid rgba(255,45,155,0.4);}
   .ambiInfo-team-name{font-family:'Syne',sans-serif;font-weight:800;font-size:0.88rem;color:var(--text);}
   .ambiInfo-team-role{font-size:0.72rem;color:var(--muted);margin-top:0.15rem;}
+  /* Compact/dépliable : uniquement le texte "Rôles et accès" */
+  .ambiInfo-roles-chevron{font-size:0.75rem;color:var(--muted);transition:transform 0.25s ease;flex-shrink:0;}
+  .ambiInfo-roles-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows 0.3s ease;}
+  .ambiInfo-panel[data-ambiinfo-panel="roles"].roles-expanded .ambiInfo-roles-chevron{transform:rotate(180deg);}
+  .ambiInfo-panel[data-ambiinfo-panel="roles"].roles-expanded .ambiInfo-roles-body{grid-template-rows:1fr;}
+  .ambiInfo-roles-body-inner{overflow:hidden;}
 </style>
-<div class="ambiInfo-section" id="ambiInfoSection">
-  <div class="ambiInfo-title" id="ambiInfoToggle" onclick="ambiInfoToggleExpand()">
-    <span class="ambiInfo-title-txt">ℹ️ Informations &amp; Accès</span>
-    <span class="ambiInfo-chevron">▾</span>
-  </div>
-
-  <div class="ambiInfo-body">
-  <div class="ambiInfo-body-inner">
+<div class="ambiInfo-section">
+  <div class="ambiInfo-title">ℹ️ Informations &amp; Accès</div>
 
   <div class="ambiInfo-tabs">
     <div class="ambiInfo-tab active" data-ambiinfo-tab="roles" onclick="ambiInfoSwitch('roles',this)">🎭 Rôles</div>
@@ -3152,15 +3146,22 @@
     <div class="ambiInfo-tab" data-ambiinfo-tab="legal" onclick="ambiInfoSwitch('legal',this)">⚖️ Légal</div>
   </div>
 
-  <!-- Rôles et accès -->
+  <!-- Rôles et accès (texte compact par défaut, dépliable au clic) -->
   <div class="ambiInfo-panel active" data-ambiinfo-panel="roles">
-    <h4>Rôles et accès</h4>
-    <ul>
-      <li><strong>Visiteur</strong> — consultation libre de la carte, de l'annuaire des bars/restaurants/clubs, de l'ambiance en direct et du forum public.</li>
-      <li><strong>Membre</strong> (compte gratuit) — création de profil, publication d'avis, ajout d'amis, participation au forum avec photos et vidéos (dans la limite quotidienne fixée).</li>
-      <li><strong>Établissement / Pro</strong> (abonnement 5 000 XAF/mois) — gestion de la fiche de son bar, resto ou club, visibilité renforcée dans l'annuaire, activation après validation du paiement.</li>
-      <li><strong>Administrateur</strong> — validation des paiements, activation des abonnements, modération du forum et des fiches établissements.</li>
-    </ul>
+    <h4 onclick="ambiInfoRolesToggle()">
+      <span>Rôles et accès</span>
+      <span class="ambiInfo-roles-chevron">▾</span>
+    </h4>
+    <div class="ambiInfo-roles-body">
+      <div class="ambiInfo-roles-body-inner">
+        <ul>
+          <li><strong>Visiteur</strong> — consultation libre de la carte, de l'annuaire des bars/restaurants/clubs, de l'ambiance en direct et du forum public.</li>
+          <li><strong>Membre</strong> (compte gratuit) — création de profil, publication d'avis, ajout d'amis, participation au forum avec photos et vidéos (dans la limite quotidienne fixée).</li>
+          <li><strong>Établissement / Pro</strong> (abonnement 5 000 XAF/mois) — gestion de la fiche de son bar, resto ou club, visibilité renforcée dans l'annuaire, activation après validation du paiement.</li>
+          <li><strong>Administrateur</strong> — validation des paiements, activation des abonnements, modération du forum et des fiches établissements.</li>
+        </ul>
+      </div>
+    </div>
   </div>
 
   <!-- Données & confidentialité -->
@@ -3209,8 +3210,6 @@
     </div>
   </div>
 
-  </div>
-  </div>
 </div>
 <script>
   window.ambiInfoSwitch = function(tab, btn){
@@ -3220,9 +3219,9 @@
     var panel = document.querySelector('[data-ambiinfo-panel="'+tab+'"]');
     if(panel) panel.classList.add('active');
   };
-  window.ambiInfoToggleExpand = function(){
-    var section = document.getElementById('ambiInfoSection');
-    if(section) section.classList.toggle('expanded');
+  window.ambiInfoRolesToggle = function(){
+    var panel = document.querySelector('[data-ambiinfo-panel="roles"]');
+    if(panel) panel.classList.toggle('roles-expanded');
   };
 </script>
 <!-- ══════════════════════════════════════════════════════════════
