@@ -28,7 +28,7 @@
     var dm   = _elInt('dmInboxBadge');
     /* Lire aussi le badge DOM tabBadgeReq comme fallback */
     var reqTab = _elInt('tabBadgeReq');
-    return Math.max(req, reqTab) + dm;
+    return Math.max(req, reqTab) + dm + (parseInt(window.__ambiSocialUnread, 10) || 0);
   }
 
   /* ── Calcul Profil : demandes reçues (pour section Profil) ── */
