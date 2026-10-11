@@ -15,6 +15,7 @@
     toast: { text: "❓ Nouveau ? Touchez pour découvrir comment ça marche", delayMs: 1500, durationMs: 15000, oncePerSession: true },
     fab: { text: "❓ Guide", position: "bottom-right", showOnAdmin: false }, // bouton permanent désactivé partout
     color: "#d81b7a",
+    adminPinSelector: ".pin-key", // admin.html affiche d'abord un clavier PIN : guide admin et bulle attendent son déverrouillage (null = pas de PIN)
     adminEmails: ["ambi2412026@gmail.com"], // comptes qui voient le guide Administrateur
     lockedMessage: "Cet espace guide est réservé à l'administrateur.",
     defaultRole: { normal: "visiteur", admin: "admin" },
@@ -86,8 +87,18 @@
     return CONFIG.adminEmails.some(function (a) { return a.toLowerCase() === x; });
   }
 
+  function pinVisible() { // vrai tant que le clavier PIN de la page admin est affiché
+    if (!CONFIG.adminPinSelector) return false;
+    try {
+      var k = document.querySelector(CONFIG.adminPinSelector);
+      if (!k) return false;
+      var r = k.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && getComputedStyle(k).visibility !== "hidden";
+    } catch (e) { return false; }
+  }
+
   function isAdminUser() {
-    if (isAdminPage) return true; // les pages admin sont déjà protégées par l'application
+    if (isAdminPage) return !pinVisible(); // page admin : valable seulement une fois le PIN passé
     if (adminByEmail) return true;
     try { // session Supabase stockée par le navigateur
       for (var i = 0; i < localStorage.length; i++) {
@@ -264,7 +275,14 @@
     injectCss();
     detectFirebaseUser();
     if (isAdminPage || isHome) {
-      showToast();
+      if (isAdminPage && CONFIG.adminPinSelector) { // bulle seulement après le PIN
+        var waits = 0;
+        var w = setInterval(function () {
+          waits++;
+          if (!pinVisible()) { clearInterval(w); showToast(); }
+          else if (waits > 1800) clearInterval(w);
+        }, 1000);
+      } else showToast();
       if (isAdminPage && CONFIG.fab.showOnAdmin) addFab();
       // menu latéral : souvent construit ou rouvert après le chargement → on surveille la page
       addMenuLine();
