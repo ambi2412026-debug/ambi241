@@ -1192,7 +1192,7 @@ function _socLoadMembresFirebase(){
       var roleLabel = { admin:'Admin', super_admin:'Super Admin', establishment:'Établissement', chauffeur:'Chauffeur', membre:'Membre Premium', user:'Membre' }[data.role||'user'] || 'Membre';
       var pseudo = data.pseudo || data.displayName || (data.email ? data.email.split('@')[0] : 'Membre');
       var initials = pseudo.slice(0,2).toUpperCase();
-      var avatar = data.avatarEmoji || _socInitialsAvatar(initials);
+      var avatar = (data.photoURL && /^(https?:|data:image)/.test(data.photoURL)) ? '<img src="'+String(data.photoURL).replace(/"/g,'%22')+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="">' : (data.avatarEmoji || _socInitialsAvatar(initials));
       allUsers.push({
         uid:    d.id,
         name:   pseudo,
@@ -1826,7 +1826,12 @@ window.quickAddFriend = function(uid, name){
 /* ════════════ MODALE PROFIL MEMBRE ════════════ */
 window.openMemberProfile = function(uid){
   var f = _friends.find(function(x){return x.uid===uid;});
-  if(!f) return;
+  if(!f){
+    var _src = [].concat(typeof _requestsOut!=='undefined'?_requestsOut:[], typeof _requestsIn!=='undefined'?_requestsIn:[]);
+    var r = _src.find(function(x){return x.uid===uid;});
+    if(!r) return;
+    f = {uid:r.uid, name:r.name, avatar:r.avatar, etab:r.etab||'Membre', tag:r.tag||'', mutualFriends:r.mutualFriends||0, _nf:true};
+  }
   document.getElementById('mpTitle').textContent = f.name;
   var h = '';
   h += '<div class="member-profile-header">';
@@ -1840,7 +1845,7 @@ window.openMemberProfile = function(uid){
   h += '</div></div>';
   h += '<div class="member-profile-actions">';
   h += '<button class="soc-btn-primary" style="flex:2;" onclick="openDM(\''+f.uid+'\');closeModal(\'modalMemberProfile\')">💬 Message</button>';
-  h += '<button class="soc-btn-secondary" style="flex:1;margin:0;" onclick="confirmAction(\'Supprimer '+esc(f.name)+' de tes amis ?\',\'🗑️\',\'Supprimer\',function(){removeFriend(\''+f.uid+'\');closeModal(\'modalMemberProfile\')})">🗑️</button>';
+  if(!f._nf) h += '<button class="soc-btn-secondary" style="flex:1;margin:0;" onclick="confirmAction(\'Supprimer '+esc(f.name)+' de tes amis ?\',\'🗑️\',\'Supprimer\',function(){removeFriend(\''+f.uid+'\');closeModal(\'modalMemberProfile\')})">🗑️</button>';
   h += '<button class="soc-btn-secondary" style="flex:1;margin:0;" onclick="confirmAction(\'Bloquer '+esc(f.name)+' ?\',\'🚫\',\'Bloquer\',function(){blockUser(\''+f.uid+'\');closeModal(\'modalMemberProfile\')})">🚫</button>';
   h += '</div>';
   // Communautés en commun
