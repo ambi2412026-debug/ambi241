@@ -19,7 +19,7 @@
   function loadCss() {
     if (document.getElementById('ambi241ForumUiCss')) return;
     var l = document.createElement('link');
-    l.id = 'ambi241ForumUiCss'; l.rel = 'stylesheet'; l.href = 'ambi241-forum-ui.css?v=2';
+    l.id = 'ambi241ForumUiCss'; l.rel = 'stylesheet'; l.href = 'ambi241-forum-ui.css?v=3';
     document.head.appendChild(l);
   }
 
@@ -181,6 +181,24 @@
     }, function () {});
   }
 
+  function findPerson(uid) {
+    var srcs = [window._friends, window._requestsOut, window._requestsIn, window._blocked, window._suggestions];
+    for (var i = 0; i < srcs.length; i++) {
+      var a = srcs[i];
+      if (!Array.isArray(a)) continue;
+      for (var j = 0; j < a.length; j++) if (a[j] && a[j].uid === uid && a[j].name) return a[j];
+    }
+    var cards = document.querySelectorAll('#friendsList .friend-card');
+    for (var k = 0; k < cards.length; k++) {
+      var oc = cards[k].getAttribute('onclick') || '';
+      if (oc.indexOf("'" + uid + "'") !== -1) {
+        var n = cards[k].querySelector('.friend-name');
+        if (n && n.textContent.trim()) return { uid: uid, name: n.textContent.trim() };
+      }
+    }
+    return {};
+  }
+
   function renderMessages() {
     var box = document.getElementById('msgList');
     if (!box) return;
@@ -195,7 +213,7 @@
     }
     var h = '';
     convs.forEach(function (c) {
-      var f = ((window._friends || []).filter(function (x) { return x.uid === c.uid; })[0]) || {};
+      var f = findPerson(c.uid);
       var name = f.name || 'Membre';
       var av = (f.avatar && f.avatar !== '👤') ? f.avatar : esc((name[0] || '?').toUpperCase());
       var prev = (c.from === me ? 'Toi : ' : '') + String(c.last).substring(0, 70);
