@@ -1119,6 +1119,22 @@ var _currentUser = {
   establishement: 'Libreville'
 };
 
+function _socPhotoPush(arr,obj){
+  arr.push(obj);
+  try{
+    if(!obj||!obj.uid||!window.db||typeof window.fbGetDoc!=='function'||typeof window.fbDoc!=='function') return obj;
+    window.fbGetDoc(window.fbDoc(window.db,'users',obj.uid)).then(function(snap){
+      var u = (snap && typeof snap.exists==='function' && snap.exists()) ? snap.data() : null;
+      var url = u && u.photoURL;
+      if(url && /^(https?:|data:image)/.test(url)){
+        obj.avatar = '<img src="'+String(url).replace(/"/g,'%22')+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="">';
+        clearTimeout(window._socPhotoT);
+        window._socPhotoT = setTimeout(function(){ if(typeof renderRequests==='function') renderRequests(); },300);
+      }
+    }).catch(function(){});
+  }catch(e){}
+  return obj;
+}
 var _friends = [
   // Liste chargée depuis Firebase (amis réels uniquement)
 ];
@@ -1269,7 +1285,7 @@ function _socLoadFriendships(meUID, allUsers){
         if(_friends.find(function(f){ return f.uid===d.id; })) return;
         var data = d.data();
         var pseudo = data.pseudo || data.name || data.email || d.id;
-        _friends.push({
+        _socPhotoPush(_friends,{
           uid: d.id,
           name: pseudo,
           avatar: data.avatarEmoji || data.avatar || '👤',
@@ -1324,7 +1340,7 @@ function _socLoadFriendships(meUID, allUsers){
             var alreadyFriend = _friends.find(function(f){ return f.uid===d.id; });
             var alreadyReq    = _requestsIn.find(function(r){ return r.uid===d.id; });
             if(!alreadyFriend && !alreadyReq){
-              _requestsIn.push({
+              _socPhotoPush(_requestsIn,{
                 uid: d.id,
                 name: data.pseudo || data.name || data.email || d.id,
                 avatar: data.avatarEmoji || '👤',
@@ -1380,7 +1396,7 @@ function _socLoadFriendships(meUID, allUsers){
             var alreadyFriend = _friends.find(function(f){ return f.uid===d.id; });
             var alreadyOut    = _requestsOut.find(function(r){ return r.uid===d.id; });
             if(!alreadyFriend && !alreadyOut){
-              _requestsOut.push({
+              _socPhotoPush(_requestsOut,{
                 uid: d.id,
                 name: data.name || data.pseudo || d.id,
                 avatar: data.avatar || '👤',
@@ -1739,7 +1755,7 @@ window.acceptRequest = function(uid){
   var req = _requestsIn.find(function(r){return r.uid===uid;});
   if(!req) return;
   _requestsIn = _requestsIn.filter(function(r){return r.uid!==uid;});
-  _friends.push({ uid:req.uid, name:req.name, avatar:req.avatar, status:'online', etab:req.etab||'Membre', mutualFriends:req.mutualFriends||0, tag:null });
+  _socPhotoPush(_friends,{ uid:req.uid, name:req.name, avatar:req.avatar, status:'online', etab:req.etab||'Membre', mutualFriends:req.mutualFriends||0, tag:null });
   renderRequests();renderFriends();
   updateBadges();
   socToast('✅ '+req.name+' est maintenant ton ami·e !');
@@ -1802,7 +1818,7 @@ window.quickAddFriend = function(uid, name){
     _suggestions = _suggestions.filter(function(s){return s.uid!==uid;}); renderSuggestions(); socToast('⚠️ Demande déjà envoyée à '+name); return;
   }
   _suggestions = _suggestions.filter(function(s){return s.uid!==uid;});
-  _requestsOut.push({ uid:uid, name:name, avatar:'👤', sentAt:"À l'instant" });
+  _socPhotoPush(_requestsOut,{ uid:uid, name:name, avatar:'👤', sentAt:"À l'instant" });
   renderSuggestions();renderRequests();
   socToast('📨 Demande envoyée à '+name+' !');
   // ── Écriture Firebase (sous-collections propres à chaque utilisateur) ──
@@ -2209,7 +2225,7 @@ window.afSendRequests = function(){
     if(!m) return;
     // éviter doublon local
     if(!_requestsOut.find(function(r){return r.uid===uid;})){
-      _requestsOut.push({ uid:uid, name:m.name, avatar:m.avatar, sentAt:"À l'instant" });
+      _socPhotoPush(_requestsOut,{ uid:uid, name:m.name, avatar:m.avatar, sentAt:"À l'instant" });
       sent++;
     }
     // Écriture Firebase
