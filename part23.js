@@ -1840,6 +1840,51 @@ window.quickAddFriend = function(uid, name){
 };
 
 /* ════════════ MODALE PROFIL MEMBRE ════════════ */
+function _socPhotoImg(url){
+  return '<img src="'+String(url).replace(/"/g,'%22')+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="">';
+}
+function _socFetchUser(uid){
+  if(!window.db||typeof window.fbGetDoc!=='function'||typeof window.fbDoc!=='function') return Promise.reject(new Error('firestore indisponible'));
+  return window.fbGetDoc(window.fbDoc(window.db,'users',uid)).then(function(snap){
+    if(!(snap && typeof snap.exists==='function' && snap.exists())) throw new Error('profil introuvable');
+    return snap.data();
+  });
+}
+function _socEnrichProfile(f){
+  var av=document.querySelector('#mpBody .member-profile-avatar');
+  _socFetchUser(f.uid).then(function(u){
+    var url=u.photoURL;
+    var b=document.querySelector('#mpBody .member-profile-bio');
+    if(av && url && /^(https?:|data:image)/.test(url)){ av.innerHTML=_socPhotoImg(url); av.style.overflow='hidden'; }
+    else if(b){ b.textContent += ' • (pas de photo enregistree)'; }
+    var nm=u.pseudo||u.displayName||u.name;
+    if(!nm && f.name && f.name.indexOf('@')>0) nm=f.name.split('@')[0];
+    if(nm){
+      var t=document.getElementById('mpTitle'); if(t) t.textContent=nm;
+      var n=document.querySelector('#mpBody .member-profile-name'); if(n) n.textContent=nm;
+    }
+  }).catch(function(e){
+    var b=document.querySelector('#mpBody .member-profile-bio');
+    if(b) b.textContent += ' • (photo non lue : '+((e && (e.code||e.message))||'erreur')+')';
+  });
+}
+window.openFullProfile = function(uid){
+  var body=document.getElementById('mpBody'); if(!body) return;
+  body.innerHTML='<div style="padding:2rem;text-align:center;color:var(--muted)">Chargement…</div>';
+  _socFetchUser(uid).then(function(u){
+    var nm=u.pseudo||u.displayName||u.name||(u.email?u.email.split('@')[0]:'Membre');
+    var t=document.getElementById('mpTitle'); if(t) t.textContent=nm;
+    var av=(u.photoURL&&/^(https?:|data:image)/.test(u.photoURL))?_socPhotoImg(u.photoURL):(u.avatarEmoji||'👤');
+    var since='';
+    try{ if(u.createdAt){ var d=u.createdAt.toDate?u.createdAt.toDate():new Date(u.createdAt); if(!isNaN(d)) since=d.toLocaleDateString('fr'); } }catch(e){}
+    var rows=[['Ville',u.ville||u.establishment||u.city],['Rôle',u.role],['Bio',u.bio||u.description],['Membre depuis',since]];
+    var h='<div class="member-profile-header"><div class="member-profile-avatar" style="overflow:hidden;width:150px;height:150px">'+av+'</div><div class="member-profile-name">'+esc(nm)+'</div></div><div style="padding:0.8rem 1rem">';
+    rows.forEach(function(r){ if(r[1]) h+='<div style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.06)"><div style="font-size:0.65rem;font-weight:800;text-transform:uppercase;color:var(--muted)">'+r[0]+'</div><div style="font-size:0.9rem;color:var(--text)">'+esc(String(r[1]))+'</div></div>'; });
+    h+='<button class="soc-btn-secondary" style="width:100%;margin-top:0.8rem" onclick="openMemberProfile(\''+uid+'\')">← Retour</button></div>';
+    body.innerHTML=h;
+  }).catch(function(e){ body.innerHTML='<div style="padding:2rem;text-align:center;color:var(--muted)">Profil indisponible ('+esc(String((e&&(e.code||e.message))||'erreur'))+')</div>'; });
+};
+
 window.openMemberProfile = function(uid){
   var f = _friends.find(function(x){return x.uid===uid;});
   if(!f){
@@ -1864,6 +1909,7 @@ window.openMemberProfile = function(uid){
   if(!f._nf) h += '<button class="soc-btn-secondary" style="flex:1;margin:0;" onclick="confirmAction(\'Supprimer '+esc(f.name)+' de tes amis ?\',\'🗑️\',\'Supprimer\',function(){removeFriend(\''+f.uid+'\');closeModal(\'modalMemberProfile\')})">🗑️</button>';
   h += '<button class="soc-btn-secondary" style="flex:1;margin:0;" onclick="confirmAction(\'Bloquer '+esc(f.name)+' ?\',\'🚫\',\'Bloquer\',function(){blockUser(\''+f.uid+'\');closeModal(\'modalMemberProfile\')})">🚫</button>';
   h += '</div>';
+  h += '<div style="padding:0 1rem 0.8rem;"><button class="soc-btn-primary" style="width:100%;" onclick="openFullProfile(\''+f.uid+'\')">👤 Afficher le profil complet</button></div>';
   // Communautés en commun
   var communs = _communities.filter(function(c){return c.joined;}).slice(0,2);
   if(communs.length){
@@ -1878,7 +1924,7 @@ window.openMemberProfile = function(uid){
     h += '</div>';
   }
   document.getElementById('mpBody').innerHTML = h;
-  openModal('modalMemberProfile');
+  openModal('modalMemberProfile'); _socEnrichProfile(f);
 };
 
 /* ════════════ COMMUNAUTÉS ACTIONS ════════════ */
