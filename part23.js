@@ -1130,7 +1130,7 @@ function _socPhotoPush(arr,obj){
       if(url && /^(https?:|data:image)/.test(url)){
         obj.avatar = '<img src="'+String(url).replace(/"/g,'%22')+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="">';
         clearTimeout(window._socPhotoT);
-        window._socPhotoT = setTimeout(function(){ if(typeof renderRequests==='function') renderRequests(); },300);
+        window._socPhotoT = setTimeout(function(){ if(typeof renderFriends==='function') renderFriends(); if(typeof renderRequests==='function') renderRequests(); },300);
       }
     }).catch(function(){});
   }catch(e){}
