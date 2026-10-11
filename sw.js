@@ -3,7 +3,7 @@
    Push Notifications + Badge + Cache offline
    ══════════════════════════════════════════════════ */
 
-const CACHE_NAME    = 'ambi241-v5';
+const CACHE_NAME    = 'ambi241-v6';
 const SHELL_CACHE   = CACHE_NAME + '-shell';
 const RUNTIME_CACHE = CACHE_NAME + '-runtime';
 
@@ -154,6 +154,7 @@ self.addEventListener('push', function(event) {
   var data = {};
   try {
     data = event.data ? event.data.json() : {};
+    if (data && data.data && typeof data.data === 'object') { data = data.data; data.__fcm = 1; } // ambi241-fcm
   } catch(e) {
     data = { title: 'AMBI241', body: event.data ? event.data.text() : 'Nouvelle notification' };
   }
@@ -181,7 +182,7 @@ self.addEventListener('push', function(event) {
 
   event.waitUntil(
     Promise.all([
-      self.registration.showNotification(title, options),
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (l) { if (data.__fcm && l.some(function (c) { return c.visibilityState === 'visible'; })) return; return self.registration.showNotification(title, options); }),
       count > 0 && self.registration.setAppBadge
         ? self.registration.setAppBadge(count)
         : Promise.resolve()
