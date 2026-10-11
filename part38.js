@@ -204,7 +204,7 @@
     ───────────────────────────────────────────────────────────── */
     function _flushBadges(){
       Object.keys(_COUNTS).forEach(function(id){
-        _setNavBadge(id, _COUNTS[id]);
+        if(id!=='navBadgeForum') _setNavBadge(id, _COUNTS[id]); /* Forum : gere par part42 */
       });
 
       /* ── Badge icône app Android/iOS (comme WhatsApp) ── */
