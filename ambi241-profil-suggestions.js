@@ -8,6 +8,8 @@
     var src = document.getElementById('suggestionsRow');
     var dst = document.getElementById('suggestionsRowProfil');
     if (src && dst && dst.innerHTML !== src.innerHTML) dst.innerHTML = src.innerHTML;
+    var st = document.getElementById('profilSuggestStrip');
+    if (st && dst) st.style.display = dst.innerHTML.trim() ? '' : 'none';
   }
 
   function wrapRender() {
