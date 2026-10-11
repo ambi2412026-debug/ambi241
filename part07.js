@@ -12022,7 +12022,10 @@ function pushNotif(opts){
     targetRole: targetRole,
     ts: Date.now(),
     unread: true,
-    fromAdmin: !!opts.fromAdmin
+    fromAdmin: !!opts.fromAdmin,
+    fromUID: opts.fromUID||"",
+    fromName: opts.fromName||"",
+    fromAvatar: opts.fromAvatar||""
   };
 
   var notifs = loadNotifs();
@@ -12480,7 +12483,7 @@ function renderNotifList(){
     // Avatar + badge type
     html+="<div class=\"notif-item-avatar-wrap\">";
     html+="<div class=\"notif-item-avatar\" style=\""+(n.unread?"border-color:"+typeColor+"55;box-shadow:0 0 10px "+typeColor+"33":"")+"\">";
-    html+=n.icon||meta.icon;
+    html+=(n.fromAvatar?"<img src=\""+_escHtml(n.fromAvatar)+"\" alt=\"\" style=\"width:100%;height:100%;border-radius:50%;object-fit:cover;display:block\" onerror=\"this.style.display='none';this.nextSibling.style.display=''\"><span style=\"display:none\">"+(n.icon||meta.icon)+"</span>":(n.icon||meta.icon));
     html+="</div>";
     // Badge type icône
     html+="<div class=\"notif-type-badge\" style=\"background:"+typeColor+"\">"+meta.icon+"</div>";

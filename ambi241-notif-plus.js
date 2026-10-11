@@ -43,9 +43,9 @@
           msg: n.msg || '',
           channel: 'push',
           fromAdmin: true,
-          avatar: n.fromPhoto || '',
-          fromPseudo: n.fromPseudo || '',
-          fromUid: n.fromUID || ''
+          fromAvatar: n.fromPhoto || n.fromAvatar || n.avatar || n.photo || '',
+          fromName: n.fromPseudo || n.fromName || n.pseudo || '',
+          fromUID: n.fromUID || n.fromUid || ''
         });
       }
     } catch (e) {}
