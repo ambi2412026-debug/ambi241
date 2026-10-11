@@ -96,7 +96,7 @@
         try { localStorage.setItem(LS, token); } catch (e) {}
         return true;
       });
-    }).catch(function (e) { console.warn('[push]', e); return false; });
+    }).catch(function (e) { console.warn('[push]', e); window.__pushErr = String((e && (e.code || e.message)) || e).slice(0, 60); return false; });
   }
 
   function hide() { if (btn) btn.style.display = 'none'; }
@@ -112,7 +112,7 @@
         regFor = window.currentUserUID || '';
         btn.textContent = '… activation';
         register().then(function (ok) {
-          btn.textContent = ok ? '✅ Alertes activées' : '⚠️ Échec, réessayer';
+          btn.textContent = ok ? '✅ Alertes activées' : ('⚠️ ' + (window.__pushErr || 'Échec') + ' (réessayer)');
           if (ok) setTimeout(hide, 1500);
         });
       });
