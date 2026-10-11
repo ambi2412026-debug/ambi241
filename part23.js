@@ -1212,7 +1212,7 @@ function _socLoadMembresFirebase(){
     // ── Séparer amis (si déjà liés) vs suggestions ──
     // Pour l'instant tous sont en suggestions + membres de la communauté
     // Les vraies relations "amis" viendront de la collection 'friendships'
-    var newSuggestions = allUsers.slice(0, 8).map(function(u){
+    var newSuggestions = allUsers.filter(function(u){ return !(window.__ambiReqOutHas && window.__ambiReqOutHas(u.uid)); }).slice(0, 8).map(function(u){
       return { uid:u.uid, name:u.name, avatar:u.avatar, mutual:u.mutualFriends||0, etab:u.etab, role:u.roleLabel };
     });
 
@@ -1508,6 +1508,7 @@ function renderSuggestions(){
     if(friendUIDs.indexOf(s.uid)  !== -1) return false;
     if(outUIDs.indexOf(s.uid)     !== -1) return false;
     if(blockedUIDs.indexOf(s.uid) !== -1) return false;
+    if(window.__ambiReqOutHas && window.__ambiReqOutHas(s.uid)) return false;
     return true;
   });
   var h = '';
