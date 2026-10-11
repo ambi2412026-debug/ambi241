@@ -186,7 +186,7 @@
 
     return '<div class="pub-card" data-pubid="'+escHtml(p._id)+'">'
       +'<div class="pub-card-head">'
-      +'<div class="pub-avatar" id="pav_'+escHtml(p._id)+'" style="cursor:pointer;" onclick="openPubAuthorFilter(\''+escHtml(p.pseudo||p.auteur||'')+'\',\''+escHtml(p._id)+'\')" title="Publications de '+escHtml(p.pseudo||p.auteur||'Membre')+'">'+initiale+'</div>'
+      +'<div class="pub-avatar" data-uid="'+escHtml(p.uid||p.authorUid||'')+'" id="pav_'+escHtml(p._id)+'" style="cursor:pointer;" onclick="openPubAuthorFilter(\''+escHtml(p.pseudo||p.auteur||'')+'\',\''+escHtml(p._id)+'\')" title="Publications de '+escHtml(p.pseudo||p.auteur||'Membre')+'">'+initiale+'</div>'
       +'<div class="pub-meta">'
       +'<div class="pub-author" style="cursor:pointer;" onclick="openPubAuthorFilter(\''+escHtml(p.pseudo||p.auteur||'')+'\',\''+escHtml(p._id)+'\')">'+escHtml(p.pseudo||p.auteur||p.author||p.displayName||"Membre")+'<span class="pub-badge '+roleClass+'">'+roleLabel+'</span></div>'
       +'<div class="pub-time">'+ts+' &nbsp;<span class="pub-type-chip '+typeClass+'">'+typeEmoji+' '+typeLabel+'</span></div>'

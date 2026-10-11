@@ -2700,3 +2700,31 @@ window.socToast = socToast;
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 })();
 
+/* _socPubPhotos : vraies photos des auteurs sur le mur de publications */
+(function(){
+  var cache={};
+  function photoFor(uid){
+    if(!uid) return Promise.resolve('');
+    if(!cache[uid]) cache[uid]=_socFetchUser(uid).then(function(u){ return _socPickPhoto(u); }).catch(function(){ return ''; });
+    return cache[uid];
+  }
+  function fill(){
+    document.querySelectorAll('.pub-avatar[data-uid], .socpub-card[data-uid] .socpub-avatar').forEach(function(el){
+      if(el.getAttribute('data-ph')) return;
+      var card = el.classList.contains('pub-avatar') ? el : el.closest('.socpub-card');
+      var uid = card ? card.getAttribute('data-uid') : '';
+      if(!uid) return;
+      el.setAttribute('data-ph','1');
+      if(el.querySelector('img')) return;
+      photoFor(uid).then(function(url){
+        if(!url || el.querySelector('img')) return;
+        el.innerHTML='<img src="'+String(url).replace(/"/g,'%22')+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block" alt="">';
+        el.style.background='none'; el.style.padding='0'; el.style.overflow='hidden';
+      });
+    });
+  }
+  var t=null;
+  function sched(){ clearTimeout(t); t=setTimeout(fill,400); }
+  function start(){ new MutationObserver(sched).observe(document.body,{childList:true,subtree:true}); sched(); }
+  if(document.body) start(); else document.addEventListener('DOMContentLoaded',start);
+})();

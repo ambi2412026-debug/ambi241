@@ -316,7 +316,7 @@ window.socSubmitNewPub = function() {
     var avatarInner = (p.photoURL || p.authorPhoto)
       ? '<img src="'+_esc(p.photoURL||p.authorPhoto)+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" onerror="this.parentNode.innerHTML=\''+letter+'\';this.parentNode.style.background=\'linear-gradient(135deg,var(--pink),var(--purple))\'">'
       : letter;
-    return '<article class="socpub-card" data-pub-id="'+pid+'" data-type="'+_esc(p.type||'ambiance')+'">'
+    return '<article class="socpub-card" data-uid="'+_esc(p.uid||p.authorUid||'')+'" data-pub-id="'+pid+'" data-type="'+_esc(p.type||'ambiance')+'">'
       +'<div class="socpub-card-header">'
       +'<div class="socpub-avatar" id="_sfa_'+pid+'" style="'+avatarStyle+'">'+avatarInner+'</div>'
       +'<div class="socpub-meta">'
