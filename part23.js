@@ -1120,12 +1120,13 @@ var _currentUser = {
 };
 
 function _socPhotoPush(arr,obj){
+  if(obj && typeof obj.name==='string' && obj.name.indexOf('@')>0) obj.name=obj.name.split('@')[0];
   arr.push(obj);
   try{
     if(!obj||!obj.uid||!window.db||typeof window.fbGetDoc!=='function'||typeof window.fbDoc!=='function') return obj;
     window.fbGetDoc(window.fbDoc(window.db,'users',obj.uid)).then(function(snap){
       var u = (snap && typeof snap.exists==='function' && snap.exists()) ? snap.data() : null;
-      var url = u && u.photoURL;
+      var url = _socPickPhoto(u);
       if(url && /^(https?:|data:image)/.test(url)){
         obj.avatar = '<img src="'+String(url).replace(/"/g,'%22')+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="">';
         clearTimeout(window._socPhotoT);
@@ -1208,7 +1209,7 @@ function _socLoadMembresFirebase(){
       var roleLabel = { admin:'Admin', super_admin:'Super Admin', establishment:'Établissement', chauffeur:'Chauffeur', membre:'Membre Premium', user:'Membre' }[data.role||'user'] || 'Membre';
       var pseudo = data.pseudo || data.displayName || (data.email ? data.email.split('@')[0] : 'Membre');
       var initials = pseudo.slice(0,2).toUpperCase();
-      var avatar = (data.photoURL && /^(https?:|data:image)/.test(data.photoURL)) ? '<img src="'+String(data.photoURL).replace(/"/g,'%22')+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="">' : (data.avatarEmoji || _socInitialsAvatar(initials));
+      var avatar = (_socPickPhoto(data) && /^(https?:|data:image)/.test(_socPickPhoto(data))) ? '<img src="'+String(_socPickPhoto(data)).replace(/"/g,'%22')+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="">' : (data.avatarEmoji || _socInitialsAvatar(initials));
       allUsers.push({
         uid:    d.id,
         name:   pseudo,
@@ -1840,6 +1841,17 @@ window.quickAddFriend = function(uid, name){
 };
 
 /* ════════════ MODALE PROFIL MEMBRE ════════════ */
+function _socPickPhoto(u){
+  if(!u) return '';
+  var ok=function(v){ return typeof v==='string' && /^(https?:\/\/|data:image)/.test(v); };
+  if(ok(u.photoURL)) return u.photoURL;
+  var ks=Object.keys(u);
+  for(var i=0;i<ks.length;i++){
+    var k=ks[i];
+    if(/photo|avatar|image|picture/i.test(k) && !/identity|ident|cni|passport|doc|piece/i.test(k) && ok(u[k])) return u[k];
+  }
+  return '';
+}
 function _socPhotoImg(url){
   return '<img src="'+String(url).replace(/"/g,'%22')+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="">';
 }
@@ -1853,7 +1865,7 @@ function _socFetchUser(uid){
 function _socEnrichProfile(f){
   var av=document.querySelector('#mpBody .member-profile-avatar');
   _socFetchUser(f.uid).then(function(u){
-    var url=u.photoURL;
+    var url=_socPickPhoto(u);
     var b=document.querySelector('#mpBody .member-profile-bio');
     if(av && url && /^(https?:|data:image)/.test(url)){ av.innerHTML=_socPhotoImg(url); av.style.overflow='hidden'; }
     else if(b){ b.textContent += ' • [id '+String(f.uid).slice(0,8)+' | champs: '+Object.keys(u).join(',')+']'; }
@@ -1874,7 +1886,7 @@ window.openFullProfile = function(uid){
   _socFetchUser(uid).then(function(u){
     var nm=u.pseudo||u.displayName||u.name||(u.email?u.email.split('@')[0]:'Membre');
     var t=document.getElementById('mpTitle'); if(t) t.textContent=nm;
-    var av=(u.photoURL&&/^(https?:|data:image)/.test(u.photoURL))?_socPhotoImg(u.photoURL):(u.avatarEmoji||'👤');
+    var _pu=_socPickPhoto(u); var av=_pu?_socPhotoImg(_pu):(u.avatarEmoji||'👤');
     var since='';
     try{ if(u.createdAt){ var d=u.createdAt.toDate?u.createdAt.toDate():new Date(u.createdAt); if(!isNaN(d)) since=d.toLocaleDateString('fr'); } }catch(e){}
     var rows=[['Ville',u.ville||u.establishment||u.city],['Rôle',u.role],['Bio',u.bio||u.description],['Membre depuis',since]];
@@ -2423,8 +2435,8 @@ window.openDM = function(uid){
   var avEl=document.getElementById('dmPeerAv');
   var nameEl=document.getElementById('dmPeerName');
   var peerName = friend.name||friend.pseudo||'Inconnu';
-  if(avEl)   avEl.textContent   = friend.avatar || (peerName[0]||'?').toUpperCase();
-  if(nameEl) nameEl.textContent = peerName;
+  if(avEl){ var _fa=friend.avatar||(peerName[0]||'?').toUpperCase(); if(String(_fa).indexOf('<img')===0){ avEl.innerHTML=_fa; avEl.style.overflow='hidden'; } else { avEl.textContent=_fa; } }
+  if(nameEl){ nameEl.textContent=(peerName.indexOf('@')>0?peerName.split('@')[0]:peerName); nameEl.style.cssText+=';min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'; if(nameEl.parentElement){ nameEl.parentElement.style.minWidth='0'; nameEl.parentElement.style.flex='1'; } }
 
   var inp=document.getElementById('dmInput');
   if(inp) inp.value='';
