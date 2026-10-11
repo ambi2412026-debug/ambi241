@@ -1522,7 +1522,9 @@ function renderSuggestions(){
     h += '<button class="soc-suggest-add" onclick="quickAddFriend(\''+s.uid+'\',\''+esc(s.name)+'\')">+ Ajouter</button>';
     h += '</div>';
   });
-  el.innerHTML = h || '<div style="padding:0.6rem 1rem;font-size:0.75rem;color:var(--muted);">Aucune suggestion disponible</div>';
+  el.innerHTML = h;
+  var _sugStrip = el.closest ? el.closest('.soc-suggest-strip') : null;
+  if(_sugStrip) _sugStrip.style.display = h ? '' : 'none';
 }
 
 /* ════════════ REQUESTS RENDER ════════════ */
