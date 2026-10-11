@@ -1841,6 +1841,7 @@ window.quickAddFriend = function(uid, name){
 };
 
 /* ════════════ MODALE PROFIL MEMBRE ════════════ */
+window._socPickPhoto=_socPickPhoto; window._socFetchUser=_socFetchUser;
 function _socPickPhoto(u){
   if(!u) return '';
   var ok=function(v){ return typeof v==='string' && /^(https?:\/\/|data:image)/.test(v); };
@@ -2705,7 +2706,7 @@ function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
   var cache={};
   function photoFor(uid){
     if(!uid) return Promise.resolve('');
-    if(!cache[uid]) cache[uid]=_socFetchUser(uid).then(function(u){ return _socPickPhoto(u); }).catch(function(){ return ''; });
+    if(!cache[uid]) cache[uid]=window._socFetchUser(uid).then(function(u){ return window._socPickPhoto(u); }).catch(function(){ return ''; });
     return cache[uid];
   }
   function fill(){

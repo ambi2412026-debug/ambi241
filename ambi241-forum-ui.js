@@ -233,6 +233,24 @@
     return {};
   }
 
+    var _pc = window._socPhotoCache = window._socPhotoCache || {};
+  function _msgPhotoP(uid){
+    if(typeof window._socFetchUser!=='function' || typeof window._socPickPhoto!=='function') return Promise.resolve('');
+    if(!_pc[uid]) _pc[uid] = window._socFetchUser(uid).then(function(u){ return window._socPickPhoto(u); }).catch(function(){ return ''; });
+    return _pc[uid];
+  }
+  function _fillMsgPh(box){
+    box.querySelectorAll('.msg-row').forEach(function(row){
+      var uid=row.getAttribute('data-uid'); var av=row.querySelector('.soc-avatar');
+      if(!uid||!av) return;
+      _msgPhotoP(uid).then(function(url){
+        if(!url || av.querySelector('img')) return;
+        av.innerHTML='<img src="'+String(url).replace(/"/g,'%22')+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block" alt="">';
+        av.style.overflow='hidden';
+      });
+    });
+  }
+
   function renderMessages() {
     var box = document.getElementById('msgList');
     if (!box) return;
@@ -259,7 +277,7 @@
            (c.unread > 0 ? '<span class="msg-unread">' + (c.unread > 99 ? '99+' : c.unread) + '</span>' : '') +
            '</div></div></div>';
     });
-    box.innerHTML = h;
+    box.innerHTML = h; _fillMsgPh(box);
   }
 
   loadCss();
