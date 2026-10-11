@@ -1891,16 +1891,17 @@ window.openFullProfile = function(uid){
     var since='';
     try{ if(u.createdAt){ var d=u.createdAt.toDate?u.createdAt.toDate():new Date(u.createdAt); if(!isNaN(d)) since=d.toLocaleDateString('fr'); } }catch(e){}
     var rows=[['Ville',u.ville||u.establishment||u.city],['Rôle',u.role],['Bio',u.bio||u.description],['Membre depuis',since]];
+    var _eo=u.etab; var _en=(_eo&&typeof _eo==='object')?(_eo.nom||_eo.name||_eo.nomEtab||_eo.etablissement||''):''; if(_en&&typeof _en==='string') rows.unshift(['Établissement',_en]);
     var _fn=u.displayName||u.name||u.fullName; if(_fn && _fn!==nm) rows.unshift(['Nom',_fn]);
     var _seen={pseudo:1,displayName:1,name:1,fullName:1,ville:1,establishment:1,city:1,role:1,bio:1,description:1,createdAt:1};
-    var _bad=/pass|pwd|token|fcm|mail|phone|tel|whatsapp|mobile|identity|ident|cni|passport|doc|piece|photo|avatar|image|picture|url|id$|iban|card|carte|secret|key|device|login|updated|status|verified/i;
+    var _bad=/^dob$|pass|pwd|token|fcm|mail|phone|tel|whatsapp|mobile|identity|ident|cni|passport|doc|piece|photo|avatar|image|picture|url|id$|iban|card|carte|secret|key|device|login|updated|status|verified/i;
     Object.keys(u).sort().forEach(function(k){
       var v=u[k]; if(_seen[k]||_bad.test(k)) return;
       if(typeof v!=='string'&&typeof v!=='number') return;
       v=String(v).replace(/[<>]/g,'').trim();
       if(!v||v.length>300||/^data:|^https?:/i.test(v)) return;
       var lab=k.replace(/([A-Z])/g,' $1').replace(/[_-]+/g,' ').replace(/^./,function(c){return c.toUpperCase();});
-      rows.splice(rows.length-1,0,[lab,v]);
+      var _L={prenom:'Prénom',nom:'Nom',memberType:'Type de membre'}; rows.splice(rows.length-1,0,[_L[k]||lab,v]);
     });
     var h='<div class="member-profile-header"><div class="member-profile-avatar" style="overflow:hidden;width:150px;height:150px">'+av+'</div><div class="member-profile-name">'+esc(nm)+'</div></div><div style="padding:0.8rem 1rem">';
     rows.forEach(function(r){ if(r[1]) h+='<div style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.06)"><div style="font-size:0.65rem;font-weight:800;text-transform:uppercase;color:var(--muted)">'+r[0]+'</div><div style="font-size:0.9rem;color:var(--text)">'+esc(String(r[1]))+'</div></div>'; });
