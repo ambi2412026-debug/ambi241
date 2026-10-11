@@ -19,7 +19,7 @@
   function loadCss() {
     if (document.getElementById('ambi241ForumUiCss')) return;
     var l = document.createElement('link');
-    l.id = 'ambi241ForumUiCss'; l.rel = 'stylesheet'; l.href = 'ambi241-forum-ui.css?v=3';
+    l.id = 'ambi241ForumUiCss'; l.rel = 'stylesheet'; l.href = 'ambi241-forum-ui.css?v=2';
     document.head.appendChild(l);
   }
 
@@ -82,7 +82,20 @@
     paneAmis.parentNode.insertBefore(pm, paneAmis);
     pm.querySelector('#msgList').addEventListener('click', function (e) {
       var row = e.target.closest ? e.target.closest('.msg-row') : null;
-      if (row && typeof window.openDM === 'function') window.openDM(row.getAttribute('data-uid'));
+      if (!row || typeof window.openDM !== 'function') return;
+      var uid = row.getAttribute('data-uid');
+      var fr = window._friends, temp = null;
+      if (Array.isArray(fr) && !fr.some(function (x) { return x && x.uid === uid; })) {
+        var pe = findPerson(uid);
+        temp = { uid: uid, name: pe.name || 'Membre', avatar: pe.avatar || '' };
+        fr.push(temp);
+      }
+      window.openDM(uid);
+      if (temp) {
+        var i = fr.indexOf(temp);
+        if (i !== -1) fr.splice(i, 1);
+        if (typeof window.renderFriends === 'function') { try { window.renderFriends(); } catch (err) {} }
+      }
     });
 
     // 5. section « Demandes d'amis » en tête du volet Amis (les nœuds sont déplacés, pas copiés)
@@ -181,6 +194,26 @@
     }, function () {});
   }
 
+  var nameCache = {};
+  var usersState = 0;
+  function loadUsers() {
+    if (usersState) return;
+    if (!window.db || !window.fbGetDocs || !window.fbCollection) return;
+    usersState = 1;
+    window.fbGetDocs(window.fbCollection(window.db, 'users')).then(function (snap) {
+      snap.forEach(function (d) {
+        var x = d.data() || {};
+        var n = x.name || x.pseudo || x.displayName;
+        if (!n) return;
+        var rec = { name: n, avatar: x.avatarEmoji || '' };
+        nameCache[d.id] = rec;
+        if (x.uid) nameCache[x.uid] = rec;
+      });
+      usersState = 2;
+      renderMessages();
+    }).catch(function () { usersState = 2; });
+  }
+
   function findPerson(uid) {
     var srcs = [window._friends, window._requestsOut, window._requestsIn, window._blocked, window._suggestions];
     for (var i = 0; i < srcs.length; i++) {
@@ -196,6 +229,7 @@
         if (n && n.textContent.trim()) return { uid: uid, name: n.textContent.trim() };
       }
     }
+    if (nameCache[uid]) return nameCache[uid];
     return {};
   }
 
@@ -214,6 +248,7 @@
     var h = '';
     convs.forEach(function (c) {
       var f = findPerson(c.uid);
+      if (!f.name) loadUsers();
       var name = f.name || 'Membre';
       var av = (f.avatar && f.avatar !== '👤') ? f.avatar : esc((name[0] || '?').toUpperCase());
       var prev = (c.from === me ? 'Toi : ' : '') + String(c.last).substring(0, 70);
