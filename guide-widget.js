@@ -8,8 +8,8 @@
     adminPathRegex: /admin/i,
     // Menu ☰ d'AMBI241 : <div class="sitenav-item"> dans #siteNavPanel → la ligne est ajoutée sous le premier élément (hors « Installer »)
     menuAnchor: { selector: "#siteNavPanel .sitenav-item:not(.sitenav-item-install)" }, // null = ne pas toucher au menu
-    // Menu admin : à renseigner quand la structure de admin.html est connue (la bulle éphémère suffit en attendant)
-    menuAnchorAdmin: null,
+    // Page admin : petit bouton « ❓ Guide » ajouté dans l'en-tête, juste avant « Logout »
+    menuAnchorAdmin: { selector: ".adm-header-right .adm-logout-btn", before: true, text: "❓ Guide", style: "background:#7c3aed;border-color:#7c3aed;color:#fff;margin-right:6px" },
     menuLabel: "Comment ça marche",
     menuIcon: "❓",
     toast: { text: "❓ Nouveau ? Touchez pour découvrir comment ça marche", delayMs: 1500, durationMs: 15000, oncePerSession: true },
@@ -229,8 +229,9 @@
       if (lab) { lab.removeAttribute("id"); lab.textContent = CONFIG.menuLabel; line.appendChild(lab); }
       else line.appendChild(document.createTextNode(CONFIG.menuLabel));
     } else {
-      line.textContent = CONFIG.menuIcon + " " + CONFIG.menuLabel;
+      line.textContent = a.text || (CONFIG.menuIcon + " " + CONFIG.menuLabel);
     }
+    if (a.style) line.style.cssText += ";" + a.style;
     line.onclick = function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -245,7 +246,7 @@
     var holder = target.parentNode && target.parentNode.tagName === "LI" ? target.parentNode : target;
     var copy = holder === target ? line : holder.cloneNode(false);
     if (holder !== target) copy.appendChild(line);
-    holder.parentNode.insertBefore(copy, holder.nextSibling);
+    holder.parentNode.insertBefore(copy, a.before ? holder : holder.nextSibling);
     return true;
   }
 
