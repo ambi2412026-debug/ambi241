@@ -1563,9 +1563,9 @@ function renderRequests(){
       _requestsOut.forEach(function(r){
         h2 += '<div class="friend-card">';
         h2 += '<div class="soc-avatar" style="background:linear-gradient(135deg,var(--muted),rgba(255,255,255,0.2))">'+r.avatar+'</div>';
-        h2 += '<div class="friend-info"><div class="friend-name">'+esc(r.name)+'</div>';
+        h2 += '<div class="friend-info" style="min-width:0;flex:1;cursor:pointer" onclick="openMemberProfile(\''+r.uid+'\')"><div class="friend-name">'+esc(r.name)+'</div>';
         h2 += '<div class="friend-meta">Demande envoyée · '+esc(r.sentAt)+'</div></div>';
-        h2 += '<div class="friend-actions"><button class="friend-act-btn del" onclick="cancelRequest(\''+r.uid+'\')">Annuler</button></div>';
+        h2 += '<div class="friend-actions" style="flex-shrink:0;margin-left:auto"><button class="friend-act-btn del" style="white-space:nowrap;padding:8px 12px;font-size:.8rem" onclick="cancelRequest(\''+r.uid+'\')">Annuler</button></div>';
         h2 += '</div>';
       });
       el2.innerHTML = h2;

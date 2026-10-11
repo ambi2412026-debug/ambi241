@@ -12,7 +12,7 @@
     menuAnchorAdmin: { selector: ".adm-header-right .adm-logout-btn", before: true, text: "❓ Guide", style: "background:#7c3aed;border-color:#7c3aed;color:#fff;margin-right:6px" },
     menuLabel: "Comment ça marche",
     menuIcon: "❓",
-    toast: { text: "❓ Nouveau ? Touchez pour découvrir comment ça marche", delayMs: 1500, durationMs: 15000, oncePerSession: true },
+    toast: { text: "Comment ça marche !", delayMs: 1500, durationMs: 15000, oncePerSession: true },
     fab: { text: "❓ Guide", position: "bottom-right", showOnAdmin: false }, // bouton permanent désactivé partout
     color: "#d81b7a",
     adminPinSelector: ".pin-key", // admin.html affiche d'abord un clavier PIN : guide admin et bulle attendent son déverrouillage (null = pas de PIN)
@@ -138,7 +138,7 @@
   function injectCss() {
     var s = el("style");
     s.textContent =
-      ".gw-toast{position:fixed;left:12px;right:12px;bottom:78px;max-width:420px;margin:0 auto;background:" + C + ";color:#fff;padding:12px 40px 12px 14px;border-radius:12px;font:14px/1.4 system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.3);z-index:99998;cursor:pointer}" +
+      ".gw-toast{position:fixed;left:50%;right:auto;transform:translateX(-50%);width:max-content;bottom:78px;max-width:80%;margin:0;background:" + C + ";color:#000;padding:8px 36px 8px 14px;border-radius:12px;font:800 14px/1.3 system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.3);z-index:99998;cursor:pointer}" +
       ".gw-x{position:absolute;right:8px;top:6px;background:none;border:0;color:#fff;font-size:18px;cursor:pointer}" +
       ".gw-fab{position:fixed;bottom:16px;" + (CONFIG.fab.position.indexOf("left") > -1 ? "left" : "right") + ":14px;background:" + C + ";color:#fff;border:0;border-radius:24px;padding:12px 16px;font:600 14px system-ui,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:99997;cursor:pointer}" +
       ".gw-ov{position:fixed;inset:0;background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:10px}" +
