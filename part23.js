@@ -1856,7 +1856,7 @@ function _socEnrichProfile(f){
     var url=u.photoURL;
     var b=document.querySelector('#mpBody .member-profile-bio');
     if(av && url && /^(https?:|data:image)/.test(url)){ av.innerHTML=_socPhotoImg(url); av.style.overflow='hidden'; }
-    else if(b){ b.textContent += ' • (pas de photo enregistree)'; }
+    else if(b){ b.textContent += ' • [id '+String(f.uid).slice(0,8)+' | champs: '+Object.keys(u).join(',')+']'; }
     var nm=u.pseudo||u.displayName||u.name;
     if(!nm && f.name && f.name.indexOf('@')>0) nm=f.name.split('@')[0];
     if(nm){
