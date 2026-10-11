@@ -2729,3 +2729,82 @@ function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
   function start(){ new MutationObserver(sched).observe(document.body,{childList:true,subtree:true}); sched(); }
   if(document.body) start(); else document.addEventListener('DOMContentLoaded',start);
 })();
+
+/* _socPubClicks : photos par pseudo + clic sur nom/photo des publications */
+(function(){
+  var byName={}, byUid={};
+  var st=document.createElement('style');
+  st.textContent='.socpub-avatar,.socpub-author,.pub-avatar,.pub-author{cursor:pointer}';
+  document.head.appendChild(st);
+  function nameOf(el){
+    if(!el) return '';
+    for(var i=0;i<el.childNodes.length;i++){
+      var n=el.childNodes[i];
+      if(n.nodeType===3 && n.textContent.trim()) return n.textContent.trim();
+    }
+    return '';
+  }
+  function qUsers(field,name){
+    return window.fbGetDocs(window.fbQuery(window.fbCollection(window.db,'users'),window.fbWhere(field,'==',name),window.fbLimit(1))).then(function(snap){
+      var r=null; snap.forEach(function(d){ if(!r) r={uid:d.id,data:d.data()}; }); return r;
+    });
+  }
+  function resolve(card){
+    if(typeof window._socFetchUser!=='function') return Promise.resolve(null);
+    var uid=card.getAttribute('data-uid');
+    if(uid){
+      if(!byUid[uid]) byUid[uid]=window._socFetchUser(uid).then(function(u){ return {uid:uid,data:u}; }).catch(function(){ return null; });
+      return byUid[uid];
+    }
+    var nm=nameOf(card.querySelector('.socpub-author, .pub-author'));
+    if(!nm||!window.db||typeof window.fbQuery!=='function'||typeof window.fbWhere!=='function'||typeof window.fbLimit!=='function'||typeof window.fbGetDocs!=='function') return Promise.resolve(null);
+    if(!byName[nm]) byName[nm]=qUsers('pseudo',nm).then(function(r){ return r||qUsers('displayName',nm); }).catch(function(){ return null; });
+    return byName[nm];
+  }
+  function fill(){
+    document.querySelectorAll('.socpub-card, .pub-card').forEach(function(card){
+      if(card.getAttribute('data-ph2')) return;
+      var av=card.querySelector('.socpub-avatar, .pub-avatar');
+      if(!av) return;
+      card.setAttribute('data-ph2','1');
+      resolve(card).then(function(r){
+        if(!r) return;
+        card.setAttribute('data-uid',r.uid);
+        var url=(typeof window._socPickPhoto==='function')?window._socPickPhoto(r.data):'';
+        if(!url || av.querySelector('img')) return;
+        av.innerHTML='<img src="'+String(url).replace(/"/g,'%22')+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block" alt="">';
+        av.style.background='none'; av.style.padding='0'; av.style.overflow='hidden';
+      });
+    });
+  }
+  function lightbox(src){
+    var o=document.createElement('div');
+    o.style.cssText='position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.93);display:flex;align-items:center;justify-content:center;padding:12px';
+    o.innerHTML='<img src="'+String(src).replace(/"/g,'%22')+'" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:12px" alt="">';
+    o.addEventListener('click',function(){ o.remove(); });
+    document.body.appendChild(o);
+  }
+  function openProfile(card){
+    resolve(card).then(function(r){
+      if(!r){ if(typeof window.socToast==='function') window.socToast('Profil introuvable'); return; }
+      var om=(typeof window.openModal==='function')?window.openModal:((typeof openModal==='function')?openModal:null);
+      if(om) om('modalMemberProfile');
+      window.openFullProfile(r.uid);
+    });
+  }
+  document.addEventListener('click',function(e){
+    var t=e.target; if(!t||!t.closest) return;
+    var av=t.closest('.socpub-avatar, .pub-avatar');
+    var au=t.closest('.socpub-author, .pub-author');
+    if(!av && !au) return;
+    var card=(av||au).closest('.socpub-card, .pub-card');
+    if(!card) return;
+    e.stopPropagation(); e.preventDefault();
+    if(av){ var im=av.querySelector('img'); if(im && im.src){ lightbox(im.src); return; } }
+    openProfile(card);
+  },true);
+  var tm=null;
+  function sched(){ clearTimeout(tm); tm=setTimeout(fill,400); }
+  function start(){ new MutationObserver(sched).observe(document.body,{childList:true,subtree:true}); sched(); }
+  if(document.body) start(); else document.addEventListener('DOMContentLoaded',start);
+})();
