@@ -1393,7 +1393,7 @@ function _socLoadFriendships(meUID, allUsers){
           }
         });
       }
-      renderRequests();
+      renderRequests(); /*AMBI-SUG*/ renderSuggestions();
     },
     function(e){ console.warn('[AMBI241 Social] friend_requests_out listener error:', e); }
   );
@@ -1797,7 +1797,7 @@ window.quickAddFriend = function(uid, name){
   var meUID = window.currentUserUID;
   // Vérifier doublon
   if(_requestsOut.find(function(r){return r.uid===uid;})) {
-    socToast('⚠️ Demande déjà envoyée à '+name); return;
+    _suggestions = _suggestions.filter(function(s){return s.uid!==uid;}); renderSuggestions(); socToast('⚠️ Demande déjà envoyée à '+name); return;
   }
   _suggestions = _suggestions.filter(function(s){return s.uid!==uid;});
   _requestsOut.push({ uid:uid, name:name, avatar:'👤', sentAt:"À l'instant" });

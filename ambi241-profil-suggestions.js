@@ -1,4 +1,4 @@
-// AMBI241 — "Personnes que tu pourrais connaitre" aussi dans l'onglet Profil
+// AMBI241 — "Personnes que tu pourrais connaitre" dans l'onglet Profil, avant "Informations & Acces"
 (function () {
   'use strict';
   function logged() { var u = window.currentUserUID; return !!(u && String(u).indexOf('anon_') !== 0); }
@@ -29,14 +29,19 @@
     if (!logged()) { if (strip) strip.remove(); loadedFor = ''; return; }
     var sec = document.getElementById('sec-profil');
     if (!sec) return;
-    if (!strip || strip.parentNode !== sec) {
-      if (strip) strip.remove();
+    var t = sec.querySelector('.ambiInfo-title');
+    var anchor = t ? t.parentNode : null;
+    if (!anchor || !anchor.parentNode) { if (strip) strip.style.display = 'none'; return; }
+    if (!strip) {
       strip = document.createElement('div');
       strip.id = 'profilSuggestStrip';
       strip.className = 'soc-suggest-strip';
       strip.innerHTML = '<div class="soc-suggest-label">\u2728 Personnes que tu pourrais conna\u00eetre</div>' +
                         '<div class="soc-suggest-row" id="suggestionsRowProfil"></div>';
-      sec.insertBefore(strip, sec.firstChild);
+    }
+    strip.style.display = '';
+    if (strip.parentNode !== anchor.parentNode || strip.nextElementSibling !== anchor) {
+      anchor.parentNode.insertBefore(strip, anchor);
     }
     if (loadedFor !== window.currentUserUID) {
       loadedFor = window.currentUserUID;
