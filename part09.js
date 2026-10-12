@@ -110,7 +110,7 @@
     // Charger les vrais avatars de manière asynchrone
     setTimeout(function(){
       show.forEach(function(p){
-        var _u=p.uid||p.authorUid||p.userId||p.auteurUid||''; if(!_u) return; loadUserAvatar(_u, function(url){
+        var _u=p.uid||p.authorUid||p.userId||p.auteurUid||''; var _ld=_u?function(cb){ loadUserAvatar(_u,cb); }:function(cb){ window._pubAvByPseudo(p.pseudo||p.auteur||p.author||p.displayName||'',cb); }; _ld(function(url){
           if(!url) return;
           var el = document.getElementById("pav_"+p._id);
           if(el){
@@ -1256,4 +1256,22 @@
     showToast("&#128172; Conversation WhatsApp ouverte !");
   };
 
+})();
+
+/* _pubAvByPseudo : photo de l'auteur retrouvee par pseudo (publications sans uid) */
+(function(){
+  var byName={}, all=null;
+  function pick(d){ if(!d) return null; return d.avatarUrl || (typeof window._socPickPhoto==='function'?window._socPickPhoto(d):d.photoURL) || null; }
+  function q(field,name){
+    return window.fbGetDocs(window.fbQuery(window.fbCollection(window.db,'users'),window.fbWhere(field,'==',name),window.fbLimit(1))).then(function(sn){ var r=null; sn.forEach(function(d){ if(!r) r=d.data(); }); return r; });
+  }
+  function scan(name){
+    if(!all) all=window.fbGetDocs(window.fbQuery(window.fbCollection(window.db,'users'),window.fbLimit(300))).then(function(sn){ var a=[]; sn.forEach(function(d){ a.push(d.data()); }); return a; }).catch(function(){ return []; });
+    return all.then(function(a){ for(var i=0;i<a.length;i++){ var d=a[i]; if((d.pseudo||'')===name||(d.displayName||'')===name) return d; } return null; });
+  }
+  window._pubAvByPseudo=function(name,cb){
+    if(!name||!window.db||typeof window.fbGetDocs!=='function'||typeof window.fbQuery!=='function'||typeof window.fbCollection!=='function'||typeof window.fbLimit!=='function'){ cb(null); return; }
+    if(!byName[name]) byName[name]=(typeof window.fbWhere==='function' ? q('pseudo',name).then(function(r){ return r||q('displayName',name); }) : scan(name)).catch(function(){ return null; });
+    byName[name].then(function(d){ cb(pick(d)); });
+  };
 })();
