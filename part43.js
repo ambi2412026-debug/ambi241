@@ -939,7 +939,7 @@
 
 /* _fcAvatars : photos des auteurs dans le Fil (forum-card-avatar) */
 (function(){
-  var cache={}, stats={uid:0,req:0,ami:0}, tm=null, reported=false;
+  var cache={}, stats={uid:0,req:0,ami:0}, tm=null, reported=true;
   function okUrl(u){ return typeof u==='string' && /^(https?:|data:image)/.test(u); }
   function pick(d){ if(!d) return ''; var u=(typeof window._socPickPhoto==='function')?window._socPickPhoto(d):''; if(!u && okUrl(d.avatarUrl)) u=d.avatarUrl; return u||''; }
   function qUsers(field,name){
