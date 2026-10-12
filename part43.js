@@ -235,7 +235,7 @@
 
     el.innerHTML =
       '<div class="forum-card-header">'+
-        '<div class="forum-card-avatar">'+_esc(_letter(data.pseudo||data.author||'?'))+'</div>'+
+        '<div class="forum-card-avatar" data-fuid="'+_esc(data.uid||data.authorUid||data.userId||'')+'" data-fname="'+_esc(data.pseudo||data.author||'')+'">'+_esc(_letter(data.pseudo||data.author||'?'))+'</div>'+
         '<div class="forum-card-meta">'+
           '<div class="forum-card-author">'+_esc(data.pseudo||data.author||'Utilisateur')+
             roleBadge+
@@ -935,4 +935,65 @@
   } else {
     setTimeout(_waitFirebaseThenInit, 800);
   }
+})();
+
+/* _fcAvatars : photos des auteurs dans le Fil (forum-card-avatar) */
+(function(){
+  var cache={}, stats={uid:0,req:0,ami:0}, tm=null, reported=false;
+  function okUrl(u){ return typeof u==='string' && /^(https?:|data:image)/.test(u); }
+  function pick(d){ if(!d) return ''; var u=(typeof window._socPickPhoto==='function')?window._socPickPhoto(d):''; if(!u && okUrl(d.avatarUrl)) u=d.avatarUrl; return u||''; }
+  function qUsers(field,name){
+    return window.fbGetDocs(window.fbQuery(window.fbCollection(window.db,'users'),window.fbWhere(field,'==',name),window.fbLimit(1))).then(function(sn){ var r=null; sn.forEach(function(d){ if(!r) r=d.data(); }); return r; });
+  }
+  function friendUrl(name){
+    var fr=window._friends||[], k=String(name||'').toLowerCase();
+    for(var i=0;i<fr.length;i++){ var f=fr[i]; if(f && String(f.name||'').toLowerCase()===k){ var m=/src="([^"]+)"/.exec(String(f.avatar||'')); if(m) return m[1]; } }
+    return '';
+  }
+  function resolve(uid,name){
+    var key=uid||('n:'+String(name).toLowerCase());
+    if(cache[key]) return cache[key];
+    var p=Promise.resolve('');
+    if(uid && typeof window._socFetchUser==='function'){
+      p=window._socFetchUser(uid).then(function(u){ var x=pick(u); if(x) stats.uid++; return x; }).catch(function(){ return ''; });
+    }
+    p=p.then(function(url){
+      if(url || !name) return url;
+      if(window.db && typeof window.fbWhere==='function' && typeof window.fbQuery==='function' && typeof window.fbGetDocs==='function' && typeof window.fbCollection==='function' && typeof window.fbLimit==='function'){
+        return qUsers('pseudo',name).then(function(r){ return r||qUsers('displayName',name); }).then(function(r){ var x=pick(r); if(x) stats.req++; return x; }).catch(function(){ return ''; });
+      }
+      return '';
+    }).then(function(url){
+      if(url) return url;
+      var x=friendUrl(name); if(x) stats.ami++; return x;
+    }).then(function(url){ if(!url) delete cache[key]; return url; });
+    cache[key]=p; return p;
+  }
+  function fill(){
+    var avs=document.querySelectorAll('.forum-card-avatar'); if(!avs.length) return;
+    avs.forEach(function(av){
+      if(av.querySelector('img')) return;
+      var uid=av.getAttribute('data-fuid')||'', name=av.getAttribute('data-fname')||'';
+      if(!uid && !name) return;
+      resolve(uid,name).then(function(url){
+        if(!okUrl(url) || av.querySelector('img')) return;
+        av.innerHTML='<img src="'+String(url).replace(/"/g,'%22')+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block" alt="">';
+        av.style.background='none'; av.style.padding='0'; av.style.overflow='hidden';
+      });
+    });
+    if(!reported){
+      reported=true;
+      setTimeout(function(){
+        var box=document.createElement('div');
+        box.style.cssText='position:fixed;left:6px;right:6px;bottom:70px;z-index:100002;background:#000;color:#0f0;font:11px monospace;padding:8px;border:1px solid #0f0;word-break:break-all';
+        box.textContent='v48 Fil | avatars='+document.querySelectorAll('.forum-card-avatar').length+' | avec id/pseudo='+document.querySelectorAll('.forum-card-avatar[data-fname]').length+' | photos='+document.querySelectorAll('.forum-card-avatar img').length+' | via uid='+stats.uid+' pseudo='+stats.req+' amis='+stats.ami;
+        box.onclick=function(){ box.remove(); };
+        document.body.appendChild(box);
+        setTimeout(function(){ box.remove(); },15000);
+      },5000);
+    }
+  }
+  function sched(){ clearTimeout(tm); tm=setTimeout(fill,600); }
+  function start(){ new MutationObserver(sched).observe(document.body,{childList:true,subtree:true}); sched(); }
+  if(document.body) start(); else document.addEventListener('DOMContentLoaded',start);
 })();
