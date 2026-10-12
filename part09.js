@@ -1275,3 +1275,27 @@
     byName[name].then(function(d){ cb(pick(d)); });
   };
 })();
+
+/* _pubDiag : diagnostic temporaire du Fil (a retirer ensuite) */
+(function(){
+  var n=0, iv=setInterval(function(){
+    if(++n>40){ clearInterval(iv); return; }
+    var c=document.querySelector('.pub-card'); if(!c) return;
+    clearInterval(iv);
+    var av=c.querySelector('.pub-avatar'), au=c.querySelector('.pub-author');
+    var uid=av?av.getAttribute('data-uid'):'';
+    var nm=au&&au.childNodes[0]?au.childNodes[0].textContent:'?';
+    var msg='DIAG Fil | auteur='+nm+' | uid carte='+(uid||'VIDE')+' | mon uid='+(window.currentUserUID||'?');
+    var box=document.createElement('div');
+    box.style.cssText='position:fixed;left:6px;right:6px;bottom:70px;z-index:100002;background:#000;color:#0f0;font:11px monospace;padding:8px;border:1px solid #0f0;word-break:break-all';
+    box.onclick=function(){ box.remove(); };
+    document.body.appendChild(box);
+    function show(t){ box.textContent=msg+' | '+t; }
+    if(!uid){ show('pas de uid dans la publication'); return; }
+    if(typeof window._socFetchUser!=='function'){ show('_socFetchUser absent'); return; }
+    window._socFetchUser(uid).then(function(u){
+      var p=(typeof window._socPickPhoto==='function')?window._socPickPhoto(u):'';
+      show('profil lu OK | photo='+(p?'oui':'non')+' | champs='+Object.keys(u).join(','));
+    }).catch(function(e){ show('ERREUR lecture: '+((e&&(e.code||e.message))||'?')); });
+  },1500);
+})();
