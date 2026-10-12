@@ -671,7 +671,7 @@ var _rateUnsubs  = {}; // interval id map pour ratings
    fonction d'affichage en aval n'a besoin de changer. Le nombre de
    lectures devient prévisible et borné (cartes affichées × 3 ×
    fréquence), au lieu de dépendre du trafic de tous les visiteurs. */
-var _QUOTA_FIX_POLL_MS = 45000; // 45s — à ajuster si besoin (60000 = encore plus économe)
+var _QUOTA_FIX_POLL_MS = 120000; // 45s — à ajuster si besoin (60000 = encore plus économe)
 
 // ── Abonner un établissement à ses flux Firestore (polling) ──
 function _subscribeEtab(eid) {
@@ -697,7 +697,7 @@ function _subscribeEtab(eid) {
       }).catch(function() {});
     };
     fetchPresences(); // premier chargement immédiat (pas d'attente de 45s)
-    _presUnsubs[eidStr] = setInterval(fetchPresences, _QUOTA_FIX_POLL_MS);
+    _presUnsubs[eidStr] = setInterval(function(){ if(!document.hidden) fetchPresences(); }, _QUOTA_FIX_POLL_MS);
   }
 
   // ── Votes (sous-collection) ──────────────────────────────────
@@ -719,7 +719,7 @@ function _subscribeEtab(eid) {
       }).catch(function() {});
     };
     fetchVotes();
-    _voteUnsubs[eidStr] = setInterval(fetchVotes, _QUOTA_FIX_POLL_MS);
+    _voteUnsubs[eidStr] = setInterval(function(){ if(!document.hidden) fetchVotes(); }, _QUOTA_FIX_POLL_MS);
   }
 
   // ── Ratings / Notes (sous-collection "ratings") ──────────────
@@ -745,7 +745,7 @@ function _subscribeEtab(eid) {
       }).catch(function() {});
     };
     fetchRatings();
-    _rateUnsubs[eidStr] = setInterval(fetchRatings, _QUOTA_FIX_POLL_MS);
+    _rateUnsubs[eidStr] = setInterval(function(){ if(!document.hidden) fetchRatings(); }, _QUOTA_FIX_POLL_MS);
   }
 }
 
