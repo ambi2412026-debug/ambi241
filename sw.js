@@ -3,7 +3,7 @@
    Push Notifications + Badge + Cache offline
    ══════════════════════════════════════════════════ */
 
-const CACHE_NAME    = 'ambi241-v40';
+const CACHE_NAME    = 'ambi241-v41';
 const SHELL_CACHE   = CACHE_NAME + '-shell';
 const RUNTIME_CACHE = CACHE_NAME + '-runtime';
 
