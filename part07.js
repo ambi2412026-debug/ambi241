@@ -3760,7 +3760,7 @@ function loadUserAvatar(uid, cb){
   if(_userAvatarCache[uid] !== undefined){ if(cb) cb(_userAvatarCache[uid]); return; }
   if(!window.db){ if(cb) cb(null); return; }
   window.fbGetDoc(window.fbDoc(window.db,"users",uid)).then(function(snap){
-    var url = snap.exists() ? (snap.data().avatarUrl||null) : null;
+    var _d = snap.exists() ? snap.data() : null; var url = _d ? (_d.avatarUrl || (typeof window._socPickPhoto==='function' ? window._socPickPhoto(_d) : _d.photoURL) || null) : null;
     _userAvatarCache[uid] = url;
     if(cb) cb(url);
   }).catch(function(){ _userAvatarCache[uid]=null; if(cb) cb(null); });

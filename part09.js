@@ -110,8 +110,7 @@
     // Charger les vrais avatars de manière asynchrone
     setTimeout(function(){
       show.forEach(function(p){
-        if(!p.uid) return;
-        loadUserAvatar(p.uid, function(url){
+        var _u=p.uid||p.authorUid||p.userId||p.auteurUid||''; if(!_u) return; loadUserAvatar(_u, function(url){
           if(!url) return;
           var el = document.getElementById("pav_"+p._id);
           if(el){
