@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Diagnostic des j'aime — AMBI241</title>
+<style>
+  :root{--bg:#0b0710;--card:#17101f;--line:#2b2038;--tx:#f3eefa;--mut:#9a8fb0;--ok:#22c55e;--bad:#ef4444;--warn:#f59e0b;--pink:#ff2d9b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,sans-serif;padding:16px}
+  main{max-width:900px;margin:0 auto}
+  h1{font-size:1.25rem;margin:0 0 6px}
+  h2{font-size:1.02rem;margin:22px 0 8px;color:var(--pink)}
+  p{margin:6px 0}.mut{color:var(--mut);font-size:.88rem}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0}
+  input{width:100%;padding:10px;margin:4px 0;border-radius:8px;border:1px solid var(--line);background:#0f0a16;color:var(--tx);font-size:15px}
+  button{padding:10px 14px;border-radius:10px;border:0;background:var(--pink);color:#fff;font-weight:700;font-size:14px;margin:4px 6px 4px 0;cursor:pointer}
+  button.sec{background:#2b2038}button:disabled{opacity:.4;cursor:not-allowed}
+  .sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:10px 0}
+  .sum div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center}
+  .sum b{display:block;font-size:1.5rem}
+  .wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:560px;font-size:.86rem}
+  th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{color:var(--mut);font-weight:600}.n{text-align:right;font-variant-numeric:tabular-nums}
+  .ok{color:var(--ok)}.bad{color:var(--bad);font-weight:700}.warn{color:var(--warn);font-weight:700}
+  #log{white-space:pre-wrap;font:12px/1.4 ui-monospace,monospace;color:var(--mut)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Diagnostic des « j'aime »</h1>
+  <p class="mut">Compare, pour chaque publication du Forum, le compteur affiché au nombre réel de j'aime enregistrés (1 document par utilisateur). Lecture seule tant que vous ne touchez pas « Corriger ». Page réservée à l'administrateur : à lancer ponctuellement (elle lit toutes les publications et tous les j'aime).</p>
+
+  <div class="card" id="auth">
+    <div id="who" class="mut">Vérification de la connexion…</div>
+    <form id="loginForm" style="display:none">
+      <input id="email" type="email" autocomplete="username" placeholder="Email administrateur" required>
+      <input id="pwd" type="password" autocomplete="current-password" placeholder="Mot de passe" required>
+      <button type="submit">Se connecter</button>
+    </form>
+  </div>
+
+  <button id="run" disabled>Analyser</button>
+  <button id="fix" class="sec" disabled>Corriger les compteurs</button>
+
+  <div class="sum" id="sum"></div>
+  <div id="out"></div>
+  <div id="log" class="card" style="display:none"></div>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
+import { getFirestore, collection, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
+
+// Configuration web publique du projet (la meme que firebase-core.js)
+const app = initializeApp({
+  apiKey: "AIzaSyCx3hD28Lb9EtUrawHbTnM-6vmXdgO1ABw",
+  authDomain: "ambi241.firebaseapp.com",
+  projectId: "ambi241",
+  storageBucket: "ambi241.firebasestorage.app",
+  messagingSenderId: "422590051382",
+  appId: "1:422590051382:web:fe05eaf701a6f704c2d497"
+});
+const db = getFirestore(app), auth = getAuth(app);
+const $ = id => document.getElementById(id);
+let mismatches = [];
+
+function log(msg) { const l = $('log'); l.style.display = 'block'; l.textContent += msg + '\n'; }
+function el(tag, text, cls) { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; }
+
+setPersistence(auth, browserLocalPersistence).catch(() => {});
+onAuthStateChanged(auth, u => {
+  $('who').textContent = u ? 'Connecté : ' + (u.email || u.uid) : 'Non connecté — connectez-vous avec le compte administrateur.';
+  $('loginForm').style.display = u ? 'none' : 'block';
+  $('run').disabled = !u;
+});
+$('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  try { await signInWithEmailAndPassword(auth, $('email').value.trim(), $('pwd').value); $('pwd').value = ''; }
+  catch (err) { $('who').textContent = 'Connexion refusée : ' + (err.code || err.message); }
+});
+
+function stat(label, value, cls) { const d = el('div'); const b = el('b', String(value), cls); d.append(b, document.createTextNode(label)); return d; }
+
+async function readAll(name) {
+  const snap = await getDocs(collection(db, name));
+  return snap.docs.map(d => ({ id: d.id, data: d.data() }));
+}
+
+async function analyse() {
+  $('run').disabled = true; $('fix').disabled = true; $('out').textContent = ''; $('sum').textContent = ''; $('log').textContent = '';
+  mismatches = [];
+  let pubs, likes;
+  try { pubs = await readAll('forum_publications'); } catch (e) { log('Lecture forum_publications impossible : ' + (e.code || e.message)); $('run').disabled = false; return; }
+  try { likes = await readAll('forum_likes'); } catch (e) { log('Lecture forum_likes impossible : ' + (e.code || e.message) + ' → les règles Firestore doivent autoriser la lecture de forum_likes.'); $('run').disabled = false; return; }
+
+  const byPub = new Map(), pubIds = new Set(pubs.map(p => p.id));
+  const orphans = [], badIds = [];
+  for (const l of likes) {
+    const x = l.data, pid = x.pubId, u = x.uid;
+    if (!pid || !u) { badIds.push({ id: l.id, why: 'champ pubId ou uid manquant' }); continue; }
+    if (l.id !== pid + '_' + u) badIds.push({ id: l.id, why: 'identifiant différent de pubId_uid (doublon possible)' });
+    if (!pubIds.has(pid)) { orphans.push({ id: l.id, pid }); continue; }
+    byPub.set(pid, (byPub.get(pid) || 0) + 1);
+  }
+
+  const rows = pubs.map(p => {
+    const raw = p.data.likes, stored = Number(raw);
+    const actual = byPub.get(p.id) || 0;
+    let status = 'ok';
+    if (raw === undefined) status = actual ? 'absent' : 'ok';
+    else if (!isFinite(stored)) status = 'invalide';
+    else if (stored < 0) status = 'negatif';
+    else if (stored !== actual) status = 'ecart';
+    return { id: p.id, author: p.data.pseudo || p.data.author || '?', text: String(p.data.text || '').slice(0, 40), stored: raw === undefined ? '—' : stored, actual, status };
+  });
+  mismatches = rows.filter(r => r.status !== 'ok');
+
+  const sum = $('sum');
+  sum.append(stat('publications', pubs.length), stat('j\'aime enregistrés', likes.length),
+    stat('compteurs faux', mismatches.length, mismatches.length ? 'bad' : 'ok'),
+    stat('j\'aime orphelins', orphans.length, orphans.length ? 'warn' : 'ok'),
+    stat('ids anormaux', badIds.length, badIds.length ? 'warn' : 'ok'));
+
+  const labels = { ok: 'OK', ecart: 'Écart', negatif: 'Négatif', absent: 'Champ absent', invalide: 'Invalide' };
+  const wrap = el('div', undefined, 'wrap'), t = el('table');
+  const head = el('tr'); ['Publication', 'Compteur affiché', 'J\'aime réels', 'État'].forEach(h => head.append(el('th', h)));
+  t.append(head);
+  rows.sort((a, b) => (a.status === 'ok') - (b.status === 'ok'));
+  for (const r of rows) {
+    const tr = el('tr'); r.tr = tr;
+    tr.append(el('td', r.author + ' · ' + (r.text || r.id)), el('td', r.stored, 'n'), el('td', r.actual, 'n'));
+    r.cell = el('td', labels[r.status], r.status === 'ok' ? 'ok' : 'bad'); tr.append(r.cell); t.append(tr);
+  }
+  wrap.append(t); $('out').append(el('h2', 'Publications du Forum'), wrap);
+
+  if (orphans.length || badIds.length) {
+    const box = el('div', undefined, 'card');
+    orphans.slice(0, 30).forEach(o => box.append(el('div', 'Orphelin : ' + o.id + ' (publication ' + o.pid + ' supprimée)', 'mut')));
+    badIds.slice(0, 30).forEach(o => box.append(el('div', 'Anormal : ' + o.id + ' — ' + o.why, 'mut')));
+    $('out').append(el('h2', 'Anomalies dans forum_likes'), box);
+  }
+  $('run').disabled = false;
+  $('fix').disabled = mismatches.length === 0;
+  $('fix').textContent = 'Corriger ' + mismatches.length + ' compteur(s)';
+}
+
+async function repair() {
+  if (!mismatches.length) return;
+  if (!confirm('Remplacer le compteur de ' + mismatches.length + ' publication(s) par le nombre réel de j\'aime enregistrés ?')) return;
+  $('fix').disabled = true; $('run').disabled = true;
+  let done = 0, failed = 0;
+  for (const r of mismatches) {
+    try { await updateDoc(doc(db, 'forum_publications', r.id), { likes: r.actual }); r.cell.textContent = 'Corrigé → ' + r.actual; r.cell.className = 'ok'; done++; }
+    catch (e) { r.cell.textContent = 'Refusé (' + (e.code || e.message) + ')'; r.cell.className = 'bad'; failed++; }
+  }
+  log(done + ' compteur(s) corrigé(s), ' + failed + ' refusé(s).' + (failed ? ' Refus = les règles Firestore n\'autorisent pas cette écriture pour ce compte.' : ''));
+  $('run').disabled = false;
+}
+
+$('run').addEventListener('click', analyse);
+$('fix').addEventListener('click', repair);
+</script>
+</body>
+</html>

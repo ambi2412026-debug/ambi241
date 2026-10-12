@@ -84,18 +84,10 @@
       var row = e.target.closest ? e.target.closest('.msg-row') : null;
       if (!row || typeof window.openDM !== 'function') return;
       var uid = row.getAttribute('data-uid');
-      var fr = window._friends, temp = null;
-      if (Array.isArray(fr) && !fr.some(function (x) { return x && x.uid === uid; })) {
-        var pe = findPerson(uid);
-        temp = { uid: uid, name: pe.name || 'Membre', avatar: pe.avatar || '' };
-        fr.push(temp);
-      }
+      if (!uid) return;
+      var pe = findPerson(uid);
+      window._dmPeerHint = { uid: uid, name: pe.name || 'Membre', avatar: pe.avatar || '' };
       window.openDM(uid);
-      if (temp) {
-        var i = fr.indexOf(temp);
-        if (i !== -1) fr.splice(i, 1);
-        if (typeof window.renderFriends === 'function') { try { window.renderFriends(); } catch (err) {} }
-      }
     });
 
     // 5. section « Demandes d'amis » en tête du volet Amis (les nœuds sont déplacés, pas copiés)

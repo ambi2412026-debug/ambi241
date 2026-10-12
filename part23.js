@@ -2431,6 +2431,13 @@ window.openDM = function(uid){
     return;
   }
   var friend = (_friends||[]).find(function(x){ return x.uid===uid; });
+  /* Conversation ouverte depuis l'onglet Messages : la personne n'est pas forcément dans la liste d'amis.
+     On utilise les infos transmises par l'onglet (nom/avatar) au lieu de bloquer avec « Ami introuvable ». */
+  if(!friend && uid){
+    var _hint = window._dmPeerHint;
+    friend = (_hint && _hint.uid===uid) ? _hint : { uid: uid, name: 'Membre', avatar: '' };
+  }
+  window._dmPeerHint = null;
   if(!friend){ if(typeof socToast==='function') socToast('⚠️ Ami introuvable'); return; }
 
   if(typeof _dmUnsub==='function'){ _dmUnsub(); _dmUnsub=null; }

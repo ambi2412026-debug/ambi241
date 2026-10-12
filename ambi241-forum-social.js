@@ -48,7 +48,12 @@
     var orig = window.forumToggleLike;
     var w = function (id, btn) {
       var r = orig.apply(this, arguments);
-      try { if (btn && btn.classList.contains('liked')) notifyLike(id); } catch (e) {}
+      try {
+        if (r && typeof r.then === 'function') {
+          /* j'aime v2 : on notifie seulement si le j'aime a vraiment ete enregistre */
+          r.then(function (res) { if (res && res.liked && res.changed) notifyLike(id); }).catch(function () {});
+        } else if (btn && btn.classList.contains('liked')) notifyLike(id);
+      } catch (e) {}
       return r;
     };
     w.__nl = true;

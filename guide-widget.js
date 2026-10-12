@@ -7,7 +7,8 @@
     homePathRegex: /(^\/$|\/index\.html$|\/ambi241\/?$)/i,
     adminPathRegex: /admin/i,
     // Menu ☰ d'AMBI241 : <div class="sitenav-item"> dans #siteNavPanel → la ligne est ajoutée sous le premier élément (hors « Installer »)
-    menuAnchor: { selector: "#siteNavPanel .sitenav-item:not(.sitenav-item-install)" }, // null = ne pas toucher au menu
+    menuAnchor: null, // fusion : l'entrée « Guide AMBI241 » (en-tête + menu ☰) ouvre ce guide, pas de seconde ligne
+    legacyGuideId: "guideOverlay", // ancien guide complet (rôles, outils, lexique), accessible depuis un lien en bas du guide
     // Page admin : petit bouton « ❓ Guide » ajouté dans l'en-tête, juste avant « Logout »
     menuAnchorAdmin: { selector: ".adm-header-right .adm-logout-btn", before: true, text: "❓ Guide", style: "background:#7c3aed;border-color:#7c3aed;color:#fff;margin-right:6px" },
     menuLabel: "Comment ça marche",
@@ -195,6 +196,12 @@
     function shut() { ov.remove(); }
     close.onclick = shut;
     ov.addEventListener("click", function (e) { if (e.target === ov) shut(); });
+    var legacy = CONFIG.legacyGuideId && document.getElementById(CONFIG.legacyGuideId);
+    if (legacy) {
+      var more = el("button", { class: "gw-tab", type: "button", text: "📖 Guide complet : rôles, outils, lexique", style: "--c:" + C + ";width:calc(100% - 24px);margin:0 12px 14px" });
+      more.onclick = function () { shut(); legacy.classList.add("show"); };
+      ov.firstChild.appendChild(more);
+    }
     document.body.appendChild(ov);
     var first = tabs.querySelector('[data-id="' + start + '"]') || tabs.firstChild;
     first.click();
@@ -286,12 +293,14 @@
       } else showToast();
       if (isAdminPage && CONFIG.fab.showOnAdmin) addFab();
       // menu latéral : souvent construit ou rouvert après le chargement → on surveille la page
-      addMenuLine();
-      var timer = null;
-      new MutationObserver(function () {
-        if (document.getElementById("gw-menu") || timer) return;
-        timer = setTimeout(function () { timer = null; addMenuLine(); }, 300);
-      }).observe(document.body, { childList: true, subtree: true });
+      if (isAdminPage ? CONFIG.menuAnchorAdmin : CONFIG.menuAnchor) {
+        addMenuLine();
+        var timer = null;
+        new MutationObserver(function () {
+          if (document.getElementById("gw-menu") || timer) return;
+          timer = setTimeout(function () { timer = null; addMenuLine(); }, 300);
+        }).observe(document.body, { childList: true, subtree: true });
+      }
     }
   }
 
