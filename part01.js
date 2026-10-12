@@ -1,3 +1,4 @@
+/* _fixTypeKeys */ window.typeKeys = window.typeKeys || [];
 
 const i18n = {
   defaultLang: 'fr',

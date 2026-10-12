@@ -396,7 +396,7 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocs,
         /* .info/connected : nœud spécial Firebase indiquant la connexion WebSocket */
         var connRef = rtdbRef(rtdb, '.info/connected');
         var _connUnsub = onValue(connRef, function(snap) {
-          _connUnsub(); /* écouter une seule fois pour le boot */
+          (typeof _connUnsub==='function'&&_connUnsub()); /* écouter une seule fois pour le boot */
           if (snap.val() === true) {
             console.info('[AMBI241] RTDB connecté ✅');
             _initRTDB(fbApp);
@@ -413,7 +413,7 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocs,
         setTimeout(function() {
           if (_mode === null) {
             console.info('[AMBI241] RTDB timeout 4s, fallback Firestore');
-            _connUnsub();
+            (typeof _connUnsub==='function'&&_connUnsub());
             _initFirestore();
           }
         }, 4000);
