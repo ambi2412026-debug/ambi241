@@ -110,7 +110,7 @@
     // Charger les vrais avatars de manière asynchrone
     setTimeout(function(){
       show.forEach(function(p){
-        var _u=p.uid||p.authorUid||p.userId||p.auteurUid||''; if(!_u) return; loadUserAvatar(_u, function(url){
+        var _u=p.uid||p.authorUid||p.userId||p.auteurUid||''; if(!_u) return; window._pubAv(_u, function(url){
           if(!url) return;
           var el = document.getElementById("pav_"+p._id);
           if(el){
@@ -121,7 +121,7 @@
       });
       // Avatar de l'utilisateur connecté dans les zones de commentaire
       if(window.currentUserUID){
-        loadUserAvatar(window.currentUserUID, function(url){
+        window._pubAv(window.currentUserUID, function(url){
           if(!url) return;
           document.querySelectorAll('[id^="myCommentAvatar_"]').forEach(function(el){
             el.innerHTML = '<img src="'+url+'" alt="">';
@@ -363,7 +363,7 @@
         cmtDocs.forEach(function(item){
           var c = item.data;
           if(!c.uid) return;
-          loadUserAvatar(c.uid, function(url){
+          window._pubAv(c.uid, function(url){
             if(!url) return;
             var el = document.getElementById("cmtav_"+item.id);
             if(el){
@@ -1256,4 +1256,19 @@
     showToast("&#128172; Conversation WhatsApp ouverte !");
   };
 
+})();
+
+/* _pubAv : photos du Fil via le meme systeme que Messages/Amis */
+(function(){
+  var cache={};
+  window._pubAv=function(uid,cb){
+    if(!uid) return;
+    var fb=function(){ if(typeof window.loadUserAvatar==='function'){ try{ window.loadUserAvatar(uid,cb); }catch(e){} } };
+    if(typeof window._socFetchUser!=='function'||typeof window._socPickPhoto!=='function'){ fb(); return; }
+    if(!cache[uid]) cache[uid]=window._socFetchUser(uid).then(function(u){ return window._socPickPhoto(u)||''; }).catch(function(){ return ''; });
+    cache[uid].then(function(url){
+      if(url){ try{ cb(url); }catch(e){} }
+      else { delete cache[uid]; fb(); }
+    });
+  };
 })();
