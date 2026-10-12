@@ -46,7 +46,7 @@
     if(_pubUnsub){ _pubUnsub(); }
     var q = window.fbQuery(
       window.fbCollection(window.db, "publications"),
-      window.fbOrderBy("createdAt", "desc")
+      window.fbOrderBy("createdAt", "desc"), window.fbLimit(50)
     );
     _pubUnsub = window.fbOnSnapshot(q, function(snap){
       var prevCount = _pubData.length;
