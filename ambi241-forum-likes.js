@@ -94,7 +94,7 @@
     if (c === 'permission-denied') return "❌ J'aime non enregistré : permission refusée (règles Firestore à autoriser)";
     if (c === 'pub-missing') return "⚠️ Cette publication n'existe plus";
     if (c === 'unavailable' || (typeof navigator !== 'undefined' && navigator.onLine === false)) return "📡 Pas de connexion : j'aime non enregistré";
-    return "❌ J'aime non enregistré, réessayez";
+    return "❌ J'aime non enregistré (" + String(c || (e && e.message) || "?").slice(0,80) + ")";
   }
 
   /* valeur a afficher apres notre ecriture : si d'autres j'aime sont arrives APRES le notre, c'est le plus recent qui gagne */
