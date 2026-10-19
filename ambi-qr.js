@@ -105,12 +105,18 @@
     var b = document.createElement("button");
     b.id = "ambiQrBtn"; b.type = "button"; b.title = "Code QR AMBI 241"; b.setAttribute("aria-label", "Code QR AMBI 241");
     b.textContent = "🔳"; b.onclick = ouvrir;
-    b.style.cssText = "position:fixed;left:14px;bottom:14px;width:46px;height:46px;border-radius:50%;border:2px solid #ff2d9b;background:#0d0020;color:#fff;font-size:22px;line-height:1;padding:0;cursor:pointer;z-index:2147483000;box-shadow:0 2px 8px rgba(0,0,0,.4)";
+    b.style.cssText = "position:fixed;left:14px;bottom:14px;width:38px;height:38px;border-radius:50%;border:2px solid #ff2d9b;background:#0d0020;color:#fff;font-size:18px;line-height:1;padding:0;cursor:pointer;z-index:2147483000;box-shadow:0 2px 8px rgba(0,0,0,.4)";
     if (!pageAdmin) {
       b.style.display = "none";
       setInterval(function () { b.style.display = estAdmin() ? "block" : "none"; }, 1500);
     }
     var nv = document.querySelector(".bottom-nav"); b.style.bottom = ((nv && nv.offsetHeight) ? nv.offsetHeight + 12 : 14) + "px";
+    try { var pos = JSON.parse(localStorage.getItem("ambiQrPos") || "null"); if (pos && typeof pos.x === "number") { b.style.left = Math.max(0, Math.min(pos.x, innerWidth - 44)) + "px"; b.style.top = Math.max(0, Math.min(pos.y, innerHeight - 44)) + "px"; b.style.bottom = "auto"; } } catch (e) {}
+    var ox = 0, oy = 0, sx = 0, sy = 0, drag = false;
+    b.addEventListener("touchstart", function (e) { var t = e.touches[0], r = b.getBoundingClientRect(); sx = t.clientX; sy = t.clientY; ox = t.clientX - r.left; oy = t.clientY - r.top; drag = false; }, { passive: true });
+    b.addEventListener("touchmove", function (e) { var t = e.touches[0]; if (!drag && Math.abs(t.clientX - sx) + Math.abs(t.clientY - sy) < 10) return; drag = true; e.preventDefault(); b.style.left = Math.max(0, Math.min(innerWidth - 40, t.clientX - ox)) + "px"; b.style.top = Math.max(0, Math.min(innerHeight - 40, t.clientY - oy)) + "px"; b.style.bottom = "auto"; }, { passive: false });
+    b.addEventListener("touchend", function () { if (drag) { try { var r = b.getBoundingClientRect(); localStorage.setItem("ambiQrPos", JSON.stringify({ x: r.left, y: r.top })); } catch (e) {} setTimeout(function () { drag = false; }, 60); } });
+    b.onclick = function (e) { if (drag) { e.preventDefault(); return; } ouvrir(); };
     document.body.appendChild(b);
   }
   if (document.body) init(); else document.addEventListener("DOMContentLoaded", init);
