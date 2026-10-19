@@ -99,6 +99,7 @@
       document.body.appendChild(ov);
     });
   }
+  function estAdmin() { try { if (window.isAdmin) return true; var n = document.getElementById("navAdminSettings"); return !!(n && getComputedStyle(n).display !== "none"); } catch (e) { return false; } }
   function init() {
     if (document.getElementById("ambiQrBtn")) return;
     var b = document.createElement("button");
@@ -107,8 +108,9 @@
     b.style.cssText = "position:fixed;left:14px;bottom:14px;width:46px;height:46px;border-radius:50%;border:2px solid #ff2d9b;background:#0d0020;color:#fff;font-size:22px;line-height:1;padding:0;cursor:pointer;z-index:2147483000;box-shadow:0 2px 8px rgba(0,0,0,.4)";
     if (!pageAdmin) {
       b.style.display = "none";
-      setInterval(function () { b.style.display = window.isAdmin ? "block" : "none"; }, 1500);
+      setInterval(function () { b.style.display = estAdmin() ? "block" : "none"; }, 1500);
     }
+    var nv = document.querySelector(".bottom-nav"); b.style.bottom = ((nv && nv.offsetHeight) ? nv.offsetHeight + 12 : 14) + "px";
     document.body.appendChild(b);
   }
   if (document.body) init(); else document.addEventListener("DOMContentLoaded", init);
