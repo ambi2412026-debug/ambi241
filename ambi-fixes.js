@@ -36,3 +36,11 @@
   function go() { brancherFiches(); setTimeout(securiserNav, 2500); }
   if (document.readyState === "complete") go(); else window.addEventListener("load", go);
 })();
+(function () {
+  "use strict";
+  try {
+    var st = document.createElement("style");
+    st.textContent = "#_userProfileOverlay{z-index:10200 !important}";
+    (document.head || document.documentElement).appendChild(st);
+  } catch (e) {}
+})();
