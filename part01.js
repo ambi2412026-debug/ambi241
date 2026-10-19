@@ -287,7 +287,7 @@ const i18n = {
 
     /* --- Navigation bas --- */
     const navItems = document.querySelectorAll('.nav-item');
-    const navKeys = ['nav_accueil','nav_lieux','nav_tarifs','nav_contact'];
+    const navKeys = ['nav_accueil','nav_lieux','nav_tarifs','nav_fiches'];
     navItems.forEach((btn, i) => {
       if (navKeys[i] && d[navKeys[i]]) {
         const icon = btn.querySelector('.nav-icon');
