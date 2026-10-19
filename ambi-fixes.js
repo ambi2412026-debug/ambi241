@@ -49,7 +49,7 @@
   function log(m) { try { if (window.__ambiLog) window.__ambiLog(m); } catch (e) {} }
   try {
     var st = document.createElement("style");
-    st.textContent = "#notifToast{pointer-events:auto !important;cursor:pointer}";
+    st.textContent = "#notifToast.show{pointer-events:auto !important;cursor:pointer}";
     (document.head || document.documentElement).appendChild(st);
   } catch (e) {}
   var vues = {};
