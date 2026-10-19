@@ -8457,7 +8457,7 @@ function switchSection(name,btn){
     if(_f){ var _si = document.getElementById('searchInput'); if(_si) _si.value = ''; }
   }
   requestAnimationFrame(function(){
-    SECS.forEach(function(s){document.getElementById("sec-"+s).classList.toggle("section-hidden",s!==name);});
+    SECS.forEach(function(s){var _e=document.getElementById("sec-"+s);if(_e)_e.classList.toggle("section-hidden",s!==name);});
   });
   // ── LAZY LOADING : initialiser le module de la section si pas encore fait ──
   _lazyInitSection(name);
