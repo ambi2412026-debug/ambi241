@@ -88,3 +88,25 @@
   function go() { brancherPush(); brancherToast(); }
   if (document.readyState === "complete") go(); else window.addEventListener("load", go);
 })();
+(function () {
+  "use strict";
+  function log(m) { try { if (window.__ambiLog) window.__ambiLog(m); } catch (e) {} }
+  function fermer() {
+    try { if (typeof window.closeUserProfile === "function") window.closeUserProfile(); } catch (e) { log("closeUserProfile : " + e.message); }
+    ["_userProfileWrap", "_userProfileOverlay"].forEach(function (id) { var el = document.getElementById(id); if (el) el.remove(); });
+  }
+  function surCroix(e) {
+    var ov = document.getElementById("_userProfileOverlay");
+    if (!ov) return false;
+    var bs = ov.querySelectorAll("button"), x = e.clientX, y = e.clientY;
+    for (var i = 0; i < bs.length; i++) {
+      if ((bs[i].textContent || "").trim() !== "\u2715") continue;
+      var r = bs[i].getBoundingClientRect();
+      if (x >= r.left - 12 && x <= r.right + 12 && y >= r.top - 12 && y <= r.bottom + 12) return true;
+    }
+    return false;
+  }
+  document.addEventListener("click", function (e) {
+    if (surCroix(e)) { e.preventDefault(); e.stopPropagation(); log("croix profil : fermeture forcee"); fermer(); }
+  }, true);
+})();
