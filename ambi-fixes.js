@@ -7,7 +7,7 @@
     var orig = window.navHandleFiches;
     var f = function (btn) {
       try {
-        var etab = typeof userEtabIds !== "undefined" && userEtabIds && userEtabIds.length > 0;
+        var em = String(window.currentUserEmail || "").toLowerCase().trim(); var etab = !!em && typeof etablissements !== "undefined" && Array.isArray(etablissements) && etablissements.some(function (e) { return String(e.email || "").toLowerCase().trim() === em || String(e.responsable_email || "").toLowerCase().trim() === em; });
         if (window.currentUserUID && window.isAdmin && !etab) { log("Fiches : admin sans etablissement, ouverture de la page Fiches"); return window.switchSection("fiches", btn); }
       } catch (e) { log("Fiches : " + e.message); }
       return orig.apply(this, arguments);
