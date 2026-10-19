@@ -110,3 +110,32 @@
     if (surCroix(e)) { e.preventDefault(); e.stopPropagation(); log("croix profil : fermeture forcee"); fermer(); }
   }, true);
 })();
+(function () {
+  "use strict";
+  function log(m) { try { if (window.__ambiLog) window.__ambiLog(m); } catch (e) {} }
+  var dernier = 0;
+  function fermer() {
+    try { if (typeof window.closeUserProfile === "function") window.closeUserProfile(); } catch (e) {}
+    ["_userProfileWrap", "_userProfileOverlay"].forEach(function (id) { var el = document.getElementById(id); if (el) el.remove(); });
+  }
+  function surCroix(x, y) {
+    var ov = document.getElementById("_userProfileOverlay");
+    if (!ov) return false;
+    var bs = ov.querySelectorAll("button");
+    for (var i = 0; i < bs.length; i++) {
+      if ((bs[i].textContent || "").trim() !== "\u2715") continue;
+      var r = bs[i].getBoundingClientRect();
+      if (x >= r.left - 14 && x <= r.right + 14 && y >= r.top - 14 && y <= r.bottom + 14) return true;
+    }
+    return false;
+  }
+  document.addEventListener("touchend", function (e) {
+    var t = e.changedTouches && e.changedTouches[0];
+    if (!t || !surCroix(t.clientX, t.clientY)) return;
+    e.preventDefault(); e.stopPropagation();
+    if (Date.now() - dernier < 500) return;
+    dernier = Date.now();
+    log("croix profil : touchend, fermeture forcee");
+    fermer();
+  }, { capture: true, passive: false });
+})();
